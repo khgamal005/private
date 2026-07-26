@@ -1,0 +1,9 @@
+.next/
+node_modules/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+npm-debug.log*
+supabase/.branches/
+supabase/.temp/

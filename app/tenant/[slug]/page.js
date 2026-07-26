@@ -37,6 +37,8 @@ export default async function TenantOverview({params}){
       <article className="mt-kpi"><span>المهام المفتوحة</span><b>{summary.openTasks||openTasks.length}</b><small>مهام فردية ومشتركة</small></article>
       <article className={`mt-kpi ${overdue.length?'danger':''}`}><span>المهام المتأخرة</span><b>{summary.overdueTasks||overdue.length}</b><small>تحتاج متابعة أو إعادة جدولة</small></article>
       <article className="mt-kpi"><span>العملاء النشطون</span><b>{data.contacts?.length||0}</b><small>{data.employees?.length||0} موظفًا داخل المنشأة</small></article>
+      <article className="mt-kpi"><span>فريق العمل</span><b>{data.employees?.length||0}</b><small>{data.users?.length||0} حساب دخول مرتبط</small></article>
+      <article className="mt-kpi"><span>الدورات النشطة</span><b>{data.services?.length||0}</b><small>الخطة الكاملة مفعّلة</small></article>
     </section>
 
     <section className="mt-grid">
@@ -60,6 +62,30 @@ export default async function TenantOverview({params}){
             return <div className="mt-list-row" key={stage.id}><div><b>{stage.nameAr}</b><small>{items.length} فرصة</small><div className="mt-progress"><i style={{width:`${percent}%`}}/></div></div><em>{percent}%</em></div>;
           })}
           {!stages.length&&<div className="mt-empty">لم تُضبط مراحل المبيعات بعد.</div>}
+        </div>
+      </article>
+    </section>
+
+    <section className="mt-grid">
+      <article className="mt-panel">
+        <header className="mt-panel-head"><div><h3>فريق ريف المهارات</h3><p>الهيكل الأولي وحالة حسابات الدخول</p></div><Link className="mt-button soft" href={`/tenant/${slug}/team`}>إدارة الفريق</Link></header>
+        <div className="mt-panel-body mt-list">
+          {(data.employees||[]).slice(0,6).map(employee=><div className="mt-list-row" key={employee.id}>
+            <div><b>{employee.name}</b><small>{employee.jobTitle||employee.role} · {employee.department}</small></div>
+            <span className={employee.accountStatus==='active'?'mt-status active':'mt-status'}>{employee.accountStatus==='active'?'حساب نشط':'ملف وظيفي'}</span>
+          </div>)}
+          {!data.employees?.length&&<div className="mt-empty">لم يضف فريق العمل بعد.</div>}
+        </div>
+      </article>
+
+      <article className="mt-panel">
+        <header className="mt-panel-head"><div><h3>كتالوج الدورات</h3><p>البرامج الأساسية الجاهزة للتسعير والجدولة</p></div><Link className="mt-button soft" href={`/tenant/${slug}/courses`}>عرض الكتالوج</Link></header>
+        <div className="mt-panel-body mt-list">
+          {(data.services||[]).slice(0,6).map(course=><div className="mt-list-row" key={course.id}>
+            <div><b>{course.nameAr}</b><small>{course.courseCode} · {course.durationHours?`${course.durationHours} ساعة`:'المدة تحدد لاحقًا'}</small></div>
+            <span className="mt-status active">نشطة</span>
+          </div>)}
+          {!data.services?.length&&<div className="mt-empty">لم تضف دورات بعد.</div>}
         </div>
       </article>
     </section>

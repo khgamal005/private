@@ -1579,3 +1579,101 @@ body {
   .mirror-actions label{min-width:0}
   .mirror-actions button{width:100%}
 }
+
+/* Release 2.0.0-beta.5 — first live tenant, people directory, and academy */
+.mt-data-note{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  margin-bottom:18px;
+  padding:16px 18px;
+  border:1px solid #bcd8c8;
+  border-radius:15px;
+  background:#f1faf5;
+}
+.mt-data-note.warning{border-color:#ead39b;background:#fff9eb}
+.mt-data-note b{display:block;margin-bottom:4px;font-size:13px;font-weight:650!important}
+.mt-data-note p{margin:0;color:var(--mt-muted-foreground);font-size:11px;line-height:1.7}
+.mt-data-note>span{flex:0 0 auto;padding:6px 10px;border-radius:999px;background:#dff2e6;color:#28714a;font-size:10px;font-weight:650}
+.mt-data-note.warning>span{background:#f7e8bd;color:#8a6517}
+
+.mt-team-grid,.mt-course-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  padding:18px;
+}
+.mt-person-card,.mt-course-card{
+  min-width:0;
+  border:1px solid var(--mt-border);
+  border-radius:17px;
+  background:var(--mt-card);
+  box-shadow:0 18px 52px -40px rgba(15,35,70,.34);
+}
+.mt-person-card{padding:16px}
+.mt-person-card>header{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:11px;
+}
+.mt-person-avatar{
+  display:grid;
+  width:42px;
+  height:42px;
+  place-items:center;
+  border-radius:13px;
+  background:linear-gradient(145deg,var(--mt-sidebar),oklch(.4 .11 255));
+  color:#fff;
+  font-size:16px;
+  font-weight:700;
+}
+.mt-person-card h3,.mt-course-card h3{margin:0;color:var(--mt-foreground);font-size:14px;line-height:1.55}
+.mt-person-card header p{margin:3px 0 0;color:var(--mt-muted-foreground);font-size:10px}
+.mt-person-card dl,.mt-course-card dl{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  margin:15px 0;
+}
+.mt-person-card dl>div,.mt-course-card dl>div{
+  min-width:0;
+  padding:9px 10px;
+  border-radius:11px;
+  background:var(--mt-background);
+}
+.mt-person-card dt,.mt-course-card dt{color:var(--mt-muted-foreground);font-size:9px}
+.mt-person-card dd,.mt-course-card dd{margin:4px 0 0;overflow-wrap:anywhere;font-size:11px;font-weight:550}
+.mt-person-card>footer{padding-top:12px;border-top:1px solid var(--mt-border)}
+.mt-account-state{display:inline-flex;padding:6px 9px;border-radius:999px;background:#f0f2f5;color:#667385;font-size:9px}
+.mt-account-state.active{background:#e7f7ed;color:#28794a}
+.mt-inline-help{padding:11px 13px;border-radius:11px;background:var(--mt-muted);color:var(--mt-muted-foreground);font-size:10px;line-height:1.7}
+
+.mt-course-card{display:flex;flex-direction:column;overflow:hidden}
+.mt-course-card>header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:13px 15px;
+  border-bottom:1px solid var(--mt-border);
+  background:linear-gradient(105deg,var(--mt-sidebar),oklch(.34 .1 255));
+}
+.mt-course-card>header>span{color:var(--mt-sidebar-primary);font-family:var(--mt-font-en)!important;font-size:11px;font-weight:700;letter-spacing:.06em}
+.mt-course-card>div{display:grid;gap:7px;min-height:176px;padding:16px}
+.mt-course-card>div>small{color:#9b7226;font-size:9px;font-weight:650}
+.mt-course-card>div>.latin-text{margin:-3px 0 2px;color:var(--mt-muted-foreground);font-size:9px}
+.mt-course-card>div>p:last-child{margin:0;color:var(--mt-muted-foreground);font-size:10px;line-height:1.8}
+.mt-course-card dl{margin:auto 16px 16px}
+
+@media (max-width:1100px){
+  .mt-team-grid,.mt-course-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:720px){
+  .mt-data-note{align-items:flex-start;flex-direction:column}
+  .mt-team-grid,.mt-course-grid{grid-template-columns:1fr;padding:12px}
+  .mt-person-card dl,.mt-course-card dl{grid-template-columns:1fr}
+  .mt-person-card>header{grid-template-columns:auto minmax(0,1fr)}
+  .mt-person-card>header>em{grid-column:1/-1;justify-self:start}
+}

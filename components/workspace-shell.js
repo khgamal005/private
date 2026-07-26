@@ -9,7 +9,7 @@ import {WORKSPACE_KINDS} from '../lib/workspaces';
 
 const icons={
   overview:'⌂',tenants:'▦',subscriptions:'◫',content:'▤',settings:'⚙',
-  tasks:'✓',sales:'↗',incentives:'◎',people:'♙',news:'◧'
+  tasks:'✓',sales:'↗',incentives:'◎',people:'♙',courses:'▤',news:'◧'
 };
 
 function tenantGroups(slug){
@@ -22,6 +22,8 @@ function tenantGroups(slug){
       {key:'incentives',label:'الأهداف والحوافز',href:`${base}/incentives`}
     ]},
     {label:'الإدارة والمحتوى',items:[
+      {key:'people',label:'فريق العمل',href:`${base}/team`},
+      {key:'courses',label:'الدورات والبرامج',href:`${base}/courses`},
       {key:'settings',label:'الإعدادات والصلاحيات',href:`${base}/settings`},
       {key:'news',label:'الأخبار والمعارف',href:`${base}/news`}
     ]}

@@ -12,7 +12,7 @@ export default function TenantSettings({slug,initialData}){
   const [message,setMessage]=useState('');
   const [error,setError]=useState('');
   const [invitationUrl,setInvitationUrl]=useState('');
-  const users=useMemo(()=>initialData.employees||[],[initialData.employees]);
+  const users=useMemo(()=>initialData.users||[],[initialData.users]);
   const roles=initialData.roles||[];
   const invitations=initialData.invitations||[];
   const domains=initialData.domains||[];

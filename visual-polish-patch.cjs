@@ -3,12 +3,28 @@ const fs = require('fs');
 const themePath = 'app/marktone-theme.css';
 const globalsPath = 'app/globals.css';
 const cssPath = fs.existsSync(themePath) ? themePath : globalsPath;
+const logoPath = 'components/marktone-logo.js';
 
-if (!fs.existsSync(cssPath)) {
-  throw new Error('No application CSS file found for the visual polish release');
+if (!fs.existsSync(cssPath) || !fs.existsSync(logoPath)) {
+  throw new Error('Required application files were not found for the visual polish release');
 }
 
-const marker = '/* MARKTONE CONTROL ROOM POLISH RELEASE 1.8.0 */';
+let logo = fs.readFileSync(logoPath, 'utf8');
+const logoSvg = '<svg viewBox="0 0 260 92" role="img" aria-label="Marktone" xmlns="http://www.w3.org/2000/svg">';
+const directionalLogoSvg = '<svg viewBox="0 0 260 92" role="img" aria-label="Marktone" dir="ltr" style={{direction:\'ltr\',unicodeBidi:\'isolate\'}} focusable="false" xmlns="http://www.w3.org/2000/svg">';
+
+if (logo.includes(logoSvg)) {
+  logo = logo.replace(logoSvg, directionalLogoSvg);
+} else if (!logo.includes('unicodeBidi:\'isolate\'')) {
+  throw new Error('Could not apply the LTR isolation fix to the Marktone logo');
+}
+
+logo = logo
+  .replace('<text x="100" y="56"', '<text x="100" y="56" direction="ltr" textAnchor="start"')
+  .replace('<text x="101" y="74"', '<text x="101" y="74" direction="ltr" textAnchor="start"');
+fs.writeFileSync(logoPath, logo, 'utf8');
+
+const marker = '/* MARKTONE CONTROL ROOM POLISH RELEASE 1.8.1 */';
 let css = fs.readFileSync(cssPath, 'utf8');
 css = css.split(marker)[0].trimEnd();
 
@@ -28,6 +44,25 @@ ${marker}
 html,
 body {
   background: var(--mt-canvas) !important;
+}
+
+.brand-logo-link,
+.marktone-logo,
+.marktone-logo svg {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.brand-logo-link {
+  width: 100%;
+}
+
+.marktone-logo svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 260 / 92;
+  direction: ltr !important;
 }
 
 .control-shell,
@@ -237,10 +272,13 @@ body {
   }
 
   .brand-logo-link {
+    width: 100% !important;
     padding: 0 2px 13px !important;
   }
 
   .side .marktone-logo svg {
+    width: 100% !important;
+    height: auto !important;
     max-height: 74px !important;
     border-radius: 14px !important;
   }
@@ -344,6 +382,25 @@ body {
 }
 
 @media (max-width: 900px) {
+  .side .brand-logo-link {
+    width: calc(100% - 48px) !important;
+    max-width: 180px !important;
+    min-height: 0 !important;
+    margin-bottom: 12px !important;
+  }
+
+  .side .marktone-logo {
+    width: 100% !important;
+  }
+
+  .side .marktone-logo svg {
+    width: 100% !important;
+    max-width: 168px !important;
+    height: auto !important;
+    max-height: none !important;
+    flex: 0 1 auto !important;
+  }
+
   .top {
     min-height: 70px !important;
     padding-block: 11px !important;
@@ -374,6 +431,14 @@ body {
 }
 
 @media (max-width: 520px) {
+  .side .brand-logo-link {
+    max-width: 164px !important;
+  }
+
+  .side .marktone-logo svg {
+    max-width: 152px !important;
+  }
+
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
@@ -393,14 +458,3 @@ body {
 
 fs.writeFileSync(cssPath, `${css}${polishCss}\n`);
 
-const releasePath = 'public/release.json';
-const release = JSON.parse(fs.readFileSync(releasePath, 'utf8'));
-release.version = '1.8.0';
-release.release = 'control-room-visual-polish';
-release.visualSource = 'Marktone Projects';
-release.integratedNavigation = true;
-release.desktopSidebarWidth = 228;
-release.mobileMenu = 'collapsible-right-drawer';
-fs.writeFileSync(releasePath, `${JSON.stringify(release, null, 2)}\n`);
-
-console.log(`Applied Marktone control room visual polish to ${cssPath}`);

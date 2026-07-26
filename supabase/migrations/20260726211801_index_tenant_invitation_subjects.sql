@@ -1,0 +1,7 @@
+create index tenant_invitations_invited_by_subject_idx
+on access_control.tenant_invitations (invited_by_subject_id)
+where invited_by_subject_id is not null;
+
+create index tenant_invitations_accepted_by_subject_idx
+on access_control.tenant_invitations (accepted_by_subject_id)
+where accepted_by_subject_id is not null;

@@ -1,12 +1,14 @@
 {
-  "version": "2.0.0-beta.3",
-  "releasedAt": "2026-07-26T22:15:00.000Z",
+  "version": "2.0.0-beta.4",
+  "releasedAt": "2026-07-26T23:35:00.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
     "Tenant CRM remains a module inside each tenant workspace",
     "Introduced a clean database foundation independent from the failed legacy implementation",
     "Moved authentication and workspace snapshots to isolated v2 RPCs",
-    "Added lint, type checking, tests, and build validation"
+    "Added lint, type checking, tests, and build validation",
+    "Provision a tenant with its owner, plan, modules, and domain in one transaction",
+    "Invite and activate tenant users without exposing an administrative Supabase key"
   ]
 }

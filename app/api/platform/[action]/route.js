@@ -4,6 +4,7 @@ import {SUPABASE_URL,SUPABASE_KEY,ACCESS_COOKIE} from '../../../../lib/config';
 
 const RPC={
   'provision-tenant':'v2_platform_provision_tenant',
+  'invite-user':'v2_tenant_invite_user',
   'create-plan':'v2_platform_create_plan',
   'create-feature':'v2_platform_create_feature',
   'set-tenant-feature':'v2_platform_set_tenant_feature',
@@ -31,4 +32,24 @@ export async function POST(req,{params}){
     return NextResponse.json({success:true,data});
   }catch(e){return NextResponse.json({error:'تعذر تنفيذ العملية',detail:e.message},{status:500})}
 }
-function translate(x){const m={forbidden:'ليس لديك صلاحية لتنفيذ العملية',display_name_required:'اسم المنشأة مطلوب',invalid_slug:'الرابط المختصر غير صالح',slug_exists:'هذا الرابط مستخدم بالفعل',name_required:'الاسم مطلوب',tenant_not_found:'المنشأة غير موجودة',feature_not_found:'الإضافة غير موجودة',plan_not_found:'الباقة غير موجودة',invalid_status:'الحالة غير صالحة',title_required:'العنوان مطلوب',request_not_found:'الطلب غير موجود',market_account_not_found:'المنشأة غير موجودة في قاعدة السوق'};return m[x]||String(x)}
+function translate(x){const m={
+  forbidden:'ليس لديك صلاحية لتنفيذ العملية',
+  display_name_required:'اسم المنشأة مطلوب',
+  invalid_slug:'الرابط المختصر غير صالح',
+  slug_exists:'هذا الرابط مستخدم بالفعل',
+  owner_name_required:'اسم مالك المنشأة مطلوب',
+  invalid_owner_email:'بريد مالك المنشأة غير صالح',
+  invalid_email:'البريد الإلكتروني غير صالح',
+  invalid_hostname:'الدومين غير صالح؛ أدخله دون https أو مسار إضافي',
+  domain_exists:'هذا الدومين مرتبط بمنشأة أخرى',
+  invalid_role:'الدور المختار غير صالح',
+  full_name_required:'اسم المستخدم مطلوب',
+  name_required:'الاسم مطلوب',
+  tenant_not_found:'المنشأة غير موجودة',
+  feature_not_found:'الإضافة غير موجودة',
+  plan_not_found:'الباقة غير موجودة أو غير مفعلة',
+  invalid_status:'الحالة غير صالحة',
+  title_required:'العنوان مطلوب',
+  request_not_found:'الطلب غير موجود',
+  market_account_not_found:'المنشأة غير موجودة في قاعدة السوق'
+};return m[x]||String(x)}

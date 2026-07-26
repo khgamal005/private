@@ -458,3 +458,16 @@ body {
 
 fs.writeFileSync(cssPath, `${css}${polishCss}\n`);
 
+const releasePath = 'public/release.json';
+const release = JSON.parse(fs.readFileSync(releasePath, 'utf8'));
+release.version = '1.8.1';
+release.release = 'logo-direction-and-mobile-fit';
+release.visualSource = 'Marktone Projects';
+release.integratedNavigation = true;
+release.desktopSidebarWidth = 228;
+release.mobileMenu = 'collapsible-right-drawer';
+release.logoDirection = 'ltr-isolated';
+release.logoMobileFit = true;
+fs.writeFileSync(releasePath, `${JSON.stringify(release, null, 2)}\n`);
+
+console.log(`Applied Marktone control room visual polish to ${cssPath}`);

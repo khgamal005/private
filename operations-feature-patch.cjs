@@ -19,9 +19,16 @@ export const dynamic = 'force-dynamic';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://gswpbwdactcstkasddta.supabase.co';
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_bbfZERLAC2GzJxauAG_-Ng_c2dtZWzE';
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function json(body,status=200){return NextResponse.json(body,{status,headers:{'cache-control':'no-store'}})}
+function publicFailure(error){
+  const code=String(error?.code||'');const message=String(error?.message||'');
+  const value=(code+' '+message).toLowerCase();
+  if(/42501|forbidden|not_allowed|outside_tenant|cannot_assign|identity_not_provisioned/.test(value))return {status:403,message:'ليس لديك صلاحية لتنفيذ هذا الإجراء.'};
+  if(/p0002|not_found/.test(value))return {status:404,message:'العنصر المطلوب غير موجود.'};
+  if(/invalid|required|must_be|start_after|no_available|batch_not_ready/.test(value))return {status:400,message:'تعذر تنفيذ الطلب. راجع البيانات المدخلة وحاول مرة أخرى.'};
+  return {status:Number(error?.status)>=400&&Number(error?.status)<500?Number(error.status):500,message:'تعذر تنفيذ الطلب الآن. حاول مرة أخرى لاحقًا.'};
+}
 function decodeBase64(value){try{return Buffer.from(value.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8')}catch{return ''}}
 function tokenFromValue(input){
   if(!input)return null;
@@ -59,20 +66,15 @@ async function verifyToken(token){
 }
 async function resolveUser(request){
   for(const token of cookieTokenCandidates(request)){
-    const user=await verifyToken(token);if(user?.id)return user;
-  }
-  const fallbackEmail=request.headers.get('x-operations-email');
-  if(fallbackEmail&&request.cookies.getAll().length&&SERVICE_ROLE_KEY){
-    const response=await fetch(SUPABASE_URL+'/auth/v1/admin/users?per_page=1000',{headers:{apikey:SERVICE_ROLE_KEY,authorization:'Bearer '+SERVICE_ROLE_KEY},cache:'no-store'});
-    if(response.ok){const payload=await response.json();const user=(payload.users||[]).find(x=>String(x.email||'').toLowerCase()===fallbackEmail.toLowerCase());if(user)return user;}
+    const user=await verifyToken(token);if(user?.id)return {user,token};
   }
   return null;
 }
-async function rpc(name,args){
-  if(!SERVICE_ROLE_KEY)throw new Error('SUPABASE_SERVICE_ROLE_KEY is missing');
-  const response=await fetch(SUPABASE_URL+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:SERVICE_ROLE_KEY,authorization:'Bearer '+SERVICE_ROLE_KEY,'content-type':'application/json'},body:JSON.stringify(args),cache:'no-store'});
+async function rpc(name,args,token){
+  if(!token)throw new Error('AUTH_SESSION_REQUIRED');
+  const response=await fetch(SUPABASE_URL+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:PUBLISHABLE_KEY,authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify(args),cache:'no-store'});
   const payload=await response.json().catch(()=>null);
-  if(!response.ok)throw new Error(payload?.message||payload?.error||('RPC '+name+' failed'));
+  if(!response.ok){const error=new Error(payload?.message||payload?.error||('RPC '+name+' failed'));error.code=payload?.code||null;error.status=response.status;throw error}
   return payload;
 }
 function tenantSlug(request,body){return body?.tenantSlug||new URL(request.url).searchParams.get('tenantSlug')||null}
@@ -92,10 +94,11 @@ function normalizeRows(sheet){
 export async function GET(request,{params}){
   try{
     const {action}=await params;
-    const user=await resolveUser(request);if(!user)return json({error:'غير مصرح. أعد تسجيل الدخول.'},401);
+    const session=await resolveUser(request);if(!session)return json({error:'غير مصرح. أعد تسجيل الدخول.'},401);
+    const {user,token}=session;
     const url=new URL(request.url);const slug=url.searchParams.get('tenantSlug')||null;
-    if(action==='bootstrap')return json(await rpc('operations_bootstrap',{...userArgs(user,slug)}));
-    if(action==='calendar')return json(await rpc('operations_calendar',{p_user_id:user.id,p_tenant_slug:slug,p_from:url.searchParams.get('from'),p_to:url.searchParams.get('to'),p_scope:url.searchParams.get('scope')||'mine'}));
+    if(action==='bootstrap')return json(await rpc('operations_bootstrap',{...userArgs(user,slug)},token));
+    if(action==='calendar')return json(await rpc('operations_calendar',{p_user_id:user.id,p_tenant_slug:slug,p_from:url.searchParams.get('from'),p_to:url.searchParams.get('to'),p_scope:url.searchParams.get('scope')||'mine'},token));
     if(action==='template'){
       const sheet=XLSX.utils.aoa_to_sheet([
         ['الاسم','رقم الهاتف','البرنامج أو الدورة','اسم الإعلان'],
@@ -107,31 +110,33 @@ export async function GET(request,{params}){
       return new NextResponse(buffer,{status:200,headers:{'content-type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','content-disposition':'attachment; filename="marktone-customers-template.xlsx"','cache-control':'no-store'}});
     }
     return json({error:'الإجراء غير موجود'},404);
-  }catch(error){return json({error:error.message||'حدث خطأ'},500)}
+  }catch(error){const failure=publicFailure(error);return json({error:failure.message},failure.status)}
 }
 
 export async function POST(request,{params}){
   try{
     const {action}=await params;
-    const user=await resolveUser(request);if(!user)return json({error:'غير مصرح. أعد تسجيل الدخول.'},401);
+    const session=await resolveUser(request);if(!session)return json({error:'غير مصرح. أعد تسجيل الدخول.'},401);
+    const {user,token}=session;
     if(action==='upload'){
       const form=await request.formData();const file=form.get('file');const slug=String(form.get('tenantSlug')||'')||null;
       if(!file||typeof file.arrayBuffer!=='function')return json({error:'اختر ملف Excel أو CSV'},400);
+      if(file.size>10*1024*1024)return json({error:'الحد الأقصى لحجم الملف 10 ميجابايت'},413);
       const buffer=Buffer.from(await file.arrayBuffer());
       const workbook=XLSX.read(buffer,{type:'buffer',cellDates:true});
       const sheet=workbook.Sheets[workbook.SheetNames[0]];const rows=normalizeRows(sheet);
       if(!rows.length)return json({error:'لم يتم العثور على بيانات مطابقة للنموذج'},400);
       if(rows.length>10000)return json({error:'الحد الأقصى 10,000 عميل في الملف الواحد'},400);
-      return json(await rpc('operations_import_batch',{p_user_id:user.id,p_tenant_slug:slug,p_file_name:file.name||'customers.xlsx',p_rows:rows}));
+      return json(await rpc('operations_import_batch',{p_user_id:user.id,p_tenant_slug:slug,p_file_name:file.name||'customers.xlsx',p_rows:rows},token));
     }
     const body=await request.json().catch(()=>({}));const slug=tenantSlug(request,body);
-    if(action==='heartbeat')return json(await rpc('operations_heartbeat',{...userArgs(user,slug)}));
-    if(action==='team')return json(await rpc('operations_upsert_team',{p_user_id:user.id,p_tenant_slug:slug,p_team_id:body.teamId||null,p_name:body.name,p_manager_user_id:body.managerUserId||null,p_member_ids:body.memberIds||[]}));
-    if(action==='distribute')return json(await rpc('operations_distribute',{p_user_id:user.id,p_batch_id:body.batchId,p_team_id:body.teamId,p_method:body.method,p_due_at:body.dueAt}));
-    if(action==='task')return json(await rpc('operations_create_task',{p_user_id:user.id,p_tenant_slug:slug,p_title:body.title,p_description:body.description||null,p_assigned_to:body.assignedTo||null,p_starts_at:body.startsAt||null,p_due_at:body.dueAt,p_recurrence_type:body.recurrenceType||'none',p_recurrence_interval:Number(body.recurrenceInterval||1),p_recurrence_end_at:body.recurrenceEndAt||null}));
-    if(action==='complete')return json(await rpc('operations_complete_task',{p_user_id:user.id,p_task_id:body.taskId}));
+    if(action==='heartbeat')return json(await rpc('operations_heartbeat',{...userArgs(user,slug)},token));
+    if(action==='team')return json(await rpc('operations_upsert_team',{p_user_id:user.id,p_tenant_slug:slug,p_team_id:body.teamId||null,p_name:body.name,p_manager_user_id:body.managerUserId||null,p_member_ids:body.memberIds||[]},token));
+    if(action==='distribute')return json(await rpc('operations_distribute',{p_user_id:user.id,p_batch_id:body.batchId,p_team_id:body.teamId,p_method:body.method,p_due_at:body.dueAt},token));
+    if(action==='task')return json(await rpc('operations_create_task',{p_user_id:user.id,p_tenant_slug:slug,p_title:body.title,p_description:body.description||null,p_assigned_to:body.assignedTo||null,p_starts_at:body.startsAt||null,p_due_at:body.dueAt,p_recurrence_type:body.recurrenceType||'none',p_recurrence_interval:Number(body.recurrenceInterval||1),p_recurrence_end_at:body.recurrenceEndAt||null},token));
+    if(action==='complete')return json(await rpc('operations_complete_task',{p_user_id:user.id,p_task_id:body.taskId},token));
     return json({error:'الإجراء غير موجود'},404);
-  }catch(error){return json({error:error.message||'حدث خطأ'},500)}
+  }catch(error){const failure=publicFailure(error);return json({error:failure.message},failure.status)}
 }
 `;
 
@@ -144,11 +149,10 @@ const AR_DAYS=['الأحد','الاثنين','الثلاثاء','الأربعا�
 const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 function isoLocal(date){const d=new Date(date);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16)}
 function tenantSlug(){const match=location.pathname.match(/^\/tenant\/([^/]+)/);return match?decodeURIComponent(match[1]):''}
-function detectedEmail(){const text=document.body?.innerText||'';const match=text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);return match?match[0]:''}
 async function requestApi(action,options={}){
   const slug=tenantSlug();const query=options.query||{};if(slug&&!query.tenantSlug)query.tenantSlug=slug;
   const qs=new URLSearchParams(Object.entries(query).filter(([,v])=>v!==null&&v!==undefined&&v!=='')).toString();
-  const response=await fetch('/api/operations/'+action+(qs?'?'+qs:''),{credentials:'include',headers:{...(options.body instanceof FormData?{}:{'content-type':'application/json'}),'x-operations-email':detectedEmail(),...(options.headers||{})},method:options.method||'GET',body:options.body instanceof FormData?options.body:options.body?JSON.stringify({...options.body,tenantSlug:slug||null}):undefined});
+  const response=await fetch('/api/operations/'+action+(qs?'?'+qs:''),{credentials:'include',headers:{...(options.body instanceof FormData?{}:{'content-type':'application/json'}),...(options.headers||{})},method:options.method||'GET',body:options.body instanceof FormData?options.body:options.body?JSON.stringify({...options.body,tenantSlug:slug||null}):undefined});
   const payload=await response.json().catch(()=>({error:'استجابة غير صالحة'}));if(!response.ok)throw new Error(payload.error||'تعذر تنفيذ الطلب');return payload;
 }
 function startOfMonth(value){return new Date(value.getFullYear(),value.getMonth(),1)}

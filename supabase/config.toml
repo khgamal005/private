@@ -15,3 +15,6 @@ enabled = true
 [db.seed]
 enabled = false
 sql_paths = []
+
+[functions.training-automation-dispatch]
+verify_jwt = false

@@ -12,6 +12,7 @@ export default defineConfig([
   globalIgnores([
     '.next/**',
     'node_modules/**',
-    'supabase/history/**'
+    'supabase/history/**',
+    'supabase/functions/**'
   ])
 ]);

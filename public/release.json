@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0-beta.12",
-  "releasedAt": "2026-07-27T21:50:13.000Z",
+  "version": "2.0.0-beta.13",
+  "releasedAt": "2026-07-27T22:30:42.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
@@ -43,6 +43,12 @@
     "Added explainable certificate eligibility and blocked issuance until every rule is satisfied",
     "Added issued and revoked certificate records with verification codes and printable certificate pages",
     "Added the Training Manager role with dedicated learner-operations permissions",
-    "Added four clearly marked demo learners covering eligible, low-attendance, and missing-assessment states"
+    "Added four clearly marked demo learners covering eligible, low-attendance, and missing-assessment states",
+    "Added a durable provider-neutral outbox for joining messages and session reminders",
+    "Added WhatsApp Cloud approved-template and Resend email delivery adapters",
+    "Added Zoom Server-to-Server OAuth meeting creation for online and hybrid sessions",
+    "Added five-minute Supabase Cron dispatch with Vault-protected authorization",
+    "Added provider health, retry states, deduplication, and manual communication fallbacks",
+    "Added role-protected automation settings, delivery history, and per-session Zoom controls"
   ]
 }

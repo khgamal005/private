@@ -226,6 +226,7 @@ export default function AdmissionsWorkspace({slug,initialData}){
         ?<LearnerOperationsWorkspace
           slug={slug}
           data={data.trainingOperations}
+          automation={data.trainingAutomation}
         />
         :<>
     <section className="mt-kpis mt-admissions-kpis">

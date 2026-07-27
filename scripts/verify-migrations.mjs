@@ -21,10 +21,12 @@ const admissionsIndexes='20260727223500_admissions_reference_indexes_v2.sql';
 const courseRuns='20260727230548_course_runs_and_schedules_v2.sql';
 const learnerOperations='20260728003500_learner_operations_v2.sql';
 const learnerOperationsIndexes='20260728005200_learner_operations_reference_indexes_v2.sql';
+const trainingAutomation='20260728014500_training_communications_zoom_automation_v2.sql';
+const trainingAutomationIndexes='20260728015000_training_automation_reference_indexes_v2.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -44,6 +46,8 @@ const admissionsIndexesSql=await readFile(new URL(admissionsIndexes,migrationsUr
 const courseRunsSql=await readFile(new URL(courseRuns,migrationsUrl),'utf8');
 const learnerOperationsSql=await readFile(new URL(learnerOperations,migrationsUrl),'utf8');
 const learnerOperationsIndexesSql=await readFile(new URL(learnerOperationsIndexes,migrationsUrl),'utf8');
+const trainingAutomationSql=await readFile(new URL(trainingAutomation,migrationsUrl),'utf8');
+const trainingAutomationIndexesSql=await readFile(new URL(trainingAutomationIndexes,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -145,5 +149,16 @@ assert.match(learnerOperationsIndexesSql,/assessment_results_assessor_reference_
 assert.match(learnerOperationsIndexesSql,/attendance_records_session_reference_idx/);
 assert.match(learnerOperationsIndexesSql,/student_communications_sender_reference_idx/);
 assert.match(learnerOperationsIndexesSql,/certificates_issuer_reference_idx/);
+assert.match(trainingAutomationSql,/create table academy\.training_automation_settings/);
+assert.match(trainingAutomationSql,/create table academy\.training_automation_jobs/);
+assert.match(trainingAutomationSql,/training_automation_jobs_isolated_read/);
+assert.match(trainingAutomationSql,/v2_tenant_training_automation_snapshot/);
+assert.match(trainingAutomationSql,/v2_tenant_training_automation_action/);
+assert.match(trainingAutomationSql,/v2_training_automation_claim_jobs/);
+assert.match(trainingAutomationSql,/v2_training_automation_complete_job/);
+assert.match(trainingAutomationSql,/vault\.create_secret/);
+assert.match(trainingAutomationSql,/cron\.schedule/);
+assert.match(trainingAutomationSql,/training-automation-dispatch/);
+assert.match(trainingAutomationIndexesSql,/training_automation_jobs_course_run_reference_idx/);
 
-console.log('Verified the clean v2 database, provisioning, sales guards, admissions, course runs, and learner operations.');
+console.log('Verified the clean v2 database, admissions, learner operations, and training automation.');

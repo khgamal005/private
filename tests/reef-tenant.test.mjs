@@ -80,6 +80,10 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   const admissionsMigration=await read('../supabase/migrations/20260727223000_admissions_and_sales_guards_v2.sql');
   const courseRunsMigration=await read('../supabase/migrations/20260727230548_course_runs_and_schedules_v2.sql');
   const learnerOperationsMigration=await read('../supabase/migrations/20260728003500_learner_operations_v2.sql');
+  const trainingAutomationMigration=await read('../supabase/migrations/20260728014500_training_communications_zoom_automation_v2.sql');
+  const trainingAutomationIndexes=await read('../supabase/migrations/20260728015000_training_automation_reference_indexes_v2.sql');
+  const trainingAutomationEdge=await read('../supabase/functions/training-automation-dispatch/index.ts');
+  const supabaseConfig=await read('../supabase/config.toml');
   const api=await read('../app/api/tenant/[action]/route.js');
   const data=await read('../lib/api.js');
   const sales=await read('../components/sales-workspace.js');
@@ -137,12 +141,31 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(learnerOperationsMigration,/training_manager/);
   assert.match(learnerOperationsMigration,/certificate_not_eligible/);
   assert.match(learnerOperationsMigration,/'learner-operations-v2'/);
+  assert.match(trainingAutomationMigration,/create table academy\.training_automation_jobs/);
+  assert.match(trainingAutomationMigration,/v2_tenant_training_automation_snapshot/);
+  assert.match(trainingAutomationMigration,/v2_tenant_training_automation_action/);
+  assert.match(trainingAutomationMigration,/v2_training_automation_claim_jobs/);
+  assert.match(trainingAutomationMigration,/v2_training_automation_complete_job/);
+  assert.match(trainingAutomationMigration,/training_automation_secret/);
+  assert.match(trainingAutomationMigration,/cron\.schedule/);
+  assert.match(trainingAutomationMigration,/meeting_join_url/);
+  assert.match(trainingAutomationIndexes,/training_automation_jobs_course_run_reference_idx/);
+  assert.match(trainingAutomationEdge,/graph\.facebook\.com/);
+  assert.match(trainingAutomationEdge,/api\.resend\.com\/emails/);
+  assert.match(trainingAutomationEdge,/api\.zoom\.us\/v2\/users/);
+  assert.match(trainingAutomationEdge,/ZOOM_ACCOUNT_ID/);
+  assert.match(trainingAutomationEdge,/META_WHATSAPP_JOINING_TEMPLATE/);
+  assert.doesNotMatch(trainingAutomationEdge,/start_url/);
+  assert.match(supabaseConfig,/training-automation-dispatch/);
+  assert.match(supabaseConfig,/verify_jwt = false/);
   assert.match(api,/v2_tenant_update_admission/);
   assert.match(api,/v2_tenant_save_course_run/);
   assert.match(api,/v2_tenant_update_training_operation/);
+  assert.match(api,/v2_tenant_training_automation_action/);
   assert.match(data,/v2_tenant_admissions_snapshot/);
   assert.match(data,/v2_tenant_course_runs_snapshot/);
   assert.match(data,/v2_tenant_training_operations_snapshot/);
+  assert.match(data,/v2_tenant_training_automation_snapshot/);
   assert.match(data,/v2_tenant_certificate_snapshot/);
   assert.match(shell,/tenant\.admissions\.read/);
   assert.match(admissions,/تأكيد الدفع/);
@@ -153,6 +176,11 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(learnerOperations,/الحضور حسب الجلسة/);
   assert.match(learnerOperations,/التقييم النهائي/);
   assert.match(learnerOperations,/إصدار الشهادة/);
+  assert.match(learnerOperations,/الرسائل والاجتماعات التلقائية/);
+  assert.match(learnerOperations,/إرسال آلي واتساب/);
+  assert.match(learnerOperations,/فتح واتساب يدويًا/);
+  assert.match(learnerOperations,/إنشاء الاجتماع/);
+  assert.match(learnerOperations,/سجل الرسائل والاجتماعات/);
   assert.match(certificatePage,/شهادة إتمام برنامج تدريبي/);
   assert.match(sales,/تسجيل نتيجة المتابعة/);
   assert.match(sales,/بانتظار الدفع/);
@@ -172,6 +200,9 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(styles,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles,/mt-learner-grid/);
   assert.match(styles,/mt-certificate-sheet/);
+  assert.match(styles,/mt-automation-panel/);
+  assert.match(styles,/mt-provider-grid/);
+  assert.match(styles,/mt-session-meeting/);
 });
 
 test('Reef operational sample data is clearly marked and uses placeholder contacts',async()=>{

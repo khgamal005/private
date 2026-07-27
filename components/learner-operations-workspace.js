@@ -45,6 +45,56 @@ const FILTERS=[
   ['completed','مكتملة']
 ];
 
+const PROVIDER_LABELS={
+  whatsapp_cloud:'WhatsApp Cloud',
+  resend_email:'البريد الإلكتروني',
+  zoom_meetings:'Zoom'
+};
+
+const PROVIDER_STATES={
+  ready:'متصل وجاهز',
+  missing_configuration:'بانتظار الإعداد',
+  error:'يحتاج مراجعة',
+  unknown:'لم يُفحص بعد'
+};
+
+const JOB_STATUS={
+  pending:'في الطابور',
+  processing:'جارٍ التنفيذ',
+  sent:'تم بنجاح',
+  failed:'تعذر التنفيذ',
+  waiting_configuration:'بانتظار الإعداد',
+  cancelled:'ملغاة'
+};
+
+const JOB_TYPES={
+  joining_instructions:'رسالة انضمام',
+  session_reminder_24h:'تذكير قبل 24 ساعة',
+  session_reminder_1h:'تذكير قبل ساعة',
+  zoom_meeting_create:'إنشاء اجتماع Zoom'
+};
+
+const CHANNEL_LABELS={
+  whatsapp:'واتساب',
+  email:'بريد',
+  zoom:'Zoom'
+};
+
+const MEETING_STATUS={
+  not_created:'لم يُنشأ',
+  queued:'في طابور الإنشاء',
+  ready:'جاهز',
+  failed:'تعذر الإنشاء'
+};
+
+const AUTOMATION_ERRORS={
+  provider_not_configured:'بيانات المزود غير مكتملة',
+  whatsapp_not_configured:'بيانات Meta أو القوالب المعتمدة غير مكتملة',
+  email_not_configured:'بيانات Resend غير مكتملة',
+  zoom_not_configured:'بيانات Zoom Server-to-Server OAuth غير مكتملة',
+  dispatcher_timeout:'أُعيدت المهمة بعد انتهاء مهلة المعالجة'
+};
+
 const dateTime=value=>value?new Date(value).toLocaleString('ar-SA',{
   day:'numeric',
   month:'short',
@@ -55,11 +105,36 @@ const dateTime=value=>value?new Date(value).toLocaleString('ar-SA',{
 
 const percentage=value=>value==null?'—':`${Number(value).toFixed(0)}٪`;
 
-export default function LearnerOperationsWorkspace({slug,data}){
+const automationError=value=>{
+  if(!value)return '';
+  return AUTOMATION_ERRORS[value]||String(value).replaceAll('_',' ');
+};
+
+const normalizedPhone=(value,countryCode='966')=>{
+  let phone=String(value||'').replace(/\D/g,'');
+  if(phone.startsWith('00'))phone=phone.slice(2);
+  else if(phone.startsWith('0'))phone=`${countryCode}${phone.slice(1)}`;
+  return phone;
+};
+
+export default function LearnerOperationsWorkspace({slug,data,automation}){
   const router=useRouter();
   const runs=data?.courseRuns||EMPTY;
   const summary=data?.summary||{};
-  const canManage=Boolean(data?.viewer?.canManage);
+  const canManage=Boolean(
+    data?.viewer?.canManage&&automation?.viewer?.canManage
+  );
+  const automationSettings=automation?.settings||{};
+  const automationJobs=automation?.jobs||EMPTY;
+  const meetingBySession=useMemo(
+    ()=>new Map(
+      (automation?.meetings||EMPTY).map(meeting=>[
+        meeting.sessionId,
+        meeting
+      ])
+    ),
+    [automation?.meetings]
+  );
   const firstRun=runs.find(run=>run.status==='in_progress')
     ||runs.find(run=>(run.learners||EMPTY).length)
     ||runs[0];
@@ -72,6 +147,14 @@ export default function LearnerOperationsWorkspace({slug,data}){
   const [ruleDraft,setRuleDraft]=useState({
     minAttendancePercent:'75',
     minAssessmentPercent:'70'
+  });
+  const [automationDraft,setAutomationDraft]=useState({
+    joiningEnabled:true,
+    reminder24hEnabled:true,
+    reminder1hEnabled:true,
+    zoomAutoCreate:false,
+    primaryChannel:'whatsapp',
+    emailFallbackEnabled:true
   });
   const [busyKey,setBusyKey]=useState('');
   const [notice,setNotice]=useState('');
@@ -90,6 +173,12 @@ export default function LearnerOperationsWorkspace({slug,data}){
   const selectedSession=sessions.find(
     session=>session.id===selectedSessionId
   )||sessions[0]||null;
+  const selectedMeeting=selectedSession
+    ?meetingBySession.get(selectedSession.id)
+    :null;
+  const selectedRunJobs=automationJobs.filter(
+    job=>job.courseRunId===selectedRun?.id
+  );
 
   useEffect(()=>{
     if(selectedRunId&&!runs.some(run=>run.id===selectedRunId)){
@@ -113,6 +202,25 @@ export default function LearnerOperationsWorkspace({slug,data}){
       )
     });
   },[selectedRun,selectedSessionId]);
+
+  useEffect(()=>{
+    setAutomationDraft({
+      joiningEnabled:automationSettings.joiningEnabled??true,
+      reminder24hEnabled:automationSettings.reminder24hEnabled??true,
+      reminder1hEnabled:automationSettings.reminder1hEnabled??true,
+      zoomAutoCreate:automationSettings.zoomAutoCreate??false,
+      primaryChannel:automationSettings.primaryChannel||'whatsapp',
+      emailFallbackEnabled:
+        automationSettings.emailFallbackEnabled??true
+    });
+  },[
+    automationSettings.joiningEnabled,
+    automationSettings.reminder24hEnabled,
+    automationSettings.reminder1hEnabled,
+    automationSettings.zoomAutoCreate,
+    automationSettings.primaryChannel,
+    automationSettings.emailFallbackEnabled
+  ]);
 
   async function call(body,successText,key){
     setBusyKey(key);
@@ -140,6 +248,37 @@ export default function LearnerOperationsWorkspace({slug,data}){
     }
   }
 
+  async function automationCall(action,payload,successText,key){
+    setBusyKey(key);
+    setError('');
+    setNotice('');
+    try{
+      const response=await fetch('/api/tenant/training-automation',{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({
+          p_tenant_slug:slug,
+          p_action:action,
+          p_payload:payload||{}
+        })
+      });
+      const responsePayload=await response.json();
+      if(!response.ok){
+        throw new Error(
+          responsePayload.error||'تعذر تنفيذ إجراء الأتمتة'
+        );
+      }
+      setNotice(successText);
+      router.refresh();
+      return responsePayload.data;
+    }catch(err){
+      setError(err.message);
+      return null;
+    }finally{
+      setBusyKey('');
+    }
+  }
+
   async function copyJoiningMessage(learner){
     setError('');
     try{
@@ -151,12 +290,57 @@ export default function LearnerOperationsWorkspace({slug,data}){
   }
 
   function markJoiningSent(learner){
-    const channel=learner.phone?'whatsapp':learner.email?'email':'manual';
-    return call({
-      p_action:'mark_joining_sent',
-      p_enrollment_id:learner.enrollmentId,
-      p_channel:channel
-    },`تم تسجيل إرسال رسالة الانضمام إلى ${learner.fullName}`,`join-${learner.enrollmentId}`);
+    return automationCall(
+      'mark_manual_sent',
+      {enrollmentId:learner.enrollmentId},
+      `تم توثيق الإرسال اليدوي إلى ${learner.fullName}`,
+      `join-manual-${learner.enrollmentId}`
+    );
+  }
+
+  function queueJoining(learner,channel){
+    return automationCall(
+      'queue_joining',
+      {enrollmentId:learner.enrollmentId,channel},
+      `أُضيفت رسالة ${learner.fullName} إلى طابور الإرسال`,
+      `join-${channel}-${learner.enrollmentId}`
+    );
+  }
+
+  function prepareAutomationJobs(){
+    return automationCall(
+      'prepare_jobs',
+      {},
+      'تم تجهيز الرسائل والتذكيرات المستحقة دون تكرار',
+      'prepare-automation'
+    );
+  }
+
+  function saveAutomationSettings(){
+    return automationCall(
+      'save_settings',
+      automationDraft,
+      'تم حفظ قواعد الرسائل والتذكيرات والاجتماعات',
+      'automation-settings'
+    );
+  }
+
+  function queueZoom(session){
+    return automationCall(
+      'queue_zoom',
+      {sessionId:session.id},
+      `أُضيف اجتماع ${session.title} إلى طابور Zoom`,
+      `zoom-${session.id}`
+    );
+  }
+
+  function retryAutomationJob(job){
+    return automationCall(
+      'retry_job',
+      {jobId:job.id},
+      `أُعيدت محاولة ${JOB_TYPES[job.type]||'المهمة'}`,
+      `retry-${job.id}`
+    );
   }
 
   function markAttendance(learner,status){
@@ -236,6 +420,19 @@ export default function LearnerOperationsWorkspace({slug,data}){
         <small>بسجل تحقق مستقل</small>
       </article>
     </section>
+
+    <AutomationOverview
+      automation={automation}
+      draft={automationDraft}
+      canManage={canManage}
+      busyKey={busyKey}
+      onDraftChange={(key,value)=>setAutomationDraft(current=>({
+        ...current,
+        [key]:value
+      }))}
+      onSave={saveAutomationSettings}
+      onPrepare={prepareAutomationJobs}
+    />
 
     <section className="mt-panel">
       <div className="mt-toolbar mt-training-toolbar">
@@ -340,6 +537,14 @@ export default function LearnerOperationsWorkspace({slug,data}){
         </div>
       </section>
 
+      {selectedSession&&<SessionMeeting
+        session={selectedSession}
+        meeting={selectedMeeting}
+        canManage={canManage}
+        busy={busyKey===`zoom-${selectedSession.id}`}
+        onQueue={()=>queueZoom(selectedSession)}
+      />}
+
       <div className="mt-learner-grid">
         {(selectedRun.learners||EMPTY).map(learner=><LearnerCard
           key={learner.enrollmentId}
@@ -352,6 +557,13 @@ export default function LearnerOperationsWorkspace({slug,data}){
             ??learner.assessment?.percent
             ??''}
           lateValue={lateDrafts[learner.enrollmentId]??5}
+          joiningJob={automationJobs.find(job=>
+            job.enrollmentId===learner.enrollmentId
+            &&job.type==='joining_instructions'
+          )}
+          countryCode={
+            automationSettings.whatsappCountryCode||'966'
+          }
           onScoreChange={value=>setScoreDrafts(current=>({
             ...current,
             [learner.enrollmentId]:value
@@ -361,7 +573,9 @@ export default function LearnerOperationsWorkspace({slug,data}){
             [learner.enrollmentId]:value
           }))}
           onCopy={()=>copyJoiningMessage(learner)}
+          onQueueJoining={channel=>queueJoining(learner,channel)}
           onMarkJoining={()=>markJoiningSent(learner)}
+          onRetryJoining={job=>retryAutomationJob(job)}
           onAttendance={status=>markAttendance(learner,status)}
           onSaveAssessment={()=>saveAssessment(learner)}
           onIssueCertificate={()=>issueCertificate(learner)}
@@ -370,7 +584,245 @@ export default function LearnerOperationsWorkspace({slug,data}){
           لا يوجد متدربون في هذه الدفعة بعد.
         </div>}
       </div>
+
+      <AutomationJobLog
+        jobs={selectedRunJobs}
+        canManage={canManage}
+        busyKey={busyKey}
+        onRetry={retryAutomationJob}
+      />
     </section>}
+  </section>;
+}
+
+function AutomationOverview({
+  automation,
+  draft,
+  canManage,
+  busyKey,
+  onDraftChange,
+  onSave,
+  onPrepare
+}){
+  const providers=automation?.providers||EMPTY;
+  const summary=automation?.summary||{};
+
+  return <section className="mt-automation-panel">
+    <header>
+      <div>
+        <small>TRAINING AUTOMATION</small>
+        <h3>الرسائل والاجتماعات التلقائية</h3>
+        <p>
+          طابور موثّق يفحص كل خمس دقائق، ولا يعتمد الإرسال إلا بعد
+          استجابة المزود.
+        </p>
+      </div>
+      {canManage&&<div className="mt-automation-head-actions">
+        <button
+          className="soft"
+          onClick={onPrepare}
+          disabled={busyKey==='prepare-automation'}
+        >
+          {busyKey==='prepare-automation'
+            ?'جارٍ التجهيز…'
+            :'تجهيز المستحق الآن'}
+        </button>
+        <button
+          onClick={onSave}
+          disabled={busyKey==='automation-settings'}
+        >
+          {busyKey==='automation-settings'
+            ?'جارٍ الحفظ…'
+            :'حفظ قواعد الأتمتة'}
+        </button>
+      </div>}
+    </header>
+
+    <div className="mt-provider-grid">
+      {[
+        ['whatsapp_cloud','قوالب Meta المعتمدة'],
+        ['resend_email','إرسال بريدي موثّق'],
+        ['zoom_meetings','Server-to-Server OAuth']
+      ].map(([key,description])=>{
+        const provider=providers.find(item=>item.provider===key);
+        const state=provider?.state||'unknown';
+        return <article className={`mt-provider-card ${state}`} key={key}>
+          <span className="mt-provider-dot"/>
+          <div>
+            <b>{PROVIDER_LABELS[key]}</b>
+            <small>{description}</small>
+          </div>
+          <strong>{PROVIDER_STATES[state]||state}</strong>
+        </article>;
+      })}
+    </div>
+
+    <div className="mt-automation-config">
+      <label>
+        <input
+          type="checkbox"
+          checked={draft.joiningEnabled}
+          onChange={event=>onDraftChange(
+            'joiningEnabled',
+            event.target.checked
+          )}
+          disabled={!canManage}
+        />
+        رسالة الانضمام
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={draft.reminder24hEnabled}
+          onChange={event=>onDraftChange(
+            'reminder24hEnabled',
+            event.target.checked
+          )}
+          disabled={!canManage}
+        />
+        تذكير قبل 24 ساعة
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={draft.reminder1hEnabled}
+          onChange={event=>onDraftChange(
+            'reminder1hEnabled',
+            event.target.checked
+          )}
+          disabled={!canManage}
+        />
+        تذكير قبل ساعة
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={draft.zoomAutoCreate}
+          onChange={event=>onDraftChange(
+            'zoomAutoCreate',
+            event.target.checked
+          )}
+          disabled={!canManage}
+        />
+        إنشاء Zoom تلقائيًا
+      </label>
+      <label className="mt-automation-channel">
+        القناة الأساسية
+        <select
+          value={draft.primaryChannel}
+          onChange={event=>onDraftChange(
+            'primaryChannel',
+            event.target.value
+          )}
+          disabled={!canManage}
+        >
+          <option value="whatsapp">واتساب</option>
+          <option value="email">البريد الإلكتروني</option>
+        </select>
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={draft.emailFallbackEnabled}
+          onChange={event=>onDraftChange(
+            'emailFallbackEnabled',
+            event.target.checked
+          )}
+          disabled={!canManage}
+        />
+        البريد عند غياب رقم واتساب
+      </label>
+    </div>
+
+    <div className="mt-automation-summary">
+      <div><span>في الطابور</span><b>{summary.pending||0}</b></div>
+      <div className="waiting">
+        <span>بانتظار الإعداد</span>
+        <b>{summary.waitingConfiguration||0}</b>
+      </div>
+      <div className="failed">
+        <span>تحتاج إعادة محاولة</span>
+        <b>{summary.failed||0}</b>
+      </div>
+      <div className="sent">
+        <span>تمت بنجاح</span>
+        <b>{summary.sent||0}</b>
+      </div>
+      <div className="zoom">
+        <span>اجتماعات جاهزة</span>
+        <b>{summary.zoomReady||0}</b>
+      </div>
+    </div>
+  </section>;
+}
+
+function SessionMeeting({session,meeting,canManage,busy,onQueue}){
+  const status=meeting?.status||'not_created';
+  const eligible=['online','hybrid'].includes(session.deliveryMode)
+    &&session.status==='scheduled'
+    &&new Date(session.startsAt)>new Date();
+
+  return <section className={`mt-session-meeting ${status}`}>
+    <div className="mt-session-meeting-icon">Z</div>
+    <div>
+      <b>اجتماع Zoom للجلسة</b>
+      <small>
+        {MEETING_STATUS[status]||status}
+        {meeting?.lastError
+          ?` · ${automationError(meeting.lastError)}`
+          :''}
+      </small>
+    </div>
+    {meeting?.joinUrl&&<a
+      href={meeting.joinUrl}
+      target="_blank"
+      rel="noreferrer"
+    >فتح رابط المتدربين</a>}
+    {canManage&&eligible&&status!=='ready'&&<button
+      onClick={onQueue}
+      disabled={busy||status==='queued'}
+    >
+      {busy?'جارٍ الإضافة…':status==='failed'?'إعادة إنشاء الاجتماع':'إنشاء الاجتماع'}
+    </button>}
+    {!eligible&&<em>متاح للجلسات القادمة عن بُعد أو الهجينة</em>}
+  </section>;
+}
+
+function AutomationJobLog({jobs,canManage,busyKey,onRetry}){
+  const shown=jobs.slice(0,12);
+  return <section className="mt-automation-log">
+    <header>
+      <div>
+        <h4>سجل الرسائل والاجتماعات</h4>
+        <small>آخر 12 عملية لهذه الدفعة مع حالة المزود الفعلية</small>
+      </div>
+      <span>{jobs.length} عملية</span>
+    </header>
+    <div>
+      {shown.map(job=><article key={job.id}>
+        <span className={`mt-job-channel ${job.channel}`}>
+          {CHANNEL_LABELS[job.channel]||job.channel}
+        </span>
+        <div>
+          <b>{JOB_TYPES[job.type]||job.type}</b>
+          <small>
+            {job.recipient||'—'} · الاستحقاق {dateTime(job.dueAt)}
+          </small>
+          {job.lastError&&<em>{automationError(job.lastError)}</em>}
+        </div>
+        <strong className={job.status}>
+          {JOB_STATUS[job.status]||job.status}
+        </strong>
+        {canManage&&['failed','waiting_configuration','cancelled']
+          .includes(job.status)&&<button
+            onClick={()=>onRetry(job)}
+            disabled={busyKey===`retry-${job.id}`}
+          >إعادة المحاولة</button>}
+      </article>)}
+      {!shown.length&&<div className="mt-empty compact">
+        لا توجد عمليات لهذه الدفعة بعد. استخدم «تجهيز المستحق الآن».
+      </div>}
+    </div>
   </section>;
 }
 
@@ -382,10 +834,14 @@ function LearnerCard({
   busyKey,
   scoreValue,
   lateValue,
+  joiningJob,
+  countryCode,
   onScoreChange,
   onLateChange,
   onCopy,
+  onQueueJoining,
   onMarkJoining,
+  onRetryJoining,
   onAttendance,
   onSaveAssessment,
   onIssueCertificate
@@ -395,7 +851,19 @@ function LearnerCard({
     :null;
   const eligibility=learner.eligibility||{};
   const certificate=learner.certificate;
-  const joiningSent=learner.joining?.status==='sent';
+  const joiningSent=learner.joining?.status==='sent'
+    ||joiningJob?.status==='sent';
+  const phone=normalizedPhone(learner.phone,countryCode);
+  const whatsappLink=phone
+    ?`https://wa.me/${phone}?text=${
+      encodeURIComponent(learner.joiningMessage||'')
+    }`
+    :null;
+  const emailLink=learner.email
+    ?`mailto:${encodeURIComponent(learner.email)}?subject=${
+      encodeURIComponent('تعليمات الانضمام إلى البرنامج التدريبي')
+    }&body=${encodeURIComponent(learner.joiningMessage||'')}`
+    :null;
   const attendanceBusy=busyKey.startsWith(
     `attendance-${learner.enrollmentId}-`
   );
@@ -413,16 +881,45 @@ function LearnerCard({
       <div>
         <b>رسالة الانضمام</b>
         <small>{joiningSent
-          ?`سُجل إرسالها ${dateTime(learner.joining.sentAt)}`
-          :'جاهزة للنسخ والإرسال'}</small>
+          ?`تم إرسالها ${dateTime(
+            learner.joining?.sentAt||joiningJob?.processedAt
+          )}`
+          :joiningJob
+            ?`${JOB_STATUS[joiningJob.status]||joiningJob.status} عبر ${
+              CHANNEL_LABELS[joiningJob.channel]||joiningJob.channel
+            }`
+            :'جاهزة للإرسال الآلي أو اليدوي'}</small>
       </div>
       <div>
         <button onClick={onCopy}>نسخ الرسالة</button>
-        {canManage&&!joiningSent&&<button
+        {canManage&&!joiningSent&&learner.phone&&<button
           className="primary"
+          onClick={()=>onQueueJoining('whatsapp')}
+          disabled={busyKey===`join-whatsapp-${learner.enrollmentId}`}
+        >إرسال آلي واتساب</button>}
+        {canManage&&!joiningSent&&learner.email&&<button
+          className="primary"
+          onClick={()=>onQueueJoining('email')}
+          disabled={busyKey===`join-email-${learner.enrollmentId}`}
+        >إرسال آلي بريد</button>}
+        {!joiningSent&&joiningJob&&['failed','waiting_configuration','cancelled']
+          .includes(joiningJob.status)&&<button
+            onClick={()=>onRetryJoining(joiningJob)}
+            disabled={busyKey===`retry-${joiningJob.id}`}
+          >إعادة المحاولة</button>}
+        {whatsappLink&&!joiningSent&&<a
+          href={whatsappLink}
+          target="_blank"
+          rel="noreferrer"
+        >فتح واتساب يدويًا</a>}
+        {emailLink&&!joiningSent&&<a href={emailLink}>
+          فتح البريد يدويًا
+        </a>}
+        {canManage&&!joiningSent&&<button
+          className="manual"
           onClick={onMarkJoining}
-          disabled={busyKey===`join-${learner.enrollmentId}`}
-        >تأكيد الإرسال يدويًا</button>}
+          disabled={busyKey===`join-manual-${learner.enrollmentId}`}
+        >توثيق الإرسال اليدوي</button>}
       </div>
     </section>
 

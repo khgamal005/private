@@ -18,6 +18,7 @@ const RPC={
   'update-admission-document':'v2_tenant_update_admission_document',
   'save-course-run':'v2_tenant_save_course_run',
   'update-training-operation':'v2_tenant_update_training_operation',
+  'training-automation':'v2_tenant_training_automation_action',
   'create-opportunity':'v2_tenant_create_opportunity',
   'move-opportunity':'v2_tenant_move_opportunity',
   'log-activity':'v2_tenant_log_activity',
@@ -152,6 +153,14 @@ function translate(value){
     ,invalid_assessment_score:'نتيجة التقييم غير صالحة'
     ,invalid_assessment_max_score:'الدرجة القصوى للتقييم غير صالحة'
     ,invalid_communication_channel:'قناة إرسال رسالة الانضمام غير صالحة'
+    ,invalid_training_automation_action:'إجراء الأتمتة غير صالح'
+    ,automation_job_not_found:'مهمة الأتمتة غير موجودة'
+    ,automation_job_not_retryable:'لا يمكن إعادة محاولة هذه المهمة في حالتها الحالية'
+    ,automation_job_already_sent:'المهمة أُرسلت بالفعل ولا يمكن إلغاؤها'
+    ,training_contact_channel_missing:'لا توجد وسيلة تواصل صالحة للمتدرب'
+    ,session_not_schedulable:'لا يمكن إنشاء اجتماع لجلسة غير مجدولة'
+    ,zoom_requires_online_session:'اجتماع Zoom متاح للجلسة عن بُعد أو الهجينة فقط'
+    ,zoom_session_must_be_future:'لا يمكن إنشاء اجتماع Zoom لجلسة انتهى موعدها'
     ,invalid_attendance_threshold:'نسبة الحضور المطلوبة يجب أن تكون من 0 إلى 100'
     ,invalid_assessment_threshold:'نسبة التقييم المطلوبة يجب أن تكون من 0 إلى 100'
     ,certificate_not_eligible:'لا يمكن إصدار الشهادة قبل استكمال شروط الحضور والتقييم وإغلاق الدفعة'

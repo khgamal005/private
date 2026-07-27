@@ -60,6 +60,7 @@ test('role-protected tenant routes enforce their permissions on the server',asyn
     ['../app/tenant/[slug]/page.js','tenant.workspace.read'],
     ['../app/tenant/[slug]/tasks/page.js','tenant.work.read'],
     ['../app/tenant/[slug]/sales/page.js','tenant.crm.read'],
+    ['../app/tenant/[slug]/admissions/page.js','tenant.admissions.read'],
     ['../app/tenant/[slug]/incentives/page.js','tenant.incentives.read'],
     ['../app/tenant/[slug]/team/page.js','tenant.people.read'],
     ['../app/tenant/[slug]/courses/page.js','tenant.academy.read'],
@@ -76,9 +77,12 @@ test('role-protected tenant routes enforce their permissions on the server',asyn
 test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()=>{
   const migration=await read('../supabase/migrations/20260727192319_add_operational_crm_and_work_v2.sql');
   const leadPipeline=await read('../supabase/migrations/20260727211527_lead_centric_sales_pipeline.sql');
+  const admissionsMigration=await read('../supabase/migrations/20260727223000_admissions_and_sales_guards_v2.sql');
   const api=await read('../app/api/tenant/[action]/route.js');
   const data=await read('../lib/api.js');
   const sales=await read('../components/sales-workspace.js');
+  const admissions=await read('../components/admissions-workspace.js');
+  const shell=await read('../components/workspace-shell.js');
   const tasks=await read('../components/task-calendar-page.js');
   const followupModal=await read('../components/sales-followup-modal.js');
   const styles=await read('../app/rebuild.css');
@@ -104,10 +108,20 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(data,/v2_tenant_operations_snapshot/);
   assert.match(data,/v2_tenant_sales_pipeline_snapshot/);
   assert.match(api,/v2_tenant_create_sales_lead/);
-  assert.match(api,/v2_tenant_record_sales_followup/);
+  assert.match(api,/v2_tenant_record_sales_followup_v2/);
   assert.match(leadPipeline,/academy\.registration_handoffs/);
   assert.match(leadPipeline,/v2_tenant_record_sales_followup/);
-  assert.match(leadPipeline,/registrationNotified/);
+  assert.match(admissionsMigration,/paymentReviewNotified/);
+  assert.match(admissionsMigration,/closure_reason_required/);
+  assert.match(admissionsMigration,/work_tasks_one_open_sales_followup_idx/);
+  assert.match(admissionsMigration,/v2_tenant_admissions_snapshot/);
+  assert.match(admissionsMigration,/create table academy\.students/);
+  assert.match(admissionsMigration,/create table academy\.enrollments/);
+  assert.match(api,/v2_tenant_update_admission/);
+  assert.match(data,/v2_tenant_admissions_snapshot/);
+  assert.match(shell,/tenant\.admissions\.read/);
+  assert.match(admissions,/تأكيد الدفع/);
+  assert.match(admissions,/إنشاء المتدرب وإتمام التسجيل/);
   assert.match(sales,/تسجيل نتيجة المتابعة/);
   assert.match(sales,/بانتظار الدفع/);
   assert.match(sales,/جودة الليد/);
@@ -121,6 +135,8 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(tasks,/اضغط متابعة العميل/);
   assert.match(followupModal,/نتيجة المتابعة/);
   assert.match(followupModal,/موعد الإجراء التالي/);
+  assert.match(followupModal,/بلاغ دفع بانتظار التحقق/);
+  assert.match(followupModal,/سبب الإغلاق/);
   assert.match(styles,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
 });
 

@@ -1,0 +1,26 @@
+create index lead_status_history_activity_reference_idx
+on sales_core.lead_status_history (activity_id);
+
+create index lead_status_history_actor_reference_idx
+on sales_core.lead_status_history (changed_by_subject_id);
+
+create index registration_documents_reviewer_reference_idx
+on academy.registration_documents (reviewed_by_subject_id);
+
+create index registration_handoffs_payment_reviewer_reference_idx
+on academy.registration_handoffs (payment_verified_by_subject_id);
+
+create index registration_handoffs_acceptor_reference_idx
+on academy.registration_handoffs (accepted_by_subject_id);
+
+create index registration_handoffs_completer_reference_idx
+on academy.registration_handoffs (completed_by_subject_id);
+
+create index academy_students_creator_reference_idx
+on academy.students (created_by_subject_id);
+
+create index academy_enrollments_course_run_reference_idx
+on academy.enrollments (course_run_id);
+
+create index academy_enrollments_confirmer_reference_idx
+on academy.enrollments (confirmed_by_subject_id);

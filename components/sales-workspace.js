@@ -32,6 +32,7 @@ const PIPELINE=[
 const QUICK_FILTERS=[
   ['all','كل العملاء'],
   ['awaiting_payment','بانتظار الدفع'],
+  ['payment_submitted','أُرسل للتحقق'],
   ['very_interested','مهتم جدًا'],
   ['excellent','ليد ممتاز'],
   ['unqualified','غير مؤهل'],
@@ -53,7 +54,10 @@ const money=value=>new Intl.NumberFormat('ar-SA',{
 }).format((Number(value)||0)/100);
 
 function digits(value){return String(value||'').replace(/\D/g,'')}
-function isClosed(value){return !OPEN_STATUSES.has(value)&&value!=='paid'}
+function isClosed(value){
+  return !OPEN_STATUSES.has(value)
+    &&!['payment_submitted','paid'].includes(value);
+}
 function inputDate(value){
   const date=new Date(value);
   const year=date.getFullYear();
@@ -86,6 +90,9 @@ export default function SalesWorkspace({slug,initialData}){
   const courseRuns=data.courseRuns||EMPTY;
   const summary=data.summary||{};
   const canWrite=Boolean(data.viewer?.canWriteCrm);
+  const paymentSubmittedCount=contacts.filter(
+    contact=>contact.leadStatus==='payment_submitted'
+  ).length;
 
   const dateBounds=useMemo(()=>({
     start:fromDate?new Date(`${fromDate}T00:00:00`):null,
@@ -155,7 +162,7 @@ export default function SalesWorkspace({slug,initialData}){
 
   function activateFilter(value){
     setQuickFilter(value);
-    if(value==='closed')setView('contacts');
+    if(['closed','payment_submitted','paid'].includes(value))setView('contacts');
   }
 
   function chooseDatePreset(value){
@@ -213,9 +220,9 @@ export default function SalesWorkspace({slug,initialData}){
         <small>أفضل جودة حاليًا</small>
       </button>
       <button className="mt-kpi" onClick={()=>activateFilter('paid')}>
-        <span>تم الدفع هذا الشهر</span>
+        <span>دفع مؤكد هذا الشهر</span>
         <b>{summary.paidThisMonth||0}</b>
-        <small>{handoffs.length} تنويه تسجيل ظاهر</small>
+        <small>{paymentSubmittedCount} بلاغ دفع قيد التحقق</small>
       </button>
       <button className={`mt-kpi ${summary.overdueFollowups?'danger':''}`} onClick={()=>activateFilter('overdue')}>
         <span>متابعات متأخرة</span>
@@ -230,7 +237,7 @@ export default function SalesWorkspace({slug,initialData}){
           <button className={view==='pipeline'?'active':''} onClick={()=>setView('pipeline')}>المسار العملي</button>
           <button className={view==='contacts'?'active':''} onClick={()=>setView('contacts')}>كل العملاء</button>
           <button className={view==='activities'?'active':''} onClick={()=>setView('activities')}>سجل المتابعات</button>
-          <button className={view==='admissions'?'active':''} onClick={()=>setView('admissions')}>التسجيل والقبول</button>
+          <button className={view==='admissions'?'active':''} onClick={()=>setView('admissions')}>بلاغات الدفع</button>
         </div>
         <input
           className="mt-search"
@@ -293,7 +300,11 @@ export default function SalesWorkspace({slug,initialData}){
           <td><b>{contact.source||'غير محدد'}</b><small>{contact.campaignName||contact.adName||'لا توجد حملة'}</small></td>
           <td>{contact.ownerName||'غير مسند'}</td>
           <td><b>{contact.nextActionType?ACTIONS[contact.nextActionType]||contact.nextActionType:'لا توجد متابعة'}</b><small>{when(contact.nextActionAt)}</small></td>
-          <td>{canWrite&&<button className="mt-button soft" onClick={()=>openModal('followup',contact)}>تسجيل متابعة</button>}</td>
+          <td>{canWrite&&(
+            ['payment_submitted','paid'].includes(contact.leadStatus)
+              ?<span className="mt-status warning">مع التسجيل والقبول</span>
+              :<button className="mt-button soft" onClick={()=>openModal('followup',contact)}>تسجيل متابعة</button>
+          )}</td>
         </tr>)}</tbody>
       </table>{!shownContacts.length&&<div className="mt-empty">لا توجد نتائج مطابقة.</div>}</div>}
 
@@ -315,17 +326,22 @@ export default function SalesWorkspace({slug,initialData}){
         {!activities.length&&<div className="mt-empty">لم تسجل متابعات بعد.</div>}
       </div>}
 
-      {view==='admissions'&&<div className="mt-table-wrap"><table className="mt-table">
-        <thead><tr><th>المتدرب</th><th>الدورة</th><th>الدفعة / البداية</th><th>الدفع</th><th>المسند إليه</th><th>حالة التسجيل</th></tr></thead>
+      {view==='admissions'&&<div className="mt-table-wrap">
+        <div className="mt-inline-callout">
+          <div><b>المبيعات ترسل بلاغ الدفع فقط</b><small>التأكيد والمستندات وإنشاء ملف المتدرب تتم داخل قسم التسجيل والقبول.</small></div>
+          <a className="mt-button primary" href={`/tenant/${encodeURIComponent(slug)}/admissions`}>فتح التسجيل والقبول</a>
+        </div>
+        <table className="mt-table">
+        <thead><tr><th>المتدرب</th><th>الدورة</th><th>الدفعة / البداية</th><th>المبلغ المبلّغ</th><th>المسند إليه</th><th>حالة المراجعة</th></tr></thead>
         <tbody>{handoffs.map(item=><tr key={item.id}>
-          <td><b>{item.contactName}</b><small>تم التسليم من المبيعات</small></td>
+          <td><b>{item.contactName}</b><small>بلاغ وارد من المبيعات</small></td>
           <td>{item.courseName}</td>
           <td><b>{item.courseRunName||'لم تحدد الدفعة'}</b><small>{dateOnly(item.preferredStartDate)}</small></td>
           <td><b>{item.amountMinor==null?'لم يسجل المبلغ':money(item.amountMinor)}</b><small>{when(item.paidAt)}</small></td>
           <td>{item.assignedStaffName||'قسم التسجيل والقبول'}</td>
-          <td><span className="mt-status warning">{item.status==='pending'?'بانتظار الاستكمال':item.status}</span></td>
+          <td><span className="mt-status warning">{item.status==='pending'?'بانتظار التحقق':item.status==='in_review'?'قيد المراجعة':item.status==='completed'?'مكتمل':item.status}</span></td>
         </tr>)}</tbody>
-      </table>{!handoffs.length&&<div className="mt-empty">لم تُسلّم أي حالات مدفوعة للتسجيل بعد.</div>}</div>}
+      </table>{!handoffs.length&&<div className="mt-empty">لا توجد بلاغات دفع مرسلة للتسجيل بعد.</div>}</div>}
     </section>
 
     {modal?.type==='lead'&&<div className="mt-modal-layer">
@@ -409,7 +425,7 @@ function LeadCard({contact,canWrite,onFollowup}){
       <div><dt>المصدر</dt><dd>{contact.source||'غير محدد'}</dd></div>
       <div className="wide"><dt>الإجراء التالي</dt><dd>{contact.nextActionType?`${ACTIONS[contact.nextActionType]||contact.nextActionType} · ${when(contact.nextActionAt)}`:'تم إنهاء المتابعة البيعية'}</dd></div>
     </dl>
-    {canWrite&&<button className="mt-button primary wide" onClick={onFollowup}>تسجيل نتيجة المتابعة</button>}
+    {canWrite&&!['payment_submitted','paid'].includes(contact.leadStatus)&&<button className="mt-button primary wide" onClick={onFollowup}>تسجيل نتيجة المتابعة</button>}
   </article>;
 }
 

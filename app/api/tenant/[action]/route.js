@@ -13,7 +13,9 @@ const RPC={
   'create-course':'v2_tenant_create_course',
   'create-contact':'v2_tenant_create_contact',
   'create-sales-lead':'v2_tenant_create_sales_lead',
-  'record-sales-followup':'v2_tenant_record_sales_followup',
+  'record-sales-followup':'v2_tenant_record_sales_followup_v2',
+  'update-admission':'v2_tenant_update_admission',
+  'update-admission-document':'v2_tenant_update_admission_document',
   'create-opportunity':'v2_tenant_create_opportunity',
   'move-opportunity':'v2_tenant_move_opportunity',
   'log-activity':'v2_tenant_log_activity',
@@ -102,6 +104,20 @@ function translate(value){
     ,summary_required:'ملخص النشاط مطلوب'
     ,next_action_required:'يجب تحديد الإجراء التالي وموعده'
     ,course_required_for_payment:'يجب تحديد الدورة قبل تسليم العميل إلى التسجيل والقبول'
+    ,closure_reason_required:'يجب كتابة سبب واضح لإغلاق العميل'
+    ,lead_under_admissions:'العميل الآن مع التسجيل والقبول ولا يمكن تأكيده من المبيعات'
+    ,invalid_admission_action:'إجراء التسجيل والقبول غير صالح'
+    ,admission_not_found:'طلب التسجيل غير موجود'
+    ,admission_closed:'طلب التسجيل مغلق ولا يقبل هذا التعديل'
+    ,invalid_admission_transition:'لا يمكن نقل طلب التسجيل إلى هذه الحالة'
+    ,invalid_payment_transition:'لا يمكن تغيير حالة الدفع بهذه الطريقة'
+    ,payment_not_verified:'يجب التحقق من الدفع أولًا'
+    ,course_run_required:'يجب تحديد الدفعة قبل إكمال التسجيل'
+    ,course_run_full:'الدفعة المحددة وصلت إلى طاقتها القصوى'
+    ,documents_incomplete:'استكمل المستندات المطلوبة قبل إتمام التسجيل'
+    ,reason_required:'يجب كتابة السبب بوضوح'
+    ,invalid_document_type:'نوع المستند غير صالح'
+    ,invalid_document_status:'حالة المستند غير صالحة'
     ,due_at_required:'موعد المهمة مطلوب'
     ,opportunity_not_found:'الفرصة غير موجودة'
     ,task_not_found:'المهمة غير موجودة'

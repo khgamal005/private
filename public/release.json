@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0-beta.9",
-  "releasedAt": "2026-07-27T19:04:13.000Z",
+  "version": "2.0.0-beta.10",
+  "releasedAt": "2026-07-27T19:49:33.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
@@ -28,6 +28,10 @@
     "Opened the complete sales follow-up flow directly from customer tasks in the calendar",
     "Added simple calendar filters for customer follow-ups, interested, very interested, and awaiting payment",
     "Reduced the lead-centric board to four responsive stages without horizontal scrolling",
-    "Added next-action date filters with today, seven-day, month, and custom-range options"
+    "Added next-action date filters with today, seven-day, month, and custom-range options",
+    "Separated customer-reported payment from finance-verified payment",
+    "Enforced one active sales follow-up and mandatory next actions or closure reasons",
+    "Added a role-protected admissions queue with payment and document review",
+    "Added acceptance, student creation, and course-run enrollment workflows"
   ]
 }

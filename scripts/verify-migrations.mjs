@@ -16,10 +16,12 @@ const staffActivation='20260727110338_add_staff_profile_activation_and_role_rout
 const operationalCore='20260727192319_add_operational_crm_and_work_v2.sql';
 const operationalIndexes='20260727193725_index_operational_foreign_keys.sql';
 const leadPipeline='20260727211527_lead_centric_sales_pipeline.sql';
+const admissions='20260727223000_admissions_and_sales_guards_v2.sql';
+const admissionsIndexes='20260727223500_admissions_reference_indexes_v2.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -34,6 +36,8 @@ const staffActivationSql=await readFile(new URL(staffActivation,migrationsUrl),'
 const operationalCoreSql=await readFile(new URL(operationalCore,migrationsUrl),'utf8');
 const operationalIndexesSql=await readFile(new URL(operationalIndexes,migrationsUrl),'utf8');
 const leadPipelineSql=await readFile(new URL(leadPipeline,migrationsUrl),'utf8');
+const admissionsSql=await readFile(new URL(admissions,migrationsUrl),'utf8');
+const admissionsIndexesSql=await readFile(new URL(admissionsIndexes,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -98,5 +102,19 @@ assert.match(leadPipelineSql,/v2_tenant_record_sales_followup/);
 assert.match(leadPipelineSql,/course_required_for_payment/);
 assert.match(leadPipelineSql,/'registration_handoff'/);
 assert.doesNotMatch(leadPipelineSql,/service_role|SUPABASE_SECRET/i);
+assert.match(admissionsSql,/create table sales_core\.lead_status_history/);
+assert.match(admissionsSql,/create table academy\.registration_documents/);
+assert.match(admissionsSql,/create table academy\.students/);
+assert.match(admissionsSql,/create table academy\.enrollments/);
+assert.match(admissionsSql,/work_tasks_one_open_sales_followup_idx/);
+assert.match(admissionsSql,/closure_reason_required/);
+assert.match(admissionsSql,/v2_tenant_record_sales_followup_v2/);
+assert.match(admissionsSql,/v2_tenant_admissions_snapshot/);
+assert.match(admissionsSql,/v2_tenant_update_admission/);
+assert.match(admissionsSql,/v2_tenant_update_admission_document/);
+assert.doesNotMatch(admissionsSql,/service_role|SUPABASE_SECRET/i);
+assert.match(admissionsIndexesSql,/lead_status_history_activity_reference_idx/);
+assert.match(admissionsIndexesSql,/registration_handoffs_payment_reviewer_reference_idx/);
+assert.match(admissionsIndexesSql,/academy_enrollments_course_run_reference_idx/);
 
-console.log('Verified the clean v2 database, provisioning, and Reef tenant migrations.');
+console.log('Verified the clean v2 database, provisioning, sales guards, and admissions migrations.');

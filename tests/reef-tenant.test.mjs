@@ -75,6 +75,7 @@ test('role-protected tenant routes enforce their permissions on the server',asyn
 
 test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()=>{
   const migration=await read('../supabase/migrations/20260727192319_add_operational_crm_and_work_v2.sql');
+  const leadPipeline=await read('../supabase/migrations/20260727211527_lead_centric_sales_pipeline.sql');
   const api=await read('../app/api/tenant/[action]/route.js');
   const data=await read('../lib/api.js');
   const sales=await read('../components/sales-workspace.js');
@@ -99,9 +100,18 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(api,/v2_tenant_create_task/);
   assert.match(api,/v2_tenant_update_task_status/);
   assert.match(data,/v2_tenant_operations_snapshot/);
-  assert.match(sales,/تسجيل نشاط/);
+  assert.match(data,/v2_tenant_sales_pipeline_snapshot/);
+  assert.match(api,/v2_tenant_create_sales_lead/);
+  assert.match(api,/v2_tenant_record_sales_followup/);
+  assert.match(leadPipeline,/academy\.registration_handoffs/);
+  assert.match(leadPipeline,/v2_tenant_record_sales_followup/);
+  assert.match(leadPipeline,/registrationNotified/);
+  assert.match(sales,/تسجيل نتيجة المتابعة/);
+  assert.match(sales,/بانتظار الدفع/);
+  assert.match(sales,/جودة الليد/);
+  assert.doesNotMatch(sales,/فرصة جديدة/);
   assert.match(sales,/الإجراء التالي/);
-  assert.match(tasks,/كل متابعة مبيعات تظهر هنا تلقائيًا/);
+  assert.match(tasks,/اسم العميل وجواله وحالته/);
 });
 
 test('Reef operational sample data is clearly marked and uses placeholder contacts',async()=>{

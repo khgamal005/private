@@ -15,10 +15,11 @@ const peopleAcademyIndexes='20260727004500_index_people_academy_references.sql';
 const staffActivation='20260727110338_add_staff_profile_activation_and_role_routes.sql';
 const operationalCore='20260727192319_add_operational_crm_and_work_v2.sql';
 const operationalIndexes='20260727193725_index_operational_foreign_keys.sql';
+const leadPipeline='20260727211527_lead_centric_sales_pipeline.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -32,6 +33,7 @@ const peopleAcademyIndexSql=await readFile(new URL(peopleAcademyIndexes,migratio
 const staffActivationSql=await readFile(new URL(staffActivation,migrationsUrl),'utf8');
 const operationalCoreSql=await readFile(new URL(operationalCore,migrationsUrl),'utf8');
 const operationalIndexesSql=await readFile(new URL(operationalIndexes,migrationsUrl),'utf8');
+const leadPipelineSql=await readFile(new URL(leadPipeline,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -86,5 +88,15 @@ assert.match(operationalIndexesSql,/sales_contacts_owner_reference_idx/);
 assert.match(operationalIndexesSql,/sales_opportunities_stage_reference_idx/);
 assert.match(operationalIndexesSql,/sales_activities_creator_reference_idx/);
 assert.match(operationalIndexesSql,/work_tasks_creator_reference_idx/);
+assert.match(leadPipelineSql,/contacts_lead_status_check/);
+assert.match(leadPipelineSql,/contacts_lead_quality_check/);
+assert.match(leadPipelineSql,/create table academy\.registration_handoffs/);
+assert.match(leadPipelineSql,/registration_handoffs_isolated_read/);
+assert.match(leadPipelineSql,/v2_tenant_sales_pipeline_snapshot/);
+assert.match(leadPipelineSql,/v2_tenant_create_sales_lead/);
+assert.match(leadPipelineSql,/v2_tenant_record_sales_followup/);
+assert.match(leadPipelineSql,/course_required_for_payment/);
+assert.match(leadPipelineSql,/'registration_handoff'/);
+assert.doesNotMatch(leadPipelineSql,/service_role|SUPABASE_SECRET/i);
 
 console.log('Verified the clean v2 database, provisioning, and Reef tenant migrations.');

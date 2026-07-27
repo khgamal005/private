@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0-beta.7",
-  "releasedAt": "2026-07-27T16:25:00.000Z",
+  "version": "2.0.0-beta.8",
+  "releasedAt": "2026-07-27T18:15:00.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
@@ -19,6 +19,11 @@
     "Rebuilt tenant CRM and work management on isolated v2 schemas",
     "Added customers, pipeline stages, opportunities, activities, and role-scoped tasks",
     "Enforced a next action and due date after every customer interaction",
-    "Added Reef daily operations dashboard and clearly marked sample workflow data"
+    "Added Reef daily operations dashboard and clearly marked sample workflow data",
+    "Replaced the traditional opportunity board with a lead-centric sales workflow",
+    "Added lead status, lead quality, source, campaign, and advertising attribution",
+    "Created the next follow-up task automatically after every open sales outcome",
+    "Added fast filters for awaiting payment, very interested, excellent, and unqualified leads",
+    "Handed paid leads directly to registration and admissions with an operational notification"
   ]
 }

@@ -12,6 +12,8 @@ const RPC={
   'invite-staff':'v2_tenant_invite_staff',
   'create-course':'v2_tenant_create_course',
   'create-contact':'v2_tenant_create_contact',
+  'create-sales-lead':'v2_tenant_create_sales_lead',
+  'record-sales-followup':'v2_tenant_record_sales_followup',
   'create-opportunity':'v2_tenant_create_opportunity',
   'move-opportunity':'v2_tenant_move_opportunity',
   'log-activity':'v2_tenant_log_activity',
@@ -90,10 +92,16 @@ function translate(value){
     ,invalid_assignee:'الموظف المسند إليه غير صالح'
     ,invalid_priority:'أولوية المهمة غير صالحة'
     ,invalid_task_status:'حالة المهمة غير صالحة'
+    ,invalid_lead_status:'حالة العميل غير صالحة'
+    ,invalid_lead_quality:'تقييم جودة الليد غير صالح'
+    ,invalid_next_action:'نوع الإجراء التالي غير صالح'
+    ,invalid_course_run:'الدفعة المختارة غير صالحة لهذه الدورة'
     ,staff_account_not_linked:'يجب ربط حساب الدخول بملف الموظف أولًا'
     ,title_required:'العنوان مطلوب'
+    ,phone_required:'رقم الجوال أو واتساب مطلوب'
     ,summary_required:'ملخص النشاط مطلوب'
     ,next_action_required:'يجب تحديد الإجراء التالي وموعده'
+    ,course_required_for_payment:'يجب تحديد الدورة قبل تسليم العميل إلى التسجيل والقبول'
     ,due_at_required:'موعد المهمة مطلوب'
     ,opportunity_not_found:'الفرصة غير موجودة'
     ,task_not_found:'المهمة غير موجودة'

@@ -5,12 +5,21 @@ import {requireTenantPermission} from '../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
 
-const money=value=>new Intl.NumberFormat('ar-SA',{
-  style:'currency',currency:'SAR',maximumFractionDigits:0
-}).format((Number(value)||0)/100);
 const when=value=>value?new Date(value).toLocaleString('ar-SA',{
   weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'
 }):'غير محدد';
+const SALES_GROUPS=[
+  ['جديد',['new']],
+  ['يحتاج متابعة',['no_answer','busy','follow_up','postponed']],
+  ['مهتم',['interested']],
+  ['مهتم جدًا',['very_interested']],
+  ['بانتظار الدفع',['awaiting_payment']],
+  ['تم الدفع',['paid']]
+];
+const ACTIVE_LEAD_STATUSES=new Set([
+  'new','no_answer','busy','follow_up','interested',
+  'very_interested','awaiting_payment','postponed'
+]);
 
 export default async function TenantOverview({params}){
   const {slug}=await params;
@@ -25,10 +34,8 @@ export default async function TenantOverview({params}){
     ['todo','in_progress'].includes(task.status)
   );
   const overdue=openTasks.filter(task=>new Date(task.dueAt)<new Date());
-  const openOpportunities=(operations.opportunities||[]).filter(item=>
-    item.status==='open'
-  );
-  const stages=(operations.stages||[]).filter(stage=>!stage.closed);
+  const contacts=operations.contacts||[];
+  const activeLeads=contacts.filter(item=>ACTIVE_LEAD_STATUSES.has(item.leadStatus));
   const demoCount=(operations.contacts||[]).filter(item=>item.demo).length;
 
   return <>
@@ -49,12 +56,12 @@ export default async function TenantOverview({params}){
     </section>}
 
     <section className="mt-kpis">
-      <article className="mt-kpi"><span>قيمة مسار المبيعات</span><b>{money(summary.pipelineValueMinor)}</b><small>{summary.openOpportunities||openOpportunities.length} فرصة مفتوحة</small></article>
+      <article className="mt-kpi"><span>العملاء داخل المسار</span><b>{summary.activeLeads||activeLeads.length}</b><small>{summary.awaitingPayment||0} بانتظار الدفع</small></article>
       <article className="mt-kpi"><span>مهام اليوم</span><b>{summary.dueToday||0}</b><small>{openTasks.length} مهمة مفتوحة إجمالًا</small></article>
       <article className={`mt-kpi ${overdue.length?'danger':''}`}><span>المهام المتأخرة</span><b>{summary.overdueTasks||overdue.length}</b><small>تحتاج متابعة أو إعادة جدولة</small></article>
       <article className="mt-kpi"><span>العملاء النشطون</span><b>{summary.activeContacts||0}</b><small>{summary.activitiesToday||0} نشاط اليوم</small></article>
       <article className="mt-kpi"><span>فريق العمل</span><b>{data.employees?.length||0}</b><small>{data.users?.length||0} حساب دخول مرتبط</small></article>
-      <article className="mt-kpi"><span>فرص ناجحة هذا الشهر</span><b>{summary.wonThisMonth||0}</b><small>الخطة الكاملة مفعّلة</small></article>
+      <article className="mt-kpi"><span>تم الدفع هذا الشهر</span><b>{summary.paidThisMonth||0}</b><small>تم تسليمهم للتسجيل والقبول</small></article>
     </section>
 
     <section className="mt-grid">
@@ -62,7 +69,7 @@ export default async function TenantOverview({params}){
         <header className="mt-panel-head"><div><h3>المهام الأقرب</h3><p>مرتبة حسب الموعد النهائي</p></div><Link className="mt-button soft" href={`/tenant/${slug}/tasks`}>عرض التقويم</Link></header>
         <div className="mt-panel-body mt-list">
           {openTasks.sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt)).slice(0,7).map(task=><div className="mt-list-row" key={task.id}>
-            <div><b>{task.title}</b><small>{task.assigneeName||'غير مسند'} · {task.opportunityTitle||task.serviceName||'مهمة تشغيلية'}</small></div>
+            <div><b>{task.title}</b><small>{task.assigneeName||'غير مسند'} · {task.contactName||task.contactCourseName||'مهمة تشغيلية'}</small></div>
             <div><span className={new Date(task.dueAt)<new Date()?'mt-status danger':'mt-status'}>{when(task.dueAt)}</span></div>
           </div>)}
           {!openTasks.length&&<div className="mt-empty">لا توجد مهام مفتوحة حاليًا.</div>}
@@ -70,25 +77,25 @@ export default async function TenantOverview({params}){
       </article>
 
       <article className="mt-panel">
-        <header className="mt-panel-head"><div><h3>حركة المبيعات</h3><p>توزيع الفرص على المراحل</p></div><Link className="mt-button soft" href={`/tenant/${slug}/sales`}>التفاصيل</Link></header>
+        <header className="mt-panel-head"><div><h3>حركة المبيعات</h3><p>توزيع العملاء حسب نتيجة المتابعة</p></div><Link className="mt-button soft" href={`/tenant/${slug}/sales`}>التفاصيل</Link></header>
         <div className="mt-panel-body mt-list">
-          {stages.slice(0,6).map(stage=>{
-            const items=openOpportunities.filter(item=>item.stageId===stage.id);
-            const percent=openOpportunities.length?Math.round(items.length/openOpportunities.length*100):0;
-            return <div className="mt-list-row" key={stage.id}><div><b>{stage.nameAr}</b><small>{items.length} فرصة</small><div className="mt-progress"><i style={{width:`${percent}%`}}/></div></div><em>{percent}%</em></div>;
+          {SALES_GROUPS.map(([label,statuses])=>{
+            const items=contacts.filter(item=>statuses.includes(item.leadStatus));
+            const percent=contacts.length?Math.round(items.length/contacts.length*100):0;
+            return <div className="mt-list-row" key={label}><div><b>{label}</b><small>{items.length} عميل</small><div className="mt-progress"><i style={{width:`${percent}%`}}/></div></div><em>{percent}%</em></div>;
           })}
-          {!stages.length&&<div className="mt-empty">لم تُضبط مراحل المبيعات بعد.</div>}
+          {!contacts.length&&<div className="mt-empty">لم يضف عملاء إلى المسار بعد.</div>}
         </div>
       </article>
     </section>
 
     {operations.viewer?.viewTeam&&<section className="mt-panel">
       <header className="mt-panel-head">
-        <div><h3>متابعة فريق المبيعات</h3><p>الفرص والأنشطة والمهام المتأخرة لكل مسؤول</p></div>
+        <div><h3>متابعة فريق المبيعات</h3><p>العملاء النشطون والأنشطة والمهام المتأخرة لكل مسؤول</p></div>
         <Link className="mt-button soft" href={`/tenant/${slug}/sales`}>إدارة المسار</Link>
       </header>
       <div className="mt-table-wrap"><table className="mt-table">
-        <thead><tr><th>الموظف</th><th>الفرص المفتوحة</th><th>أنشطة اليوم</th><th>ناجحة هذا الشهر</th><th>مهام متأخرة</th></tr></thead>
+        <thead><tr><th>الموظف</th><th>عملاء قيد المتابعة</th><th>أنشطة اليوم</th><th>تم الدفع</th><th>مهام متأخرة</th></tr></thead>
         <tbody>{(operations.leaderboard||[]).map(item=><tr key={item.staffId}>
           <td><b>{item.name}</b><small>{item.roleKey==='sales_supervisor'?'مشرف المبيعات':'مسؤول مبيعات'}</small></td>
           <td>{item.openOpportunities}</td>

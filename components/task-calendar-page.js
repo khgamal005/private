@@ -9,10 +9,36 @@ const FILTERS=[
   ['all','الكل'],
   ['overdue','متأخرة'],
   ['today','اليوم'],
+  ['awaiting_payment','بانتظار الدفع'],
+  ['very_interested','مهتم جدًا'],
   ['upcoming','قادمة'],
   ['completed','مكتملة']
 ];
 const EMPTY=[];
+const LEAD_STATUS={
+  new:'جديد',
+  no_answer:'لم يرد',
+  busy:'مشغول',
+  follow_up:'متابعة لاحقة',
+  interested:'مهتم',
+  very_interested:'مهتم جدًا',
+  awaiting_payment:'بانتظار الدفع',
+  paid:'تم الدفع',
+  postponed:'مؤجل',
+  not_interested:'غير مهتم',
+  unqualified:'غير مؤهل',
+  wrong_number:'رقم غير صحيح',
+  duplicate:'مكرر',
+  cancelled:'ملغي'
+};
+const LEAD_QUALITY={
+  unrated:'غير مقيم',
+  unqualified:'غير مؤهل',
+  weak:'ضعيف',
+  qualified:'مؤهل',
+  good:'جيد',
+  excellent:'ممتاز'
+};
 
 function monthStart(value){return new Date(value.getFullYear(),value.getMonth(),1)}
 function calendarDays(value){
@@ -73,7 +99,6 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
   const tasks=data.tasks||EMPTY;
   const staff=data.staff||EMPTY;
   const contacts=data.contacts||EMPTY;
-  const opportunities=(data.opportunities||EMPTY).filter(item=>item.status==='open');
   const canWrite=Boolean(data.viewer?.canWriteWork);
   const viewTeam=Boolean(data.viewer?.viewTeam);
 
@@ -91,6 +116,9 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
     if(!matchesAssignee)return false;
     if(filter==='all')return true;
     if(filter==='completed')return task.status==='completed';
+    if(filter==='awaiting_payment'||filter==='very_interested'){
+      return task.contactStatus===filter&&task.status!=='completed';
+    }
     return state(task)===filter;
   }),[tasks,filter,assignee]);
 
@@ -171,7 +199,7 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
       <div>
         <small>V2 TASKS & CALENDAR</small>
         <h2>المهام والتقويم</h2>
-        <p>{viewTeam?'متابعة مهام الفريق كاملة':'مهامك المسندة'} · كل متابعة مبيعات تظهر هنا تلقائيًا.</p>
+        <p>{viewTeam?'متابعة مهام الفريق كاملة':'مهامك المسندة'} · اسم العميل وجواله وحالته ظاهرة مع كل متابعة.</p>
       </div>
       {canWrite&&<div className="mt-page-actions">
         <button type="button" className="mt-button primary" onClick={()=>setShowForm(true)}>+ مهمة جديدة</button>
@@ -237,7 +265,7 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
               onClick={()=>setSelected(task)}
             >
               <strong>{task.title}</strong>
-              <small>{formatTime(task.dueAt)} · {task.assigneeName||'غير مسند'}</small>
+              <small>{formatTime(task.dueAt)} · {task.contactName||task.assigneeName||'مهمة تشغيلية'}</small>
             </button>)}
             {dayTasks.length>4&&<button className="more-tasks">+ {dayTasks.length-4} أخرى</button>}
           </div>
@@ -248,8 +276,16 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
         <time><span>{formatDate(task.dueAt)}</span><b>{formatTime(task.dueAt)}</b></time>
         <div className="agenda-main">
           <strong>{task.title}</strong>
-          <p>{task.description||task.opportunityTitle||'مهمة تشغيلية'}</p>
-          <small>{task.assigneeName||'غير مسند'}{task.contactName?` · ${task.contactName}`:''}</small>
+          <p>{task.description||task.contactCourseName||'مهمة تشغيلية'}</p>
+          <small>
+            {task.assigneeName||'غير مسند'}
+            {task.contactName?` · ${task.contactName}`:''}
+            {task.contactPhone?` · ${task.contactPhone}`:''}
+          </small>
+          {task.contactStatus&&<div className="agenda-lead-context">
+            <span>{LEAD_STATUS[task.contactStatus]||task.contactStatus}</span>
+            <span>{LEAD_QUALITY[task.contactQuality]||'غير مقيم'}</span>
+          </div>}
         </div>
         <div className="agenda-badges"><span className={`timing ${state(task)}`}>{timingText(task)}</span></div>
         {task.status!=='completed'&&canWrite&&<button
@@ -273,7 +309,6 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
           <label>المسند إليه<select name="assigned_staff_id"><option value="">أنا / غير مسند</option>{staff.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
           <label>الأولوية<select name="priority" defaultValue="normal"><option value="low">منخفضة</option><option value="normal">عادية</option><option value="high">عالية</option><option value="urgent">عاجلة</option></select></label>
           <label>الموعد<input name="due_at" required type="datetime-local"/></label>
-          <label>الفرصة<select name="opportunity_id"><option value="">غير مرتبطة</option>{opportunities.map(item=><option value={item.id} key={item.id}>{item.title}</option>)}</select></label>
           <label>العميل<select name="contact_id"><option value="">غير مرتبط</option>{contacts.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
           <label className="wide">التفاصيل<textarea name="description" rows="4"/></label>
           {error&&<div className="calendar-alert error wide">{error}</div>}
@@ -299,7 +334,16 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
           <div><dt>الأولوية</dt><dd>{selected.priority}</dd></div>
         </dl>
         {selected.description&&<p>{selected.description}</p>}
-        {selected.contactName&&<aside><b>{selected.contactName}</b><small>{selected.opportunityTitle||'مهمة عميل'}</small></aside>}
+        {selected.contactName&&<aside className="calendar-customer-card">
+          <b>{selected.contactName}</b>
+          {selected.contactPhone&&<a href={`tel:${String(selected.contactPhone).replace(/\D/g,'')}`}>{selected.contactPhone}</a>}
+          <span>{selected.contactCourseName||'الدورة غير محددة'}</span>
+          <small>
+            {selected.contactStatus?LEAD_STATUS[selected.contactStatus]||selected.contactStatus:'الحالة غير محددة'}
+            {' · '}
+            {selected.contactQuality?LEAD_QUALITY[selected.contactQuality]||selected.contactQuality:'غير مقيم'}
+          </small>
+        </aside>}
         <footer>
           <button onClick={()=>setSelected(null)}>إغلاق</button>
           {selected.status==='todo'&&canWrite&&<button onClick={()=>updateStatus(selected,'in_progress')} disabled={saving}>بدء التنفيذ</button>}

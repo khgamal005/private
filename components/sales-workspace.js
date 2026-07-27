@@ -2,53 +2,17 @@
 
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import SalesFollowupModal,{
+  ACTIONS,
+  ActionSelect,
+  OPEN_STATUSES,
+  QualitySelect,
+  SalesQualityBadge,
+  SalesStatusBadge,
+  dateOnly
+} from './sales-followup-modal';
 
 const EMPTY=[];
-const OPEN_STATUSES=new Set([
-  'new',
-  'no_answer',
-  'busy',
-  'follow_up',
-  'interested',
-  'very_interested',
-  'awaiting_payment',
-  'postponed'
-]);
-
-const STATUS={
-  new:{label:'جديد',tone:'neutral'},
-  no_answer:{label:'لم يرد',tone:'muted'},
-  busy:{label:'مشغول',tone:'warning'},
-  follow_up:{label:'متابعة لاحقة',tone:'info'},
-  interested:{label:'مهتم',tone:'good'},
-  very_interested:{label:'مهتم جدًا',tone:'excellent'},
-  awaiting_payment:{label:'بانتظار الدفع',tone:'payment'},
-  paid:{label:'تم الدفع',tone:'paid'},
-  postponed:{label:'مؤجل',tone:'warning'},
-  not_interested:{label:'غير مهتم',tone:'closed'},
-  unqualified:{label:'غير مؤهل',tone:'closed'},
-  wrong_number:{label:'رقم غير صحيح',tone:'closed'},
-  duplicate:{label:'مكرر',tone:'closed'},
-  cancelled:{label:'ملغي',tone:'closed'}
-};
-
-const QUALITY={
-  unrated:{label:'غير مقيم',tone:'muted'},
-  unqualified:{label:'غير مؤهل',tone:'closed'},
-  weak:{label:'ضعيف',tone:'warning'},
-  qualified:{label:'مؤهل',tone:'info'},
-  good:{label:'جيد',tone:'good'},
-  excellent:{label:'ممتاز',tone:'excellent'}
-};
-
-const ACTIONS={
-  call:'اتصال',
-  whatsapp:'واتساب',
-  send_details:'إرسال التفاصيل',
-  meeting:'اجتماع',
-  payment_followup:'متابعة الدفع',
-  follow_up:'متابعة عامة'
-};
 
 const ACTIVITY={
   call:'مكالمة',
@@ -59,12 +23,10 @@ const ACTIVITY={
 };
 
 const PIPELINE=[
-  {key:'new',label:'جديد',statuses:['new']},
-  {key:'followup',label:'يحتاج متابعة',statuses:['no_answer','busy','follow_up','postponed']},
+  {key:'new',label:'جديد',statuses:['new','no_answer','busy','follow_up','postponed']},
   {key:'interested',label:'مهتم',statuses:['interested']},
   {key:'very_interested',label:'مهتم جدًا',statuses:['very_interested']},
-  {key:'awaiting_payment',label:'بانتظار الدفع',statuses:['awaiting_payment']},
-  {key:'paid',label:'تم الدفع',statuses:['paid']}
+  {key:'awaiting_payment',label:'بانتظار الدفع',statuses:['awaiting_payment']}
 ];
 
 const QUICK_FILTERS=[
@@ -84,22 +46,21 @@ const when=value=>value?new Date(value).toLocaleString('ar-SA',{
   minute:'2-digit'
 }):'لا يوجد';
 
-const dateOnly=value=>value?new Date(value).toLocaleDateString('ar-SA',{
-  day:'numeric',
-  month:'short',
-  year:'numeric'
-}):'لم يحدد';
-
 const money=value=>new Intl.NumberFormat('ar-SA',{
   style:'currency',
   currency:'SAR',
   maximumFractionDigits:0
 }).format((Number(value)||0)/100);
 
-function statusMeta(value){return STATUS[value]||{label:value||'غير محدد',tone:'muted'}}
-function qualityMeta(value){return QUALITY[value]||QUALITY.unrated}
 function digits(value){return String(value||'').replace(/\D/g,'')}
 function isClosed(value){return !OPEN_STATUSES.has(value)&&value!=='paid'}
+function inputDate(value){
+  const date=new Date(value);
+  const year=date.getFullYear();
+  const month=String(date.getMonth()+1).padStart(2,'0');
+  const day=String(date.getDate()).padStart(2,'0');
+  return `${year}-${month}-${day}`;
+}
 
 export default function SalesWorkspace({slug,initialData}){
   const router=useRouter();
@@ -107,9 +68,10 @@ export default function SalesWorkspace({slug,initialData}){
   const [view,setView]=useState('pipeline');
   const [query,setQuery]=useState('');
   const [quickFilter,setQuickFilter]=useState('all');
+  const [datePreset,setDatePreset]=useState('all');
+  const [fromDate,setFromDate]=useState('');
+  const [toDate,setToDate]=useState('');
   const [modal,setModal]=useState(null);
-  const [followupStatus,setFollowupStatus]=useState('follow_up');
-  const [paidCourseId,setPaidCourseId]=useState('');
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
   const [error,setError]=useState('');
@@ -125,29 +87,33 @@ export default function SalesWorkspace({slug,initialData}){
   const summary=data.summary||{};
   const canWrite=Boolean(data.viewer?.canWriteCrm);
 
+  const dateBounds=useMemo(()=>({
+    start:fromDate?new Date(`${fromDate}T00:00:00`):null,
+    end:toDate?new Date(`${toDate}T23:59:59.999`):null
+  }),[fromDate,toDate]);
+
   const shownContacts=useMemo(()=>contacts.filter(contact=>{
     const haystack=`${contact.name||''} ${contact.organizationName||''} ${contact.phone||''} ${contact.interestCourseName||''} ${contact.source||''} ${contact.campaignName||''}`.toLowerCase();
     if(!haystack.includes(query.trim().toLowerCase()))return false;
-    if(quickFilter==='all')return true;
-    if(quickFilter==='excellent')return contact.leadQuality==='excellent';
-    if(quickFilter==='unqualified')return contact.leadQuality==='unqualified'||contact.leadStatus==='unqualified';
-    if(quickFilter==='overdue')return contact.nextActionAt&&new Date(contact.nextActionAt)<new Date();
-    if(quickFilter==='closed')return isClosed(contact.leadStatus);
-    return contact.leadStatus===quickFilter;
-  }),[contacts,query,quickFilter]);
-
-  const availableRuns=useMemo(()=>courseRuns.filter(run=>
-    !paidCourseId||run.courseId===paidCourseId
-  ),[courseRuns,paidCourseId]);
+    const filterMatches=quickFilter==='all'
+      ||(quickFilter==='excellent'&&contact.leadQuality==='excellent')
+      ||(quickFilter==='unqualified'&&(contact.leadQuality==='unqualified'||contact.leadStatus==='unqualified'))
+      ||(quickFilter==='overdue'&&contact.nextActionAt&&new Date(contact.nextActionAt)<new Date())
+      ||(quickFilter==='closed'&&isClosed(contact.leadStatus))
+      ||contact.leadStatus===quickFilter;
+    if(!filterMatches)return false;
+    if(!dateBounds.start&&!dateBounds.end)return true;
+    if(!contact.nextActionAt)return false;
+    const nextAction=new Date(contact.nextActionAt);
+    if(dateBounds.start&&nextAction<dateBounds.start)return false;
+    if(dateBounds.end&&nextAction>dateBounds.end)return false;
+    return true;
+  }),[contacts,query,quickFilter,dateBounds]);
 
   function openModal(type,record=null){
     setError('');
     setMessage('');
     setModal({type,record});
-    if(type==='followup'){
-      setFollowupStatus(OPEN_STATUSES.has(record?.leadStatus)?record.leadStatus:'follow_up');
-      setPaidCourseId(record?.interestCourseId||'');
-    }
   }
 
   function closeModal(){
@@ -190,6 +156,21 @@ export default function SalesWorkspace({slug,initialData}){
   function activateFilter(value){
     setQuickFilter(value);
     if(value==='closed')setView('contacts');
+  }
+
+  function chooseDatePreset(value){
+    setDatePreset(value);
+    if(value==='all'){
+      setFromDate('');
+      setToDate('');
+      return;
+    }
+    const start=new Date();
+    const end=new Date(start);
+    if(value==='7days')end.setDate(end.getDate()+6);
+    if(value==='month')end.setDate(end.getDate()+29);
+    setFromDate(inputDate(start));
+    setToDate(inputDate(end));
   }
 
   return <>
@@ -267,6 +248,21 @@ export default function SalesWorkspace({slug,initialData}){
         >{label}</button>)}
       </div>
 
+      <div className="mt-sales-date-filters">
+        <div className="mt-sales-date-copy">
+          <b>فترة المتابعة القادمة</b>
+          <small>اعرض العملاء حسب موعد الإجراء التالي</small>
+        </div>
+        <div className="mt-sales-date-presets">
+          <button className={datePreset==='today'?'active':''} onClick={()=>chooseDatePreset('today')}>اليوم</button>
+          <button className={datePreset==='7days'?'active':''} onClick={()=>chooseDatePreset('7days')}>7 أيام</button>
+          <button className={datePreset==='month'?'active':''} onClick={()=>chooseDatePreset('month')}>شهر</button>
+        </div>
+        <label>من<input type="date" value={fromDate} onChange={event=>{setFromDate(event.target.value);setDatePreset('custom')}}/></label>
+        <label>إلى<input type="date" value={toDate} min={fromDate||undefined} onChange={event=>{setToDate(event.target.value);setDatePreset('custom')}}/></label>
+        <button className={`mt-sales-date-clear ${datePreset==='all'?'active':''}`} onClick={()=>chooseDatePreset('all')}>كل التواريخ</button>
+      </div>
+
       {view==='pipeline'&&<div className="mt-lead-board">
         {PIPELINE.map(group=>{
           const items=shownContacts.filter(contact=>group.statuses.includes(contact.leadStatus));
@@ -310,8 +306,8 @@ export default function SalesWorkspace({slug,initialData}){
             <small>{activity.summary} · {activity.actorName||'إدارة المنشأة'}</small>
           </div>
           <div className="mt-activity-result">
-            {activity.resultStatus&&<StatusBadge value={activity.resultStatus}/>}
-            {activity.resultQuality&&<QualityBadge value={activity.resultQuality}/>}
+            {activity.resultStatus&&<SalesStatusBadge value={activity.resultStatus}/>}
+            {activity.resultQuality&&<SalesQualityBadge value={activity.resultQuality}/>}
             <small>{when(activity.occurredAt)}</small>
             {activity.nextActionAt&&<small>التالي: {when(activity.nextActionAt)}</small>}
           </div>
@@ -332,10 +328,10 @@ export default function SalesWorkspace({slug,initialData}){
       </table>{!handoffs.length&&<div className="mt-empty">لم تُسلّم أي حالات مدفوعة للتسجيل بعد.</div>}</div>}
     </section>
 
-    {modal&&<div className="mt-modal-layer">
+    {modal?.type==='lead'&&<div className="mt-modal-layer">
       <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={closeModal}/>
 
-      {modal.type==='lead'&&<form
+      <form
         className="mt-modal"
         onSubmit={event=>submit(
           event,
@@ -379,74 +375,21 @@ export default function SalesWorkspace({slug,initialData}){
           {error&&<div className="mt-alert error mt-field wide">{error}</div>}
         </div>
         <ModalFooter busy={busy} onClose={closeModal} label="حفظ وبدء المتابعة"/>
-      </form>}
-
-      {modal.type==='followup'&&<form
-        className="mt-modal"
-        onSubmit={event=>submit(
-          event,
-          'record-sales-followup',
-          values=>{
-            const open=OPEN_STATUSES.has(values.lead_status);
-            const paid=values.lead_status==='paid';
-            return {
-              p_tenant_slug:slug,
-              p_contact_id:modal.record.id,
-              p_activity_type:values.activity_type,
-              p_summary:values.summary,
-              p_lead_status:values.lead_status,
-              p_lead_quality:values.lead_quality,
-              p_next_action_type:open?values.next_action_type:null,
-              p_next_action_at:open?new Date(values.next_action_at).toISOString():null,
-              p_course_id:paid?(values.course_id||null):(modal.record.interestCourseId||null),
-              p_course_run_id:paid?(values.course_run_id||null):null,
-              p_payment_amount_minor:paid&&values.payment_amount?Math.round(Number(values.payment_amount)*100):null,
-              p_payment_reference:paid?(values.payment_reference||null):null,
-              p_preferred_start_date:paid?(values.preferred_start_date||null):null
-            };
-          },
-          result=>result.registrationNotified
-            ?'تم حفظ المتابعة وإرسال تنويه مباشر إلى التسجيل والقبول'
-            :'تم حفظ النتيجة وإنشاء مهمة الإجراء التالي تلقائيًا'
-        )}
-      >
-        <ModalHeader title={`نتيجة المتابعة · ${modal.record.name}`} onClose={closeModal}/>
-        <div className="mt-customer-summary">
-          <div><span>الجوال</span><b>{modal.record.phone||'—'}</b></div>
-          <div><span>الحالة الحالية</span><StatusBadge value={modal.record.leadStatus}/></div>
-          <div><span>الجودة الحالية</span><QualityBadge value={modal.record.leadQuality}/></div>
-          <div><span>الدورة</span><b>{modal.record.interestCourseName||'لم تحدد'}</b></div>
-        </div>
-        <div className="mt-form">
-          <label className="mt-field">وسيلة التواصل<select name="activity_type"><option value="call">مكالمة</option><option value="whatsapp">واتساب</option><option value="meeting">اجتماع</option><option value="email">بريد إلكتروني</option><option value="note">ملاحظة</option></select></label>
-          <label className="mt-field">حالة العميل<StatusSelect name="lead_status" value={followupStatus} onChange={event=>setFollowupStatus(event.target.value)}/></label>
-          <label className="mt-field">جودة الليد<QualitySelect name="lead_quality" defaultValue={modal.record.leadQuality}/></label>
-          <label className="mt-field wide">ما الذي حدث؟<textarea name="summary" rows="4" required placeholder="اكتب ملخصًا واضحًا لنتيجة التواصل"/></label>
-
-          {OPEN_STATUSES.has(followupStatus)&&<>
-            <label className="mt-field">الإجراء التالي<ActionSelect name="next_action_type" preferred={followupStatus==='awaiting_payment'?'payment_followup':'follow_up'}/></label>
-            <label className="mt-field">موعد الإجراء التالي<input name="next_action_at" type="datetime-local" required/></label>
-          </>}
-
-          {followupStatus==='paid'&&<>
-            <div className="mt-form-section wide"><b>تسليم إلى التسجيل والقبول</b><small>الدفعة وتاريخ البداية اختياريان ويمكن استكمالهما لاحقًا.</small></div>
-            <label className="mt-field">الدورة<select name="course_id" value={paidCourseId} onChange={event=>setPaidCourseId(event.target.value)} required><option value="">اختر الدورة</option>{courses.map(item=><option value={item.id} key={item.id}>{item.nameAr}</option>)}</select></label>
-            <label className="mt-field">الدفعة<select name="course_run_id"><option value="">لم تحدد الدفعة بعد</option>{availableRuns.map(item=><option value={item.id} key={item.id}>{item.title} · {dateOnly(item.startsAt)}</option>)}</select></label>
-            <label className="mt-field">المبلغ المدفوع<input name="payment_amount" type="number" min="0" step=".01"/></label>
-            <label className="mt-field">مرجع الدفع<input name="payment_reference"/></label>
-            <label className="mt-field">بداية مفضلة<input name="preferred_start_date" type="date"/></label>
-          </>}
-
-          {!OPEN_STATUSES.has(followupStatus)&&followupStatus!=='paid'&&<div className="mt-form-section wide closed">
-            <b>سيتم إغلاق المتابعة البيعية</b>
-            <small>لن تُنشأ مهمة جديدة، وستظل النتيجة محفوظة في سجل العميل والتقارير.</small>
-          </div>}
-
-          {error&&<div className="mt-alert error mt-field wide">{error}</div>}
-        </div>
-        <ModalFooter busy={busy} onClose={closeModal} label={followupStatus==='paid'?'حفظ وإرسال للتسجيل':'حفظ النتيجة'}/>
-      </form>}
+      </form>
     </div>}
+
+    {modal?.type==='followup'&&<SalesFollowupModal
+      slug={slug}
+      contact={modal.record}
+      courses={courses}
+      courseRuns={courseRuns}
+      onClose={closeModal}
+      onSaved={followupMessage=>{
+        setMessage(followupMessage);
+        setModal(null);
+        router.refresh();
+      }}
+    />}
   </>;
 }
 
@@ -472,37 +415,9 @@ function LeadCard({contact,canWrite,onFollowup}){
 
 function LeadBadges({contact}){
   return <div className="mt-lead-badges">
-    <StatusBadge value={contact.leadStatus}/>
-    <QualityBadge value={contact.leadQuality}/>
+    <SalesStatusBadge value={contact.leadStatus}/>
+    <SalesQualityBadge value={contact.leadQuality}/>
   </div>;
-}
-
-function StatusBadge({value}){
-  const meta=statusMeta(value);
-  return <span className={`mt-lead-badge ${meta.tone}`}>{meta.label}</span>;
-}
-
-function QualityBadge({value}){
-  const meta=qualityMeta(value);
-  return <span className={`mt-quality-badge ${meta.tone}`}>{meta.label}</span>;
-}
-
-function StatusSelect(props){
-  return <select {...props}>
-    {Object.entries(STATUS).map(([key,item])=><option value={key} key={key}>{item.label}</option>)}
-  </select>;
-}
-
-function QualitySelect({defaultValue='unrated',...props}){
-  return <select defaultValue={defaultValue||'unrated'} {...props}>
-    {Object.entries(QUALITY).map(([key,item])=><option value={key} key={key}>{item.label}</option>)}
-  </select>;
-}
-
-function ActionSelect({preferred='call',...props}){
-  return <select defaultValue={preferred} {...props}>
-    {Object.entries(ACTIONS).map(([key,label])=><option value={key} key={key}>{label}</option>)}
-  </select>;
 }
 
 function ModalHeader({title,onClose}){

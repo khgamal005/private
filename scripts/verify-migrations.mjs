@@ -13,10 +13,12 @@ const peopleAcademy='20260727003000_add_people_academy_and_full_plan.sql';
 const reefSeed='20260727004000_seed_reef_skills_tenant.sql';
 const peopleAcademyIndexes='20260727004500_index_people_academy_references.sql';
 const staffActivation='20260727110338_add_staff_profile_activation_and_role_routes.sql';
+const operationalCore='20260727192319_add_operational_crm_and_work_v2.sql';
+const operationalIndexes='20260727193725_index_operational_foreign_keys.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -28,6 +30,8 @@ const peopleAcademySql=await readFile(new URL(peopleAcademy,migrationsUrl),'utf8
 const reefSeedSql=await readFile(new URL(reefSeed,migrationsUrl),'utf8');
 const peopleAcademyIndexSql=await readFile(new URL(peopleAcademyIndexes,migrationsUrl),'utf8');
 const staffActivationSql=await readFile(new URL(staffActivation,migrationsUrl),'utf8');
+const operationalCoreSql=await readFile(new URL(operationalCore,migrationsUrl),'utf8');
+const operationalIndexesSql=await readFile(new URL(operationalIndexes,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -69,5 +73,18 @@ assert.match(staffActivationSql,/v2_tenant_invite_staff/);
 assert.match(staffActivationSql,/people_staff_tenant_email_idx/);
 assert.match(staffActivationSql,/tenant\.users\.manage/);
 assert.doesNotMatch(staffActivationSql,/service_role|SUPABASE_SECRET/i);
+assert.match(operationalCoreSql,/create schema if not exists sales_core/);
+assert.match(operationalCoreSql,/create schema if not exists work_core/);
+assert.match(operationalCoreSql,/v2_tenant_operations_snapshot/);
+assert.match(operationalCoreSql,/v2_tenant_create_contact/);
+assert.match(operationalCoreSql,/v2_tenant_log_activity/);
+assert.match(operationalCoreSql,/next_action_required/);
+assert.match(operationalCoreSql,/sales_contacts_isolated_read/);
+assert.match(operationalCoreSql,/work_tasks_isolated_read/);
+assert.doesNotMatch(operationalCoreSql,/service_role|SUPABASE_SECRET/i);
+assert.match(operationalIndexesSql,/sales_contacts_owner_reference_idx/);
+assert.match(operationalIndexesSql,/sales_opportunities_stage_reference_idx/);
+assert.match(operationalIndexesSql,/sales_activities_creator_reference_idx/);
+assert.match(operationalIndexesSql,/work_tasks_creator_reference_idx/);
 
 console.log('Verified the clean v2 database, provisioning, and Reef tenant migrations.');

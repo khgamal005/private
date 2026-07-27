@@ -72,3 +72,43 @@ test('role-protected tenant routes enforce their permissions on the server',asyn
     assert.match(source,new RegExp(permission.replaceAll('.','\\.')));
   }
 });
+
+test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()=>{
+  const migration=await read('../supabase/migrations/20260727192319_add_operational_crm_and_work_v2.sql');
+  const api=await read('../app/api/tenant/[action]/route.js');
+  const data=await read('../lib/api.js');
+  const sales=await read('../components/sales-workspace.js');
+  const tasks=await read('../components/task-calendar-page.js');
+
+  assert.match(migration,/create schema if not exists sales_core/);
+  assert.match(migration,/create schema if not exists work_core/);
+  assert.match(migration,/v2_tenant_operations_snapshot/);
+  assert.match(migration,/v2_tenant_create_contact/);
+  assert.match(migration,/v2_tenant_create_opportunity/);
+  assert.match(migration,/v2_tenant_log_activity/);
+  assert.match(migration,/v2_tenant_create_task/);
+  assert.match(migration,/v2_tenant_update_task_status/);
+  assert.match(migration,/next_action_required/);
+  assert.match(migration,/sales_contacts_isolated_read/);
+  assert.match(migration,/work_tasks_isolated_read/);
+  assert.doesNotMatch(migration,/service_role|SUPABASE_SECRET/i);
+
+  assert.match(api,/v2_tenant_create_contact/);
+  assert.match(api,/v2_tenant_create_opportunity/);
+  assert.match(api,/v2_tenant_log_activity/);
+  assert.match(api,/v2_tenant_create_task/);
+  assert.match(api,/v2_tenant_update_task_status/);
+  assert.match(data,/v2_tenant_operations_snapshot/);
+  assert.match(sales,/تسجيل نشاط/);
+  assert.match(sales,/الإجراء التالي/);
+  assert.match(tasks,/كل متابعة مبيعات تظهر هنا تلقائيًا/);
+});
+
+test('Reef operational sample data is clearly marked and uses placeholder contacts',async()=>{
+  const migration=await read('../supabase/migrations/20260727192319_add_operational_crm_and_work_v2.sql');
+  assert.match(migration,/'reef-operations-v1'/);
+  assert.match(migration,/'demo', true/);
+  assert.match(migration,/'0500000101'/);
+  assert.match(migration,/'reef-demo-012'/);
+  assert.match(migration,/'REEF-SALES-007'/);
+});

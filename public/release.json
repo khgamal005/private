@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0-beta.6",
-  "releasedAt": "2026-07-27T11:05:00.000Z",
+  "version": "2.0.0-beta.7",
+  "releasedAt": "2026-07-27T16:25:00.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
@@ -15,6 +15,10 @@
     "Added the Academy course catalog with six Reef training programs",
     "Added full-plan entitlements for all current modules and unlimited users and courses",
     "Added staff profile editing and account activation from the Reef team page",
-    "Added role-aware tenant navigation and route protection"
+    "Added role-aware tenant navigation and route protection",
+    "Rebuilt tenant CRM and work management on isolated v2 schemas",
+    "Added customers, pipeline stages, opportunities, activities, and role-scoped tasks",
+    "Enforced a next action and due date after every customer interaction",
+    "Added Reef daily operations dashboard and clearly marked sample workflow data"
   ]
 }

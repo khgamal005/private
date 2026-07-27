@@ -10,7 +10,13 @@ const RPC={
   'create-staff':'v2_tenant_create_staff',
   'update-staff':'v2_tenant_update_staff',
   'invite-staff':'v2_tenant_invite_staff',
-  'create-course':'v2_tenant_create_course'
+  'create-course':'v2_tenant_create_course',
+  'create-contact':'v2_tenant_create_contact',
+  'create-opportunity':'v2_tenant_create_opportunity',
+  'move-opportunity':'v2_tenant_move_opportunity',
+  'log-activity':'v2_tenant_log_activity',
+  'create-task':'v2_tenant_create_task',
+  'update-task-status':'v2_tenant_update_task_status'
 };
 
 export async function POST(request,{params}){
@@ -75,6 +81,22 @@ function translate(value){
     course_code_required:'كود الدورة مطلوب',
     course_exists:'توجد دورة مسجلة بهذا الكود',
     invalid_delivery_mode:'طريقة تقديم الدورة غير صالحة'
+    ,invalid_owner:'مسؤول المتابعة غير صالح'
+    ,invalid_course:'الدورة المختارة غير صالحة'
+    ,invalid_contact:'العميل المختار غير صالح'
+    ,invalid_stage:'مرحلة المبيعات غير صالحة'
+    ,invalid_value:'قيمة الفرصة غير صالحة'
+    ,invalid_activity_type:'نوع النشاط غير صالح'
+    ,invalid_assignee:'الموظف المسند إليه غير صالح'
+    ,invalid_priority:'أولوية المهمة غير صالحة'
+    ,invalid_task_status:'حالة المهمة غير صالحة'
+    ,staff_account_not_linked:'يجب ربط حساب الدخول بملف الموظف أولًا'
+    ,title_required:'العنوان مطلوب'
+    ,summary_required:'ملخص النشاط مطلوب'
+    ,next_action_required:'يجب تحديد الإجراء التالي وموعده'
+    ,due_at_required:'موعد المهمة مطلوب'
+    ,opportunity_not_found:'الفرصة غير موجودة'
+    ,task_not_found:'المهمة غير موجودة'
   };
   return messages[String(value)]||String(value);
 }

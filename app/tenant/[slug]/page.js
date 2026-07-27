@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {notFound} from 'next/navigation';
-import {getTenant} from '../../../lib/api';
+import {getTenant,getTenantOperations} from '../../../lib/api';
 import {requireTenantPermission} from '../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
@@ -15,13 +15,21 @@ const when=value=>value?new Date(value).toLocaleString('ar-SA',{
 export default async function TenantOverview({params}){
   const {slug}=await params;
   await requireTenantPermission(slug,'tenant.workspace.read');
-  const data=await getTenant(slug);
+  const [data,operations]=await Promise.all([
+    getTenant(slug),
+    getTenantOperations(slug)
+  ]);
   if(!data)return notFound();
-  const summary=data.summary||{};
-  const openTasks=(data.tasks||[]).filter(task=>task.status!=='completed');
+  const summary=operations.summary||{};
+  const openTasks=(operations.tasks||[]).filter(task=>
+    ['todo','in_progress'].includes(task.status)
+  );
   const overdue=openTasks.filter(task=>new Date(task.dueAt)<new Date());
-  const openOpportunities=(data.opportunities||[]).filter(item=>!item.closed);
-  const stages=(data.stages||[]).filter(stage=>!stage.closed);
+  const openOpportunities=(operations.opportunities||[]).filter(item=>
+    item.status==='open'
+  );
+  const stages=(operations.stages||[]).filter(stage=>!stage.closed);
+  const demoCount=(operations.contacts||[]).filter(item=>item.demo).length;
 
   return <>
     <header className="mt-page-head">
@@ -32,13 +40,21 @@ export default async function TenantOverview({params}){
       </div>
     </header>
 
+    {demoCount>0&&<section className="mt-data-note warning">
+      <div>
+        <b>أنت تشاهد دورة تشغيل تجريبية متكاملة</b>
+        <p>{demoCount} عميلًا تجريبيًا مع فرص وأنشطة ومهام، مميّزون داخل قاعدة البيانات ولا يختلطون بالعملاء الحقيقيين.</p>
+      </div>
+      <span>بيانات تجريبية</span>
+    </section>}
+
     <section className="mt-kpis">
       <article className="mt-kpi"><span>قيمة مسار المبيعات</span><b>{money(summary.pipelineValueMinor)}</b><small>{summary.openOpportunities||openOpportunities.length} فرصة مفتوحة</small></article>
-      <article className="mt-kpi"><span>المهام المفتوحة</span><b>{summary.openTasks||openTasks.length}</b><small>مهام فردية ومشتركة</small></article>
+      <article className="mt-kpi"><span>مهام اليوم</span><b>{summary.dueToday||0}</b><small>{openTasks.length} مهمة مفتوحة إجمالًا</small></article>
       <article className={`mt-kpi ${overdue.length?'danger':''}`}><span>المهام المتأخرة</span><b>{summary.overdueTasks||overdue.length}</b><small>تحتاج متابعة أو إعادة جدولة</small></article>
-      <article className="mt-kpi"><span>العملاء النشطون</span><b>{data.contacts?.length||0}</b><small>{data.employees?.length||0} موظفًا داخل المنشأة</small></article>
+      <article className="mt-kpi"><span>العملاء النشطون</span><b>{summary.activeContacts||0}</b><small>{summary.activitiesToday||0} نشاط اليوم</small></article>
       <article className="mt-kpi"><span>فريق العمل</span><b>{data.employees?.length||0}</b><small>{data.users?.length||0} حساب دخول مرتبط</small></article>
-      <article className="mt-kpi"><span>الدورات النشطة</span><b>{data.services?.length||0}</b><small>الخطة الكاملة مفعّلة</small></article>
+      <article className="mt-kpi"><span>فرص ناجحة هذا الشهر</span><b>{summary.wonThisMonth||0}</b><small>الخطة الكاملة مفعّلة</small></article>
     </section>
 
     <section className="mt-grid">
@@ -65,6 +81,23 @@ export default async function TenantOverview({params}){
         </div>
       </article>
     </section>
+
+    {operations.viewer?.viewTeam&&<section className="mt-panel">
+      <header className="mt-panel-head">
+        <div><h3>متابعة فريق المبيعات</h3><p>الفرص والأنشطة والمهام المتأخرة لكل مسؤول</p></div>
+        <Link className="mt-button soft" href={`/tenant/${slug}/sales`}>إدارة المسار</Link>
+      </header>
+      <div className="mt-table-wrap"><table className="mt-table">
+        <thead><tr><th>الموظف</th><th>الفرص المفتوحة</th><th>أنشطة اليوم</th><th>ناجحة هذا الشهر</th><th>مهام متأخرة</th></tr></thead>
+        <tbody>{(operations.leaderboard||[]).map(item=><tr key={item.staffId}>
+          <td><b>{item.name}</b><small>{item.roleKey==='sales_supervisor'?'مشرف المبيعات':'مسؤول مبيعات'}</small></td>
+          <td>{item.openOpportunities}</td>
+          <td>{item.activitiesToday}</td>
+          <td><span className="mt-status active">{item.wonThisMonth}</span></td>
+          <td><span className={item.overdueTasks?'mt-status danger':'mt-status'}>{item.overdueTasks}</span></td>
+        </tr>)}</tbody>
+      </table></div>
+    </section>}
 
     <section className="mt-grid">
       <article className="mt-panel">

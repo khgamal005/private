@@ -2,17 +2,18 @@
 
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import SalesFollowupModal from './sales-followup-modal';
 
 const DAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const FILTERS=[
   ['all','الكل'],
-  ['overdue','متأخرة'],
-  ['today','اليوم'],
-  ['awaiting_payment','بانتظار الدفع'],
+  ['customer_followups','المتابعة فقط'],
+  ['interested','مهتم'],
   ['very_interested','مهتم جدًا'],
-  ['upcoming','قادمة'],
-  ['completed','مكتملة']
+  ['awaiting_payment','بانتظار الدفع'],
+  ['today','اليوم'],
+  ['overdue','متأخرة']
 ];
 const EMPTY=[];
 const LEAD_STATUS={
@@ -93,13 +94,17 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
   const [notice,setNotice]=useState('');
   const [showForm,setShowForm]=useState(false);
   const [selected,setSelected]=useState(null);
+  const [followupContact,setFollowupContact]=useState(null);
 
   useEffect(()=>setData(initialData),[initialData]);
 
   const tasks=data.tasks||EMPTY;
   const staff=data.staff||EMPTY;
   const contacts=data.contacts||EMPTY;
+  const courses=data.courses||EMPTY;
+  const courseRuns=data.courseRuns||EMPTY;
   const canWrite=Boolean(data.viewer?.canWriteWork);
+  const canWriteCrm=Boolean(data.viewer?.canWriteCrm);
   const viewTeam=Boolean(data.viewer?.viewTeam);
 
   const summary=useMemo(()=>({
@@ -115,8 +120,10 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
     const matchesAssignee=assignee==='all'||task.assignedStaffId===assignee;
     if(!matchesAssignee)return false;
     if(filter==='all')return true;
-    if(filter==='completed')return task.status==='completed';
-    if(filter==='awaiting_payment'||filter==='very_interested'){
+    if(filter==='customer_followups'){
+      return Boolean(task.contactId)&&task.status!=='completed';
+    }
+    if(['interested','awaiting_payment','very_interested'].includes(filter)){
       return task.contactStatus===filter&&task.status!=='completed';
     }
     return state(task)===filter;
@@ -194,12 +201,23 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
     }
   }
 
+  function openTask(task){
+    const contact=task.contactId
+      ?contacts.find(item=>item.id===task.contactId)
+      :null;
+    if(contact&&canWriteCrm&&task.status!=='completed'){
+      setFollowupContact(contact);
+      return;
+    }
+    setSelected(task);
+  }
+
   return <main className={`role-calendar-page ${embedded?'is-embedded':''}`} dir="rtl">
     <header className="mt-page-head">
       <div>
         <small>V2 TASKS & CALENDAR</small>
         <h2>المهام والتقويم</h2>
-        <p>{viewTeam?'متابعة مهام الفريق كاملة':'مهامك المسندة'} · اسم العميل وجواله وحالته ظاهرة مع كل متابعة.</p>
+        <p>{viewTeam?'متابعة مهام الفريق كاملة':'مهامك المسندة'} · اضغط متابعة العميل لتسجيل النتيجة وتحديد الإجراء التالي مباشرة.</p>
       </div>
       {canWrite&&<div className="mt-page-actions">
         <button type="button" className="mt-button primary" onClick={()=>setShowForm(true)}>+ مهمة جديدة</button>
@@ -262,7 +280,7 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
             {dayTasks.slice(0,4).map(task=><button
               className={`role-calendar-task ${state(task)}`}
               key={task.id}
-              onClick={()=>setSelected(task)}
+              onClick={()=>openTask(task)}
             >
               <strong>{task.title}</strong>
               <small>{formatTime(task.dueAt)} · {task.contactName||task.assigneeName||'مهمة تشغيلية'}</small>
@@ -272,7 +290,7 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
         </article>)}
       </section>
     </>:<section className="role-calendar-agenda">
-      {agenda.map(task=><article className={state(task)} key={task.id} onClick={()=>setSelected(task)}>
+      {agenda.map(task=><article className={state(task)} key={task.id} onClick={()=>openTask(task)}>
         <time><span>{formatDate(task.dueAt)}</span><b>{formatTime(task.dueAt)}</b></time>
         <div className="agenda-main">
           <strong>{task.title}</strong>
@@ -351,5 +369,18 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
         </footer>
       </section>
     </div>}
+
+    {followupContact&&<SalesFollowupModal
+      slug={slug}
+      contact={followupContact}
+      courses={courses}
+      courseRuns={courseRuns}
+      onClose={()=>setFollowupContact(null)}
+      onSaved={followupMessage=>{
+        setNotice(followupMessage);
+        setFollowupContact(null);
+        router.refresh();
+      }}
+    />}
   </main>;
 }

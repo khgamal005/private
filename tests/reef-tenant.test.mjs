@@ -79,6 +79,7 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   const leadPipeline=await read('../supabase/migrations/20260727211527_lead_centric_sales_pipeline.sql');
   const admissionsMigration=await read('../supabase/migrations/20260727223000_admissions_and_sales_guards_v2.sql');
   const courseRunsMigration=await read('../supabase/migrations/20260727230548_course_runs_and_schedules_v2.sql');
+  const learnerOperationsMigration=await read('../supabase/migrations/20260728003500_learner_operations_v2.sql');
   const api=await read('../app/api/tenant/[action]/route.js');
   const data=await read('../lib/api.js');
   const sales=await read('../components/sales-workspace.js');
@@ -86,6 +87,8 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   const shell=await read('../components/workspace-shell.js');
   const tasks=await read('../components/task-calendar-page.js');
   const followupModal=await read('../components/sales-followup-modal.js');
+  const learnerOperations=await read('../components/learner-operations-workspace.js');
+  const certificatePage=await read('../app/tenant/[slug]/certificates/[certificateId]/page.js');
   const styles=await read('../app/rebuild.css');
 
   assert.match(migration,/create schema if not exists sales_core/);
@@ -124,14 +127,33 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(courseRunsMigration,/course_run_not_open/);
   assert.match(courseRunsMigration,/course_run_sessions_overlap/);
   assert.match(courseRunsMigration,/'demo',\s*true/);
+  assert.match(learnerOperationsMigration,/create table academy\.attendance_records/);
+  assert.match(learnerOperationsMigration,/create table academy\.assessment_results/);
+  assert.match(learnerOperationsMigration,/create table academy\.student_communications/);
+  assert.match(learnerOperationsMigration,/create table academy\.certificates/);
+  assert.match(learnerOperationsMigration,/v2_tenant_training_operations_snapshot/);
+  assert.match(learnerOperationsMigration,/v2_tenant_update_training_operation/);
+  assert.match(learnerOperationsMigration,/v2_tenant_certificate_snapshot/);
+  assert.match(learnerOperationsMigration,/training_manager/);
+  assert.match(learnerOperationsMigration,/certificate_not_eligible/);
+  assert.match(learnerOperationsMigration,/'learner-operations-v2'/);
   assert.match(api,/v2_tenant_update_admission/);
   assert.match(api,/v2_tenant_save_course_run/);
+  assert.match(api,/v2_tenant_update_training_operation/);
   assert.match(data,/v2_tenant_admissions_snapshot/);
   assert.match(data,/v2_tenant_course_runs_snapshot/);
+  assert.match(data,/v2_tenant_training_operations_snapshot/);
+  assert.match(data,/v2_tenant_certificate_snapshot/);
   assert.match(shell,/tenant\.admissions\.read/);
   assert.match(admissions,/تأكيد الدفع/);
   assert.match(admissions,/إنشاء المتدرب وإتمام التسجيل/);
   assert.match(admissions,/الدفعات والجداول/);
+  assert.match(admissions,/تشغيل المتدربين/);
+  assert.match(learnerOperations,/رسالة الانضمام/);
+  assert.match(learnerOperations,/الحضور حسب الجلسة/);
+  assert.match(learnerOperations,/التقييم النهائي/);
+  assert.match(learnerOperations,/إصدار الشهادة/);
+  assert.match(certificatePage,/شهادة إتمام برنامج تدريبي/);
   assert.match(sales,/تسجيل نتيجة المتابعة/);
   assert.match(sales,/بانتظار الدفع/);
   assert.match(sales,/جودة الليد/);
@@ -148,6 +170,8 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(followupModal,/بلاغ دفع بانتظار التحقق/);
   assert.match(followupModal,/سبب الإغلاق/);
   assert.match(styles,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(styles,/mt-learner-grid/);
+  assert.match(styles,/mt-certificate-sheet/);
 });
 
 test('Reef operational sample data is clearly marked and uses placeholder contacts',async()=>{

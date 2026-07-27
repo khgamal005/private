@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0-beta.11",
-  "releasedAt": "2026-07-27T20:05:48.000Z",
+  "version": "2.0.0-beta.12",
+  "releasedAt": "2026-07-27T21:50:13.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
@@ -35,6 +35,14 @@
     "Added acceptance, student creation, and course-run enrollment workflows",
     "Added operational batches with capacity, registration windows, delivery status, and seat availability",
     "Added a session-by-session timetable with conflict validation and tenant-timezone handling",
-    "Prevented admissions from assigning or enrolling into closed, full, or unavailable batches"
+    "Prevented admissions from assigning or enrolling into closed, full, or unavailable batches",
+    "Added an end-to-end learner operations workspace inside registration and admissions",
+    "Added auditable joining messages with manual delivery confirmation until a messaging provider is connected",
+    "Added session-level attendance with present, late, absent, and excused outcomes",
+    "Added final assessments and per-batch attendance and score thresholds",
+    "Added explainable certificate eligibility and blocked issuance until every rule is satisfied",
+    "Added issued and revoked certificate records with verification codes and printable certificate pages",
+    "Added the Training Manager role with dedicated learner-operations permissions",
+    "Added four clearly marked demo learners covering eligible, low-attendance, and missing-assessment states"
   ]
 }

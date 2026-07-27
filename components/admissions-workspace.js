@@ -3,6 +3,7 @@
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import CourseRunsWorkspace from './course-runs-workspace';
+import LearnerOperationsWorkspace from './learner-operations-workspace';
 
 const EMPTY=[];
 
@@ -209,6 +210,10 @@ export default function AdmissionsWorkspace({slug,initialData}){
           className={`mt-button ${view==='batches'?'primary':'soft'}`}
           onClick={()=>setView('batches')}
         >الدفعات والجداول</button>
+        <button
+          className={`mt-button ${view==='operations'?'primary':'soft'}`}
+          onClick={()=>setView('operations')}
+        >تشغيل المتدربين</button>
       </div>
     </header>
 
@@ -217,7 +222,12 @@ export default function AdmissionsWorkspace({slug,initialData}){
 
     {view==='batches'
       ?<CourseRunsWorkspace slug={slug} data={data}/>
-      :<>
+      :view==='operations'
+        ?<LearnerOperationsWorkspace
+          slug={slug}
+          data={data.trainingOperations}
+        />
+        :<>
     <section className="mt-kpis mt-admissions-kpis">
       <button onClick={()=>setFilter('pending_verification')} className="mt-kpi warning">
         <span>بانتظار تحقق الدفع</span>

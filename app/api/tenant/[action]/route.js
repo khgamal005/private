@@ -17,6 +17,7 @@ const RPC={
   'update-admission':'v2_tenant_update_admission',
   'update-admission-document':'v2_tenant_update_admission_document',
   'save-course-run':'v2_tenant_save_course_run',
+  'update-training-operation':'v2_tenant_update_training_operation',
   'create-opportunity':'v2_tenant_create_opportunity',
   'move-opportunity':'v2_tenant_move_opportunity',
   'log-activity':'v2_tenant_log_activity',
@@ -138,6 +139,24 @@ function translate(value){
     ,capacity_below_enrolled:'لا يمكن جعل السعة أقل من عدد المسجلين'
     ,course_run_has_enrollments:'لا يمكن إلغاء أو إعادة هذه الدفعة لوجود متدربين بها'
     ,invalid_course_run_transition:'لا يمكن نقل الدفعة إلى هذه الحالة'
+    ,course_run_not_operational:'الدفعة ليست في حالة تسمح بتشغيل المتدربين'
+    ,enrollment_not_found:'تسجيل المتدرب غير موجود'
+    ,enrollment_inactive:'لا يمكن تسجيل التشغيل لمتدرب منسحب أو ملغي'
+    ,invalid_training_record:'بيانات المتدرب والجلسة غير مترابطة'
+    ,invalid_training_action:'إجراء تشغيل المتدرب غير صالح'
+    ,invalid_session:'الجلسة المختارة غير صالحة'
+    ,session_cancelled:'لا يمكن تسجيل حضور جلسة ملغاة'
+    ,invalid_attendance_status:'حالة الحضور غير صالحة'
+    ,late_minutes_required:'حدد عدد دقائق التأخير'
+    ,invalid_late_minutes:'دقائق التأخير تستخدم مع حالة متأخر فقط'
+    ,invalid_assessment_score:'نتيجة التقييم غير صالحة'
+    ,invalid_assessment_max_score:'الدرجة القصوى للتقييم غير صالحة'
+    ,invalid_communication_channel:'قناة إرسال رسالة الانضمام غير صالحة'
+    ,invalid_attendance_threshold:'نسبة الحضور المطلوبة يجب أن تكون من 0 إلى 100'
+    ,invalid_assessment_threshold:'نسبة التقييم المطلوبة يجب أن تكون من 0 إلى 100'
+    ,certificate_not_eligible:'لا يمكن إصدار الشهادة قبل استكمال شروط الحضور والتقييم وإغلاق الدفعة'
+    ,certificate_not_found:'الشهادة غير موجودة'
+    ,revocation_reason_required:'اكتب سبب إلغاء الشهادة بوضوح'
     ,documents_incomplete:'استكمل المستندات المطلوبة قبل إتمام التسجيل'
     ,reason_required:'يجب كتابة السبب بوضوح'
     ,invalid_document_type:'نوع المستند غير صالح'

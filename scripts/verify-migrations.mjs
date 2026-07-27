@@ -19,10 +19,12 @@ const leadPipeline='20260727211527_lead_centric_sales_pipeline.sql';
 const admissions='20260727223000_admissions_and_sales_guards_v2.sql';
 const admissionsIndexes='20260727223500_admissions_reference_indexes_v2.sql';
 const courseRuns='20260727230548_course_runs_and_schedules_v2.sql';
+const learnerOperations='20260728003500_learner_operations_v2.sql';
+const learnerOperationsIndexes='20260728005200_learner_operations_reference_indexes_v2.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -40,6 +42,8 @@ const leadPipelineSql=await readFile(new URL(leadPipeline,migrationsUrl),'utf8')
 const admissionsSql=await readFile(new URL(admissions,migrationsUrl),'utf8');
 const admissionsIndexesSql=await readFile(new URL(admissionsIndexes,migrationsUrl),'utf8');
 const courseRunsSql=await readFile(new URL(courseRuns,migrationsUrl),'utf8');
+const learnerOperationsSql=await readFile(new URL(learnerOperations,migrationsUrl),'utf8');
+const learnerOperationsIndexesSql=await readFile(new URL(learnerOperationsIndexes,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -126,5 +130,20 @@ assert.match(courseRunsSql,/registration_handoffs_validate_course_run/);
 assert.match(courseRunsSql,/enrollments_validate_course_run/);
 assert.match(courseRunsSql,/course_run_sessions_overlap/);
 assert.doesNotMatch(courseRunsSql,/service_role|SUPABASE_SECRET/i);
+assert.match(learnerOperationsSql,/create table academy\.attendance_records/);
+assert.match(learnerOperationsSql,/create table academy\.assessment_results/);
+assert.match(learnerOperationsSql,/create table academy\.student_communications/);
+assert.match(learnerOperationsSql,/create table academy\.certificates/);
+assert.match(learnerOperationsSql,/v2_tenant_training_operations_snapshot/);
+assert.match(learnerOperationsSql,/v2_tenant_update_training_operation/);
+assert.match(learnerOperationsSql,/v2_tenant_certificate_snapshot/);
+assert.match(learnerOperationsSql,/training_manager/);
+assert.match(learnerOperationsSql,/certificate_not_eligible/);
+assert.match(learnerOperationsSql,/'demo',\s*true/);
+assert.doesNotMatch(learnerOperationsSql,/service_role|SUPABASE_SECRET/i);
+assert.match(learnerOperationsIndexesSql,/assessment_results_assessor_reference_idx/);
+assert.match(learnerOperationsIndexesSql,/attendance_records_session_reference_idx/);
+assert.match(learnerOperationsIndexesSql,/student_communications_sender_reference_idx/);
+assert.match(learnerOperationsIndexesSql,/certificates_issuer_reference_idx/);
 
-console.log('Verified the clean v2 database, provisioning, sales guards, admissions, and course-run migrations.');
+console.log('Verified the clean v2 database, provisioning, sales guards, admissions, course runs, and learner operations.');

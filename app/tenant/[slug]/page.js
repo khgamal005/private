@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {notFound} from 'next/navigation';
 import {getTenant} from '../../../lib/api';
-import {requireTenant} from '../../../lib/server-auth';
+import {requireTenantPermission} from '../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
 
@@ -14,7 +14,7 @@ const when=value=>value?new Date(value).toLocaleString('ar-SA',{
 
 export default async function TenantOverview({params}){
   const {slug}=await params;
-  await requireTenant(slug);
+  await requireTenantPermission(slug,'tenant.workspace.read');
   const data=await getTenant(slug);
   if(!data)return notFound();
   const summary=data.summary||{};

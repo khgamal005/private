@@ -12,22 +12,27 @@ const icons={
   tasks:'✓',sales:'↗',incentives:'◎',people:'♙',courses:'▤',news:'◧'
 };
 
-function tenantGroups(slug){
+function tenantGroups(slug,permissions,platformAccess){
   const base=`/tenant/${encodeURIComponent(slug)}`;
-  return [
+  const groups=[
     {label:'التشغيل اليومي',items:[
-      {key:'overview',label:'لوحة المنشأة',href:base},
-      {key:'tasks',label:'المهام والتقويم',href:`${base}/tasks`},
-      {key:'sales',label:'المبيعات والعملاء',href:`${base}/sales`},
-      {key:'incentives',label:'الأهداف والحوافز',href:`${base}/incentives`}
+      {key:'overview',label:'لوحة المنشأة',href:base,permission:'tenant.workspace.read'},
+      {key:'tasks',label:'المهام والتقويم',href:`${base}/tasks`,permission:'tenant.work.read'},
+      {key:'sales',label:'المبيعات والعملاء',href:`${base}/sales`,permission:'tenant.crm.read'},
+      {key:'incentives',label:'الأهداف والحوافز',href:`${base}/incentives`,permission:'tenant.incentives.read'}
     ]},
     {label:'الإدارة والمحتوى',items:[
-      {key:'people',label:'فريق العمل',href:`${base}/team`},
-      {key:'courses',label:'الدورات والبرامج',href:`${base}/courses`},
-      {key:'settings',label:'الإعدادات والصلاحيات',href:`${base}/settings`},
-      {key:'news',label:'الأخبار والمعارف',href:`${base}/news`}
+      {key:'people',label:'فريق العمل',href:`${base}/team`,permission:'tenant.people.read'},
+      {key:'courses',label:'الدورات والبرامج',href:`${base}/courses`,permission:'tenant.academy.read'},
+      {key:'settings',label:'الإعدادات والصلاحيات',href:`${base}/settings`,permission:'tenant.users.manage'},
+      {key:'news',label:'الأخبار والمعارف',href:`${base}/news`,permission:'tenant.content.read'}
     ]}
   ];
+  const allowed=new Set(permissions||[]);
+  return groups.map(group=>({
+    ...group,
+    items:group.items.filter(item=>platformAccess||allowed.has(item.permission))
+  })).filter(group=>group.items.length);
 }
 
 const platformGroups=[
@@ -46,14 +51,28 @@ function isActive(pathname,href){
   return pathname===href||pathname.startsWith(`${href}/`);
 }
 
-export default function WorkspaceShell({kind,slug,title,email,children}){
+export default function WorkspaceShell({
+  kind,
+  slug,
+  title,
+  email,
+  children,
+  permissions=[],
+  platformAccess=false,
+  roleLabel=''
+}){
   const pathname=usePathname();
   const [mobileOpen,setMobileOpen]=useState(false);
   const groups=useMemo(()=>{
-    if(kind===WORKSPACE_KINDS.tenant)return tenantGroups(slug);
+    if(kind===WORKSPACE_KINDS.tenant)return tenantGroups(
+      slug,
+      permissions,
+      platformAccess
+    );
     return platformGroups;
-  },[kind,slug]);
+  },[kind,slug,permissions,platformAccess]);
   const areaLabel=kind===WORKSPACE_KINDS.tenant?'لوحة المنشأة':'لوحة إدارة المنصة';
+  const canCreateTask=platformAccess||permissions.includes('tenant.work.write');
 
   return <div className={`mt-workspace mt-workspace-${kind}`}>
     {mobileOpen&&<button className="mt-shell-backdrop" aria-label="إغلاق القائمة" onClick={()=>setMobileOpen(false)}/>}
@@ -82,7 +101,7 @@ export default function WorkspaceShell({kind,slug,title,email,children}){
         </section>)}
       </nav>
       <div className="mt-sidebar-footer">
-        <div><span>{email?.[0]?.toUpperCase()||'م'}</span><p><b>{email?.split('@')[0]||'مستخدم ماركتون'}</b><small>{email}</small></p></div>
+        <div><span>{email?.[0]?.toUpperCase()||'م'}</span><p><b>{email?.split('@')[0]||'مستخدم ماركتون'}</b><small>{roleLabel||email}</small></p></div>
         <LogoutButton/>
       </div>
     </aside>
@@ -92,7 +111,7 @@ export default function WorkspaceShell({kind,slug,title,email,children}){
         <button className="mt-menu-toggle" onClick={()=>setMobileOpen(true)} aria-label="فتح القائمة">☰</button>
         <div><small>{areaLabel}</small><h1>{title}</h1></div>
         <div className="mt-top-actions">
-          {kind===WORKSPACE_KINDS.tenant&&<Link className="mt-quick-link" href={`/tenant/${encodeURIComponent(slug)}/tasks`}>+ مهمة جديدة</Link>}
+          {kind===WORKSPACE_KINDS.tenant&&canCreateTask&&<Link className="mt-quick-link" href={`/tenant/${encodeURIComponent(slug)}/tasks`}>+ مهمة جديدة</Link>}
           {kind===WORKSPACE_KINDS.platform&&<Link className="mt-quick-link" href="/control/tenants">إدارة المنشآت</Link>}
           <span className="mt-live-dot">متصل</span>
         </div>

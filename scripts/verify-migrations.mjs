@@ -12,10 +12,11 @@ const invitationIndexes='20260726211801_index_tenant_invitation_subjects.sql';
 const peopleAcademy='20260727003000_add_people_academy_and_full_plan.sql';
 const reefSeed='20260727004000_seed_reef_skills_tenant.sql';
 const peopleAcademyIndexes='20260727004500_index_people_academy_references.sql';
+const staffActivation='20260727110338_add_staff_profile_activation_and_role_routes.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -26,6 +27,7 @@ const invitationIndexSql=await readFile(new URL(invitationIndexes,migrationsUrl)
 const peopleAcademySql=await readFile(new URL(peopleAcademy,migrationsUrl),'utf8');
 const reefSeedSql=await readFile(new URL(reefSeed,migrationsUrl),'utf8');
 const peopleAcademyIndexSql=await readFile(new URL(peopleAcademyIndexes,migrationsUrl),'utf8');
+const staffActivationSql=await readFile(new URL(staffActivation,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -62,5 +64,10 @@ assert.match(reefSeedSql,/'PMP'/);
 assert.match(reefSeedSql,/'AI-SKILLS'/);
 assert.match(peopleAcademyIndexSql,/people_staff_department_reference_idx/);
 assert.match(peopleAcademyIndexSql,/academy_course_runs_course_reference_idx/);
+assert.match(staffActivationSql,/v2_tenant_update_staff/);
+assert.match(staffActivationSql,/v2_tenant_invite_staff/);
+assert.match(staffActivationSql,/people_staff_tenant_email_idx/);
+assert.match(staffActivationSql,/tenant\.users\.manage/);
+assert.doesNotMatch(staffActivationSql,/service_role|SUPABASE_SECRET/i);
 
 console.log('Verified the clean v2 database, provisioning, and Reef tenant migrations.');

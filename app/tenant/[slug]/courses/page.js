@@ -1,13 +1,13 @@
 import CourseCatalog from '../../../../components/course-catalog';
 import {getTenant} from '../../../../lib/api';
-import {requireTenant} from '../../../../lib/server-auth';
+import {requireTenantPermission} from '../../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
 
 export default async function CoursesPage({params}){
   const {slug}=await params;
   const [context,data]=await Promise.all([
-    requireTenant(slug),
+    requireTenantPermission(slug,'tenant.academy.read'),
     getTenant(slug)
   ]);
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);

@@ -36,11 +36,39 @@ test('the Reef catalog contains the initial six courses without invented pricing
 test('team and courses are first-class tenant routes backed by v2 RPCs',async()=>{
   const shell=await read('../components/workspace-shell.js');
   const api=await read('../app/api/tenant/[action]/route.js');
+  const team=await read('../components/team-directory.js');
+  const auth=await read('../lib/server-auth.js');
   const data=await read('../lib/api.js');
   assert.match(shell,/\/team/);
   assert.match(shell,/\/courses/);
+  assert.match(shell,/tenant\.people\.read/);
+  assert.match(shell,/tenant\.users\.manage/);
   assert.match(api,/v2_tenant_create_staff/);
+  assert.match(api,/v2_tenant_update_staff/);
+  assert.match(api,/v2_tenant_invite_staff/);
   assert.match(api,/v2_tenant_create_course/);
+  assert.match(team,/تعديل البيانات/);
+  assert.match(team,/دعوة للدخول/);
+  assert.match(team,/@reefskills\.sa/);
+  assert.match(auth,/requireTenantPermission/);
   assert.match(data,/users:access\.employees/);
   assert.match(data,/employees:workspace\.employees/);
+});
+
+test('role-protected tenant routes enforce their permissions on the server',async()=>{
+  const routes=[
+    ['../app/tenant/[slug]/page.js','tenant.workspace.read'],
+    ['../app/tenant/[slug]/tasks/page.js','tenant.work.read'],
+    ['../app/tenant/[slug]/sales/page.js','tenant.crm.read'],
+    ['../app/tenant/[slug]/incentives/page.js','tenant.incentives.read'],
+    ['../app/tenant/[slug]/team/page.js','tenant.people.read'],
+    ['../app/tenant/[slug]/courses/page.js','tenant.academy.read'],
+    ['../app/tenant/[slug]/settings/page.js','tenant.users.manage'],
+    ['../app/tenant/[slug]/news/page.js','tenant.content.read']
+  ];
+  for(const [path,permission] of routes){
+    const source=await read(path);
+    assert.match(source,/requireTenantPermission/);
+    assert.match(source,new RegExp(permission.replaceAll('.','\\.')));
+  }
 });

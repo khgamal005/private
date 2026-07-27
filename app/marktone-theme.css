@@ -1597,6 +1597,7 @@ body {
 .mt-data-note p{margin:0;color:var(--mt-muted-foreground);font-size:11px;line-height:1.7}
 .mt-data-note>span{flex:0 0 auto;padding:6px 10px;border-radius:999px;background:#dff2e6;color:#28714a;font-size:10px;font-weight:650}
 .mt-data-note.warning>span{background:#f7e8bd;color:#8a6517}
+.mt-data-note-actions{display:flex;flex:0 0 auto;gap:8px;flex-wrap:wrap}
 
 .mt-team-grid,.mt-course-grid{
   display:grid;
@@ -1645,9 +1646,11 @@ body {
 }
 .mt-person-card dt,.mt-course-card dt{color:var(--mt-muted-foreground);font-size:9px}
 .mt-person-card dd,.mt-course-card dd{margin:4px 0 0;overflow-wrap:anywhere;font-size:11px;font-weight:550}
-.mt-person-card>footer{padding-top:12px;border-top:1px solid var(--mt-border)}
+.mt-person-card>footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:12px;border-top:1px solid var(--mt-border)}
 .mt-account-state{display:inline-flex;padding:6px 9px;border-radius:999px;background:#f0f2f5;color:#667385;font-size:9px}
 .mt-account-state.active{background:#e7f7ed;color:#28794a}
+.mt-card-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.mt-card-actions .mt-button{min-height:30px;padding:6px 9px;font-size:9px}
 .mt-inline-help{padding:11px 13px;border-radius:11px;background:var(--mt-muted);color:var(--mt-muted-foreground);font-size:10px;line-height:1.7}
 
 .mt-course-card{display:flex;flex-direction:column;overflow:hidden}
@@ -1672,8 +1675,13 @@ body {
 }
 @media (max-width:720px){
   .mt-data-note{align-items:flex-start;flex-direction:column}
+  .mt-data-note-actions{width:100%}
+  .mt-data-note-actions .mt-button{flex:1}
   .mt-team-grid,.mt-course-grid{grid-template-columns:1fr;padding:12px}
   .mt-person-card dl,.mt-course-card dl{grid-template-columns:1fr}
   .mt-person-card>header{grid-template-columns:auto minmax(0,1fr)}
   .mt-person-card>header>em{grid-column:1/-1;justify-self:start}
+  .mt-person-card>footer{align-items:flex-start;flex-direction:column}
+  .mt-card-actions{width:100%}
+  .mt-card-actions .mt-button{flex:1}
 }

@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0-beta.8",
-  "releasedAt": "2026-07-27T18:15:00.000Z",
+  "version": "2.0.0-beta.9",
+  "releasedAt": "2026-07-27T19:04:13.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
@@ -24,6 +24,10 @@
     "Added lead status, lead quality, source, campaign, and advertising attribution",
     "Created the next follow-up task automatically after every open sales outcome",
     "Added fast filters for awaiting payment, very interested, excellent, and unqualified leads",
-    "Handed paid leads directly to registration and admissions with an operational notification"
+    "Handed paid leads directly to registration and admissions with an operational notification",
+    "Opened the complete sales follow-up flow directly from customer tasks in the calendar",
+    "Added simple calendar filters for customer follow-ups, interested, very interested, and awaiting payment",
+    "Reduced the lead-centric board to four responsive stages without horizontal scrolling",
+    "Added next-action date filters with today, seven-day, month, and custom-range options"
   ]
 }

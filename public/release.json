@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0-beta.10",
-  "releasedAt": "2026-07-27T19:49:33.000Z",
+  "version": "2.0.0-beta.11",
+  "releasedAt": "2026-07-27T20:05:48.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
@@ -32,6 +32,9 @@
     "Separated customer-reported payment from finance-verified payment",
     "Enforced one active sales follow-up and mandatory next actions or closure reasons",
     "Added a role-protected admissions queue with payment and document review",
-    "Added acceptance, student creation, and course-run enrollment workflows"
+    "Added acceptance, student creation, and course-run enrollment workflows",
+    "Added operational batches with capacity, registration windows, delivery status, and seat availability",
+    "Added a session-by-session timetable with conflict validation and tenant-timezone handling",
+    "Prevented admissions from assigning or enrolling into closed, full, or unavailable batches"
   ]
 }

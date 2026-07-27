@@ -16,6 +16,7 @@ const RPC={
   'record-sales-followup':'v2_tenant_record_sales_followup_v2',
   'update-admission':'v2_tenant_update_admission',
   'update-admission-document':'v2_tenant_update_admission_document',
+  'save-course-run':'v2_tenant_save_course_run',
   'create-opportunity':'v2_tenant_create_opportunity',
   'move-opportunity':'v2_tenant_move_opportunity',
   'log-activity':'v2_tenant_log_activity',
@@ -114,6 +115,29 @@ function translate(value){
     ,payment_not_verified:'يجب التحقق من الدفع أولًا'
     ,course_run_required:'يجب تحديد الدفعة قبل إكمال التسجيل'
     ,course_run_full:'الدفعة المحددة وصلت إلى طاقتها القصوى'
+    ,course_run_not_open:'الدفعة ليست مفتوحة للتسجيل'
+    ,course_run_registration_not_started:'لم يبدأ التسجيل في هذه الدفعة بعد'
+    ,course_run_registration_closed:'انتهى موعد التسجيل في هذه الدفعة'
+    ,batch_title_required:'اسم الدفعة مطلوب'
+    ,invalid_course_run_status:'حالة الدفعة غير صالحة'
+    ,invalid_course_run_capacity:'سعة الدفعة غير صالحة'
+    ,invalid_course_run_price:'سعر الدفعة غير صالح'
+    ,invalid_course_run_dates:'تاريخ بداية ونهاية الدفعة غير صالح'
+    ,invalid_registration_window:'فترة فتح وإغلاق التسجيل غير صالحة'
+    ,registration_after_batch_start:'يجب إغلاق التسجيل قبل بداية الدفعة'
+    ,course_run_start_must_be_future:'يجب أن تكون بداية الدفعة المفتوحة في تاريخ قادم'
+    ,invalid_course_run_sessions:'جدول المحاضرات غير صالح'
+    ,too_many_course_run_sessions:'عدد المحاضرات أكبر من الحد المسموح'
+    ,course_run_sessions_required:'أضف محاضرة واحدة على الأقل قبل فتح الدفعة'
+    ,invalid_course_run_session_dates:'موعد إحدى المحاضرات غير صالح'
+    ,session_outside_course_run:'يوجد موعد محاضرة خارج بداية أو نهاية الدفعة'
+    ,course_run_sessions_overlap:'يوجد تعارض بين مواعيد المحاضرات'
+    ,course_run_exists:'يوجد كود دفعة مطابق داخل المنشأة'
+    ,course_run_not_found:'الدفعة غير موجودة'
+    ,course_run_course_locked:'لا يمكن تغيير دورة دفعة بها متدربون'
+    ,capacity_below_enrolled:'لا يمكن جعل السعة أقل من عدد المسجلين'
+    ,course_run_has_enrollments:'لا يمكن إلغاء أو إعادة هذه الدفعة لوجود متدربين بها'
+    ,invalid_course_run_transition:'لا يمكن نقل الدفعة إلى هذه الحالة'
     ,documents_incomplete:'استكمل المستندات المطلوبة قبل إتمام التسجيل'
     ,reason_required:'يجب كتابة السبب بوضوح'
     ,invalid_document_type:'نوع المستند غير صالح'

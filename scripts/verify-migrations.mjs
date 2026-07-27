@@ -18,10 +18,11 @@ const operationalIndexes='20260727193725_index_operational_foreign_keys.sql';
 const leadPipeline='20260727211527_lead_centric_sales_pipeline.sql';
 const admissions='20260727223000_admissions_and_sales_guards_v2.sql';
 const admissionsIndexes='20260727223500_admissions_reference_indexes_v2.sql';
+const courseRuns='20260727230548_course_runs_and_schedules_v2.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -38,6 +39,7 @@ const operationalIndexesSql=await readFile(new URL(operationalIndexes,migrations
 const leadPipelineSql=await readFile(new URL(leadPipeline,migrationsUrl),'utf8');
 const admissionsSql=await readFile(new URL(admissions,migrationsUrl),'utf8');
 const admissionsIndexesSql=await readFile(new URL(admissionsIndexes,migrationsUrl),'utf8');
+const courseRunsSql=await readFile(new URL(courseRuns,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -116,5 +118,13 @@ assert.doesNotMatch(admissionsSql,/service_role|SUPABASE_SECRET/i);
 assert.match(admissionsIndexesSql,/lead_status_history_activity_reference_idx/);
 assert.match(admissionsIndexesSql,/registration_handoffs_payment_reviewer_reference_idx/);
 assert.match(admissionsIndexesSql,/academy_enrollments_course_run_reference_idx/);
+assert.match(courseRunsSql,/create table academy\.course_run_sessions/);
+assert.match(courseRunsSql,/course_run_sessions_isolated_read/);
+assert.match(courseRunsSql,/v2_tenant_course_runs_snapshot/);
+assert.match(courseRunsSql,/v2_tenant_save_course_run/);
+assert.match(courseRunsSql,/registration_handoffs_validate_course_run/);
+assert.match(courseRunsSql,/enrollments_validate_course_run/);
+assert.match(courseRunsSql,/course_run_sessions_overlap/);
+assert.doesNotMatch(courseRunsSql,/service_role|SUPABASE_SECRET/i);
 
-console.log('Verified the clean v2 database, provisioning, sales guards, and admissions migrations.');
+console.log('Verified the clean v2 database, provisioning, sales guards, admissions, and course-run migrations.');

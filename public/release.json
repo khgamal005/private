@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0-beta.13",
-  "releasedAt": "2026-07-27T22:30:42.000Z",
+  "version": "2.0.0-beta.14",
+  "releasedAt": "2026-07-27T23:20:00.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
@@ -49,6 +49,11 @@
     "Added Zoom Server-to-Server OAuth meeting creation for online and hybrid sessions",
     "Added five-minute Supabase Cron dispatch with Vault-protected authorization",
     "Added provider health, retry states, deduplication, and manual communication fallbacks",
-    "Added role-protected automation settings, delivery history, and per-session Zoom controls"
+    "Added role-protected automation settings, delivery history, and per-session Zoom controls",
+    "Added a tenant integration hub with guided setup for WhatsApp, email, Amazon SES, Resend, and custom APIs",
+    "Stored every tenant API credential as an encrypted Supabase Vault secret and never returned it to the browser",
+    "Added real connection tests before a provider can become active or receive new delivery jobs",
+    "Added reusable Arabic message templates with live previews and validated personalization variables",
+    "Separated WhatsApp, email, API, and template capabilities into independently entitled add-ons"
   ]
 }

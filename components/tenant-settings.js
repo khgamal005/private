@@ -2,6 +2,43 @@
 
 import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import IntegrationHub from './integration-hub';
+
+const TABS=[
+  ['users','المستخدمون'],
+  ['invitations','الدعوات'],
+  ['roles','الأدوار والصلاحيات'],
+  ['integrations','الربط وواجهات API'],
+  ['templates','قوالب الرسائل']
+];
+
+const HEADINGS={
+  users:{
+    eyebrow:'TENANT ACCESS',
+    title:'المستخدمون والصلاحيات',
+    description:'حسابات حقيقية مرتبطة بالمنشأة، مع دور وصلاحيات مستقلة لكل مستخدم.'
+  },
+  invitations:{
+    eyebrow:'TENANT ACCESS',
+    title:'الدعوات المعلقة',
+    description:'متابعة دعوات الدخول وحالات قبولها وانتهائها.'
+  },
+  roles:{
+    eyebrow:'ROLES & PERMISSIONS',
+    title:'الأدوار والصلاحيات',
+    description:'قوالب الوصول الفعلية المطبقة على فريق المنشأة.'
+  },
+  integrations:{
+    eyebrow:'INTEGRATIONS HUB',
+    title:'الربط وواجهات API',
+    description:'اربط واتساب والبريد وAmazon وأي مزود خارجي من مكان واحد وبأقل خطوات.'
+  },
+  templates:{
+    eyebrow:'MESSAGE TEMPLATES',
+    title:'قوالب الرسائل الذكية',
+    description:'نماذج جاهزة ومتغيرات تلقائية للاسم والدورة والموعد والرابط والمزيد.'
+  }
+};
 
 export default function TenantSettings({slug,initialData}){
   const router=useRouter();
@@ -16,9 +53,11 @@ export default function TenantSettings({slug,initialData}){
   const roles=initialData.roles||[];
   const invitations=initialData.invitations||[];
   const domains=initialData.domains||[];
+  const heading=HEADINGS[tab]||HEADINGS.users;
   const shown=useMemo(()=>users.filter(user=>
     `${user.name||''} ${user.email||''} ${user.role||''}`.toLowerCase().includes(query.toLowerCase())
   ),[users,query]);
+  const accessTab=['users','invitations','roles'].includes(tab);
 
   async function inviteUser(event){
     event.preventDefault();
@@ -56,12 +95,78 @@ export default function TenantSettings({slug,initialData}){
 
   return <>
     <header className="mt-page-head">
-      <div><small>TENANT ACCESS</small><h2>المستخدمون والصلاحيات</h2><p>حسابات حقيقية مرتبطة بالمنشأة، مع دور وصلاحيات مستقلة لكل مستخدم.</p></div>
-      <div className="mt-page-actions"><button className="mt-button primary" onClick={()=>{setModal(true);setInvitationUrl('')}}>+ دعوة مستخدم</button></div>
+      <div><small>{heading.eyebrow}</small><h2>{heading.title}</h2><p>{heading.description}</p></div>
+      {tab==='users'&&<div className="mt-page-actions"><button className="mt-button primary" onClick={()=>{setModal(true);setInvitationUrl('')}}>+ دعوة مستخدم</button></div>}
     </header>
-    {message&&<div className="mt-alert">{message}</div>}
-    {error&&!modal&&<div className="mt-alert error">{error}</div>}
+    {message&&accessTab&&<div className="mt-alert">{message}</div>}
+    {error&&!modal&&accessTab&&<div className="mt-alert error">{error}</div>}
 
+    <section className="mt-settings-tabs" aria-label="أقسام الإعدادات">
+      {TABS.map(([key,label])=><button
+        key={key}
+        className={tab===key?'active':''}
+        onClick={()=>{setTab(key);setMessage('');setError('')}}
+      >{label}</button>)}
+    </section>
+
+    {accessTab&&<AccessSettings
+      tab={tab}
+      query={query}
+      setQuery={setQuery}
+      users={users}
+      shown={shown}
+      roles={roles}
+      invitations={invitations}
+      domains={domains}
+    />}
+
+    {tab==='integrations'&&<IntegrationHub
+      slug={slug}
+      initialData={initialData.integrationHub}
+      mode="integrations"
+    />}
+
+    {tab==='templates'&&<IntegrationHub
+      slug={slug}
+      initialData={initialData.integrationHub}
+      mode="templates"
+    />}
+
+    {modal&&<div className="mt-modal-layer">
+      <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={()=>!busy&&setModal(false)}/>
+      <form className="mt-modal" onSubmit={inviteUser}>
+        <header><div><small>USER ACCESS</small><h3>دعوة مستخدم إلى المنشأة</h3></div><button type="button" onClick={()=>setModal(false)}>×</button></header>
+        <div className="mt-form">
+          <label className="mt-field wide">اسم المستخدم<input name="full_name" required/></label>
+          <label className="mt-field">البريد الإلكتروني<input name="email" type="email" required/></label>
+          <label className="mt-field">الدور<select name="role_key" defaultValue="tenant_admin">{roles.map(role=><option value={role.key} key={role.key}>{role.nameAr}</option>)}</select></label>
+          {invitationUrl&&<div className="mt-invitation-link mt-field wide">
+            <span>رابط التفعيل يظهر مرة واحدة</span>
+            <input readOnly value={invitationUrl}/>
+            <button type="button" className="mt-button" onClick={copyInvitation}>نسخ الرابط</button>
+          </div>}
+          {error&&<div className="mt-alert error mt-field wide">{error}</div>}
+        </div>
+        <footer>
+          <button type="button" className="mt-button" onClick={()=>setModal(false)}>إغلاق</button>
+          {!invitationUrl&&<button className="mt-button primary" disabled={busy}>{busy?'جارٍ إنشاء الدعوة…':'دعوة وربط الصلاحيات'}</button>}
+        </footer>
+      </form>
+    </div>}
+  </>;
+}
+
+function AccessSettings({
+  tab,
+  query,
+  setQuery,
+  users,
+  shown,
+  roles,
+  invitations,
+  domains
+}){
+  return <>
     <section className="mt-kpis">
       <article className="mt-kpi"><span>المستخدمون المرتبطون</span><b>{users.length}</b><small>{users.filter(item=>item.status==='active').length} حسابًا نشطًا</small></article>
       <article className="mt-kpi"><span>الدعوات المعلقة</span><b>{invitations.filter(item=>item.status==='pending').length}</b><small>بانتظار قبول الدعوة</small></article>
@@ -72,9 +177,7 @@ export default function TenantSettings({slug,initialData}){
     <section className="mt-panel">
       <div className="mt-toolbar">
         <div className="mt-segmented">
-          <button className={tab==='users'?'active':''} onClick={()=>setTab('users')}>المستخدمون</button>
-          <button className={tab==='invitations'?'active':''} onClick={()=>setTab('invitations')}>الدعوات</button>
-          <button className={tab==='roles'?'active':''} onClick={()=>setTab('roles')}>الأدوار والصلاحيات</button>
+          <span>{tab==='users'?'دليل المستخدمين':tab==='invitations'?'سجل الدعوات':'مصفوفة الأدوار'}</span>
         </div>
         {tab==='users'&&<input className="mt-search" value={query} onChange={event=>setQuery(event.target.value)} placeholder="ابحث عن مستخدم أو دور"/>}
       </div>
@@ -105,28 +208,6 @@ export default function TenantSettings({slug,initialData}){
         {!roles.length&&<div className="mt-empty">لم تُضبط أدوار المنشأة بعد.</div>}
       </div>}
     </section>
-
-    {modal&&<div className="mt-modal-layer">
-      <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={()=>!busy&&setModal(false)}/>
-      <form className="mt-modal" onSubmit={inviteUser}>
-        <header><div><small>USER ACCESS</small><h3>دعوة مستخدم إلى المنشأة</h3></div><button type="button" onClick={()=>setModal(false)}>×</button></header>
-        <div className="mt-form">
-          <label className="mt-field wide">اسم المستخدم<input name="full_name" required/></label>
-          <label className="mt-field">البريد الإلكتروني<input name="email" type="email" required/></label>
-          <label className="mt-field">الدور<select name="role_key" defaultValue="tenant_admin">{roles.map(role=><option value={role.key} key={role.key}>{role.nameAr}</option>)}</select></label>
-          {invitationUrl&&<div className="mt-invitation-link mt-field wide">
-            <span>رابط التفعيل يظهر مرة واحدة</span>
-            <input readOnly value={invitationUrl}/>
-            <button type="button" className="mt-button" onClick={copyInvitation}>نسخ الرابط</button>
-          </div>}
-          {error&&<div className="mt-alert error mt-field wide">{error}</div>}
-        </div>
-        <footer>
-          <button type="button" className="mt-button" onClick={()=>setModal(false)}>إغلاق</button>
-          {!invitationUrl&&<button className="mt-button primary" disabled={busy}>{busy?'جارٍ إنشاء الدعوة…':'دعوة وربط الصلاحيات'}</button>}
-        </footer>
-      </form>
-    </div>}
   </>;
 }
 

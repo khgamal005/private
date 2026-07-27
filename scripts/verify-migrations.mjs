@@ -23,10 +23,12 @@ const learnerOperations='20260728003500_learner_operations_v2.sql';
 const learnerOperationsIndexes='20260728005200_learner_operations_reference_indexes_v2.sql';
 const trainingAutomation='20260728014500_training_communications_zoom_automation_v2.sql';
 const trainingAutomationIndexes='20260728015000_training_automation_reference_indexes_v2.sql';
+const integrationHub='20260728030000_integration_hub_and_message_templates_v2.sql';
+const integrationHubIndexes='20260728030500_integration_hub_reference_indexes_v2.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -48,6 +50,8 @@ const learnerOperationsSql=await readFile(new URL(learnerOperations,migrationsUr
 const learnerOperationsIndexesSql=await readFile(new URL(learnerOperationsIndexes,migrationsUrl),'utf8');
 const trainingAutomationSql=await readFile(new URL(trainingAutomation,migrationsUrl),'utf8');
 const trainingAutomationIndexesSql=await readFile(new URL(trainingAutomationIndexes,migrationsUrl),'utf8');
+const integrationHubSql=await readFile(new URL(integrationHub,migrationsUrl),'utf8');
+const integrationHubIndexesSql=await readFile(new URL(integrationHubIndexes,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -160,5 +164,17 @@ assert.match(trainingAutomationSql,/vault\.create_secret/);
 assert.match(trainingAutomationSql,/cron\.schedule/);
 assert.match(trainingAutomationSql,/training-automation-dispatch/);
 assert.match(trainingAutomationIndexesSql,/training_automation_jobs_course_run_reference_idx/);
+assert.match(integrationHubSql,/create schema if not exists communication_hub/);
+assert.match(integrationHubSql,/create table communication_hub\.provider_connections/);
+assert.match(integrationHubSql,/create table communication_hub\.message_templates/);
+assert.match(integrationHubSql,/v2_tenant_integration_hub_snapshot/);
+assert.match(integrationHubSql,/v2_tenant_integration_hub_action/);
+assert.match(integrationHubSql,/v2_integration_provider_configuration/);
+assert.match(integrationHubSql,/vault\.create_secret/);
+assert.match(integrationHubSql,/'amazon_ses'/);
+assert.match(integrationHubSql,/'meta_whatsapp'/);
+assert.match(integrationHubSql,/'custom_webhook'/);
+assert.match(integrationHubIndexesSql,/provider_connections_provider_reference_idx/);
+assert.match(integrationHubIndexesSql,/message_templates_updater_reference_idx/);
 
-console.log('Verified the clean v2 database, admissions, learner operations, and training automation.');
+console.log('Verified the clean v2 database, learner automation, and modular integration hub.');

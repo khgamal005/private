@@ -213,3 +213,70 @@ test('Reef operational sample data is clearly marked and uses placeholder contac
   assert.match(migration,/'reef-demo-012'/);
   assert.match(migration,/'REEF-SALES-007'/);
 });
+
+test('the integration hub keeps providers modular, secrets encrypted, and templates reusable',async()=>{
+  const migration=await read('../supabase/migrations/20260728030000_integration_hub_and_message_templates_v2.sql');
+  const indexes=await read('../supabase/migrations/20260728030500_integration_hub_reference_indexes_v2.sql');
+  const dispatcher=await read('../supabase/functions/training-automation-dispatch/index.ts');
+  const hub=await read('../components/integration-hub.js');
+  const settings=await read('../components/tenant-settings.js');
+  const api=await read('../app/api/tenant/[action]/route.js');
+  const data=await read('../lib/api.js');
+  const styles=await read('../app/rebuild.css');
+
+  assert.match(migration,/create schema if not exists communication_hub/);
+  assert.match(migration,/create table communication_hub\.provider_catalog/);
+  assert.match(migration,/create table communication_hub\.provider_connections/);
+  assert.match(migration,/create table communication_hub\.message_templates/);
+  assert.match(migration,/'meta_whatsapp'/);
+  assert.match(migration,/'resend'/);
+  assert.match(migration,/'amazon_ses'/);
+  assert.match(migration,/'custom_webhook'/);
+  assert.match(migration,/'addon\.integration\.whatsapp'/);
+  assert.match(migration,/'addon\.integration\.email'/);
+  assert.match(migration,/'addon\.integration\.api'/);
+  assert.match(migration,/'addon\.communication\.templates'/);
+  assert.match(migration,/vault\.create_secret/);
+  assert.match(migration,/vault\.update_secret/);
+  assert.match(migration,/configuredSecrets/);
+  assert.match(migration,/revoke all on all tables in schema communication_hub/);
+  assert.match(migration,/v2_tenant_integration_hub_snapshot/);
+  assert.match(migration,/v2_tenant_integration_hub_action/);
+  assert.match(migration,/v2_tenant_integration_test_authorize/);
+  assert.match(migration,/v2_integration_provider_configuration/);
+  assert.match(migration,/joining_instructions/);
+  assert.match(migration,/session_reminder_24h/);
+  assert.match(migration,/certificate_ready/);
+  assert.match(indexes,/provider_connections_provider_reference_idx/);
+  assert.match(indexes,/provider_connections_creator_reference_idx/);
+  assert.match(indexes,/provider_connections_updater_reference_idx/);
+  assert.match(indexes,/message_templates_creator_reference_idx/);
+  assert.match(indexes,/message_templates_updater_reference_idx/);
+  for(const variable of ['name','course','date','time','link','certificate_link']){
+    assert.match(migration,new RegExp(`'${variable}'`));
+  }
+
+  assert.match(dispatcher,/AWS4-HMAC-SHA256/);
+  assert.match(dispatcher,/email\.\$\{region\}\.amazonaws\.com/);
+  assert.match(dispatcher,/api\.resend\.com\/emails/);
+  assert.match(dispatcher,/graph\.facebook\.com/);
+  assert.match(dispatcher,/x-marktone-signature/);
+  assert.match(dispatcher,/safeWebhookUrl/);
+  assert.match(dispatcher,/v2_integration_provider_configuration/);
+  assert.match(dispatcher,/v2_tenant_integration_test_authorize/);
+
+  assert.match(settings,/الربط وواجهات API/);
+  assert.match(settings,/قوالب الرسائل/);
+  assert.match(settings,/IntegrationHub/);
+  assert.match(hub,/Amazon SES أو Resend/);
+  assert.match(hub,/اختبار الاتصال/);
+  assert.match(hub,/نماذج جاهزة بمتغيرات تخصيص ذكية/);
+  assert.match(hub,/لن يعرضها النظام/);
+  assert.match(api,/v2_tenant_integration_hub_action/);
+  assert.match(api,/training-automation-dispatch/);
+  assert.match(api,/test_connection/);
+  assert.match(data,/v2_tenant_integration_hub_snapshot/);
+  assert.match(styles,/mt-integration-provider-grid/);
+  assert.match(styles,/mt-template-editor/);
+  assert.match(styles,/mt-preview-device/);
+});

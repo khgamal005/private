@@ -19,6 +19,7 @@ const RPC={
   'save-course-run':'v2_tenant_save_course_run',
   'update-training-operation':'v2_tenant_update_training_operation',
   'training-automation':'v2_tenant_training_automation_action',
+  'integration-hub':'v2_tenant_integration_hub_action',
   'create-opportunity':'v2_tenant_create_opportunity',
   'move-opportunity':'v2_tenant_move_opportunity',
   'log-activity':'v2_tenant_log_activity',
@@ -30,7 +31,7 @@ export async function POST(request,{params}){
   try{
     const {action}=await params;
     const rpc=RPC[action];
-    if(!rpc){
+    if(!rpc&&action!=='integration-test'){
       return NextResponse.json({error:'عملية غير مدعومة'},{status:404});
     }
 
@@ -39,14 +40,22 @@ export async function POST(request,{params}){
       return NextResponse.json({error:'انتهت الجلسة'},{status:401});
     }
 
-    const response=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${rpc}`,{
+    const body=await request.json();
+    const endpoint=action==='integration-test'
+      ?`${SUPABASE_URL}/functions/v1/training-automation-dispatch`
+      :`${SUPABASE_URL}/rest/v1/rpc/${rpc}`;
+    const response=await fetch(endpoint,{
       method:'POST',
       headers:{
         apikey:SUPABASE_KEY,
         Authorization:`Bearer ${token}`,
         'Content-Type':'application/json'
       },
-      body:JSON.stringify(await request.json()),
+      body:JSON.stringify(
+        action==='integration-test'
+          ?{...body,action:'test_connection'}
+          :body
+      ),
       cache:'no-store'
     });
     const text=await response.text();
@@ -55,12 +64,21 @@ export async function POST(request,{params}){
 
     if(!response.ok){
       return NextResponse.json({
-        error:translate(data?.message||data?.detail||'تعذر تنفيذ العملية'),
+        error:translate(
+          data?.message
+          ||data?.error
+          ||data?.detail
+          ||'تعذر تنفيذ العملية'
+        ),
         detail:data
       },{status:response.status});
     }
 
-    return NextResponse.json({success:true,data});
+    return NextResponse.json(
+      action==='integration-test'
+        ?data
+        :{success:true,data}
+    );
   }catch(error){
     return NextResponse.json({
       error:'تعذر تنفيذ العملية',
@@ -158,6 +176,33 @@ function translate(value){
     ,automation_job_not_retryable:'لا يمكن إعادة محاولة هذه المهمة في حالتها الحالية'
     ,automation_job_already_sent:'المهمة أُرسلت بالفعل ولا يمكن إلغاؤها'
     ,training_contact_channel_missing:'لا توجد وسيلة تواصل صالحة للمتدرب'
+    ,invalid_integration_hub_action:'إجراء الربط غير صالح'
+    ,invalid_integration_provider:'مزود الربط المختار غير صالح'
+    ,integration_addon_not_enabled:'هذه الإضافة غير مفعلة ضمن باقة المنشأة'
+    ,invalid_integration_connection:'معرّف الربط غير صالح'
+    ,integration_connection_not_found:'إعداد الربط غير موجود'
+    ,integration_provider_locked:'لا يمكن تغيير نوع المزود بعد إنشاء الربط'
+    ,integration_https_required:'رابط المزود يجب أن يكون HTTPS آمنًا'
+    ,invalid_sender_email:'بريد الإرسال غير صالح'
+    ,invalid_aws_region:'منطقة Amazon AWS غير صالحة'
+    ,invalid_meta_api_version:'إصدار Meta Graph API غير صالح'
+    ,invalid_integration_secret:'بيانات API المرسلة لا تخص هذا المزود'
+    ,template_body_required:'نص الرسالة مطلوب'
+    ,template_body_too_long:'نص الرسالة أطول من الحد المسموح'
+    ,template_subject_too_long:'عنوان الرسالة أطول من الحد المسموح'
+    ,invalid_template_variable:'يحتوي القالب على متغير تخصيص غير مدعوم'
+    ,invalid_message_template:'بيانات قالب الرسالة غير صالحة'
+    ,invalid_template_channel:'قناة قالب الرسالة غير صالحة'
+    ,message_template_not_found:'قالب الرسالة غير موجود'
+    ,message_template_key_locked:'لا يمكن تغيير مفتاح قالب نظامي'
+    ,integration_test_not_authorized:'ليس لديك صلاحية لاختبار هذا الربط'
+    ,integration_configuration_missing:'إعدادات المزود غير مكتملة'
+    ,whatsapp_credentials_missing:'بيانات Meta WhatsApp غير مكتملة'
+    ,resend_configuration_missing:'بيانات Resend غير مكتملة'
+    ,amazon_ses_sender_missing:'حدد بريد إرسال موثّق في Amazon SES'
+    ,amazon_ses_not_configured:'بيانات Amazon SES غير مكتملة'
+    ,webhook_url_invalid:'رابط API غير صالح'
+    ,webhook_https_public_url_required:'يجب استخدام رابط HTTPS عام وآمن'
     ,session_not_schedulable:'لا يمكن إنشاء اجتماع لجلسة غير مجدولة'
     ,zoom_requires_online_session:'اجتماع Zoom متاح للجلسة عن بُعد أو الهجينة فقط'
     ,zoom_session_must_be_future:'لا يمكن إنشاء اجتماع Zoom لجلسة انتهى موعدها'

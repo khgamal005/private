@@ -41,9 +41,34 @@ type DeliveryResult = {
   externalUrl?: string;
 };
 
+type TenantProvider = {
+  connectionId: string;
+  tenantId: string;
+  channel: 'whatsapp' | 'email' | 'api';
+  providerKey:
+    | 'meta_whatsapp'
+    | 'webhook_whatsapp'
+    | 'resend'
+    | 'amazon_ses'
+    | 'webhook_email'
+    | 'custom_webhook';
+  displayName: string;
+  publicConfig: Record<string, unknown>;
+  secrets: Record<string, unknown>;
+  templates: Record<string, {name?: string; locale?: string}>;
+};
+
+type TestAuthorization = {
+  tenantId: string;
+  connectionId: string;
+  providerKey: TenantProvider['providerKey'];
+  channel: TenantProvider['channel'];
+};
+
 class ProviderConfigurationError extends Error {}
 
 const jsonHeaders = {'content-type': 'application/json; charset=utf-8'};
+const encoder = new TextEncoder();
 
 function env(name: string) {
   return Deno.env.get(name)?.trim() || '';
@@ -53,11 +78,20 @@ function configured(values: string[]) {
   return values.every(Boolean);
 }
 
-function providerConfiguration() {
+function textValue(
+  values: Record<string, unknown>,
+  key: string,
+  fallback = ''
+) {
+  const value = values[key];
+  return value == null ? fallback : String(value).trim();
+}
+
+function legacyProviderConfiguration() {
   const whatsapp = {
     token: env('META_WHATSAPP_TOKEN'),
     phoneNumberId: env('META_WHATSAPP_PHONE_NUMBER_ID'),
-    apiVersion: env('META_WHATSAPP_API_VERSION') || 'v23.0',
+    apiVersion: env('META_WHATSAPP_API_VERSION') || 'v25.0',
     joiningTemplate: env('META_WHATSAPP_JOINING_TEMPLATE'),
     reminderTemplate: env('META_WHATSAPP_REMINDER_TEMPLATE'),
     languageCode: env('META_WHATSAPP_LANGUAGE_CODE') || 'ar'
@@ -98,18 +132,6 @@ function providerConfiguration() {
   };
 }
 
-function providerDetail(
-  provider: 'whatsapp' | 'email' | 'zoom',
-  isReady: boolean
-) {
-  if (isReady) return 'provider_credentials_available';
-  if (provider === 'whatsapp') {
-    return 'meta_credentials_or_approved_templates_missing';
-  }
-  if (provider === 'email') return 'resend_credentials_missing';
-  return 'zoom_server_to_server_oauth_missing';
-}
-
 async function rpc<T>(
   supabaseUrl: string,
   serviceRoleKey: string,
@@ -130,6 +152,35 @@ async function rpc<T>(
     throw new Error(`automation_rpc_${name}_${response.status}`);
   }
   return await response.json() as T;
+}
+
+async function rpcAsUser<T>(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  accessToken: string,
+  name: string,
+  body: Record<string, unknown>
+): Promise<T> {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceRoleKey,
+      authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  const payload = await response.text();
+  if (!response.ok) {
+    let code = 'integration_test_not_authorized';
+    try {
+      code = JSON.parse(payload)?.message || code;
+    } catch {
+      // Keep the sanitized fallback.
+    }
+    throw new ProviderConfigurationError(code);
+  }
+  return JSON.parse(payload) as T;
 }
 
 function templateValues(job: AutomationJob) {
@@ -155,9 +206,85 @@ function templateValues(job: AutomationJob) {
   ];
 }
 
-async function sendWhatsApp(
+function tenantTemplate(
+  provider: TenantProvider,
+  job: AutomationJob
+) {
+  const template = provider.templates?.[job.type] || {};
+  const publicConfig = provider.publicConfig || {};
+  const fallbackName = job.type === 'joining_instructions'
+    ? textValue(publicConfig, 'joiningTemplate')
+    : textValue(publicConfig, 'reminderTemplate');
+  return {
+    name: textValue(template, 'name', fallbackName),
+    locale: textValue(
+      template,
+      'locale',
+      textValue(publicConfig, 'languageCode', 'ar')
+    )
+  };
+}
+
+async function sendMetaWhatsApp(
   job: AutomationJob,
-  config: ReturnType<typeof providerConfiguration>['whatsapp']
+  provider: TenantProvider
+): Promise<DeliveryResult> {
+  const config = provider.publicConfig || {};
+  const secrets = provider.secrets || {};
+  const token = textValue(secrets, 'accessToken');
+  const phoneNumberId = textValue(config, 'phoneNumberId');
+  const apiVersion = textValue(config, 'apiVersion', 'v25.0');
+  const template = tenantTemplate(provider, job);
+  if (!configured([token, phoneNumberId, template.name])) {
+    throw new ProviderConfigurationError(
+      'whatsapp_credentials_or_template_missing'
+    );
+  }
+
+  const response = await fetch(
+    `https://graph.facebook.com/${encodeURIComponent(apiVersion)}/`
+      + `${encodeURIComponent(phoneNumberId)}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: job.recipient,
+        type: 'template',
+        template: {
+          name: template.name,
+          language: {code: template.locale},
+          components: [{
+            type: 'body',
+            parameters: templateValues(job).map(text => ({
+              type: 'text',
+              text
+            }))
+          }]
+        }
+      })
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`whatsapp_request_failed_${response.status}`);
+  }
+  const payload = await response.json() as {
+    messages?: Array<{id?: string}>;
+  };
+  const externalId = payload.messages?.[0]?.id;
+  if (!externalId) throw new Error('whatsapp_response_missing_message_id');
+  return {state: 'sent', externalId};
+}
+
+async function sendLegacyWhatsApp(
+  job: AutomationJob,
+  config: ReturnType<
+    typeof legacyProviderConfiguration
+  >['whatsapp']
 ): Promise<DeliveryResult> {
   if (!config.ready) {
     throw new ProviderConfigurationError('whatsapp_not_configured');
@@ -204,9 +331,50 @@ async function sendWhatsApp(
   return {state: 'sent', externalId};
 }
 
-async function sendEmail(
+function emailSender(config: Record<string, unknown>) {
+  const fromEmail = textValue(config, 'fromEmail');
+  const fromName = textValue(config, 'fromName');
+  return fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+}
+
+async function sendResend(
   job: AutomationJob,
-  config: ReturnType<typeof providerConfiguration>['email']
+  provider: TenantProvider
+): Promise<DeliveryResult> {
+  const config = provider.publicConfig || {};
+  const apiKey = textValue(provider.secrets || {}, 'apiKey');
+  const from = emailSender(config);
+  if (!configured([apiKey, from])) {
+    throw new ProviderConfigurationError('resend_not_configured');
+  }
+  const body: Record<string, unknown> = {
+    from,
+    to: [job.recipient],
+    subject: job.subject || 'تنبيه البرنامج التدريبي',
+    text: job.messageText || ''
+  };
+  const replyTo = textValue(config, 'replyTo');
+  if (replyTo) body.reply_to = replyTo;
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) {
+    throw new Error(`resend_request_failed_${response.status}`);
+  }
+  const payload = await response.json() as {id?: string};
+  if (!payload.id) throw new Error('resend_response_missing_email_id');
+  return {state: 'sent', externalId: payload.id};
+}
+
+async function sendLegacyEmail(
+  job: AutomationJob,
+  config: ReturnType<typeof legacyProviderConfiguration>['email']
 ): Promise<DeliveryResult> {
   if (!config.ready) {
     throw new ProviderConfigurationError('email_not_configured');
@@ -232,10 +400,253 @@ async function sendEmail(
   return {state: 'sent', externalId: payload.id};
 }
 
+function hex(bytes: Uint8Array) {
+  return [...bytes]
+    .map(value => value.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function sha256(value: string) {
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(value));
+  return hex(new Uint8Array(digest));
+}
+
+async function hmac(key: Uint8Array | string, value: string) {
+  const rawKey = typeof key === 'string' ? encoder.encode(key) : key;
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    rawKey,
+    {name: 'HMAC', hash: 'SHA-256'},
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    cryptoKey,
+    encoder.encode(value)
+  );
+  return new Uint8Array(signature);
+}
+
+async function signedSesRequest(
+  provider: TenantProvider,
+  method: 'GET' | 'POST',
+  path: string,
+  payload?: Record<string, unknown>
+) {
+  const config = provider.publicConfig || {};
+  const secrets = provider.secrets || {};
+  const region = textValue(config, 'region', 'eu-west-1');
+  const accessKeyId = textValue(secrets, 'accessKeyId');
+  const secretAccessKey = textValue(secrets, 'secretAccessKey');
+  const sessionToken = textValue(secrets, 'sessionToken');
+  if (!configured([region, accessKeyId, secretAccessKey])) {
+    throw new ProviderConfigurationError('amazon_ses_not_configured');
+  }
+
+  const host = `email.${region}.amazonaws.com`;
+  const body = payload ? JSON.stringify(payload) : '';
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const dateStamp = amzDate.slice(0, 8);
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    host,
+    'x-amz-date': amzDate
+  };
+  if (sessionToken) headers['x-amz-security-token'] = sessionToken;
+
+  const signedHeaderNames = Object.keys(headers).sort();
+  const canonicalHeaders = signedHeaderNames
+    .map(key => `${key}:${headers[key].trim()}`)
+    .join('\n') + '\n';
+  const signedHeaders = signedHeaderNames.join(';');
+  const payloadHash = await sha256(body);
+  const canonicalRequest = [
+    method,
+    path,
+    '',
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash
+  ].join('\n');
+  const scope = `${dateStamp}/${region}/ses/aws4_request`;
+  const stringToSign = [
+    'AWS4-HMAC-SHA256',
+    amzDate,
+    scope,
+    await sha256(canonicalRequest)
+  ].join('\n');
+  const dateKey = await hmac(`AWS4${secretAccessKey}`, dateStamp);
+  const regionKey = await hmac(dateKey, region);
+  const serviceKey = await hmac(regionKey, 'ses');
+  const signingKey = await hmac(serviceKey, 'aws4_request');
+  const signature = hex(await hmac(signingKey, stringToSign));
+  const requestHeaders: Record<string, string> = {
+    'content-type': 'application/json',
+    'x-amz-date': amzDate,
+    authorization:
+      `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${scope}, `
+      + `SignedHeaders=${signedHeaders}, Signature=${signature}`
+  };
+  if (sessionToken) {
+    requestHeaders['x-amz-security-token'] = sessionToken;
+  }
+
+  return await fetch(`https://${host}${path}`, {
+    method,
+    headers: requestHeaders,
+    body: method === 'POST' ? body : undefined
+  });
+}
+
+async function sendAmazonSes(
+  job: AutomationJob,
+  provider: TenantProvider
+): Promise<DeliveryResult> {
+  const config = provider.publicConfig || {};
+  const fromEmail = textValue(config, 'fromEmail');
+  if (!fromEmail) {
+    throw new ProviderConfigurationError('amazon_ses_sender_missing');
+  }
+  const request: Record<string, unknown> = {
+    FromEmailAddress: fromEmail,
+    Destination: {ToAddresses: [job.recipient]},
+    Content: {
+      Simple: {
+        Subject: {
+          Data: job.subject || 'تنبيه البرنامج التدريبي',
+          Charset: 'UTF-8'
+        },
+        Body: {
+          Text: {
+            Data: job.messageText || '',
+            Charset: 'UTF-8'
+          }
+        }
+      }
+    }
+  };
+  const replyTo = textValue(config, 'replyTo');
+  const configurationSet = textValue(config, 'configurationSet');
+  if (replyTo) request.ReplyToAddresses = [replyTo];
+  if (configurationSet) request.ConfigurationSetName = configurationSet;
+
+  const response = await signedSesRequest(
+    provider,
+    'POST',
+    '/v2/email/outbound-emails',
+    request
+  );
+  if (!response.ok) {
+    throw new Error(`amazon_ses_request_failed_${response.status}`);
+  }
+  const payload = await response.json() as {MessageId?: string};
+  if (!payload.MessageId) {
+    throw new Error('amazon_ses_response_missing_message_id');
+  }
+  return {state: 'sent', externalId: payload.MessageId};
+}
+
+function safeWebhookUrl(value: string) {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ProviderConfigurationError('webhook_url_invalid');
+  }
+  const host = url.hostname.toLowerCase();
+  const privateIpv4 =
+    /^(10|127|0)\./.test(host)
+    || /^192\.168\./.test(host)
+    || /^169\.254\./.test(host)
+    || /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host);
+  if (
+    url.protocol !== 'https:'
+    || !host.includes('.')
+    || privateIpv4
+    || host === 'localhost'
+    || host === '::1'
+    || host.endsWith('.local')
+    || host.endsWith('.internal')
+  ) {
+    throw new ProviderConfigurationError('webhook_https_public_url_required');
+  }
+  return url;
+}
+
+async function webhookHeaders(
+  provider: TenantProvider,
+  body: string
+) {
+  const config = provider.publicConfig || {};
+  const secrets = provider.secrets || {};
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    'x-marktone-event': textValue(
+      config,
+      'eventName',
+      'marktone.message'
+    )
+  };
+  const token = textValue(secrets, 'authToken');
+  if (token) {
+    const header = textValue(config, 'authHeader', 'Authorization');
+    const scheme = textValue(config, 'authScheme', 'Bearer');
+    headers[header] = scheme === 'Raw' ? token : `Bearer ${token}`;
+  }
+  const signatureSecret = textValue(secrets, 'signatureSecret');
+  if (signatureSecret) {
+    headers['x-marktone-signature'] =
+      `sha256=${hex(await hmac(signatureSecret, body))}`;
+  }
+  return headers;
+}
+
+async function sendWebhook(
+  job: AutomationJob,
+  provider: TenantProvider
+): Promise<DeliveryResult> {
+  const endpoint = safeWebhookUrl(
+    textValue(provider.publicConfig || {}, 'endpoint')
+  );
+  const body = JSON.stringify({
+    event: textValue(
+      provider.publicConfig || {},
+      'eventName',
+      `marktone.${job.type}`
+    ),
+    provider: provider.providerKey,
+    tenantId: job.tenantId,
+    jobId: job.id,
+    channel: job.channel,
+    recipient: job.recipient,
+    subject: job.subject,
+    message: job.messageText,
+    variables: job.metadata,
+    courseRun: job.courseRun,
+    session: job.session || null,
+    sentAt: new Date().toISOString()
+  });
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: await webhookHeaders(provider, body),
+    body
+  });
+  if (!response.ok) {
+    throw new Error(`webhook_request_failed_${response.status}`);
+  }
+  const externalId =
+    response.headers.get('x-request-id')
+    || response.headers.get('x-message-id')
+    || crypto.randomUUID();
+  return {state: 'sent', externalId};
+}
+
 let zoomToken: string | null = null;
 
 async function zoomAccessToken(
-  config: ReturnType<typeof providerConfiguration>['zoom']
+  config: ReturnType<typeof legacyProviderConfiguration>['zoom']
 ) {
   if (!config.ready) {
     throw new ProviderConfigurationError('zoom_not_configured');
@@ -262,7 +673,7 @@ async function zoomAccessToken(
 
 async function createZoomMeeting(
   job: AutomationJob,
-  config: ReturnType<typeof providerConfiguration>['zoom']
+  config: ReturnType<typeof legacyProviderConfiguration>['zoom']
 ): Promise<DeliveryResult> {
   if (!job.session) throw new Error('zoom_job_missing_session');
   const token = await zoomAccessToken(config);
@@ -315,17 +726,269 @@ async function createZoomMeeting(
   };
 }
 
+async function tenantProvider(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  tenantId: string,
+  channel: 'whatsapp' | 'email'
+) {
+  try {
+    return await rpc<TenantProvider | null>(
+      supabaseUrl,
+      serviceRoleKey,
+      'v2_integration_provider_configuration',
+      {
+        p_tenant_id: tenantId,
+        p_channel: channel,
+        p_connection_id: null,
+        p_include_draft: false
+      }
+    );
+  } catch {
+    // Backward-compatible fallback while beta.14 is being rolled out.
+    return null;
+  }
+}
+
 async function deliver(
   job: AutomationJob,
-  providers: ReturnType<typeof providerConfiguration>
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  legacy: ReturnType<typeof legacyProviderConfiguration>
 ) {
-  if (job.channel === 'whatsapp') {
-    return await sendWhatsApp(job, providers.whatsapp);
+  if (job.channel === 'zoom') {
+    return await createZoomMeeting(job, legacy.zoom);
   }
-  if (job.channel === 'email') {
-    return await sendEmail(job, providers.email);
+
+  const provider = await tenantProvider(
+    supabaseUrl,
+    serviceRoleKey,
+    job.tenantId,
+    job.channel
+  );
+  if (!provider) {
+    return job.channel === 'whatsapp'
+      ? await sendLegacyWhatsApp(job, legacy.whatsapp)
+      : await sendLegacyEmail(job, legacy.email);
   }
-  return await createZoomMeeting(job, providers.zoom);
+
+  if (provider.providerKey === 'meta_whatsapp') {
+    return await sendMetaWhatsApp(job, provider);
+  }
+  if (provider.providerKey === 'resend') {
+    return await sendResend(job, provider);
+  }
+  if (provider.providerKey === 'amazon_ses') {
+    return await sendAmazonSes(job, provider);
+  }
+  if (
+    provider.providerKey === 'webhook_whatsapp'
+    || provider.providerKey === 'webhook_email'
+  ) {
+    return await sendWebhook(job, provider);
+  }
+  throw new ProviderConfigurationError('provider_not_supported_for_channel');
+}
+
+async function testProvider(provider: TenantProvider) {
+  if (provider.providerKey === 'meta_whatsapp') {
+    const config = provider.publicConfig || {};
+    const token = textValue(provider.secrets || {}, 'accessToken');
+    const phoneNumberId = textValue(config, 'phoneNumberId');
+    const version = textValue(config, 'apiVersion', 'v25.0');
+    if (!configured([token, phoneNumberId])) {
+      throw new ProviderConfigurationError(
+        'whatsapp_credentials_missing'
+      );
+    }
+    const url = new URL(
+      `https://graph.facebook.com/${encodeURIComponent(version)}/`
+        + encodeURIComponent(phoneNumberId)
+    );
+    url.searchParams.set('fields', 'display_phone_number,verified_name');
+    const response = await fetch(url, {
+      headers: {authorization: `Bearer ${token}`}
+    });
+    if (!response.ok) {
+      throw new Error(`whatsapp_connection_test_failed_${response.status}`);
+    }
+    const payload = await response.json() as {
+      display_phone_number?: string;
+      verified_name?: string;
+    };
+    return payload.verified_name
+      || payload.display_phone_number
+      || 'whatsapp_connection_ready';
+  }
+
+  if (provider.providerKey === 'resend') {
+    const apiKey = textValue(provider.secrets || {}, 'apiKey');
+    const from = textValue(provider.publicConfig || {}, 'fromEmail');
+    if (!configured([apiKey, from])) {
+      throw new ProviderConfigurationError('resend_configuration_missing');
+    }
+    const response = await fetch('https://api.resend.com/domains', {
+      headers: {authorization: `Bearer ${apiKey}`}
+    });
+    if (!response.ok) {
+      throw new Error(`resend_connection_test_failed_${response.status}`);
+    }
+    return 'resend_connection_ready';
+  }
+
+  if (provider.providerKey === 'amazon_ses') {
+    const from = textValue(provider.publicConfig || {}, 'fromEmail');
+    if (!from) {
+      throw new ProviderConfigurationError('amazon_ses_sender_missing');
+    }
+    const response = await signedSesRequest(
+      provider,
+      'GET',
+      '/v2/email/account'
+    );
+    if (!response.ok) {
+      throw new Error(`amazon_ses_connection_test_failed_${response.status}`);
+    }
+    return 'amazon_ses_connection_ready';
+  }
+
+  if (
+    provider.providerKey === 'webhook_whatsapp'
+    || provider.providerKey === 'webhook_email'
+    || provider.providerKey === 'custom_webhook'
+  ) {
+    const endpoint = safeWebhookUrl(
+      textValue(provider.publicConfig || {}, 'endpoint')
+    );
+    const body = JSON.stringify({
+      event: 'marktone.integration.test',
+      connectionId: provider.connectionId,
+      channel: provider.channel,
+      testedAt: new Date().toISOString()
+    });
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: await webhookHeaders(provider, body),
+      body
+    });
+    if (!response.ok) {
+      throw new Error(`webhook_connection_test_failed_${response.status}`);
+    }
+    return 'webhook_connection_ready';
+  }
+
+  throw new ProviderConfigurationError('integration_provider_not_supported');
+}
+
+async function handleConnectionTest(
+  request: Request,
+  body: Record<string, unknown>,
+  supabaseUrl: string,
+  serviceRoleKey: string
+) {
+  const authorization = request.headers.get('authorization') || '';
+  const accessToken = authorization.startsWith('Bearer ')
+    ? authorization.slice(7).trim()
+    : '';
+  const tenantSlug = textValue(body, 'tenantSlug');
+  const connectionId = textValue(body, 'connectionId');
+  if (!accessToken || !tenantSlug || !connectionId) {
+    return new Response(
+      JSON.stringify({error: 'integration_test_not_authorized'}),
+      {status: 401, headers: jsonHeaders}
+    );
+  }
+
+  let authorized: TestAuthorization;
+  try {
+    authorized = await rpcAsUser<TestAuthorization>(
+      supabaseUrl,
+      serviceRoleKey,
+      accessToken,
+      'v2_tenant_integration_test_authorize',
+      {
+        p_tenant_slug: tenantSlug,
+        p_connection_id: connectionId
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error
+          ? error.message
+          : 'integration_test_not_authorized'
+      }),
+      {status: 403, headers: jsonHeaders}
+    );
+  }
+
+  const provider = await rpc<TenantProvider | null>(
+    supabaseUrl,
+    serviceRoleKey,
+    'v2_integration_provider_configuration',
+    {
+      p_tenant_id: authorized.tenantId,
+      p_channel: authorized.channel,
+      p_connection_id: authorized.connectionId,
+      p_include_draft: true
+    }
+  );
+  if (!provider) {
+    await rpc(
+      supabaseUrl,
+      serviceRoleKey,
+      'v2_integration_test_complete',
+      {
+        p_connection_id: authorized.connectionId,
+        p_state: 'error',
+        p_detail: 'integration_configuration_missing'
+      }
+    );
+    return new Response(
+      JSON.stringify({error: 'integration_configuration_missing'}),
+      {status: 422, headers: jsonHeaders}
+    );
+  }
+
+  try {
+    const detail = await testProvider(provider);
+    await rpc(
+      supabaseUrl,
+      serviceRoleKey,
+      'v2_integration_test_complete',
+      {
+        p_connection_id: provider.connectionId,
+        p_state: 'ready',
+        p_detail: String(detail).slice(0, 240)
+      }
+    );
+    return new Response(
+      JSON.stringify({
+        success: true,
+        state: 'ready',
+        detail
+      }),
+      {status: 200, headers: jsonHeaders}
+    );
+  } catch (error) {
+    const detail = error instanceof Error
+      ? error.message.slice(0, 240)
+      : 'connection_test_failed';
+    await rpc(
+      supabaseUrl,
+      serviceRoleKey,
+      'v2_integration_test_complete',
+      {
+        p_connection_id: provider.connectionId,
+        p_state: 'error',
+        p_detail: detail
+      }
+    );
+    return new Response(
+      JSON.stringify({error: detail, state: 'error'}),
+      {status: 422, headers: jsonHeaders}
+    );
+  }
 }
 
 Deno.serve(async request => {
@@ -338,9 +1001,32 @@ Deno.serve(async request => {
 
   const supabaseUrl = env('SUPABASE_URL');
   const serviceRoleKey = env('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceRoleKey) {
+    return new Response(
+      JSON.stringify({error: 'dispatcher_not_configured'}),
+      {status: 503, headers: jsonHeaders}
+    );
+  }
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    // Cron calls may provide no useful payload.
+  }
+
+  if (body.action === 'test_connection') {
+    return await handleConnectionTest(
+      request,
+      body,
+      supabaseUrl,
+      serviceRoleKey
+    );
+  }
+
   const automationSecret =
     request.headers.get('x-marktone-automation-secret')?.trim() || '';
-  if (!supabaseUrl || !serviceRoleKey || !automationSecret) {
+  if (!automationSecret) {
     return new Response(
       JSON.stringify({error: 'dispatcher_not_authorized'}),
       {status: 401, headers: jsonHeaders}
@@ -362,27 +1048,7 @@ Deno.serve(async request => {
     );
   }
 
-  const providers = providerConfiguration();
-  await Promise.allSettled(
-    ([
-      ['whatsapp', providers.whatsapp.ready],
-      ['email', providers.email.ready],
-      ['zoom', providers.zoom.ready]
-    ] as const).map(([provider, ready]) =>
-      rpc(
-        supabaseUrl,
-        serviceRoleKey,
-        'v2_training_automation_provider_health',
-        {
-          p_secret: automationSecret,
-          p_provider: provider,
-          p_state: ready ? 'ready' : 'missing_configuration',
-          p_detail: providerDetail(provider, ready)
-        }
-      )
-    )
-  );
-
+  const legacy = legacyProviderConfiguration();
   const result = {
     claimed: jobs.length,
     sent: 0,
@@ -393,7 +1059,12 @@ Deno.serve(async request => {
 
   for (const job of jobs) {
     try {
-      const delivered = await deliver(job, providers);
+      const delivered = await deliver(
+        job,
+        supabaseUrl,
+        serviceRoleKey,
+        legacy
+      );
       await rpc(
         supabaseUrl,
         serviceRoleKey,

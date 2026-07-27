@@ -80,6 +80,8 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   const data=await read('../lib/api.js');
   const sales=await read('../components/sales-workspace.js');
   const tasks=await read('../components/task-calendar-page.js');
+  const followupModal=await read('../components/sales-followup-modal.js');
+  const styles=await read('../app/rebuild.css');
 
   assert.match(migration,/create schema if not exists sales_core/);
   assert.match(migration,/create schema if not exists work_core/);
@@ -111,7 +113,15 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(sales,/جودة الليد/);
   assert.doesNotMatch(sales,/فرصة جديدة/);
   assert.match(sales,/الإجراء التالي/);
-  assert.match(tasks,/اسم العميل وجواله وحالته/);
+  assert.match(sales,/فترة المتابعة القادمة/);
+  assert.match(sales,/7 أيام/);
+  assert.match(sales,/label:'جديد',statuses:\['new','no_answer','busy','follow_up','postponed'\]/);
+  assert.match(tasks,/SalesFollowupModal/);
+  assert.match(tasks,/المتابعة فقط/);
+  assert.match(tasks,/اضغط متابعة العميل/);
+  assert.match(followupModal,/نتيجة المتابعة/);
+  assert.match(followupModal,/موعد الإجراء التالي/);
+  assert.match(styles,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
 });
 
 test('Reef operational sample data is clearly marked and uses placeholder contacts',async()=>{

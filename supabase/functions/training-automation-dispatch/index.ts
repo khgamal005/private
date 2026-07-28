@@ -1,14 +1,11 @@
 type JobChannel = 'whatsapp' | 'email' | 'zoom';
-type JobType =
-  | 'joining_instructions'
-  | 'session_reminder_24h'
-  | 'session_reminder_1h'
-  | 'zoom_meeting_create';
+type JobType = string;
 
 type AutomationJob = {
+  queue?: 'training' | 'automation';
   id: string;
   tenantId: string;
-  courseRunId: string;
+  courseRunId?: string;
   sessionId?: string;
   enrollmentId?: string;
   type: JobType;
@@ -27,7 +24,7 @@ type AutomationJob = {
     deliveryMode: string;
     instructorName?: string;
   };
-  courseRun: {
+  courseRun?: {
     id: string;
     title: string;
     courseName: string;
@@ -36,9 +33,11 @@ type AutomationJob = {
 };
 
 type DeliveryResult = {
-  state: 'sent' | 'ready';
+  state: 'sent' | 'ready' | 'simulated';
   externalId: string;
   externalUrl?: string;
+  providerConnectionId?: string;
+  providerKey?: string;
 };
 
 type TenantProvider = {
@@ -51,7 +50,9 @@ type TenantProvider = {
     | 'resend'
     | 'amazon_ses'
     | 'webhook_email'
-    | 'custom_webhook';
+    | 'custom_webhook'
+    | 'marktone_sandbox_whatsapp'
+    | 'marktone_sandbox_email';
   displayName: string;
   publicConfig: Record<string, unknown>;
   secrets: Record<string, unknown>;
@@ -63,6 +64,12 @@ type TestAuthorization = {
   connectionId: string;
   providerKey: TenantProvider['providerKey'];
   channel: TenantProvider['channel'];
+};
+
+type UsageReservation = {
+  reservationId: string;
+  status: 'reserved' | 'consumed';
+  duplicate: boolean;
 };
 
 class ProviderConfigurationError extends Error {}
@@ -183,23 +190,95 @@ async function rpcAsUser<T>(
   return JSON.parse(payload) as T;
 }
 
+function usageSpec(job: AutomationJob) {
+  if (job.channel === 'whatsapp') {
+    return {
+      featureKey: 'addon.integration.whatsapp',
+      metricKey: 'whatsapp_messages'
+    };
+  }
+  if (job.channel === 'email') {
+    return {
+      featureKey: 'addon.integration.email',
+      metricKey: 'email_messages'
+    };
+  }
+  if (job.channel === 'zoom') {
+    return {
+      featureKey: 'addon.integration.zoom',
+      metricKey: 'zoom_meetings'
+    };
+  }
+  return null;
+}
+
+async function reserveUsage(
+  job: AutomationJob,
+  automationSecret: string,
+  supabaseUrl: string,
+  serviceRoleKey: string
+) {
+  const spec = usageSpec(job);
+  if (!spec) return null;
+  return await rpc<UsageReservation>(
+    supabaseUrl,
+    serviceRoleKey,
+    'v2_addon_usage_reserve',
+    {
+      p_secret: automationSecret,
+      p_tenant_id: job.tenantId,
+      p_feature_key: spec.featureKey,
+      p_metric_key: spec.metricKey,
+      p_idempotency_key: `dispatch:${job.queue || 'training'}:${job.id}`,
+      p_source_type: job.queue || 'training',
+      p_source_id: job.id,
+      p_quantity: 1
+    }
+  );
+}
+
 function templateValues(job: AutomationJob) {
   const metadata = job.metadata || {};
   const value = (key: string, fallback = '—') =>
     String(metadata[key] || fallback).slice(0, 900);
+  const configuredValues =
+    metadata.templateValues
+    && typeof metadata.templateValues === 'object'
+    && !Array.isArray(metadata.templateValues)
+      ? metadata.templateValues as Record<string, unknown>
+      : null;
+
+  if (configuredValues) {
+    const orderedKeys = [
+      'name',
+      'course',
+      'batch',
+      'session',
+      'date',
+      'time',
+      'link',
+      'amount',
+      'certificate_number',
+      'certificate_link',
+      'center'
+    ];
+    return orderedKeys
+      .filter(key => configuredValues[key] != null)
+      .map(key => String(configuredValues[key]).slice(0, 900));
+  }
 
   if (job.type === 'joining_instructions') {
     return [
       value('studentName'),
-      value('courseName', job.courseRun.courseName),
-      value('runName', job.courseRun.title),
+      value('courseName', job.courseRun?.courseName),
+      value('runName', job.courseRun?.title),
       value('startDate'),
       value('venueOrLink')
     ];
   }
   return [
     value('studentName'),
-    value('courseName', job.courseRun.courseName),
+    value('courseName', job.courseRun?.courseName),
     value('sessionTitle', job.session?.title),
     value('startDate'),
     value('venueOrLink')
@@ -413,9 +492,10 @@ async function sha256(value: string) {
 
 async function hmac(key: Uint8Array | string, value: string) {
   const rawKey = typeof key === 'string' ? encoder.encode(key) : key;
+  const keyBuffer = Uint8Array.from(rawKey).buffer;
   const cryptoKey = await crypto.subtle.importKey(
     'raw',
-    rawKey,
+    keyBuffer,
     {name: 'HMAC', hash: 'SHA-256'},
     false,
     ['sign']
@@ -643,6 +723,52 @@ async function sendWebhook(
   return {state: 'sent', externalId};
 }
 
+async function sendSandbox(
+  job: AutomationJob,
+  provider: TenantProvider,
+  supabaseUrl: string
+): Promise<DeliveryResult> {
+  const token = textValue(provider.secrets || {}, 'sandboxToken');
+  if (!token) {
+    throw new ProviderConfigurationError('sandbox_token_missing');
+  }
+  const externalId = `sandbox-${crypto.randomUUID()}`;
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/training-automation-dispatch`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-marktone-sandbox-token': token
+      },
+      body: JSON.stringify({
+        action: 'sandbox_receive',
+        connectionId: provider.connectionId,
+        payload: {
+          event: `marktone.${job.type}`,
+          queue: job.queue || 'training',
+          externalId,
+          jobId: job.id,
+          jobType: job.type,
+          recipient: job.recipient,
+          subject: job.subject,
+          message: job.messageText
+        }
+      })
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`sandbox_gateway_failed_${response.status}`);
+  }
+  const payload = await response.json() as {externalId?: string};
+  return {
+    state: 'simulated',
+    externalId: payload.externalId || externalId,
+    providerConnectionId: provider.connectionId,
+    providerKey: provider.providerKey
+  };
+}
+
 let zoomToken: string | null = null;
 
 async function zoomAccessToken(
@@ -675,7 +801,9 @@ async function createZoomMeeting(
   job: AutomationJob,
   config: ReturnType<typeof legacyProviderConfiguration>['zoom']
 ): Promise<DeliveryResult> {
-  if (!job.session) throw new Error('zoom_job_missing_session');
+  if (!job.session || !job.courseRun) {
+    throw new Error('zoom_job_missing_session');
+  }
   const token = await zoomAccessToken(config);
   const startsAt = new Date(job.session.startsAt);
   const endsAt = new Date(job.session.endsAt);
@@ -773,24 +901,49 @@ async function deliver(
   }
 
   if (provider.providerKey === 'meta_whatsapp') {
-    return await sendMetaWhatsApp(job, provider);
+    return {
+      ...await sendMetaWhatsApp(job, provider),
+      providerConnectionId: provider.connectionId,
+      providerKey: provider.providerKey
+    };
   }
   if (provider.providerKey === 'resend') {
-    return await sendResend(job, provider);
+    return {
+      ...await sendResend(job, provider),
+      providerConnectionId: provider.connectionId,
+      providerKey: provider.providerKey
+    };
   }
   if (provider.providerKey === 'amazon_ses') {
-    return await sendAmazonSes(job, provider);
+    return {
+      ...await sendAmazonSes(job, provider),
+      providerConnectionId: provider.connectionId,
+      providerKey: provider.providerKey
+    };
   }
   if (
     provider.providerKey === 'webhook_whatsapp'
     || provider.providerKey === 'webhook_email'
   ) {
-    return await sendWebhook(job, provider);
+    return {
+      ...await sendWebhook(job, provider),
+      providerConnectionId: provider.connectionId,
+      providerKey: provider.providerKey
+    };
+  }
+  if (
+    provider.providerKey === 'marktone_sandbox_whatsapp'
+    || provider.providerKey === 'marktone_sandbox_email'
+  ) {
+    return await sendSandbox(job, provider, supabaseUrl);
   }
   throw new ProviderConfigurationError('provider_not_supported_for_channel');
 }
 
-async function testProvider(provider: TenantProvider) {
+async function testProvider(
+  provider: TenantProvider,
+  supabaseUrl: string
+) {
   if (provider.providerKey === 'meta_whatsapp') {
     const config = provider.publicConfig || {};
     const token = textValue(provider.secrets || {}, 'accessToken');
@@ -877,6 +1030,38 @@ async function testProvider(provider: TenantProvider) {
     return 'webhook_connection_ready';
   }
 
+  if (
+    provider.providerKey === 'marktone_sandbox_whatsapp'
+    || provider.providerKey === 'marktone_sandbox_email'
+  ) {
+    const token = textValue(provider.secrets || {}, 'sandboxToken');
+    if (!token) {
+      throw new ProviderConfigurationError('sandbox_token_missing');
+    }
+    const response = await fetch(
+      `${supabaseUrl}/functions/v1/training-automation-dispatch`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-marktone-sandbox-token': token
+        },
+        body: JSON.stringify({
+          action: 'sandbox_receive',
+          connectionId: provider.connectionId,
+          payload: {
+            event: 'marktone.integration.test',
+            externalId: `sandbox-test-${crypto.randomUUID()}`
+          }
+        })
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`sandbox_connection_test_failed_${response.status}`);
+    }
+    return 'sandbox_gateway_ready_no_customer_delivery';
+  }
+
   throw new ProviderConfigurationError('integration_provider_not_supported');
 }
 
@@ -951,7 +1136,7 @@ async function handleConnectionTest(
   }
 
   try {
-    const detail = await testProvider(provider);
+    const detail = await testProvider(provider, supabaseUrl);
     await rpc(
       supabaseUrl,
       serviceRoleKey,
@@ -991,6 +1176,175 @@ async function handleConnectionTest(
   }
 }
 
+async function handleSandboxReceive(
+  request: Request,
+  body: Record<string, unknown>,
+  supabaseUrl: string,
+  serviceRoleKey: string
+) {
+  const token =
+    request.headers.get('x-marktone-sandbox-token')?.trim() || '';
+  const connectionId = textValue(body, 'connectionId');
+  const payload = body.payload;
+  if (
+    !token
+    || !connectionId
+    || !payload
+    || typeof payload !== 'object'
+    || Array.isArray(payload)
+  ) {
+    return new Response(
+      JSON.stringify({error: 'sandbox_gateway_not_authorized'}),
+      {status: 401, headers: jsonHeaders}
+    );
+  }
+  try {
+    const result = await rpc<{
+      receiptId: string;
+      externalId: string;
+      state: string;
+    }>(
+      supabaseUrl,
+      serviceRoleKey,
+      'v2_sandbox_delivery_receive',
+      {
+        p_connection_id: connectionId,
+        p_token: token,
+        p_payload: payload as Record<string, unknown>
+      }
+    );
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: jsonHeaders
+    });
+  } catch {
+    return new Response(
+      JSON.stringify({error: 'sandbox_gateway_not_authorized'}),
+      {status: 401, headers: jsonHeaders}
+    );
+  }
+}
+
+async function handleSandboxSelfTest(
+  body: Record<string, unknown>,
+  supabaseUrl: string,
+  serviceRoleKey: string
+) {
+  const connectionId = textValue(body, 'connectionId');
+  if (!connectionId) {
+    return new Response(
+      JSON.stringify({error: 'integration_connection_not_found'}),
+      {status: 422, headers: jsonHeaders}
+    );
+  }
+  const provider = await rpc<TenantProvider | null>(
+    supabaseUrl,
+    serviceRoleKey,
+    'v2_integration_provider_configuration',
+    {
+      p_tenant_id: body.tenantId,
+      p_channel: body.channel,
+      p_connection_id: connectionId,
+      p_include_draft: true
+    }
+  );
+  if (
+    !provider
+    || ![
+      'marktone_sandbox_whatsapp',
+      'marktone_sandbox_email'
+    ].includes(provider.providerKey)
+  ) {
+    return new Response(
+      JSON.stringify({error: 'integration_configuration_missing'}),
+      {status: 422, headers: jsonHeaders}
+    );
+  }
+  try {
+    const detail = await testProvider(provider, supabaseUrl);
+    await rpc(
+      supabaseUrl,
+      serviceRoleKey,
+      'v2_integration_test_complete',
+      {
+        p_connection_id: provider.connectionId,
+        p_state: 'ready',
+        p_detail: detail
+      }
+    );
+    return new Response(JSON.stringify({
+      success: true,
+      state: 'ready',
+      detail
+    }), {status: 200, headers: jsonHeaders});
+  } catch (error) {
+    const detail = error instanceof Error
+      ? error.message.slice(0, 240)
+      : 'connection_test_failed';
+    await rpc(
+      supabaseUrl,
+      serviceRoleKey,
+      'v2_integration_test_complete',
+      {
+        p_connection_id: provider.connectionId,
+        p_state: 'error',
+        p_detail: detail
+      }
+    );
+    return new Response(
+      JSON.stringify({error: detail, state: 'error'}),
+      {status: 422, headers: jsonHeaders}
+    );
+  }
+}
+
+async function handleDeliveryWebhook(
+  request: Request,
+  body: Record<string, unknown>,
+  rawBody: string,
+  supabaseUrl: string,
+  serviceRoleKey: string
+) {
+  const webhookId = textValue(body, 'webhookId');
+  const timestamp =
+    request.headers.get('x-marktone-timestamp')?.trim() || '';
+  const signature =
+    request.headers.get('x-marktone-signature')?.trim() || '';
+  if (!webhookId || !timestamp || !signature || !rawBody) {
+    return new Response(
+      JSON.stringify({error: 'delivery_webhook_not_authorized'}),
+      {status: 401, headers: jsonHeaders}
+    );
+  }
+  try {
+    const result = await rpc<{
+      eventId: string;
+      state: string;
+      duplicate: boolean;
+      matched: boolean;
+    }>(
+      supabaseUrl,
+      serviceRoleKey,
+      'v2_delivery_webhook_receive',
+      {
+        p_webhook_id: webhookId,
+        p_timestamp: timestamp,
+        p_signature: signature,
+        p_raw_body: rawBody
+      }
+    );
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: jsonHeaders
+    });
+  } catch {
+    return new Response(
+      JSON.stringify({error: 'delivery_webhook_not_authorized'}),
+      {status: 401, headers: jsonHeaders}
+    );
+  }
+}
+
 Deno.serve(async request => {
   if (request.method !== 'POST') {
     return new Response(
@@ -1008,9 +1362,11 @@ Deno.serve(async request => {
     );
   }
 
+  let rawBody = '';
   let body: Record<string, unknown> = {};
   try {
-    body = await request.json();
+    rawBody = await request.text();
+    body = rawBody ? JSON.parse(rawBody) : {};
   } catch {
     // Cron calls may provide no useful payload.
   }
@@ -1019,6 +1375,25 @@ Deno.serve(async request => {
     return await handleConnectionTest(
       request,
       body,
+      supabaseUrl,
+      serviceRoleKey
+    );
+  }
+
+  if (body.action === 'sandbox_receive') {
+    return await handleSandboxReceive(
+      request,
+      body,
+      supabaseUrl,
+      serviceRoleKey
+    );
+  }
+
+  if (body.action === 'delivery_webhook') {
+    return await handleDeliveryWebhook(
+      request,
+      body,
+      rawBody,
       supabaseUrl,
       serviceRoleKey
     );
@@ -1033,14 +1408,34 @@ Deno.serve(async request => {
     );
   }
 
+  if (body.action === 'sandbox_self_test') {
+    return await handleSandboxSelfTest(
+      body,
+      supabaseUrl,
+      serviceRoleKey
+    );
+  }
+
   let jobs: AutomationJob[];
   try {
-    jobs = await rpc<AutomationJob[]>(
-      supabaseUrl,
-      serviceRoleKey,
-      'v2_training_automation_claim_jobs',
-      {p_secret: automationSecret, p_limit: 20}
-    );
+    const [trainingJobs, automationJobs] = await Promise.all([
+      rpc<AutomationJob[]>(
+        supabaseUrl,
+        serviceRoleKey,
+        'v2_training_automation_claim_jobs',
+        {p_secret: automationSecret, p_limit: 20}
+      ),
+      rpc<AutomationJob[]>(
+        supabaseUrl,
+        serviceRoleKey,
+        'v2_automation_claim_messages',
+        {p_secret: automationSecret, p_limit: 20}
+      )
+    ]);
+    jobs = [
+      ...trainingJobs.map(job => ({...job, queue: 'training' as const})),
+      ...automationJobs.map(job => ({...job, queue: 'automation' as const}))
+    ];
   } catch {
     return new Response(
       JSON.stringify({error: 'dispatcher_not_authorized'}),
@@ -1052,13 +1447,25 @@ Deno.serve(async request => {
   const result = {
     claimed: jobs.length,
     sent: 0,
+    simulated: 0,
     ready: 0,
     waitingConfiguration: 0,
     failed: 0
   };
 
   for (const job of jobs) {
+    const completionRpc = job.queue === 'automation'
+      ? 'v2_automation_complete_message_v2'
+      : 'v2_training_automation_complete_job_v3';
+    let usageReservationId: string | null = null;
     try {
+      const usage = await reserveUsage(
+        job,
+        automationSecret,
+        supabaseUrl,
+        serviceRoleKey
+      );
+      usageReservationId = usage?.reservationId || null;
       const delivered = await deliver(
         job,
         supabaseUrl,
@@ -1068,17 +1475,22 @@ Deno.serve(async request => {
       await rpc(
         supabaseUrl,
         serviceRoleKey,
-        'v2_training_automation_complete_job',
+        completionRpc,
         {
           p_secret: automationSecret,
           p_job_id: job.id,
           p_result_state: delivered.state,
           p_external_id: delivered.externalId,
           p_external_url: delivered.externalUrl || null,
-          p_error: null
+          p_error: null,
+          p_provider_connection_id:
+            delivered.providerConnectionId || null,
+          p_provider_key: delivered.providerKey || null,
+          p_usage_reservation_id: usageReservationId
         }
       );
       if (delivered.state === 'ready') result.ready += 1;
+      else if (delivered.state === 'simulated') result.simulated += 1;
       else result.sent += 1;
     } catch (error) {
       const configurationMissing =
@@ -1086,7 +1498,7 @@ Deno.serve(async request => {
       await rpc(
         supabaseUrl,
         serviceRoleKey,
-        'v2_training_automation_complete_job',
+        completionRpc,
         {
           p_secret: automationSecret,
           p_job_id: job.id,
@@ -1097,7 +1509,10 @@ Deno.serve(async request => {
           p_external_url: null,
           p_error: error instanceof Error
             ? error.message.slice(0, 240)
-            : 'provider_request_failed'
+            : 'provider_request_failed',
+          p_provider_connection_id: null,
+          p_provider_key: null,
+          p_usage_reservation_id: usageReservationId
         }
       );
       if (configurationMissing) result.waitingConfiguration += 1;

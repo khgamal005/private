@@ -3,11 +3,17 @@
 import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import IntegrationHub from './integration-hub';
+import AutomationStudio from './automation-studio';
+import DeliveryAnalytics from './delivery-analytics';
+import AddonCenter from './addon-center';
 
 const TABS=[
   ['users','المستخدمون'],
   ['invitations','الدعوات'],
   ['roles','الأدوار والصلاحيات'],
+  ['addons','الإضافات والاشتراك'],
+  ['automation','الأتمتة الذكية'],
+  ['delivery','التسليم والتحليلات'],
   ['integrations','الربط وواجهات API'],
   ['templates','قوالب الرسائل']
 ];
@@ -27,6 +33,21 @@ const HEADINGS={
     eyebrow:'ROLES & PERMISSIONS',
     title:'الأدوار والصلاحيات',
     description:'قوالب الوصول الفعلية المطبقة على فريق المنشأة.'
+  },
+  addons:{
+    eyebrow:'MODULAR ADD-ONS',
+    title:'الإضافات والاشتراك',
+    description:'فعّل كل قدرة مستقلة، راقب حدها واستهلاكها، واطلب التجربة دون أي تفعيل مدفوع غير معتمد.'
+  },
+  automation:{
+    eyebrow:'AUTOMATION STUDIO',
+    title:'محرك الأتمتة الذكي',
+    description:'حوّل أحداث الدفع والتسجيل والحضور والشهادات إلى إجراءات حقيقية بقنوات بديلة ومعاينة آمنة.'
+  },
+  delivery:{
+    eyebrow:'DELIVERY PROOF',
+    title:'إثبات التسليم والتحليلات',
+    description:'تتبّع قبول المزود والتسليم والقراءة والارتداد والشكوى والتكلفة بإشعارات موقعة.'
   },
   integrations:{
     eyebrow:'INTEGRATIONS HUB',
@@ -130,6 +151,21 @@ export default function TenantSettings({slug,initialData}){
       slug={slug}
       initialData={initialData.integrationHub}
       mode="templates"
+    />}
+
+    {tab==='automation'&&<AutomationStudio
+      slug={slug}
+      initialData={initialData.automationStudio}
+    />}
+
+    {tab==='addons'&&<AddonCenter
+      slug={slug}
+      initialData={initialData.addonCenter}
+    />}
+
+    {tab==='delivery'&&<DeliveryAnalytics
+      slug={slug}
+      initialData={initialData.deliveryAnalytics}
     />}
 
     {modal&&<div className="mt-modal-layer">

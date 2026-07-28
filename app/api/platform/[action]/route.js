@@ -13,6 +13,7 @@ const RPC={
   'create-connection':'v2_platform_upsert_connection',
   'create-support':'v2_support_create_request',
   'update-support':'v2_support_update_request'
+  ,'addon-decision':'v2_platform_addon_center_action'
 };
 
 export async function POST(req,{params}){
@@ -52,4 +53,10 @@ function translate(x){const m={
   title_required:'العنوان مطلوب',
   request_not_found:'الطلب غير موجود',
   market_account_not_found:'المنشأة غير موجودة في قاعدة السوق'
+  ,invalid_addon_subscription:'معرّف اشتراك الإضافة غير صالح'
+  ,addon_subscription_not_found:'اشتراك الإضافة غير موجود'
+  ,addon_request_not_pending:'طلب الإضافة لم يعد معلقًا'
+  ,invalid_addon_decision:'قرار الإضافة غير صالح'
+  ,invalid_addon_limit:'حد الاستخدام غير صالح'
+  ,invalid_addon_action:'إجراء الإضافة غير صالح'
 };return m[x]||String(x)}

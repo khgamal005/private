@@ -25,10 +25,16 @@ const trainingAutomation='20260728014500_training_communications_zoom_automation
 const trainingAutomationIndexes='20260728015000_training_automation_reference_indexes_v2.sql';
 const integrationHub='20260728030000_integration_hub_and_message_templates_v2.sql';
 const integrationHubIndexes='20260728030500_integration_hub_reference_indexes_v2.sql';
+const sandboxGateway='20260728043000_live_sandbox_delivery_gateway_v2.sql';
+const automationRules='20260728050000_automation_rules_engine_v2.sql';
+const automationSandboxReceipts='20260728051500_automation_sandbox_receipts_v2.sql';
+const deliveryProof='20260728054500_delivery_proof_analytics_v2.sql';
+const modularAddons='20260728061500_modular_addons_usage_v2.sql';
+const sixLearnerQa='20260728065000_reef_six_learner_cycle_qa_v2.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -52,6 +58,12 @@ const trainingAutomationSql=await readFile(new URL(trainingAutomation,migrations
 const trainingAutomationIndexesSql=await readFile(new URL(trainingAutomationIndexes,migrationsUrl),'utf8');
 const integrationHubSql=await readFile(new URL(integrationHub,migrationsUrl),'utf8');
 const integrationHubIndexesSql=await readFile(new URL(integrationHubIndexes,migrationsUrl),'utf8');
+const sandboxGatewaySql=await readFile(new URL(sandboxGateway,migrationsUrl),'utf8');
+const automationRulesSql=await readFile(new URL(automationRules,migrationsUrl),'utf8');
+const automationSandboxReceiptsSql=await readFile(new URL(automationSandboxReceipts,migrationsUrl),'utf8');
+const deliveryProofSql=await readFile(new URL(deliveryProof,migrationsUrl),'utf8');
+const modularAddonsSql=await readFile(new URL(modularAddons,migrationsUrl),'utf8');
+const sixLearnerQaSql=await readFile(new URL(sixLearnerQa,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -176,5 +188,52 @@ assert.match(integrationHubSql,/'meta_whatsapp'/);
 assert.match(integrationHubSql,/'custom_webhook'/);
 assert.match(integrationHubIndexesSql,/provider_connections_provider_reference_idx/);
 assert.match(integrationHubIndexesSql,/message_templates_updater_reference_idx/);
+assert.match(sandboxGatewaySql,/create table communication_hub\.sandbox_receipts/);
+assert.match(sandboxGatewaySql,/'marktone_sandbox_whatsapp'/);
+assert.match(sandboxGatewaySql,/'simulated_not_sent_to_recipient'/);
+assert.match(sandboxGatewaySql,/v2_sandbox_delivery_receive/);
+assert.match(automationRulesSql,/create schema if not exists automation_engine/);
+assert.match(automationRulesSql,/create table automation_engine\.rules/);
+assert.match(automationRulesSql,/create table automation_engine\.events/);
+assert.match(automationRulesSql,/create table automation_engine\.runs/);
+assert.match(automationRulesSql,/create table communication_hub\.message_outbox/);
+assert.match(automationRulesSql,/v2_automation_claim_messages/);
+assert.match(automationRulesSql,/v2_automation_complete_message/);
+assert.match(automationRulesSql,/payment_automation_event/);
+assert.match(automationRulesSql,/absence_automation_event/);
+assert.match(automationRulesSql,/certificate_automation_event/);
+assert.match(automationRulesSql,/fallback_queued/);
+assert.match(automationRulesSql,/preview_not_queued/);
+assert.doesNotMatch(automationRulesSql,/SUPABASE_SECRET/);
+assert.match(automationSandboxReceiptsSql,/message_outbox_id/);
+assert.match(automationSandboxReceiptsSql,/sandbox_receipts_outbox_reference_idx/);
+assert.match(automationSandboxReceiptsSql,/p_payload ->> 'queue'/);
+assert.match(deliveryProofSql,/create table communication_hub\.delivery_webhooks/);
+assert.match(deliveryProofSql,/create table communication_hub\.delivery_events/);
+assert.match(deliveryProofSql,/extensions\.hmac/);
+assert.match(deliveryProofSql,/v2_delivery_webhook_receive/);
+assert.match(deliveryProofSql,/v2_tenant_delivery_analytics_snapshot/);
+assert.match(deliveryProofSql,/unique \(provider_connection_id, provider_event_id\)/);
+assert.match(deliveryProofSql,/delivery_state_rank/);
+assert.doesNotMatch(deliveryProofSql,/recipient.*payload_summary/i);
+assert.match(modularAddonsSql,/create table catalog\.addon_products/);
+assert.match(modularAddonsSql,/create table catalog\.tenant_addon_subscriptions/);
+assert.match(modularAddonsSql,/create table catalog\.addon_usage_reservations/);
+assert.match(modularAddonsSql,/create table catalog\.addon_usage_events/);
+assert.match(modularAddonsSql,/v2_addon_usage_reserve/);
+assert.match(modularAddonsSql,/finalize_addon_reservation/);
+assert.match(modularAddonsSql,/addon_usage_limit_reached/);
+assert.match(modularAddonsSql,/v2_platform_addon_center_action/);
+assert.match(modularAddonsSql,/v2_tenant_addon_center_snapshot/);
+assert.match(modularAddonsSql,/pricing_mode/);
+assert.match(sixLearnerQaSql,/for v_index in 5\.\.6 loop/);
+assert.match(sixLearnerQaSql,/DEMO-TRN-006/);
+assert.match(sixLearnerQaSql,/private_app\.training_eligibility/);
+assert.match(sixLearnerQaSql,/private_app\.queue_automation_event/);
+assert.match(sixLearnerQaSql,/private_app\.process_automation_events/);
+assert.match(sixLearnerQaSql,/v_enrollments <> 6/);
+assert.match(sixLearnerQaSql,/v_attendance <> 24/);
+assert.match(sixLearnerQaSql,/quality\.learner_cycle\.passed/);
+assert.match(sixLearnerQaSql,/'containsRealContacts', false/);
 
 console.log('Verified the clean v2 database, learner automation, and modular integration hub.');

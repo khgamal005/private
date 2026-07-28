@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0-beta.14",
-  "releasedAt": "2026-07-27T23:20:00.000Z",
+  "version": "2.0.0-beta.16",
+  "releasedAt": "2026-07-28T11:11:20.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
@@ -54,6 +54,14 @@
     "Stored every tenant API credential as an encrypted Supabase Vault secret and never returned it to the browser",
     "Added real connection tests before a provider can become active or receive new delivery jobs",
     "Added reusable Arabic message templates with live previews and validated personalization variables",
-    "Separated WhatsApp, email, API, and template capabilities into independently entitled add-ons"
+    "Separated WhatsApp, email, API, and template capabilities into independently entitled add-ons",
+    "Added signed live sandbox gateways for WhatsApp and email without claiming customer delivery or consuming paid quota",
+    "Added an event-condition-action automation engine with preview mode, pausing, priorities, delays, idempotency, and fallback channels",
+    "Added a durable delivery ledger for accepted, delivered, read, bounced, complained, failed, and simulated outcomes",
+    "Added signed delivery webhooks with replay protection, provider-event deduplication, retry evidence, and cost analytics",
+    "Added tenant and platform add-on centers with trials, central approval, entitlements, limits, and auditable usage",
+    "Reserved add-on usage atomically before provider calls and released reservations for failures and sandbox simulations",
+    "Added an end-to-end Reef QA cycle covering six learners from verified payment through enrollment, attendance, assessment, eligibility, certificates, and joining messages",
+    "Verified the six-learner cycle with 6 payments, 6 enrollments, 24 attendance records, 5 assessments, 3 eligible certificates, and 6 simulated messages"
   ]
 }

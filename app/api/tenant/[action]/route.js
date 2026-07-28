@@ -19,6 +19,9 @@ const RPC={
   'save-course-run':'v2_tenant_save_course_run',
   'update-training-operation':'v2_tenant_update_training_operation',
   'training-automation':'v2_tenant_training_automation_action',
+  'automation-studio':'v2_tenant_automation_studio_action_v2',
+  'delivery-analytics':'v2_tenant_delivery_analytics_action_v2',
+  'addon-center':'v2_tenant_addon_center_action',
   'integration-hub':'v2_tenant_integration_hub_action',
   'create-opportunity':'v2_tenant_create_opportunity',
   'move-opportunity':'v2_tenant_move_opportunity',
@@ -196,6 +199,23 @@ function translate(value){
     ,message_template_not_found:'قالب الرسالة غير موجود'
     ,message_template_key_locked:'لا يمكن تغيير مفتاح قالب نظامي'
     ,integration_test_not_authorized:'ليس لديك صلاحية لاختبار هذا الربط'
+    ,invalid_automation_action:'إجراء الأتمتة غير صالح'
+    ,invalid_automation_rule:'معرّف قاعدة الأتمتة غير صالح'
+    ,automation_rule_not_found:'قاعدة الأتمتة غير موجودة'
+    ,invalid_automation_mode:'وضع التنفيذ غير صالح'
+    ,invalid_automation_channel:'قناة الأتمتة غير صالحة'
+    ,invalid_automation_fallback:'القناة البديلة غير صالحة'
+    ,invalid_delivery_action:'إجراء إثبات التسليم غير صالح'
+    ,delivery_webhook_not_found:'إعداد Webhook غير موجود'
+    ,invalid_delivery_payload:'بيانات إشعار التسليم غير صالحة'
+    ,invalid_delivery_state:'حالة التسليم غير صالحة'
+    ,addon_not_enabled:'هذه الإضافة غير مفعلة'
+    ,addon_product_not_found:'الإضافة المطلوبة غير موجودة'
+    ,addon_already_enabled:'الإضافة مفعّلة بالفعل ضمن باقتك'
+    ,addon_trial_unavailable:'التجربة غير متاحة لهذه الإضافة'
+    ,addon_request_not_found:'طلب الإضافة غير موجود'
+    ,invalid_addon_action:'إجراء الإضافة غير صالح'
+    ,addon_usage_limit_reached:'وصلت الإضافة إلى حد الاستخدام الحالي'
     ,integration_configuration_missing:'إعدادات المزود غير مكتملة'
     ,whatsapp_credentials_missing:'بيانات Meta WhatsApp غير مكتملة'
     ,resend_configuration_missing:'بيانات Resend غير مكتملة'

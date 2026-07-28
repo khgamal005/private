@@ -31,10 +31,11 @@ const automationSandboxReceipts='20260728051500_automation_sandbox_receipts_v2.s
 const deliveryProof='20260728054500_delivery_proof_analytics_v2.sql';
 const modularAddons='20260728061500_modular_addons_usage_v2.sql';
 const sixLearnerQa='20260728065000_reef_six_learner_cycle_qa_v2.sql';
+const leadIntake='20260728124500_lead_intake_distribution_analytics_v2.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -64,6 +65,7 @@ const automationSandboxReceiptsSql=await readFile(new URL(automationSandboxRecei
 const deliveryProofSql=await readFile(new URL(deliveryProof,migrationsUrl),'utf8');
 const modularAddonsSql=await readFile(new URL(modularAddons,migrationsUrl),'utf8');
 const sixLearnerQaSql=await readFile(new URL(sixLearnerQa,migrationsUrl),'utf8');
+const leadIntakeSql=await readFile(new URL(leadIntake,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -233,6 +235,24 @@ assert.match(sixLearnerQaSql,/private_app\.queue_automation_event/);
 assert.match(sixLearnerQaSql,/private_app\.process_automation_events/);
 assert.match(sixLearnerQaSql,/v_enrollments <> 6/);
 assert.match(sixLearnerQaSql,/v_attendance <> 24/);
+assert.match(leadIntakeSql,/create table sales_core\.lead_import_batches/);
+assert.match(leadIntakeSql,/create table sales_core\.lead_import_rows/);
+assert.match(leadIntakeSql,/create table sales_core\.sales_assignment_profiles/);
+assert.match(leadIntakeSql,/create table sales_core\.lead_assignments/);
+assert.match(leadIntakeSql,/lead_import_batches_isolated_read/);
+assert.match(leadIntakeSql,/lead_import_rows_isolated_read/);
+assert.match(leadIntakeSql,/sales_assignment_profiles_isolated_read/);
+assert.match(leadIntakeSql,/lead_assignments_isolated_read/);
+assert.match(leadIntakeSql,/v2_tenant_lead_intake_snapshot/);
+assert.match(leadIntakeSql,/v2_tenant_lead_intake_action/);
+assert.match(leadIntakeSql,/normalize_lead_phone/);
+assert.match(leadIntakeSql,/capture_lead_first_action/);
+assert.match(leadIntakeSql,/pg_advisory_xact_lock/);
+assert.match(leadIntakeSql,/'fair', 'online_only', 'selected'/);
+assert.match(leadIntakeSql,/tenant\.leads\.import/);
+assert.match(leadIntakeSql,/tenant\.leads\.distribute/);
+assert.match(leadIntakeSql,/tenant\.leads\.analytics/);
+assert.doesNotMatch(leadIntakeSql,/service_role|SUPABASE_SECRET/i);
 assert.match(sixLearnerQaSql,/quality\.learner_cycle\.passed/);
 assert.match(sixLearnerQaSql,/'containsRealContacts', false/);
 

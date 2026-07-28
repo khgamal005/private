@@ -13,6 +13,7 @@ const RPC={
   'create-course':'v2_tenant_create_course',
   'create-contact':'v2_tenant_create_contact',
   'create-sales-lead':'v2_tenant_create_sales_lead',
+  'lead-intake':'v2_tenant_lead_intake_action',
   'record-sales-followup':'v2_tenant_record_sales_followup_v2',
   'update-admission':'v2_tenant_update_admission',
   'update-admission-document':'v2_tenant_update_admission_document',
@@ -238,6 +239,22 @@ function translate(value){
     ,due_at_required:'موعد المهمة مطلوب'
     ,opportunity_not_found:'الفرصة غير موجودة'
     ,task_not_found:'المهمة غير موجودة'
+    ,empty_lead_import:'ملف العملاء لا يحتوي على صفوف قابلة للقراءة'
+    ,lead_import_too_large:'الملف أكبر من الحد المسموح؛ الحد الأقصى 5000 صف'
+    ,invalid_sales_channel:'نوع فريق المبيعات غير صالح'
+    ,invalid_daily_capacity:'الطاقة اليومية يجب أن تكون بين 1 و1000 عميل'
+    ,invalid_distribution_weight:'وزن التوزيع يجب أن يكون بين 1 و10'
+    ,invalid_sales_assignee:'مسؤول المبيعات المختار غير صالح'
+    ,lead_batch_not_found:'دفعة الرفع غير موجودة'
+    ,lead_batch_already_distributed:'لا يمكن إلغاء دفعة بدأ توزيعها'
+    ,invalid_distribution_strategy:'طريقة التوزيع غير صالحة'
+    ,invalid_distribution_deadline:'حدد موعد متابعة قادمًا'
+    ,distribution_deadline_too_far:'موعد المتابعة لا يمكن أن يتجاوز 90 يومًا'
+    ,distribution_staff_required:'اختر مسؤول مبيعات واحدًا على الأقل'
+    ,lead_batch_not_ready:'الدفعة غير جاهزة للتوزيع'
+    ,no_online_sales_team:'لا يوجد مسؤول مبيعات أونلاين متاح للتوزيع'
+    ,no_sales_team:'لا يوجد مسؤول مبيعات متاح ضمن الإعدادات الحالية'
+    ,invalid_lead_intake_action:'إجراء استقبال العملاء غير صالح'
   };
   return messages[String(value)]||String(value);
 }

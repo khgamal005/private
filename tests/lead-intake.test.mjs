@@ -8,6 +8,10 @@ async function source(path){
   return readFile(new URL(path,root),'utf8');
 }
 
+async function binary(path){
+  return readFile(new URL(path,root));
+}
+
 test('lead intake is a tenant route protected by its own permission',async()=>{
   const [page,shell]=await Promise.all([
     source('app/tenant/[slug]/lead-queue/page.js'),
@@ -23,11 +27,52 @@ test('spreadsheet intake supports Arabic aliases and quality preview',async()=>{
   const component=await source('components/lead-intake-workspace.js');
   assert.match(component,/import\('xlsx'\)/);
   assert.match(component,/اسمالعميل/);
+  assert.match(component,/اسمالطالب/);
   assert.match(component,/رقمالجوال/);
   assert.match(component,/اسمالحمله/);
   assert.match(component,/validationStatus/);
   assert.match(component,/duplicate/);
   assert.match(component,/5000/);
+});
+
+test('data officers can download an importer-compatible Excel example',async()=>{
+  const [component,templateFile]=await Promise.all([
+    source('components/lead-intake-workspace.js'),
+    binary('public/templates/marktone-lead-intake-template.xlsx')
+  ]);
+  const imported=await import('xlsx');
+  const XLSX=imported.default||imported;
+  const workbook=XLSX.read(templateFile,{type:'buffer'});
+  const sheet=workbook.Sheets[workbook.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''});
+  const displayedRows=XLSX.utils.sheet_to_json(sheet,{
+    header:1,
+    defval:'',
+    raw:false
+  });
+
+  assert.match(
+    component,
+    /href="\/templates\/marktone-lead-intake-template\.xlsx"/
+  );
+  assert.deepEqual(rows[0],[
+    'اسم الطالب',
+    'رقم الجوال',
+    'رقم الواتساب',
+    'البريد الإلكتروني',
+    'المنشأة',
+    'اسم الدورة',
+    'المصدر',
+    'اسم الحملة',
+    'مجموعة الإعلانات',
+    'اسم الإعلان',
+    'ملاحظات'
+  ]);
+  assert.match(rows[1][0],/مثال/);
+  assert.match(rows[1][5],/PMP/);
+  assert.match(rows[1][9],/مسارك المهني/);
+  assert.equal(displayedRows[1][1],'+966501234567');
+  assert.equal(workbook.SheetNames[1],'تعليمات');
 });
 
 test('distribution requires a future deadline and exposes three strategies',async()=>{

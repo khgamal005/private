@@ -41,8 +41,8 @@ const CHANNELS={
 
 const ALIASES={
   name:[
-    'name','fullname','customername','leadname',
-    'الاسم','اسمالعميل','العميل','الاسمالكامل'
+    'name','fullname','customername','leadname','studentname',
+    'الاسم','اسمالعميل','اسمالطالب','اسمالمتدرب','العميل','الاسمالكامل'
   ],
   phone:[
     'phone','mobile','phonenumber','mobilenumber',
@@ -454,6 +454,11 @@ export default function LeadIntakeWorkspace({slug,initialData}){
         <p>من ملف الإعلان إلى مسؤول المبيعات، مع جودة البيانات وموعد متابعة قابل للقياس.</p>
       </div>
       <div className="mt-page-actions">
+        {viewer.canImport&&<a
+          className="mt-button"
+          href="/templates/marktone-lead-intake-template.xlsx"
+          download
+        >تحميل ملف مثال</a>}
         {viewer.canImport&&<button
           className="mt-button soft"
           onClick={()=>{resetFeedback();setModal('upload')}}
@@ -856,6 +861,19 @@ export default function LeadIntakeWorkspace({slug,initialData}){
           <button type="button" onClick={closeModal}>×</button>
         </header>
         <div className="mt-form">
+          <div className="mt-template-download">
+            <div>
+              <b>ابدأ من ملف مثال جاهز</b>
+              <small>
+                يحتوي على اسم الدورة والإعلان والحملة وبيانات الطالب بالأعمدة التي يقرأها النظام تلقائيًا.
+              </small>
+            </div>
+            <a
+              className="mt-button soft"
+              href="/templates/marktone-lead-intake-template.xlsx"
+              download
+            >تحميل قالب Excel</a>
+          </div>
           <label className="mt-field wide mt-file-drop">
             <span>{parseBusy?'جارٍ قراءة الملف...':'اختر Excel أو CSV'}</span>
             <input

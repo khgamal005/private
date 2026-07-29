@@ -70,6 +70,7 @@ button,input,select,textarea{font:inherit}
 .mt-button.primary{background:var(--mt-navy-900);border-color:var(--mt-navy-900);color:#fff}
 .mt-button.soft{background:var(--mt-blue-50);border-color:#d7edf9;color:#105c91}
 .mt-button:disabled{opacity:.55;cursor:not-allowed}
+.mt-followup-button{min-height:36px;padding-inline:13px;border-radius:10px;font-size:9px;line-height:1.2;font-weight:800}
 
 .mt-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
 .mt-kpi{position:relative;overflow:hidden;min-height:132px;padding:19px;background:#fff;border:1px solid var(--mt-line);border-radius:var(--mt-radius);box-shadow:var(--mt-shadow)}

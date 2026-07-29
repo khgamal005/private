@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0-beta.21",
-  "releasedAt": "2026-07-29T16:04:15.000Z",
+  "version": "2.0.0-beta.22",
+  "releasedAt": "2026-07-29T15:35:00.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
@@ -74,6 +74,7 @@
     "Added tenant-scoped employee password resets with one-time temporary passwords, role hierarchy protection, forced first-login changes, and audit evidence",
     "Fixed the employee password-reset dialog layout, RTL alignment, overflow, and mobile responsiveness",
     "Activated invited employee accounts immediately without an email-confirmation dead end and moved password resets to isolated Supabase server functions",
-    "Prevented employee dashboard server errors by loading administrator-only settings only inside the protected settings route"
+    "Prevented employee dashboard server errors by loading administrator-only settings only inside the protected settings route",
+    "Reconciled staff activation with confirmed Auth state so pending accounts cannot appear active before accepting their invitation"
   ]
 }

@@ -18,3 +18,10 @@ sql_paths = []
 
 [functions.training-automation-dispatch]
 verify_jwt = false
+
+[functions.tenant-invitation-activation]
+# The one-time invitation token is the custom bearer credential for activation.
+verify_jwt = false
+
+[functions.tenant-staff-password-reset]
+verify_jwt = true

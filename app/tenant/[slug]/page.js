@@ -23,10 +23,18 @@ const ACTIVE_LEAD_STATUSES=new Set([
 
 export default async function TenantOverview({params}){
   const {slug}=await params;
-  await requireTenantPermission(slug,'tenant.workspace.read');
+  const context=await requireTenantPermission(slug,'tenant.workspace.read');
+  const membership=context.memberships?.find(item=>item.tenantSlug===slug);
+  const permissions=membership?.permissions||[];
+  const canReadCrm=Boolean(
+    context.platformAccess||permissions.includes('tenant.crm.read')
+  );
+  const canReadWork=Boolean(
+    context.platformAccess||permissions.includes('tenant.work.read')
+  );
   const [data,operations]=await Promise.all([
     getTenant(slug),
-    getTenantOperations(slug)
+    getTenantOperations(slug,{includeSales:canReadCrm})
   ]);
   if(!data)return notFound();
   const summary=operations.summary||{};
@@ -42,8 +50,8 @@ export default async function TenantOverview({params}){
     <header className="mt-page-head">
       <div><small>WORKSPACE OVERVIEW</small><h2>صباح الخير، فريق {data.tenant.name}</h2><p>نظرة موحدة على العمل المطلوب والمبيعات وأداء المنشأة.</p></div>
       <div className="mt-page-actions">
-        <Link className="mt-button" href={`/tenant/${slug}/sales`}>فتح مسار المبيعات</Link>
-        <Link className="mt-button primary" href={`/tenant/${slug}/tasks`}>إدارة مهام اليوم</Link>
+        {canReadCrm&&<Link className="mt-button" href={`/tenant/${slug}/sales`}>فتح مسار المبيعات</Link>}
+        {canReadWork&&<Link className="mt-button primary" href={`/tenant/${slug}/tasks`}>إدارة مهام اليوم</Link>}
       </div>
     </header>
 
@@ -56,12 +64,13 @@ export default async function TenantOverview({params}){
     </section>}
 
     <section className="mt-kpis">
-      <article className="mt-kpi"><span>العملاء داخل المسار</span><b>{summary.activeLeads||activeLeads.length}</b><small>{summary.awaitingPayment||0} بانتظار الدفع</small></article>
+      {canReadCrm&&<article className="mt-kpi"><span>العملاء داخل المسار</span><b>{summary.activeLeads||activeLeads.length}</b><small>{summary.awaitingPayment||0} بانتظار الدفع</small></article>}
       <article className="mt-kpi"><span>مهام اليوم</span><b>{summary.dueToday||0}</b><small>{openTasks.length} مهمة مفتوحة إجمالًا</small></article>
       <article className={`mt-kpi ${overdue.length?'danger':''}`}><span>المهام المتأخرة</span><b>{summary.overdueTasks||overdue.length}</b><small>تحتاج متابعة أو إعادة جدولة</small></article>
-      <article className="mt-kpi"><span>العملاء النشطون</span><b>{summary.activeContacts||0}</b><small>{summary.activitiesToday||0} نشاط اليوم</small></article>
+      {canReadCrm&&<article className="mt-kpi"><span>العملاء النشطون</span><b>{summary.activeContacts||0}</b><small>{summary.activitiesToday||0} نشاط اليوم</small></article>}
       <article className="mt-kpi"><span>فريق العمل</span><b>{data.employees?.length||0}</b><small>{data.users?.length||0} حساب دخول مرتبط</small></article>
-      <article className="mt-kpi"><span>تم الدفع هذا الشهر</span><b>{summary.paidThisMonth||0}</b><small>تم تسليمهم للتسجيل والقبول</small></article>
+      {canReadCrm&&<article className="mt-kpi"><span>تم الدفع هذا الشهر</span><b>{summary.paidThisMonth||0}</b><small>تم تسليمهم للتسجيل والقبول</small></article>}
+      {!canReadCrm&&<article className="mt-kpi"><span>الدورات النشطة</span><b>{data.services?.length||0}</b><small>برامج متاحة داخل المنشأة</small></article>}
     </section>
 
     <section className="mt-grid">
@@ -76,7 +85,7 @@ export default async function TenantOverview({params}){
         </div>
       </article>
 
-      <article className="mt-panel">
+      {canReadCrm&&<article className="mt-panel">
         <header className="mt-panel-head"><div><h3>حركة المبيعات</h3><p>توزيع العملاء حسب نتيجة المتابعة</p></div><Link className="mt-button soft" href={`/tenant/${slug}/sales`}>التفاصيل</Link></header>
         <div className="mt-panel-body mt-list">
           {SALES_GROUPS.map(([label,statuses])=>{
@@ -86,7 +95,7 @@ export default async function TenantOverview({params}){
           })}
           {!contacts.length&&<div className="mt-empty">لم يضف عملاء إلى المسار بعد.</div>}
         </div>
-      </article>
+      </article>}
     </section>
 
     {operations.viewer?.viewTeam&&<section className="mt-panel">

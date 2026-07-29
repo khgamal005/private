@@ -74,6 +74,32 @@ test('role-protected tenant routes enforce their permissions on the server',asyn
   }
 });
 
+test('employee tenant routes do not eagerly load administrator-only settings',async()=>{
+  const data=await read('../lib/api.js');
+  const overview=await read('../app/tenant/[slug]/page.js');
+  const tasks=await read('../app/tenant/[slug]/tasks/page.js');
+  const settings=await read('../app/tenant/[slug]/settings/page.js');
+  const getTenantBody=data.match(
+    /export async function getTenant\(slug\)\{([\s\S]*?)\n\}\n\nexport async function getTenantSettings/
+  )?.[1]||'';
+  const getSettingsBody=data.match(
+    /export async function getTenantSettings\(slug\)\{([\s\S]*?)\n\}\n\nexport async function getTenantOperations/
+  )?.[1]||'';
+
+  assert.match(getTenantBody,/v2_tenant_workspace_snapshot/);
+  assert.match(getTenantBody,/v2_tenant_access_snapshot/);
+  assert.doesNotMatch(getTenantBody,/integration_hub|automation_studio|delivery_analytics|addon_center/);
+  assert.match(getSettingsBody,/v2_tenant_integration_hub_snapshot/);
+  assert.match(getSettingsBody,/v2_tenant_automation_studio_snapshot_v2/);
+  assert.match(getSettingsBody,/v2_tenant_delivery_analytics_snapshot_v2/);
+  assert.match(getSettingsBody,/v2_tenant_addon_center_snapshot/);
+  assert.match(settings,/getTenantSettings/);
+  assert.match(data,/includeSales=true/);
+  assert.match(data,/includeSales\s*\?authRpc\('v2_tenant_sales_pipeline_snapshot'/);
+  assert.match(overview,/includeSales:canReadCrm/);
+  assert.match(tasks,/getTenantOperations\(slug,\{includeSales\}\)/);
+});
+
 test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()=>{
   const migration=await read('../supabase/migrations/20260727192319_add_operational_crm_and_work_v2.sql');
   const leadPipeline=await read('../supabase/migrations/20260727211527_lead_centric_sales_pipeline.sql');

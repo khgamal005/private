@@ -30,6 +30,7 @@ test('tenant staff password reset remains server-only and permission-scoped',asy
 test('the team UI exposes one-time temporary passwords only for eligible accounts',async()=>{
   const page=await read('../app/tenant/[slug]/team/page.js');
   const team=await read('../components/team-directory.js');
+  const styles=await read('../app/rebuild.css');
 
   assert.match(page,/tenant\.users\.reset_password/);
   assert.match(page,/viewerMembershipId/);
@@ -39,6 +40,11 @@ test('the team UI exposes one-time temporary passwords only for eligible account
   assert.match(team,/navigator\.clipboard\.writeText/);
   assert.match(team,/staffMember\.accountStatus!=='active'/);
   assert.match(team,/viewerRank>roleRank/);
+  assert.match(team,/aria-modal="true"/);
+  assert.match(styles,/\.mt-password-reset-modal>\.mt-form/);
+  assert.match(styles,/overflow-x:hidden/);
+  assert.match(styles,/\.mt-password-reset-modal \.mt-confirm-reset input\[type="checkbox"\]/);
+  assert.match(styles,/width:18px!important/);
 });
 
 test('forced password change blocks tenant and platform access until completion',async()=>{

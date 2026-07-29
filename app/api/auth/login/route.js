@@ -27,8 +27,11 @@ export async function POST(request){
     );
     const session=await authResponse.json();
     if(!authResponse.ok){
+      const authCode=String(session?.error_code||'');
       return NextResponse.json({
-        error:'بيانات الدخول غير صحيحة',
+        error:authCode==='email_not_confirmed'
+          ?'الحساب لم يكتمل تفعيله؛ افتح رابط الدعوة وأنشئ كلمة المرور مرة أخرى.'
+          :'بيانات الدخول غير صحيحة',
         detail:session?.msg||session?.message
       },{status:401});
     }

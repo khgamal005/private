@@ -303,7 +303,7 @@ export default function SalesWorkspace({slug,initialData}){
           <td>{canWrite&&(
             ['payment_submitted','paid'].includes(contact.leadStatus)
               ?<span className="mt-status warning">مع التسجيل والقبول</span>
-              :<button className="mt-button soft" onClick={()=>openModal('followup',contact)}>تسجيل متابعة</button>
+              :<button className="mt-button soft mt-followup-button" onClick={()=>openModal('followup',contact)}>تسجيل متابعة</button>
           )}</td>
         </tr>)}</tbody>
       </table>{!shownContacts.length&&<div className="mt-empty">لا توجد نتائج مطابقة.</div>}</div>}
@@ -425,7 +425,7 @@ function LeadCard({contact,canWrite,onFollowup}){
       <div><dt>المصدر</dt><dd>{contact.source||'غير محدد'}</dd></div>
       <div className="wide"><dt>الإجراء التالي</dt><dd>{contact.nextActionType?`${ACTIONS[contact.nextActionType]||contact.nextActionType} · ${when(contact.nextActionAt)}`:'تم إنهاء المتابعة البيعية'}</dd></div>
     </dl>
-    {canWrite&&!['payment_submitted','paid'].includes(contact.leadStatus)&&<button className="mt-button primary wide" onClick={onFollowup}>تسجيل نتيجة المتابعة</button>}
+    {canWrite&&!['payment_submitted','paid'].includes(contact.leadStatus)&&<button className="mt-button primary wide mt-followup-button" onClick={onFollowup}>تسجيل نتيجة المتابعة</button>}
   </article>;
 }
 

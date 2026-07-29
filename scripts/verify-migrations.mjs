@@ -32,10 +32,12 @@ const deliveryProof='20260728054500_delivery_proof_analytics_v2.sql';
 const modularAddons='20260728061500_modular_addons_usage_v2.sql';
 const sixLearnerQa='20260728065000_reef_six_learner_cycle_qa_v2.sql';
 const leadIntake='20260728124500_lead_intake_distribution_analytics_v2.sql';
+const staffPasswordReset='20260729170000_add_tenant_staff_password_reset.sql';
+const staffAuthActivation='20260729180500_reconcile_staff_auth_activation.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -66,6 +68,8 @@ const deliveryProofSql=await readFile(new URL(deliveryProof,migrationsUrl),'utf8
 const modularAddonsSql=await readFile(new URL(modularAddons,migrationsUrl),'utf8');
 const sixLearnerQaSql=await readFile(new URL(sixLearnerQa,migrationsUrl),'utf8');
 const leadIntakeSql=await readFile(new URL(leadIntake,migrationsUrl),'utf8');
+const staffPasswordResetSql=await readFile(new URL(staffPasswordReset,migrationsUrl),'utf8');
+const staffAuthActivationSql=await readFile(new URL(staffAuthActivation,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -107,6 +111,10 @@ assert.match(staffActivationSql,/v2_tenant_invite_staff/);
 assert.match(staffActivationSql,/people_staff_tenant_email_idx/);
 assert.match(staffActivationSql,/tenant\.users\.manage/);
 assert.doesNotMatch(staffActivationSql,/service_role|SUPABASE_SECRET/i);
+assert.match(staffAuthActivationSql,/u\.email_confirmed_at is not null/);
+assert.match(staffAuthActivationSql,/account_status = 'active'/);
+assert.match(staffAuthActivationSql,/u\.email_confirmed_at is null/);
+assert.doesNotMatch(staffAuthActivationSql,/service_role|SUPABASE_SECRET/i);
 assert.match(operationalCoreSql,/create schema if not exists sales_core/);
 assert.match(operationalCoreSql,/create schema if not exists work_core/);
 assert.match(operationalCoreSql,/v2_tenant_operations_snapshot/);
@@ -253,6 +261,14 @@ assert.match(leadIntakeSql,/tenant\.leads\.import/);
 assert.match(leadIntakeSql,/tenant\.leads\.distribute/);
 assert.match(leadIntakeSql,/tenant\.leads\.analytics/);
 assert.doesNotMatch(leadIntakeSql,/service_role|SUPABASE_SECRET/i);
+assert.match(staffPasswordResetSql,/tenant\.users\.reset_password/);
+assert.match(staffPasswordResetSql,/v2_tenant_prepare_staff_password_reset/);
+assert.match(staffPasswordResetSql,/v2_tenant_complete_staff_password_reset/);
+assert.match(staffPasswordResetSql,/cannot_reset_own_password/);
+assert.match(staffPasswordResetSql,/protected_staff_account/);
+assert.match(staffPasswordResetSql,/not s\.must_change_password/);
+assert.match(staffPasswordResetSql,/grant execute on function public\.v2_tenant_complete_staff_password_reset[\s\S]*to service_role/);
+assert.doesNotMatch(staffPasswordResetSql,/temporaryPassword|temporary_password/);
 assert.match(sixLearnerQaSql,/quality\.learner_cycle\.passed/);
 assert.match(sixLearnerQaSql,/'containsRealContacts', false/);
 

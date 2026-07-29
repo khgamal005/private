@@ -8,7 +8,6 @@ export default function InvitationActivationForm({token,invitation}){
   const router=useRouter();
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
-  const [confirmation,setConfirmation]=useState('');
 
   async function submit(event){
     event.preventDefault();
@@ -25,10 +24,6 @@ export default function InvitationActivationForm({token,invitation}){
       setError(data.error||'تعذر تفعيل الحساب');
       return;
     }
-    if(data.needsEmailConfirmation){
-      setConfirmation(data.message);
-      return;
-    }
     router.replace(data.next||`/tenant/${invitation.tenantSlug}`);
     router.refresh();
   }
@@ -43,15 +38,12 @@ export default function InvitationActivationForm({token,invitation}){
         <div><dt>البريد</dt><dd>{invitation.email}</dd></div>
       </dl>
     </div>
-    {confirmation?<div className="auth-form">
-      <div className="form-success">{confirmation}</div>
-      <Link className="mt-button primary" href={`/login?invite=${encodeURIComponent(token)}`}>الانتقال إلى تسجيل الدخول</Link>
-    </div>:<form className="auth-form" onSubmit={submit}>
+    <form className="auth-form" onSubmit={submit}>
       <label>إنشاء كلمة مرور<input name="password" type="password" minLength="10" autoComplete="new-password" required/></label>
       <small>استخدم 10 أحرف على الأقل، ويفضل الجمع بين الحروف والأرقام والرموز.</small>
       {error&&<div className="form-error">{error}</div>}
       <button disabled={loading}>{loading?'جارٍ تفعيل الحساب…':'تفعيل الحساب والدخول'}</button>
       <Link className="invitation-login-link" href={`/login?invite=${encodeURIComponent(token)}`}>لديك حساب بالفعل؟ سجّل الدخول لقبول الدعوة</Link>
-    </form>}
+    </form>
   </div>;
 }

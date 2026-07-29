@@ -17,10 +17,13 @@ test('tenant provisioning captures owner, plan, and domain atomically',async()=>
 
 test('invitation activation never relies on a public service key',async()=>{
   const registration=await read('../app/api/auth/register-invitation/route.js');
+  const activation=await read('../supabase/functions/tenant-invitation-activation/index.ts');
   const config=await read('../lib/config.js');
-  assert.match(registration,/v2_invitation_preview/);
-  assert.match(registration,/v2_accept_tenant_invitation/);
+  assert.match(registration,/tenant-invitation-activation/);
   assert.match(registration,/SUPABASE_KEY/);
+  assert.match(activation,/v2_invitation_preview/);
+  assert.match(activation,/v2_accept_tenant_invitation/);
+  assert.match(activation,/SUPABASE_SERVICE_ROLE_KEY/);
   assert.doesNotMatch(`${registration}\n${config}`,/service.role|service_role|secret.key|SUPABASE_SECRET/i);
 });
 

@@ -209,6 +209,7 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(learnerOperations,/سجل الرسائل والاجتماعات/);
   assert.match(certificatePage,/شهادة إتمام برنامج تدريبي/);
   assert.match(sales,/تسجيل نتيجة المتابعة/);
+  assert.match(sales,/mt-followup-button/);
   assert.match(sales,/بانتظار الدفع/);
   assert.match(sales,/جودة الليد/);
   assert.doesNotMatch(sales,/فرصة جديدة/);
@@ -220,6 +221,9 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(tasks,/المتابعة فقط/);
   assert.match(tasks,/اضغط متابعة العميل/);
   assert.match(followupModal,/نتيجة المتابعة/);
+  assert.match(followupModal,/الدورة المهتم بها/);
+  assert.match(followupModal,/p_course_id:values\.course_id\|\|null/);
+  assert.doesNotMatch(followupModal,/p_course_id:paymentSubmitted/);
   assert.match(followupModal,/موعد الإجراء التالي/);
   assert.match(followupModal,/بلاغ دفع بانتظار التحقق/);
   assert.match(followupModal,/سبب الإغلاق/);

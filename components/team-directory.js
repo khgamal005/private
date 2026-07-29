@@ -34,7 +34,11 @@ export default function TeamDirectory({
   slug,
   initialData,
   canManage,
-  canInvite
+  canInvite,
+  canResetPasswords,
+  platformAccess,
+  viewerMembershipId,
+  viewerRoleKeys
 }){
   const router=useRouter();
   const [query,setQuery]=useState('');
@@ -44,6 +48,7 @@ export default function TeamDirectory({
   const [message,setMessage]=useState('');
   const [error,setError]=useState('');
   const [invitationUrl,setInvitationUrl]=useState('');
+  const [resetResult,setResetResult]=useState(null);
   const staff=useMemo(()=>initialData.employees||[],[initialData.employees]);
   const departments=initialData.departments||[];
   const roles=initialData.roles||[];
@@ -59,6 +64,7 @@ export default function TeamDirectory({
   function openCreate(roleKey='sales_user'){
     setError('');
     setInvitationUrl('');
+    setResetResult(null);
     setModal({
       type:'create',
       roleKey,
@@ -71,12 +77,14 @@ export default function TeamDirectory({
   function openEdit(staffMember){
     setError('');
     setInvitationUrl('');
+    setResetResult(null);
     setModal({type:'edit',staff:staffMember});
   }
 
   function openInvite(staffMember){
     setError('');
     setInvitationUrl('');
+    setResetResult(null);
     setModal({
       type:'invite',
       staff:staffMember,
@@ -84,11 +92,20 @@ export default function TeamDirectory({
     });
   }
 
+  function openPasswordReset(staffMember){
+    setError('');
+    setMessage('');
+    setInvitationUrl('');
+    setResetResult(null);
+    setModal({type:'resetPassword',staff:staffMember});
+  }
+
   function closeModal(){
     if(busy)return;
     setModal(null);
     setError('');
     setInvitationUrl('');
+    setResetResult(null);
   }
 
   async function call(action,body){
@@ -164,6 +181,46 @@ export default function TeamDirectory({
     setMessage('تم نسخ رابط التفعيل');
   }
 
+  async function resetPassword(event){
+    event.preventDefault();
+    setBusy(true);setError('');setMessage('');setResetResult(null);
+    try{
+      const response=await fetch('/api/tenant/reset-staff-password',{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({
+          p_tenant_slug:slug,
+          p_staff_id:modal.staff.id
+        })
+      });
+      const payload=await response.json();
+      if(!response.ok){
+        throw new Error(payload.error||'تعذر إعادة تعيين كلمة المرور');
+      }
+      setResetResult(payload.data);
+      setMessage('');
+      router.refresh();
+    }catch(err){setError(err.message)}finally{setBusy(false)}
+  }
+
+  async function copyTemporaryPassword(){
+    await navigator.clipboard.writeText(resetResult.temporaryPassword);
+    setMessage('تم نسخ كلمة المرور المؤقتة');
+  }
+
+  function canReset(staffMember){
+    if(!canResetPasswords||staffMember.accountStatus!=='active')return false;
+    if(staffMember.membershipId&&staffMember.membershipId===viewerMembershipId){
+      return false;
+    }
+    if(platformAccess)return true;
+    const viewerRank=Math.max(
+      0,
+      ...(viewerRoleKeys||[]).map(roleRank)
+    );
+    return viewerRank>roleRank(staffMember.roleKey);
+  }
+
   return <>
     <header className="mt-page-head">
       <div>
@@ -235,6 +292,9 @@ export default function TeamDirectory({
               {canInvite&&item.accountStatus!=='active'&&<button className="mt-button" onClick={()=>openInvite(item)}>
                 {item.accountStatus==='invited'?'إعادة الدعوة':'دعوة للدخول'}
               </button>}
+              {canReset(item)&&<button className="mt-button" onClick={()=>openPasswordReset(item)}>
+                إعادة تعيين كلمة المرور
+              </button>}
             </div>}
           </footer>
         </article>)}
@@ -272,6 +332,56 @@ export default function TeamDirectory({
         <footer>
           <button type="button" className="mt-button" onClick={closeModal}>إغلاق</button>
           {!invitationUrl&&<button className="mt-button primary" disabled={busy}>{busy?'جارٍ إنشاء الدعوة…':'حفظ البريد وإنشاء الدعوة'}</button>}
+        </footer>
+      </form>
+    </div>}
+
+    {modal?.type==='resetPassword'&&<div className="mt-modal-layer">
+      <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={closeModal}/>
+      <form className="mt-modal mt-password-reset-modal" onSubmit={resetPassword}>
+        <header>
+          <div><small>SECURE PASSWORD RESET</small><h3>إعادة كلمة مرور {modal.staff.name}</h3></div>
+          <button type="button" onClick={closeModal}>×</button>
+        </header>
+        <div className="mt-form">
+          {!resetResult&&<>
+            <div className="mt-field wide mt-reset-warning">
+              <b>سيتم إلغاء كلمة المرور الحالية</b>
+              <p>سينشئ النظام كلمة مؤقتة قوية، ولن تُعرض إلا مرة واحدة. يجب إرسالها للموظف عبر قناة آمنة، وسيُطلب منه تغييرها فور تسجيل الدخول.</p>
+            </div>
+            <dl className="mt-field wide mt-reset-account">
+              <div><dt>الموظف</dt><dd>{modal.staff.name}</dd></div>
+              <div><dt>البريد</dt><dd>{modal.staff.email}</dd></div>
+              <div><dt>الدور</dt><dd>{modal.staff.role}</dd></div>
+            </dl>
+            <label className="mt-field wide mt-confirm-reset">
+              <input name="confirm_reset" type="checkbox" required/>
+              <span>أؤكد أنني أريد إعادة تعيين كلمة مرور هذا الموظف.</span>
+            </label>
+          </>}
+          {resetResult&&<div className="mt-field wide mt-reset-success">
+            <b>تم إنشاء كلمة المرور المؤقتة</b>
+            <p>انسخها الآن؛ لن يحتفظ النظام بنسخة قابلة للعرض منها.</p>
+            <div>
+              <input
+                dir="ltr"
+                readOnly
+                value={resetResult.temporaryPassword}
+                aria-label="كلمة المرور المؤقتة"
+              />
+              <button type="button" className="mt-button" onClick={copyTemporaryPassword}>نسخ</button>
+            </div>
+          </div>}
+          {message&&<div className="mt-alert mt-field wide">{message}</div>}
+          {error&&<div className="mt-alert error mt-field wide">{error}</div>}
+        </div>
+        <footer>
+          <button type="button" className="mt-button" onClick={closeModal}>
+            {resetResult?'تم':'إلغاء'}
+          </button>
+          {!resetResult&&<button className="mt-button primary" disabled={busy}>
+            {busy?'جارٍ إعادة التعيين…':'إنشاء كلمة مرور مؤقتة'}
+          </button>}
         </footer>
       </form>
     </div>}
@@ -328,4 +438,19 @@ function roleJobTitle(roleKey){
     executive_manager:'المدير التنفيذي',
     sales_user:'مسؤول مبيعات'
   })[roleKey]||'موظف';
+}
+
+function roleRank(roleKey){
+  return ({
+    tenant_owner:100,
+    tenant_admin:90,
+    executive_manager:80,
+    sales_manager:70,
+    sales_supervisor:60,
+    training_manager:60,
+    sales_user:40,
+    customer_service:40,
+    data_officer:40,
+    data_analyst:40
+  })[roleKey]||10;
 }

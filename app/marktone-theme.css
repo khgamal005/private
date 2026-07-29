@@ -1652,6 +1652,20 @@ body {
 .mt-card-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
 .mt-card-actions .mt-button{min-height:30px;padding:6px 9px;font-size:9px}
 .mt-inline-help{padding:11px 13px;border-radius:11px;background:var(--mt-muted);color:var(--mt-muted-foreground);font-size:10px;line-height:1.7}
+.mt-reset-warning,.mt-reset-success{padding:14px;border-radius:12px}
+.mt-reset-warning{background:#fff6df;border:1px solid #f0d38b;color:#735515}
+.mt-reset-warning b,.mt-reset-success b{display:block;font-size:11px}
+.mt-reset-warning p,.mt-reset-success p{margin:6px 0 0;font-size:9px;line-height:1.8}
+.mt-reset-account{display:grid;gap:8px;margin:0;padding:12px;border:1px solid var(--mt-line);border-radius:12px}
+.mt-reset-account div{display:grid;grid-template-columns:80px minmax(0,1fr);gap:10px}
+.mt-reset-account dt{color:var(--mt-muted-foreground);font-size:9px;font-weight:800}
+.mt-reset-account dd{margin:0;font-size:9px;font-weight:900;overflow-wrap:anywhere}
+.mt-confirm-reset{display:flex!important;align-items:center;gap:9px}
+.mt-confirm-reset input{width:17px;height:17px;flex:0 0 auto}
+.mt-confirm-reset span{font-size:9px;font-weight:850}
+.mt-reset-success{background:#eaf8f1;border:1px solid #a7dec2;color:#185f3d}
+.mt-reset-success>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin-top:11px}
+.mt-reset-success input{height:39px;border:1px solid #92cfb1;border-radius:9px;padding:7px 10px;background:#fff;font:800 11px monospace;letter-spacing:.04em}
 
 .mt-course-card{display:flex;flex-direction:column;overflow:hidden}
 .mt-course-card>header{

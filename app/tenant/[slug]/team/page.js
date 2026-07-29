@@ -19,10 +19,18 @@ export default async function TeamPage({params}){
     context.platformAccess
     ||membership?.permissions?.includes('tenant.users.manage')
   );
+  const canResetPasswords=Boolean(
+    context.platformAccess
+    ||membership?.permissions?.includes('tenant.users.reset_password')
+  );
   return <TeamDirectory
     slug={slug}
     initialData={data}
     canManage={canManage}
     canInvite={canInvite}
+    canResetPasswords={canResetPasswords}
+    platformAccess={context.platformAccess}
+    viewerMembershipId={membership?.membershipId||null}
+    viewerRoleKeys={membership?.roles||[]}
   />;
 }

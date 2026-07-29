@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0-beta.17",
-  "releasedAt": "2026-07-28T15:33:11.000Z",
+  "version": "2.0.0-beta.18",
+  "releasedAt": "2026-07-29T14:00:00.000Z",
   "highlights": [
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
@@ -70,6 +70,7 @@
     "Created contacts, opportunities, tasks, and auditable assignment evidence in one transaction",
     "Measured first-response SLA automatically from the first real sales activity",
     "Added source, campaign, ad-set, and ad-level quality, qualification, conversion, wrong-number, and response-time analytics",
-    "Added dedicated lead intake permissions for data officers, analysts, sales supervisors, managers, owners, and tenant administrators"
+    "Added dedicated lead intake permissions for data officers, analysts, sales supervisors, managers, owners, and tenant administrators",
+    "Added tenant-scoped employee password resets with one-time temporary passwords, role hierarchy protection, forced first-login changes, and audit evidence"
   ]
 }

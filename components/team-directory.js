@@ -336,12 +336,18 @@ export default function TeamDirectory({
       </form>
     </div>}
 
-    {modal?.type==='resetPassword'&&<div className="mt-modal-layer">
+    {modal?.type==='resetPassword'&&<div className="mt-modal-layer" dir="rtl">
       <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={closeModal}/>
-      <form className="mt-modal mt-password-reset-modal" onSubmit={resetPassword}>
+      <form
+        className="mt-modal mt-password-reset-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="password-reset-title"
+        onSubmit={resetPassword}
+      >
         <header>
-          <div><small>SECURE PASSWORD RESET</small><h3>إعادة كلمة مرور {modal.staff.name}</h3></div>
-          <button type="button" onClick={closeModal}>×</button>
+          <div><small>SECURE PASSWORD RESET</small><h3 id="password-reset-title">إعادة كلمة مرور {modal.staff.name}</h3></div>
+          <button type="button" aria-label="إغلاق النافذة" onClick={closeModal}>×</button>
         </header>
         <div className="mt-form">
           {!resetResult&&<>

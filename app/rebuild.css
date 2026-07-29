@@ -460,12 +460,53 @@ button,input,select,textarea{font:inherit}
 .mt-file-drop{padding:18px;border:1.5px dashed #9bc7df;border-radius:14px;background:#f3faff;text-align:center}
 .mt-file-drop>span{color:var(--mt-navy-900);font-size:12px}.mt-file-drop input{background:#fff}
 .mt-file-drop small{color:var(--mt-muted);font-weight:500}
+.mt-template-download{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 15px;border:1px solid #cce6f6;border-radius:13px;background:linear-gradient(135deg,#edf8ff,#fff)}
+.mt-template-download>div{display:grid;gap:5px}.mt-template-download b{color:var(--mt-navy-900);font-size:11px}.mt-template-download small{color:var(--mt-muted);font-size:9px;line-height:1.7}.mt-template-download .mt-button{flex:0 0 auto}
 .mt-upload-preview{margin:0 20px 16px;border:1px solid var(--mt-line);border-radius:13px;overflow:hidden}
 .mt-upload-preview>header{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;background:#f7fafc;border-bottom:1px solid var(--mt-line);font-size:10px}
 .mt-upload-preview .mt-table{min-width:620px}
 .mt-modal-alert{margin:0 20px 14px}
 .mt-modal>header>div>small{color:var(--mt-blue-700);font-size:8px;font-weight:900;letter-spacing:.1em}
 .mt-modal>header>div>h3{margin:4px 0 0}
+.mt-password-reset-modal{
+  width:min(620px,calc(100vw - 32px));
+  max-width:100%;
+  max-height:calc(100dvh - 32px);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.mt-password-reset-modal>header,.mt-password-reset-modal>footer{flex:0 0 auto;background:#fff}
+.mt-password-reset-modal>header>div{min-width:0}
+.mt-password-reset-modal>header h3{overflow-wrap:anywhere}
+.mt-password-reset-modal>.mt-form{
+  min-width:0;
+  min-height:0;
+  grid-template-columns:minmax(0,1fr);
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.mt-password-reset-modal .mt-field,.mt-password-reset-modal .mt-reset-account,.mt-password-reset-modal .mt-reset-account>div{min-width:0;max-width:100%}
+.mt-password-reset-modal .mt-field.wide{grid-column:auto}
+.mt-password-reset-modal .mt-confirm-reset{
+  display:grid!important;
+  grid-template-columns:18px minmax(0,1fr);
+  align-items:center;
+  gap:10px;
+}
+.mt-password-reset-modal .mt-confirm-reset input[type="checkbox"]{
+  width:18px!important;
+  min-width:18px;
+  height:18px!important;
+  margin:0;
+  padding:0!important;
+  border-radius:4px;
+  accent-color:var(--mt-blue-700);
+}
+.mt-password-reset-modal .mt-confirm-reset span{min-width:0;line-height:1.75;overflow-wrap:anywhere}
+.mt-password-reset-modal .mt-reset-success>div{min-width:0}
+.mt-password-reset-modal .mt-reset-success input{min-width:0;width:100%}
 .mt-employee-picker{max-height:240px;overflow:auto;padding:10px 12px;border:1px solid var(--mt-line);border-radius:12px}
 .mt-employee-picker legend{padding:0 7px;color:var(--mt-navy-900);font-size:10px;font-weight:900}
 .mt-employee-picker label{display:flex;align-items:center;gap:9px;padding:9px;border-bottom:1px solid #edf2f6}
@@ -483,6 +524,16 @@ button,input,select,textarea{font:inherit}
   .mt-lead-batch-grid,.mt-distribution-team-grid{grid-template-columns:1fr}
   .mt-team-profile-fields{grid-template-columns:1fr}
   .mt-distribution-summary{grid-template-columns:1fr}
+  .mt-template-download{grid-column:auto;align-items:stretch;flex-direction:column}.mt-template-download .mt-button{width:100%}
   .mt-lead-batch-card dl{grid-template-columns:repeat(2,minmax(0,1fr))}
   .mt-lead-batch-card>footer{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:620px){
+  .mt-password-reset-modal{width:100%;max-height:calc(100dvh - 8px);border-radius:22px 22px 0 0}
+  .mt-password-reset-modal>header,.mt-password-reset-modal>footer{padding-inline:15px}
+  .mt-password-reset-modal>.mt-form{padding:16px 15px}
+  .mt-password-reset-modal>footer{display:grid;grid-template-columns:1fr 1fr}
+  .mt-password-reset-modal>footer .mt-button{width:100%;min-width:0;padding-inline:10px}
+  .mt-password-reset-modal .mt-reset-account>div{grid-template-columns:64px minmax(0,1fr)}
+  .mt-password-reset-modal .mt-reset-success>div{grid-template-columns:1fr}
 }

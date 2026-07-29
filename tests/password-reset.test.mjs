@@ -6,25 +6,43 @@ const read=path=>readFile(new URL(path,import.meta.url),'utf8');
 
 test('tenant staff password reset remains server-only and permission-scoped',async()=>{
   const route=await read('../app/api/tenant/reset-staff-password/route.js');
-  const adminConfig=await read('../lib/admin-config.js');
+  const edge=await read('../supabase/functions/tenant-staff-password-reset/index.ts');
   const publicConfig=await read('../lib/config.js');
   const migration=await read('../supabase/migrations/20260729170000_add_tenant_staff_password_reset.sql');
 
-  assert.match(adminConfig,/server-only/);
-  assert.match(adminConfig,/SUPABASE_SECRET_KEY/);
-  assert.doesNotMatch(adminConfig,/NEXT_PUBLIC_SUPABASE_SECRET/);
   assert.doesNotMatch(publicConfig,/SUPABASE_SECRET|SERVICE_ROLE/);
-  assert.match(route,/\/auth\/v1\/admin\/users\//);
-  assert.match(route,/SUPABASE_SECRET_KEY/);
-  assert.match(route,/v2_tenant_prepare_staff_password_reset/);
-  assert.match(route,/v2_tenant_complete_staff_password_reset/);
-  assert.match(route,/randomInt/);
-  assert.match(route,/shownOnce:true/);
+  assert.match(route,/\/functions\/v1\/tenant-staff-password-reset/);
+  assert.doesNotMatch(route,/SERVICE_ROLE|SUPABASE_SECRET/);
+  assert.match(edge,/SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(edge,/v2_tenant_prepare_staff_password_reset/);
+  assert.match(edge,/v2_tenant_complete_staff_password_reset/);
+  assert.match(edge,/crypto\.getRandomValues/);
+  assert.match(edge,/shownOnce: true/);
+  assert.match(edge,/authorization/);
   assert.doesNotMatch(route,/console\.(?:log|error)/);
+  assert.doesNotMatch(edge,/console\.(?:log|error)/);
   assert.match(migration,/tenant\.users\.reset_password/);
   assert.match(migration,/to service_role/);
   assert.match(migration,/auth\.jwt\(\) ->> 'role'/);
   assert.doesNotMatch(migration,/password\s+text|temporary_password/i);
+});
+
+test('invitation activation confirms new users on the server and repairs pending unconfirmed accounts',async()=>{
+  const route=await read('../app/api/auth/register-invitation/route.js');
+  const edge=await read('../supabase/functions/tenant-invitation-activation/index.ts');
+  const config=await read('../supabase/config.toml');
+
+  assert.match(route,/\/functions\/v1\/tenant-invitation-activation/);
+  assert.doesNotMatch(route,/\/auth\/v1\/signup/);
+  assert.match(edge,/v2_invitation_preview/);
+  assert.match(edge,/v2_accept_tenant_invitation/);
+  assert.match(edge,/email_confirm: true/);
+  assert.match(edge,/account_already_exists/);
+  assert.match(edge,/SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(edge,/grant_type=password/);
+  assert.match(config,/\[functions\.tenant-invitation-activation\][\s\S]*verify_jwt = false/);
+  assert.match(config,/\[functions\.tenant-staff-password-reset\][\s\S]*verify_jwt = true/);
+  assert.doesNotMatch(edge,/console\.(?:log|error)/);
 });
 
 test('the team UI exposes one-time temporary passwords only for eligible accounts',async()=>{

@@ -103,13 +103,13 @@ export default function SalesFollowupModal({
   const [followupStatus,setFollowupStatus]=useState(
     OPEN_STATUSES.has(contact?.leadStatus)?contact.leadStatus:'follow_up'
   );
-  const [paymentCourseId,setPaymentCourseId]=useState(contact?.interestCourseId||'');
+  const [selectedCourseId,setSelectedCourseId]=useState(contact?.interestCourseId||'');
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
 
   const availableRuns=useMemo(()=>courseRuns.filter(run=>
-    !paymentCourseId||run.courseId===paymentCourseId
-  ),[courseRuns,paymentCourseId]);
+    !selectedCourseId||run.courseId===selectedCourseId
+  ),[courseRuns,selectedCourseId]);
 
   function close(){
     if(!busy)onClose();
@@ -136,7 +136,7 @@ export default function SalesFollowupModal({
           p_lead_quality:values.lead_quality,
           p_next_action_type:open?values.next_action_type:null,
           p_next_action_at:open?new Date(values.next_action_at).toISOString():null,
-          p_course_id:paymentSubmitted?(values.course_id||null):(contact.interestCourseId||null),
+          p_course_id:values.course_id||null,
           p_course_run_id:paymentSubmitted?(values.course_run_id||null):null,
           p_payment_amount_minor:paymentSubmitted&&values.payment_amount
             ?Math.round(Number(values.payment_amount)*100)
@@ -177,6 +177,15 @@ export default function SalesFollowupModal({
       <div className="mt-form">
         <label className="mt-field">وسيلة التواصل<select name="activity_type"><option value="call">مكالمة</option><option value="whatsapp">واتساب</option><option value="meeting">اجتماع</option><option value="email">بريد إلكتروني</option><option value="note">ملاحظة</option></select></label>
         <label className="mt-field">حالة العميل<StatusSelect name="lead_status" value={followupStatus} onChange={event=>setFollowupStatus(event.target.value)}/></label>
+        <label className="mt-field">الدورة المهتم بها<select
+          name="course_id"
+          value={selectedCourseId}
+          onChange={event=>setSelectedCourseId(event.target.value)}
+          required={followupStatus==='payment_submitted'}
+        >
+          <option value="">لم تحدد الدورة بعد</option>
+          {courses.map(item=><option value={item.id} key={item.id}>{item.nameAr}</option>)}
+        </select></label>
         <label className="mt-field">جودة الليد<QualitySelect name="lead_quality" defaultValue={contact.leadQuality}/></label>
         <label className="mt-field wide">ما الذي حدث؟<textarea name="summary" rows="4" required placeholder="اكتب ملخصًا واضحًا لنتيجة التواصل"/></label>
 
@@ -187,7 +196,6 @@ export default function SalesFollowupModal({
 
         {followupStatus==='payment_submitted'&&<>
           <div className="mt-form-section wide review"><b>بلاغ دفع بانتظار التحقق</b><small>هذا لا يؤكد الدفع. سيُرسل الطلب إلى التسجيل والقبول لمراجعة الإيصال أو بوابة الدفع.</small></div>
-          <label className="mt-field">الدورة<select name="course_id" value={paymentCourseId} onChange={event=>setPaymentCourseId(event.target.value)} required><option value="">اختر الدورة</option>{courses.map(item=><option value={item.id} key={item.id}>{item.nameAr}</option>)}</select></label>
           <label className="mt-field">الدفعة<select name="course_run_id"><option value="">لم تحدد الدفعة بعد</option>{availableRuns.map(item=><option value={item.id} key={item.id}>{item.title} · {dateOnly(item.startsAt)}</option>)}</select></label>
           <label className="mt-field">المبلغ المبلّغ عنه<input name="payment_amount" type="number" min="0" step=".01"/></label>
           <label className="mt-field">مرجع / رقم العملية<input name="payment_reference"/></label>

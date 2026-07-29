@@ -35,6 +35,14 @@ test('login can accept an invitation before resolving workspace access',async()=
   assert.ok(contextIndex>tokenIndex);
 });
 
+test('staff accounts become active only after confirmed invitation acceptance',async()=>{
+  const reconciliation=await read('../supabase/migrations/20260729180500_reconcile_staff_auth_activation.sql');
+  assert.match(reconciliation,/and u\.email_confirmed_at is not null/);
+  assert.match(reconciliation,/account_status = case[\s\S]*when v_auth_confirmed then 'active'[\s\S]*else 'invited'/);
+  assert.match(reconciliation,/update people\.staff_profiles[\s\S]*account_status = 'active'[\s\S]*v_invitation\.email/);
+  assert.match(reconciliation,/set account_status = 'invited'[\s\S]*u\.email_confirmed_at is null/);
+});
+
 test('tenant settings use v2 access invitations rather than legacy employee creation',async()=>{
   const settings=await read('../components/tenant-settings.js');
   const api=await read('../lib/api.js');

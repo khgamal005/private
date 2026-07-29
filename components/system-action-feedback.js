@@ -143,7 +143,7 @@ export default function SystemActionFeedback(){
       const now=Date.now();
       if(lastRef.current.key===key&&now-lastRef.current.at<1200)return;
       lastRef.current={key,at:now};
-      setFeedback({...normalized,id:now});
+      setFeedback(normalized);
       clearTimeout(timerRef.current);
       timerRef.current=setTimeout(()=>setFeedback(null),AUTO_HIDE_MS);
     }
@@ -172,16 +172,24 @@ export default function SystemActionFeedback(){
 
     function annotateDisabledControls(){
       document.querySelectorAll('button:disabled,input:disabled,select:disabled,textarea:disabled,[aria-disabled="true"]').forEach(element=>{
-        if(element.getAttribute('title'))return;
+        const generated=element.dataset.feedbackTitleGenerated==='true';
+        if(element.getAttribute('title')&&!generated)return;
         const reasons=inferBlockedReasons(element);
         element.setAttribute('title',reasons.join(' — '));
+        element.dataset.feedbackTitleGenerated='true';
         if(reasons.some(reason=>reason.includes('لم تربط سبب التعطيل'))){
           element.dataset.feedbackAudit='missing-reason';
+        }else{
+          delete element.dataset.feedbackAudit;
         }
       });
     }
 
-    const observer=new MutationObserver(()=>requestAnimationFrame(annotateDisabledControls));
+    function scheduleAnnotation(){
+      requestAnimationFrame(annotateDisabledControls);
+    }
+
+    const observer=new MutationObserver(scheduleAnnotation);
     observer.observe(document.documentElement,{
       subtree:true,
       childList:true,
@@ -199,7 +207,11 @@ export default function SystemActionFeedback(){
           :args[0]?.url||'';
         if(!response.ok&&requestUrl.includes('/api/')){
           let payload={};
-          try{payload=await response.clone().json()}catch{}
+          try{
+            payload=await response.clone().json();
+          }catch{
+            payload={};
+          }
           show({
             title:'تعذر تنفيذ العملية',
             reasons:[payload?.error||`أعاد النظام خطأ برمز ${response.status}.`],
@@ -221,6 +233,8 @@ export default function SystemActionFeedback(){
 
     window.addEventListener(FEEDBACK_EVENT,onCustom);
     document.addEventListener('pointerdown',onBlockedPointer,true);
+    document.addEventListener('input',scheduleAnnotation,true);
+    document.addEventListener('change',scheduleAnnotation,true);
 
     return ()=>{
       clearTimeout(timerRef.current);
@@ -228,6 +242,8 @@ export default function SystemActionFeedback(){
       window.fetch=originalFetch;
       window.removeEventListener(FEEDBACK_EVENT,onCustom);
       document.removeEventListener('pointerdown',onBlockedPointer,true);
+      document.removeEventListener('input',scheduleAnnotation,true);
+      document.removeEventListener('change',scheduleAnnotation,true);
     };
   },[]);
 

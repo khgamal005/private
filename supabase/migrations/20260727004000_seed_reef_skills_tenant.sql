@@ -16,9 +16,8 @@ begin
     and s.status = 'active'
   limit 1;
 
-  if v_admin_subject_id is null then
-    raise exception 'platform_admin_subject_not_found';
-  end if;
+  -- Preview branches do not copy Supabase Auth users. Seed the tenant data
+  -- independently and attach the owner membership only when the operator exists.
 
   insert into core.organizations (
     organization_key,
@@ -164,6 +163,7 @@ begin
     );
   end if;
 
+  if v_admin_subject_id is not null then
   select m.id
   into v_membership_id
   from access_control.memberships m
@@ -203,6 +203,7 @@ begin
   insert into access_control.membership_roles (membership_id, role_id)
   values (v_membership_id, v_owner_role_id)
   on conflict do nothing;
+  end if;
 
   insert into people.departments (
     tenant_id,
@@ -376,6 +377,7 @@ begin
       status = 'active',
       metadata = academy.courses.metadata || excluded.metadata;
 
+  if v_admin_subject_id is not null then
   insert into audit_log.events (
     tenant_id,
     actor_subject_id,
@@ -397,6 +399,7 @@ begin
       'managerProfilesPending', true
     )
   );
+  end if;
 end;
 $$;
 

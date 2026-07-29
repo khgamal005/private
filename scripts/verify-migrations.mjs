@@ -34,10 +34,11 @@ const sixLearnerQa='20260728065000_reef_six_learner_cycle_qa_v2.sql';
 const leadIntake='20260728124500_lead_intake_distribution_analytics_v2.sql';
 const staffPasswordReset='20260729170000_add_tenant_staff_password_reset.sql';
 const staffAuthActivation='20260729180500_reconcile_staff_auth_activation.sql';
+const goalsIncentives='20260729213000_goals_incentives_v2.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation,goalsIncentives],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -70,6 +71,7 @@ const sixLearnerQaSql=await readFile(new URL(sixLearnerQa,migrationsUrl),'utf8')
 const leadIntakeSql=await readFile(new URL(leadIntake,migrationsUrl),'utf8');
 const staffPasswordResetSql=await readFile(new URL(staffPasswordReset,migrationsUrl),'utf8');
 const staffAuthActivationSql=await readFile(new URL(staffAuthActivation,migrationsUrl),'utf8');
+const goalsIncentivesSql=await readFile(new URL(goalsIncentives,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -115,6 +117,13 @@ assert.match(staffAuthActivationSql,/u\.email_confirmed_at is not null/);
 assert.match(staffAuthActivationSql,/account_status = 'active'/);
 assert.match(staffAuthActivationSql,/u\.email_confirmed_at is null/);
 assert.doesNotMatch(staffAuthActivationSql,/service_role|SUPABASE_SECRET/i);
+assert.match(goalsIncentivesSql,/create schema if not exists incentives_core/);
+assert.match(goalsIncentivesSql,/v2_tenant_incentives_snapshot/);
+assert.match(goalsIncentivesSql,/v2_tenant_incentives_action/);
+assert.match(goalsIncentivesSql,/registration_handoff_incentives_v2/);
+assert.match(goalsIncentivesSql,/payment_status = 'verified'/);
+assert.match(goalsIncentivesSql,/revoke all on all tables in schema incentives_core/);
+assert.doesNotMatch(goalsIncentivesSql,/service_role|SUPABASE_SECRET/i);
 assert.match(operationalCoreSql,/create schema if not exists sales_core/);
 assert.match(operationalCoreSql,/create schema if not exists work_core/);
 assert.match(operationalCoreSql,/v2_tenant_operations_snapshot/);

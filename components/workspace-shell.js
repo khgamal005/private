@@ -9,7 +9,7 @@ import {WORKSPACE_KINDS} from '../lib/workspaces';
 
 const icons={
   overview:'⌂',tenants:'▦',subscriptions:'◫',content:'▤',settings:'⚙',
-  tasks:'✓',sales:'↗',leadQueue:'⇄',admissions:'⌁',incentives:'◎',people:'♙',courses:'▤',news:'◧'
+  tasks:'✓',sales:'↗',callReports:'☎',leadQueue:'⇄',admissions:'⌁',incentives:'◎',people:'♙',courses:'▤',news:'◧'
 };
 
 function tenantGroups(slug,permissions,platformAccess){
@@ -19,6 +19,7 @@ function tenantGroups(slug,permissions,platformAccess){
       {key:'overview',label:'لوحة المنشأة',href:base,permission:'tenant.workspace.read'},
       {key:'tasks',label:'المهام والتقويم',href:`${base}/tasks`,permission:'tenant.work.read'},
       {key:'sales',label:'المبيعات والعملاء',href:`${base}/sales`,permission:'tenant.crm.read'},
+      {key:'callReports',label:'تقارير المكالمات',href:`${base}/call-reports`,permission:'tenant.crm.read'},
       {key:'leadQueue',label:'استقبال وتوزيع العملاء',href:`${base}/lead-queue`,permission:'tenant.leads.read'},
       {key:'admissions',label:'التسجيل والقبول',href:`${base}/admissions`,permission:'tenant.admissions.read'},
       {key:'incentives',label:'الأهداف والحوافز',href:`${base}/incentives`,permission:'tenant.incentives.read'}

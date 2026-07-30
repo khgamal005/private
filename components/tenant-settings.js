@@ -6,6 +6,7 @@ import IntegrationHub from './integration-hub';
 import AutomationStudio from './automation-studio';
 import DeliveryAnalytics from './delivery-analytics';
 import AddonCenter from './addon-center';
+import YeastarSettings from './yeastar-settings';
 
 const TABS=[
   ['users','المستخدمون'],
@@ -14,6 +15,7 @@ const TABS=[
   ['addons','الإضافات والاشتراك'],
   ['automation','الأتمتة الذكية'],
   ['delivery','التسليم والتحليلات'],
+  ['yeastar','Yeastar P550'],
   ['integrations','الربط وواجهات API'],
   ['templates','قوالب الرسائل']
 ];
@@ -48,6 +50,11 @@ const HEADINGS={
     eyebrow:'DELIVERY PROOF',
     title:'إثبات التسليم والتحليلات',
     description:'تتبّع قبول المزود والتسليم والقراءة والارتداد والشكوى والتكلفة بإشعارات موقعة.'
+  },
+  yeastar:{
+    eyebrow:'YEASTAR P-SERIES',
+    title:'ربط Yeastar P550',
+    description:'إعداد API الآمن، اختبار السنترال، مزامنة سجل المكالمات ومراقبة آخر تشغيل.'
   },
   integrations:{
     eyebrow:'INTEGRATIONS HUB',
@@ -140,6 +147,8 @@ export default function TenantSettings({slug,initialData}){
       invitations={invitations}
       domains={domains}
     />}
+
+    {tab==='yeastar'&&<YeastarSettings slug={slug}/>} 
 
     {tab==='integrations'&&<IntegrationHub
       slug={slug}

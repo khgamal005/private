@@ -34,11 +34,15 @@ const sixLearnerQa='20260728065000_reef_six_learner_cycle_qa_v2.sql';
 const leadIntake='20260728124500_lead_intake_distribution_analytics_v2.sql';
 const staffPasswordReset='20260729170000_add_tenant_staff_password_reset.sql';
 const staffAuthActivation='20260729180500_reconcile_staff_auth_activation.sql';
+const incentiveCourseTitle='20260729191730_fix_incentive_course_title.sql';
+const legacyEngagementHardening='20260729195526_harden_legacy_engagement_storage.sql';
 const goalsIncentives='20260729213000_goals_incentives_v2.sql';
+const yeastarTelephony='20260729215925_yeastar_p550_telephony_v2.sql';
+const yeastarSyncRunsIndex='20260729220243_yeastar_sync_runs_tenant_index.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation,goalsIncentives],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation,incentiveCourseTitle,legacyEngagementHardening,goalsIncentives,yeastarTelephony,yeastarSyncRunsIndex],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -72,6 +76,7 @@ const leadIntakeSql=await readFile(new URL(leadIntake,migrationsUrl),'utf8');
 const staffPasswordResetSql=await readFile(new URL(staffPasswordReset,migrationsUrl),'utf8');
 const staffAuthActivationSql=await readFile(new URL(staffAuthActivation,migrationsUrl),'utf8');
 const goalsIncentivesSql=await readFile(new URL(goalsIncentives,migrationsUrl),'utf8');
+const yeastarTelephonySql=await readFile(new URL(yeastarTelephony,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -124,6 +129,12 @@ assert.match(goalsIncentivesSql,/registration_handoff_incentives_v2/);
 assert.match(goalsIncentivesSql,/payment_status = 'verified'/);
 assert.match(goalsIncentivesSql,/revoke all on all tables in schema incentives_core/);
 assert.doesNotMatch(goalsIncentivesSql,/service_role|SUPABASE_SECRET/i);
+assert.match(yeastarTelephonySql,/create schema if not exists telephony/);
+assert.match(yeastarTelephonySql,/v2_tenant_yeastar_reports_snapshot/);
+assert.match(yeastarTelephonySql,/v2_yeastar_store_sync/);
+assert.match(yeastarTelephonySql,/v2_yeastar_sync_failed/);
+assert.match(yeastarTelephonySql,/yeastar_dispatch_secret/);
+assert.match(yeastarTelephonySql,/alter table telephony\.call_records enable row level security/);
 assert.match(operationalCoreSql,/create schema if not exists sales_core/);
 assert.match(operationalCoreSql,/create schema if not exists work_core/);
 assert.match(operationalCoreSql,/v2_tenant_operations_snapshot/);
@@ -281,4 +292,4 @@ assert.doesNotMatch(staffPasswordResetSql,/temporaryPassword|temporary_password/
 assert.match(sixLearnerQaSql,/quality\.learner_cycle\.passed/);
 assert.match(sixLearnerQaSql,/'containsRealContacts', false/);
 
-console.log('Verified the clean v2 database, learner automation, and modular integration hub.');
+console.log('Verified the clean v2 database, learner automation, modular integration hub, and Yeastar telephony.');

@@ -42,10 +42,11 @@ const yeastarSyncRunsIndex='20260729220243_yeastar_sync_runs_tenant_index.sql';
 const roleDashboards='20260730170651_role_based_employee_dashboards_v2.sql';
 const roleDashboardMembershipFix='20260730172630_fix_role_dashboard_membership_resolution.sql';
 const yeastarSyncWindowFix='20260730185254_fix_yeastar_v1_sync_window_context.sql';
+const tenantReportingCenter='20260730204215_tenant_reporting_center_v1.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation,incentiveCourseTitle,legacyEngagementHardening,goalsIncentives,yeastarTelephony,yeastarSyncRunsIndex,roleDashboards,roleDashboardMembershipFix,yeastarSyncWindowFix],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation,incentiveCourseTitle,legacyEngagementHardening,goalsIncentives,yeastarTelephony,yeastarSyncRunsIndex,roleDashboards,roleDashboardMembershipFix,yeastarSyncWindowFix,tenantReportingCenter],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -83,6 +84,7 @@ const yeastarTelephonySql=await readFile(new URL(yeastarTelephony,migrationsUrl)
 const roleDashboardSql=await readFile(new URL(roleDashboards,migrationsUrl),'utf8');
 const roleDashboardMembershipFixSql=await readFile(new URL(roleDashboardMembershipFix,migrationsUrl),'utf8');
 const yeastarSyncWindowFixSql=await readFile(new URL(yeastarSyncWindowFix,migrationsUrl),'utf8');
+const tenantReportingCenterSql=await readFile(new URL(tenantReportingCenter,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -312,5 +314,11 @@ assert.match(yeastarSyncWindowFixSql,/run\.trigger_type in \('manual', 'schedule
 assert.match(yeastarSyncWindowFixSql,/max\(coalesce\(run\.requested_to, run\.finished_at\)\)/);
 assert.match(yeastarSyncWindowFixSql,/yeastar_invalid_sync_window/);
 assert.match(yeastarSyncWindowFixSql,/grant execute on function[\s\S]*to service_role/);
+assert.match(tenantReportingCenterSql,/v2_tenant_reports_snapshot_v1/);
+assert.match(tenantReportingCenterSql,/private_app\.can_view_tenant_team/);
+assert.match(tenantReportingCenterSql,/v_to_date - v_from_date > 365/);
+assert.match(tenantReportingCenterSql,/revoke all on function[\s\S]*from public, anon/);
+assert.match(tenantReportingCenterSql,/grant execute on function[\s\S]*to authenticated/);
+assert.doesNotMatch(tenantReportingCenterSql,/service_role|SUPABASE_SECRET/i);
 
-console.log('Verified the clean v2 database, role dashboards, learner automation, modular integration hub, and Yeastar telephony.');
+console.log('Verified the clean v2 database, tenant reporting, role dashboards, learner automation, modular integration hub, and Yeastar telephony.');

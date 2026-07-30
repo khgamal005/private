@@ -1,0 +1,594 @@
+import Link from 'next/link';
+import styles from './reporting-center.module.css';
+import {reportQuery} from '../lib/reporting';
+
+const REPORT_TABS=[
+  ['overview','لوحة التقارير',''],
+  ['employees','أداء الموظفين','/employees'],
+  ['sales','تقارير المبيعات','/sales'],
+  ['campaigns','تقارير الحملات','/campaigns'],
+  ['calls','أداء المكالمات','/call-reports']
+];
+
+const STATUS_LABELS={
+  new:'جديد',
+  contacted:'تم التواصل',
+  no_answer:'لا يرد',
+  interested:'مهتم',
+  very_interested:'مهتم جدًا',
+  awaiting_payment:'بانتظار الدفع',
+  paid:'تم الدفع',
+  not_interested:'غير مهتم',
+  unqualified:'غير مؤهل',
+  wrong_number:'رقم خاطئ',
+  duplicate:'مكرر',
+  cancelled:'ملغي',
+  open:'مفتوح',
+  won:'محقق',
+  lost:'مفقود',
+  todo:'لم يبدأ',
+  in_progress:'قيد التنفيذ',
+  completed:'مكتمل',
+  cancelled_task:'ملغي'
+};
+
+const ACTIVITY_LABELS={
+  call:'مكالمة',
+  whatsapp:'واتساب',
+  meeting:'اجتماع',
+  note:'ملاحظة',
+  offer:'عرض',
+  email:'بريد إلكتروني'
+};
+
+function number(value){
+  return new Intl.NumberFormat('ar-EG',{
+    maximumFractionDigits:1
+  }).format(Number(value)||0);
+}
+
+function percent(value){
+  if(value===null||value===undefined)return 'غير مقاس';
+  return `${number(value)}٪`;
+}
+
+function moneyMinor(value){
+  return new Intl.NumberFormat('ar-SA',{
+    style:'currency',
+    currency:'SAR',
+    maximumFractionDigits:0
+  }).format((Number(value)||0)/100);
+}
+
+function duration(seconds){
+  const total=Math.max(0,Number(seconds)||0);
+  const hours=Math.floor(total/3600);
+  const minutes=Math.round((total%3600)/60);
+  if(hours)return `${number(hours)} س ${number(minutes)} د`;
+  return `${number(minutes)} د`;
+}
+
+function shortDate(value){
+  if(!value)return '—';
+  return new Intl.DateTimeFormat('ar-SA',{
+    day:'numeric',
+    month:'short'
+  }).format(new Date(value));
+}
+
+function dateTime(value){
+  if(!value)return '—';
+  return new Intl.DateTimeFormat('ar-SA',{
+    day:'numeric',
+    month:'short',
+    hour:'numeric',
+    minute:'2-digit'
+  }).format(new Date(value));
+}
+
+function score(employee){
+  const values=[
+    employee.conversionRate,
+    employee.taskCompletionRate,
+    employee.callAnswerRate,
+    employee.dataCompletenessRate,
+    employee.firstResponseSlaRate
+  ].filter(value=>value!==null&&value!==undefined&&Number.isFinite(Number(value)));
+  if(!values.length)return null;
+  return Math.round(
+    values.reduce((total,value)=>total+Number(value),0)/values.length
+  );
+}
+
+function metric(label,value,note,tone='blue'){
+  return {label,value,note,tone};
+}
+
+function metricsFor(view,summary){
+  const revenue=summary.realizedRevenueMinor||summary.wonRevenueMinor||0;
+  if(view==='sales'){
+    return [
+      metric('العملاء الجدد',number(summary.leadsCreated),'دخلوا النظام خلال الفترة','blue'),
+      metric('المبيعات المحققة',number(summary.paidContacts),'عملاء وصلوا إلى الدفع','green'),
+      metric('قيمة المبيعات',moneyMinor(revenue),'من المدفوعات أو الفرص المحققة','green'),
+      metric('نسبة التحويل',percent(summary.conversionRate),'من العملاء الجدد إلى الدفع','purple'),
+      metric('قيمة المسار المفتوح',moneyMinor(summary.pipelineValueMinor),'فرص مفتوحة حاليًا','cyan'),
+      metric('متوسط قيمة البيع',moneyMinor(summary.averageSaleMinor),'للحالة المحققة','amber')
+    ];
+  }
+  if(view==='campaigns'){
+    return [
+      metric('عملاء الحملات',number(summary.leadsCreated),'داخل الفترة المختارة','blue'),
+      metric('حملات وإعلانات',number(summary.campaignCount),'مصادر قابلة للقياس','purple'),
+      metric('مبيعات محققة',number(summary.paidContacts),'من عملاء الفترة','green'),
+      metric('قيمة المبيعات',moneyMinor(revenue),'منسوبة للمصدر والحملة','green'),
+      metric('التحويل العام',percent(summary.conversionRate),'من العميل إلى الدفع','cyan'),
+      metric('اكتمال البيانات',percent(summary.dataCompletenessRate),'الحقول الأساسية للعملاء','amber')
+    ];
+  }
+  return [
+    metric('العملاء المسندون',number(summary.leadsAssigned),'عملاء تم توزيعهم خلال الفترة','blue'),
+    metric('المبيعات المحققة',number(summary.paidContacts),'حالات وصلت إلى الدفع','green'),
+    metric('قيمة المبيعات',moneyMinor(revenue),'قيمة محققة خلال الفترة','green'),
+    metric('أنشطة المتابعة',number(summary.activities),'مكالمات ومتابعات مسجلة','purple'),
+    metric('إنجاز المهام',percent(summary.taskCompletionRate),`${number(summary.tasksCompleted)} من ${number(summary.tasksTotal)} مهمة`,'cyan'),
+    metric('المكالمات',number(summary.calls),`${percent(summary.callAnswerRate)} نسبة الرد`,'cyan'),
+    metric('اكتمال البيانات',percent(summary.dataCompletenessRate),'الاسم والجوال والمصدر والدورة والمالك','amber'),
+    metric('الالتزام بأول إجراء',percent(summary.firstResponseSlaRate),'مقارنة بموعد التوزيع المحدد','pink')
+  ];
+}
+
+function PeriodFilter({range}){
+  return <form className={styles.period} method="get">
+    <label>
+      <span>من</span>
+      <input type="date" name="from" defaultValue={range.from}/>
+    </label>
+    <label>
+      <span>إلى</span>
+      <input type="date" name="to" defaultValue={range.to}/>
+    </label>
+    <button type="submit">تطبيق الفترة</button>
+  </form>;
+}
+
+function ReportTabs({slug,view,range}){
+  const tenantBase=`/tenant/${encodeURIComponent(slug)}`;
+  const query=reportQuery(range);
+  return <nav className={styles.tabs} aria-label="أنواع التقارير">
+    {REPORT_TABS.map(([key,label,path])=>{
+      const href=key==='calls'
+        ?`${tenantBase}${path}?${query}`
+        :`${tenantBase}/reports${path}?${query}`;
+      return <Link
+        key={key}
+        href={href}
+        className={view===key?styles.activeTab:''}
+      >{label}</Link>;
+    })}
+  </nav>;
+}
+
+function MetricGrid({items}){
+  return <section className={styles.metrics} aria-label="مؤشرات الفترة">
+    {items.map(item=><article
+      className={`${styles.metric} ${styles[item.tone]||''}`}
+      key={item.label}
+    >
+      <span>{item.label}</span>
+      <b>{item.value}</b>
+      <small>{item.note}</small>
+    </article>)}
+  </section>;
+}
+
+function chartBuckets(daily=[],maxBuckets=14){
+  if(daily.length<=maxBuckets)return daily;
+  const size=Math.ceil(daily.length/maxBuckets);
+  const result=[];
+  for(let index=0;index<daily.length;index+=size){
+    const rows=daily.slice(index,index+size);
+    result.push({
+      date:rows[0].date,
+      label:rows.length===1
+        ?shortDate(rows[0].date)
+        :`${shortDate(rows[0].date)}–${shortDate(rows.at(-1).date)}`,
+      leadsAssigned:rows.reduce((sum,row)=>sum+(Number(row.leadsAssigned)||0),0),
+      leadsCreated:rows.reduce((sum,row)=>sum+(Number(row.leadsCreated)||0),0),
+      activities:rows.reduce((sum,row)=>sum+(Number(row.activities)||0),0),
+      paid:rows.reduce((sum,row)=>sum+(Number(row.paid)||0),0),
+      tasksCompleted:rows.reduce((sum,row)=>sum+(Number(row.tasksCompleted)||0),0),
+      calls:rows.reduce((sum,row)=>sum+(Number(row.calls)||0),0)
+    });
+  }
+  return result;
+}
+
+function TrendChart({daily=[],view='overview'}){
+  const rows=chartBuckets(daily);
+  const series=view==='sales'
+    ?[
+      ['leadsCreated','عملاء جدد','blue'],
+      ['activities','متابعات','purple'],
+      ['paid','مبيعات','green']
+    ]
+    :[
+      ['leadsAssigned','عملاء','blue'],
+      ['activities','متابعات','purple'],
+      ['tasksCompleted','مهام','amber'],
+      ['calls','مكالمات','cyan']
+    ];
+  const max=Math.max(1,...rows.flatMap(row=>
+    series.map(([key])=>Number(row[key])||0)
+  ));
+  return <article className={`${styles.panel} ${styles.trendPanel}`}>
+    <header className={styles.panelHead}>
+      <div><span>اتجاه الفترة</span><h3>الحركة اليومية ومخرجات الأداء</h3></div>
+      <div className={styles.legend}>
+        {series.map(([,label,tone])=><span key={label}>
+          <i className={styles[tone]}/>{label}
+        </span>)}
+      </div>
+    </header>
+    <div className={styles.chart}>
+      {rows.map(row=><div className={styles.chartDay} key={row.date}>
+        <div className={styles.bars}>
+          {series.map(([key,label,tone])=><i
+            key={key}
+            className={styles[tone]}
+            style={{height:`${Math.max(3,(Number(row[key])||0)/max*100)}%`}}
+            title={`${label}: ${number(row[key])}`}
+          />)}
+        </div>
+        <small>{row.label||shortDate(row.date)}</small>
+      </div>)}
+      {!rows.length&&<div className={styles.empty}>لا توجد حركة ضمن الفترة المختارة.</div>}
+    </div>
+  </article>;
+}
+
+function Breakdown({title,eyebrow,items=[],valueKey='count',labelKey='label'}){
+  const max=Math.max(1,...items.map(item=>Number(item[valueKey])||0));
+  return <article className={styles.panel}>
+    <header className={styles.panelHead}>
+      <div><span>{eyebrow}</span><h3>{title}</h3></div>
+    </header>
+    <div className={styles.breakdown}>
+      {items.map((item,index)=>{
+        const value=Number(item[valueKey])||0;
+        const label=item[labelKey]
+          ||STATUS_LABELS[item.key]
+          ||ACTIVITY_LABELS[item.key]
+          ||item.key
+          ||'غير محدد';
+        return <div key={`${label}-${index}`}>
+          <div><b>{label}</b><span>{number(value)}</span></div>
+          <i><span style={{width:`${Math.max(2,value/max*100)}%`}}/></i>
+        </div>;
+      })}
+      {!items.length&&<div className={styles.empty}>لا توجد بيانات كافية لهذا التحليل.</div>}
+    </div>
+  </article>;
+}
+
+function EmployeeTable({employees=[],slug,range,compact=false}){
+  const sorted=[...employees].sort((a,b)=>
+    (score(b)??-1)-(score(a)??-1)
+    ||Number(b.realizedRevenueMinor||0)-Number(a.realizedRevenueMinor||0)
+  );
+  const rows=compact?sorted.slice(0,8):sorted;
+  return <article className={`${styles.panel} ${styles.widePanel}`}>
+    <header className={styles.panelHead}>
+      <div><span>تفصيل قابل للفتح</span><h3>أداء الموظفين خلال الفترة</h3></div>
+      {compact&&<Link
+        href={`/tenant/${encodeURIComponent(slug)}/reports/employees?${reportQuery(range)}`}
+      >عرض كل الموظفين</Link>}
+    </header>
+    <div className={styles.tableWrap}>
+      <table>
+        <thead><tr>
+          <th>الموظف</th>
+          <th>مؤشر الأداء</th>
+          <th>العملاء</th>
+          <th>المبيعات</th>
+          <th>القيمة</th>
+          <th>المهام</th>
+          <th>المكالمات</th>
+          <th>اكتمال البيانات</th>
+          <th>أول إجراء</th>
+        </tr></thead>
+        <tbody>
+          {rows.map(employee=>{
+            const employeeScore=score(employee);
+            return <tr key={employee.staffId}>
+              <td><Link
+                className={styles.employeeLink}
+                href={`/tenant/${encodeURIComponent(slug)}/reports/employees/${employee.staffId}?${reportQuery(range)}`}
+              ><b>{employee.name}</b><small>{employee.jobTitle||employee.roleLabel||'موظف'}</small></Link></td>
+              <td>{employeeScore===null
+                ?<span className={styles.muted}>لا توجد عينة</span>
+                :<span className={styles.score}>{number(employeeScore)}٪</span>}</td>
+              <td><b>{number(employee.leadsAssigned)}</b><small>{number(employee.activities)} متابعة</small></td>
+              <td><b>{number(employee.paidContacts)}</b><small>{percent(employee.conversionRate)}</small></td>
+              <td>{moneyMinor(employee.realizedRevenueMinor||employee.wonRevenueMinor)}</td>
+              <td><b>{percent(employee.taskCompletionRate)}</b><small>{number(employee.tasksCompleted)}/{number(employee.tasksTotal)}</small></td>
+              <td><b>{number(employee.calls)}</b><small>{percent(employee.callAnswerRate)}</small></td>
+              <td>{percent(employee.dataCompletenessRate)}</td>
+              <td>{percent(employee.firstResponseSlaRate)}</td>
+            </tr>;
+          })}
+          {!rows.length&&<tr><td colSpan="9"><div className={styles.empty}>لا توجد ملفات موظفين ضمن نطاق صلاحيتك.</div></td></tr>}
+        </tbody>
+      </table>
+    </div>
+  </article>;
+}
+
+function CampaignTable({campaigns=[],compact=false}){
+  const rows=compact?campaigns.slice(0,8):campaigns;
+  return <article className={`${styles.panel} ${styles.widePanel}`}>
+    <header className={styles.panelHead}>
+      <div><span>الإسناد التسويقي</span><h3>نتائج المصادر والحملات والإعلانات</h3></div>
+      <small>لا تُحسب تكلفة الإعلان قبل ربط منصات الإعلانات</small>
+    </header>
+    <div className={styles.tableWrap}>
+      <table>
+        <thead><tr>
+          <th>المصدر</th>
+          <th>الحملة</th>
+          <th>الإعلان</th>
+          <th>العملاء</th>
+          <th>تمت متابعتهم</th>
+          <th>المبيعات</th>
+          <th>التحويل</th>
+          <th>القيمة</th>
+          <th>اكتمال البيانات</th>
+        </tr></thead>
+        <tbody>
+          {rows.map((campaign,index)=><tr key={`${campaign.source}-${campaign.campaign}-${campaign.ad}-${index}`}>
+            <td><b>{campaign.source||'غير محدد'}</b></td>
+            <td>{campaign.campaign||'بدون اسم حملة'}</td>
+            <td>{campaign.ad||'بدون اسم إعلان'}</td>
+            <td>{number(campaign.leads)}</td>
+            <td>{number(campaign.touchedLeads)}</td>
+            <td>{number(campaign.paidContacts)}</td>
+            <td>{percent(campaign.conversionRate)}</td>
+            <td>{moneyMinor(campaign.revenueMinor)}</td>
+            <td>{percent(campaign.dataCompletenessRate)}</td>
+          </tr>)}
+          {!rows.length&&<tr><td colSpan="9"><div className={styles.empty}>لا توجد حملات ضمن الفترة المختارة.</div></td></tr>}
+        </tbody>
+      </table>
+    </div>
+  </article>;
+}
+
+function CourseTable({courses=[]}){
+  return <article className={styles.panel}>
+    <header className={styles.panelHead}>
+      <div><span>تحليل المنتجات</span><h3>المبيعات حسب الدورة</h3></div>
+    </header>
+    <div className={styles.simpleRows}>
+      {courses.slice(0,10).map(course=><div key={course.courseId||course.name}>
+        <span><b>{course.name||'دورة غير محددة'}</b><small>{number(course.leads)} عميل</small></span>
+        <span><b>{number(course.paidContacts)} مبيعات</b><small>{moneyMinor(course.revenueMinor)}</small></span>
+      </div>)}
+      {!courses.length&&<div className={styles.empty}>لم تُربط مبيعات بدورات خلال الفترة.</div>}
+    </div>
+  </article>;
+}
+
+function ReportDirectory({slug,range,data}){
+  const summary=data.summary||{};
+  const cards=[
+    ['أداء الموظفين','قائمة الموظفين ثم تقرير شامل لكل موظف بالمبيعات والمهام والمكالمات وجودة البيانات.',`/tenant/${slug}/reports/employees`,`${number(data.employees?.length)} موظف`],
+    ['تقارير المبيعات','اتجاه المبيعات والمسار والتحويل والدورات وأداء الفريق خلال أي فترة.',`/tenant/${slug}/reports/sales`,`${number(summary.paidContacts)} مبيعات`],
+    ['تقارير الحملات','المصدر والحملة والإعلان والعملاء والمتابعة والتحويل والقيمة المحققة.',`/tenant/${slug}/reports/campaigns`,`${number(summary.campaignCount)} حملة`],
+    ['أداء المكالمات','المكالمات الواردة والصادرة والفائتة ونسبة الرد وأداء التحويلات.',`/tenant/${slug}/call-reports`,`${number(summary.calls)} مكالمة`]
+  ];
+  return <section className={styles.directory}>
+    {cards.map(([title,description,href,badge])=><Link
+      key={title}
+      href={`${href}?${reportQuery(range)}`}
+    >
+      <span>{badge}</span>
+      <h3>{title}</h3>
+      <p>{description}</p>
+      <b>فتح التقرير التفصيلي ←</b>
+    </Link>)}
+  </section>;
+}
+
+function DetailTables({details={}}){
+  return <section className={styles.detailGrid}>
+    <article className={styles.panel}>
+      <header className={styles.panelHead}><div><span>سجل العمل</span><h3>المهام خلال الفترة</h3></div></header>
+      <div className={styles.detailList}>
+        {(details.tasks||[]).map(task=><div key={task.id}>
+          <span><b>{task.title}</b><small>{task.contactName||'مهمة تشغيلية'}</small></span>
+          <span><b>{STATUS_LABELS[task.status]||task.status}</b><small>{dateTime(task.dueAt)}</small></span>
+        </div>)}
+        {!details.tasks?.length&&<div className={styles.empty}>لا توجد مهام في الفترة.</div>}
+      </div>
+    </article>
+    <article className={styles.panel}>
+      <header className={styles.panelHead}><div><span>تواصل مسجل</span><h3>المتابعات والأنشطة</h3></div></header>
+      <div className={styles.detailList}>
+        {(details.activities||[]).map(activity=><div key={activity.id}>
+          <span><b>{activity.contactName}</b><small>{activity.summary||ACTIVITY_LABELS[activity.type]||activity.type}</small></span>
+          <span><b>{ACTIVITY_LABELS[activity.type]||activity.type}</b><small>{dateTime(activity.occurredAt)}</small></span>
+        </div>)}
+        {!details.activities?.length&&<div className={styles.empty}>لا توجد متابعات مسجلة في الفترة.</div>}
+      </div>
+    </article>
+    <article className={styles.panel}>
+      <header className={styles.panelHead}><div><span>Yeastar</span><h3>أحدث المكالمات</h3></div></header>
+      <div className={styles.detailList}>
+        {(details.calls||[]).map(call=><div key={call.id}>
+          <span><b dir="ltr">{call.otherNumber||'—'}</b><small>{call.callType==='Outbound'?'صادرة':call.callType==='Inbound'?'واردة':'داخلية'}</small></span>
+          <span><b>{call.finalStatus==='ANSWERED'?'تم الرد':'لم يتم الرد'}</b><small>{duration(call.talkSeconds)} · {dateTime(call.startedAt)}</small></span>
+        </div>)}
+        {!details.calls?.length&&<div className={styles.empty}>لا توجد مكالمات مرتبطة بهذا الموظف في الفترة.</div>}
+      </div>
+    </article>
+    <article className={styles.panel}>
+      <header className={styles.panelHead}><div><span>جودة الملف</span><h3>العملاء المسندون</h3></div></header>
+      <div className={styles.detailList}>
+        {(details.leads||[]).map(lead=><div key={lead.id}>
+          <span><b>{lead.name}</b><small>{lead.source||'مصدر غير محدد'} · {lead.courseName||'دورة غير محددة'}</small></span>
+          <span><b>{STATUS_LABELS[lead.status]||lead.status}</b><small>{percent(lead.completenessRate)} مكتمل</small></span>
+        </div>)}
+        {!details.leads?.length&&<div className={styles.empty}>لا توجد إسنادات في الفترة.</div>}
+      </div>
+    </article>
+  </section>;
+}
+
+function EmployeeHero({employee,summary}){
+  return <section className={styles.employeeHero}>
+    <div className={styles.avatar}>{Array.from(employee?.name||'م')[0]}</div>
+    <div>
+      <span>تقرير أداء موظف</span>
+      <h2>{employee?.name||'الموظف'}</h2>
+      <p>{employee?.jobTitle||employee?.roleLabel||'موظف المنشأة'} · التقرير مبني على الحركة الفعلية داخل الفترة.</p>
+    </div>
+    <aside>
+      <span>مؤشر الأداء المجمع</span>
+      <b>{percent(score({...summary}))}</b>
+      <small>متوسط المؤشرات المتاحة فقط</small>
+    </aside>
+  </section>;
+}
+
+export default function ReportingCenter({
+  data,
+  slug,
+  view='overview',
+  range
+}){
+  const summary=data?.summary||{};
+  const selectedEmployee=data?.selectedEmployee||null;
+  const title=view==='employees'
+    ?'أداء الموظفين'
+    :view==='employee'
+      ?`تقرير ${selectedEmployee?.name||'الموظف'}`
+      :view==='sales'
+        ?'تقارير المبيعات'
+        :view==='campaigns'
+          ?'تقارير الحملات'
+          :'لوحة التقارير';
+  const description=view==='employee'
+    ?'قراءة موحّدة للمبيعات والمهام والمكالمات والمتابعة وجودة استكمال البيانات.'
+    :'حوّل الفترة المختارة إلى مؤشرات قابلة للفهم ثم افتح التفاصيل حتى السجل الأصلي.';
+
+  return <div className={styles.workspace}>
+    <section className={styles.hero}>
+      <div>
+        <span>التقارير والتحليلات</span>
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </div>
+      <PeriodFilter range={range}/>
+    </section>
+    <ReportTabs slug={slug} view={view==='employee'?'employees':view} range={range}/>
+    {view==='employee'&&<EmployeeHero employee={selectedEmployee} summary={summary}/>}
+    <MetricGrid items={metricsFor(view,summary)}/>
+
+    {view==='overview'&&<>
+      <ReportDirectory slug={slug} range={range} data={data}/>
+      <section className={styles.twoColumns}>
+        <TrendChart daily={data.daily||[]} view="overview"/>
+        <Breakdown
+          eyebrow="حالة العملاء"
+          title="توزيع العملاء خلال الفترة"
+          items={data.leadStatuses||[]}
+        />
+      </section>
+      <EmployeeTable employees={data.employees||[]} slug={slug} range={range} compact/>
+      <CampaignTable campaigns={data.campaigns||[]} compact/>
+    </>}
+
+    {view==='employees'&&<>
+      <section className={styles.twoColumns}>
+        <TrendChart daily={data.daily||[]}/>
+        <Breakdown
+          eyebrow="مستوى التنفيذ"
+          title="حالات المهام"
+          items={data.taskBreakdown||[]}
+        />
+      </section>
+      <EmployeeTable employees={data.employees||[]} slug={slug} range={range}/>
+    </>}
+
+    {view==='employee'&&<>
+      <section className={styles.twoColumns}>
+        <TrendChart daily={data.daily||[]}/>
+        <Breakdown
+          eyebrow="أنواع المتابعة"
+          title="توزيع أنشطة الموظف"
+          items={data.activityBreakdown||[]}
+        />
+      </section>
+      <section className={styles.threeColumns}>
+        <Breakdown eyebrow="المهام" title="حالات المهام" items={data.taskBreakdown||[]}/>
+        <Breakdown eyebrow="العملاء" title="حالات العملاء" items={data.leadStatuses||[]}/>
+        <Breakdown eyebrow="الاتصالات" title="نتائج المكالمات" items={data.callBreakdown||[]}/>
+      </section>
+      <DetailTables details={data.details||{}}/>
+    </>}
+
+    {view==='sales'&&<>
+      <section className={styles.twoColumns}>
+        <TrendChart daily={data.daily||[]} view="sales"/>
+        <Breakdown
+          eyebrow="مسار المبيعات"
+          title="الفرص حسب المرحلة"
+          items={data.pipelineStages||[]}
+          valueKey="valueMinor"
+          labelKey="name"
+        />
+      </section>
+      <EmployeeTable employees={data.employees||[]} slug={slug} range={range} compact/>
+      <section className={styles.twoColumns}>
+        <CourseTable courses={data.courses||[]}/>
+        <Breakdown
+          eyebrow="حالة العميل"
+          title="قمع التحويل"
+          items={data.leadStatuses||[]}
+        />
+      </section>
+    </>}
+
+    {view==='campaigns'&&<>
+      <section className={styles.twoColumns}>
+        <Breakdown
+          eyebrow="مصادر العملاء"
+          title="حجم العملاء حسب المصدر"
+          items={data.sources||[]}
+          labelKey="source"
+          valueKey="leads"
+        />
+        <Breakdown
+          eyebrow="جودة التحويل"
+          title="المبيعات حسب المصدر"
+          items={data.sources||[]}
+          labelKey="source"
+          valueKey="paidContacts"
+        />
+      </section>
+      <CampaignTable campaigns={data.campaigns||[]}/>
+      <div className={styles.dataNote}>
+        <b>حدود القياس الحالية</b>
+        <p>الأرقام تنسب العميل والمبيعات إلى المصدر والحملة والإعلان المسجلين داخل CRM. تكلفة الإعلان وROAS ستظهران بعد ربط Meta وGoogle والمنصات الإعلانية، ولن يتم تقديرهما افتراضيًا.</p>
+      </div>
+    </>}
+  </div>;
+}
+
+export function ReportsUnavailable({message}){
+  return <div className={styles.unavailable}>
+    <span>!</span>
+    <h2>تعذر تحميل مركز التقارير</h2>
+    <p>{message||'أعد المحاولة بعد قليل، وإن استمرت المشكلة راجع صلاحية التقارير أو اكتمال تحديث قاعدة البيانات.'}</p>
+  </div>;
+}

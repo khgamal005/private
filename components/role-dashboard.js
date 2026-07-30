@@ -122,8 +122,8 @@ function when(value){
   }).format(new Date(value));
 }
 
-function metric(label,value,note,tone='blue'){
-  return {label,value,note,tone};
+function metric(label,value,note,tone='blue',featured=false){
+  return {label,value,note,tone,featured};
 }
 
 function roleMetrics(role,dashboard){
@@ -136,8 +136,20 @@ function roleMetrics(role,dashboard){
 
   if(EXECUTIVE_ROLES.has(role)){
     return [
-      metric('إيراد الشهر',moneyMinor(executive.wonRevenueMinor),'الفرص المحققة','green'),
-      metric('قيمة المسار',moneyMinor(executive.pipelineValueMinor),'فرص مفتوحة','blue'),
+      metric(
+        'إيراد الشهر',
+        moneyMinor(executive.wonRevenueMinor),
+        'قيمة الفرص المحققة خلال الشهر الحالي',
+        'green',
+        true
+      ),
+      metric(
+        'قيمة المسار',
+        moneyMinor(executive.pipelineValueMinor),
+        'القيمة الإجمالية للفرص المفتوحة حاليًا',
+        'blue',
+        true
+      ),
       metric('حسابات الدخول',number(executive.activeAccounts),`من ${number(executive.activeStaff)} موظف`,'purple'),
       metric('طلبات قبول معلّقة',number(executive.pendingAdmissions),'تحتاج متابعة','amber'),
       metric('مكالمات الشهر',number(calls.totalCalls),`${percent(calls.answerRate)} نسبة الرد`,'cyan'),
@@ -197,6 +209,7 @@ function quickActions(slug,permissions){
   const actions=[
     ['إدارة مهام اليوم',`/tenant/${slug}/tasks`,'tenant.work.read'],
     ['فتح مسار المبيعات',`/tenant/${slug}/sales`,'tenant.crm.read'],
+    ['مركز التقارير',`/tenant/${slug}/reports`,'tenant.workspace.read'],
     ['تقارير المكالمات',`/tenant/${slug}/call-reports`,'tenant.crm.read'],
     ['استقبال وتوزيع العملاء',`/tenant/${slug}/lead-queue`,'tenant.leads.read'],
     ['التسجيل والقبول',`/tenant/${slug}/admissions`,'tenant.admissions.read'],
@@ -206,9 +219,17 @@ function quickActions(slug,permissions){
 }
 
 function MetricCards({items}){
-  return <section className={styles.metrics} aria-label="مؤشرات الأداء">
+  const hasFeatured=items.some(item=>item.featured);
+  return <section
+    className={`${styles.metrics} ${hasFeatured?styles.featuredMetrics:''}`}
+    aria-label="مؤشرات الأداء"
+  >
     {items.map(item=><article
-      className={`${styles.metric} ${styles[item.tone]||''}`}
+      className={[
+        styles.metric,
+        styles[item.tone]||'',
+        item.featured?styles.metricFeatured:''
+      ].filter(Boolean).join(' ')}
       key={item.label}
     >
       <span>{item.label}</span>
@@ -299,7 +320,7 @@ function CallsPanel({telephony={},slug,showSettings=false}){
   </article>;
 }
 
-function TeamTable({team=[]}){
+function TeamTable({team=[],slug}){
   return <article className={`${styles.panel} ${styles.teamPanel}`}>
     <header className={styles.panelHead}>
       <div><span>تفاصيل الفريق</span><h3>أداء الموظفين</h3></div>
@@ -319,7 +340,7 @@ function TeamTable({team=[]}){
         </tr></thead>
         <tbody>
           {team.map(member=><tr key={member.staffId}>
-            <td><b>{member.name}</b><small>{member.jobTitle||ROLE_LABELS[member.roleKey]||'موظف'}</small></td>
+            <td><Link href={`/tenant/${slug}/reports/employees/${member.staffId}`}><b>{member.name}</b><small>{member.jobTitle||ROLE_LABELS[member.roleKey]||'موظف'}</small></Link></td>
             <td>{member.extension||<span className={styles.muted}>غير مربوط</span>}</td>
             <td>{number(member.activeLeads)}</td>
             <td>{number(member.activitiesToday)}</td>
@@ -349,6 +370,85 @@ function SourcesPanel({sources=[]}){
       {!sources.length&&<div className={styles.empty}>لا توجد بيانات مصادر كافية للتحليل بعد.</div>}
     </div>
   </article>;
+}
+
+function normalizedPercent(value){
+  return Math.min(100,Math.max(0,Number(value)||0));
+}
+
+function ratioPercent(value,total){
+  const denominator=Number(total)||0;
+  if(!denominator)return 0;
+  return normalizedPercent((Number(value)||0)/denominator*100);
+}
+
+function ExecutiveHealth({dashboard}){
+  const executive=dashboard.executive||{};
+  const sales=dashboard.sales||{};
+  const calls=dashboard.telephony||{};
+  const leads=dashboard.leadOperations||{};
+  const accountRate=ratioPercent(
+    executive.activeAccounts,
+    executive.activeStaff
+  );
+  const responseRate=Number(
+    leads.firstResponseSlaRate??sales.firstResponseSlaRate
+  )||0;
+  const responseMinutes=Number(
+    leads.averageFirstResponseMinutes??sales.averageFirstResponseMinutes
+  )||0;
+  const items=[
+    {
+      label:'تفعيل حسابات الفريق',
+      value:accountRate,
+      note:`${number(executive.activeAccounts)} من ${number(executive.activeStaff)} موظف`
+    },
+    {
+      label:'الرد على المكالمات',
+      value:normalizedPercent(calls.answerRate),
+      note:`${number(calls.answeredCalls)} من ${number(calls.totalCalls)} مكالمة`
+    },
+    {
+      label:'الالتزام بأول متابعة',
+      value:normalizedPercent(responseRate),
+      note:responseMinutes
+        ?`${number(responseMinutes)} دقيقة متوسط أول رد`
+        :'لا توجد مدة استجابة مسجلة'
+    },
+    {
+      label:'تحويل العملاء للدفع',
+      value:normalizedPercent(sales.conversionRate),
+      note:`${number(sales.paidThisMonth)} تسجيلًا محققًا هذا الشهر`
+    }
+  ];
+
+  return <section className={styles.health} aria-label="صحة المنشأة">
+    <header className={styles.healthHead}>
+      <div>
+        <span>قراءة إدارية موحّدة</span>
+        <h3>صحة المنشأة</h3>
+      </div>
+      <p>النسب محسوبة مباشرة من الحسابات والمبيعات والمكالمات المسجلة.</p>
+    </header>
+    <div className={styles.healthGrid}>
+      {items.map(item=><article key={item.label}>
+        <div>
+          <span>{item.label}</span>
+          <b>{percent(Math.round(item.value))}</b>
+        </div>
+        <i
+          role="progressbar"
+          aria-label={item.label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(item.value)}
+        >
+          <span style={{width:`${item.value}%`}}/>
+        </i>
+        <small>{item.note}</small>
+      </article>)}
+    </div>
+  </section>;
 }
 
 function ReadinessAlerts({role,dashboard}){
@@ -397,7 +497,7 @@ export default function RoleDashboard({
   );
   const showSources=DATA_ROLES.has(role)
     ||role==='sales_manager'
-    ||role==='executive_manager';
+    ||EXECUTIVE_ROLES.has(role);
 
   return <div className={styles.dashboard}>
     <section className={styles.hero}>
@@ -422,6 +522,9 @@ export default function RoleDashboard({
 
     <ReadinessAlerts role={role} dashboard={dashboard||{}}/>
     <MetricCards items={metrics}/>
+    {EXECUTIVE_ROLES.has(role)&&<ExecutiveHealth
+      dashboard={dashboard||{}}
+    />}
 
     <section className={styles.actions} aria-label="إجراءات سريعة">
       <div><span>إجراءات مناسبة لدورك</span><b>ابدأ من هنا</b></div>
@@ -456,7 +559,7 @@ export default function RoleDashboard({
       </article>
     </section>}
 
-    {showTeam&&<TeamTable team={dashboard?.team||[]}/>}
+    {showTeam&&<TeamTable team={dashboard?.team||[]} slug={slug}/>}
 
     {role==='sales_user'&&<section className={styles.personalStrip}>
       <div><span>حافز مستحق أو قيد المراجعة</span><b>{money((dashboard?.personal||{}).pendingIncentive)}</b></div>

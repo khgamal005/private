@@ -3,7 +3,7 @@
   --muted:#66738a;
   --line:#e6eaf1;
   display:grid;
-  gap:20px;
+  gap:18px;
   color:var(--ink);
 }
 
@@ -14,10 +14,10 @@
   align-items:flex-end;
   justify-content:space-between;
   gap:28px;
-  min-height:225px;
-  padding:34px;
+  min-height:190px;
+  padding:29px 31px;
   color:#fff;
-  border-radius:28px;
+  border-radius:25px;
   background:
     radial-gradient(circle at 14% 10%,rgba(59,188,247,.34),transparent 31%),
     radial-gradient(circle at 88% 90%,rgba(107,92,255,.38),transparent 35%),
@@ -39,14 +39,14 @@
 .heroCopy,.heroAside{position:relative;z-index:1}
 .heroCopy>span{
   display:block;
-  margin-bottom:10px;
+  margin-bottom:8px;
   color:#8bdcff;
   font-size:.8rem;
   font-weight:900;
   letter-spacing:.08em;
 }
-.hero h2{margin:0;font-size:clamp(1.85rem,3vw,2.75rem);line-height:1.2}
-.hero p{max-width:660px;margin:12px 0 20px;color:#c9d6ec;font-size:1rem}
+.hero h2{margin:0;font-size:clamp(1.75rem,2.7vw,2.55rem);line-height:1.2}
+.hero p{max-width:720px;margin:10px 0 16px;color:#c9d6ec;font-size:.92rem}
 .identity{display:flex;align-items:center;flex-wrap:wrap;gap:9px;color:#d9e5f7}
 .identity b{color:#fff}
 .identity i{color:#5fd1ff;font-style:normal}
@@ -57,8 +57,8 @@
   background:rgba(255,255,255,.08);
 }
 .heroAside{
-  flex:0 0 210px;
-  padding:18px;
+  flex:0 0 205px;
+  padding:16px;
   border:1px solid rgba(255,255,255,.13);
   border-radius:18px;
   background:rgba(255,255,255,.08);
@@ -92,14 +92,15 @@
 
 .metrics{
   display:grid;
-  grid-template-columns:repeat(6,minmax(0,1fr));
+  grid-template-columns:repeat(12,minmax(0,1fr));
   gap:13px;
 }
 .metric{
   position:relative;
   overflow:hidden;
-  min-height:132px;
-  padding:18px;
+  grid-column:span 4;
+  min-height:128px;
+  padding:18px 19px;
   border:1px solid var(--line);
   border-radius:20px;
   background:#fff;
@@ -118,11 +119,89 @@
 .metric>span{font-size:.78rem;font-weight:800}
 .metric>b{display:block;margin:12px 0 6px;font-size:1.65rem;line-height:1.05}
 .metric>small{font-size:.73rem}
+.metricFeatured{
+  grid-column:span 6;
+  min-height:154px;
+  padding:23px 24px;
+  border-color:#dbe5f0;
+  background:
+    radial-gradient(circle at 8% 5%,rgba(46,133,220,.09),transparent 14rem),
+    #fff;
+}
+.featuredMetrics .metric:not(.metricFeatured){grid-column:span 3}
+.metricFeatured::before{height:5px}
+.metricFeatured>span{font-size:.82rem}
+.metricFeatured>b{
+  margin:15px 0 8px;
+  font-size:clamp(1.85rem,3vw,2.5rem);
+}
+.metricFeatured>small{max-width:360px;font-size:.76rem;line-height:1.65}
 .metric.green::before{background:#20aa78}
 .metric.purple::before{background:#7869e8}
 .metric.amber::before{background:#e7a82f}
 .metric.cyan::before{background:#20a8ca}
 .metric.pink::before{background:#dd5e8d}
+
+.health{
+  display:grid;
+  grid-template-columns:minmax(235px,.62fr) minmax(0,2fr);
+  align-items:stretch;
+  overflow:hidden;
+  border:1px solid var(--line);
+  border-radius:20px;
+  background:#fff;
+  box-shadow:0 8px 24px rgba(23,36,61,.04);
+}
+.healthHead{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding:22px 24px;
+  border-left:1px solid #e8edf3;
+  background:
+    radial-gradient(circle at 12% 5%,rgba(69,177,222,.17),transparent 12rem),
+    linear-gradient(145deg,#102d4c,#153f69);
+  color:#fff;
+}
+.healthHead span{color:#82d4fa;font-size:.68rem;font-weight:900}
+.healthHead h3{margin:5px 0 10px;font-size:1.25rem}
+.healthHead p{margin:0;color:#c4d3e2;font-size:.72rem;line-height:1.8}
+.healthGrid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  align-items:center;
+  padding:15px;
+}
+.healthGrid article{
+  display:grid;
+  min-width:0;
+  gap:9px;
+  padding:11px 15px;
+  border-left:1px solid #edf0f5;
+}
+.healthGrid article:last-child{border-left:0}
+.healthGrid article>div{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.healthGrid span{color:var(--muted);font-size:.68rem;font-weight:800}
+.healthGrid b{font-size:1rem}
+.healthGrid i{
+  display:block;
+  overflow:hidden;
+  height:7px;
+  border-radius:999px;
+  background:#edf2f6;
+}
+.healthGrid i>span{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#25a776,#2f88d8);
+}
+.healthGrid small{color:#7e8ca0;font-size:.65rem;line-height:1.6}
 
 .actions{
   display:flex;
@@ -270,6 +349,8 @@
 .tableWrap td b,.tableWrap td small{display:block}
 .tableWrap td small{margin-top:3px;color:var(--muted)}
 .tableWrap tbody tr:hover{background:#fbfdff}
+.tableWrap td a{color:inherit;text-decoration:none}
+.tableWrap td a:hover b{color:#2378b0;text-decoration:underline}
 .muted{color:#9ba7b8;font-size:.68rem}
 .badgeLate,.badgeOk{display:inline-block;min-width:28px;padding:4px 7px;border-radius:8px;text-align:center}
 .badgeLate{background:#fff0f0;color:#bd3e4d}
@@ -304,7 +385,10 @@
 }
 
 @media (max-width:1250px){
-  .metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .metric{grid-column:span 4}
+  .metricFeatured{grid-column:span 6}
+  .health{grid-template-columns:1fr}
+  .healthHead{border-bottom:1px solid #e8edf3;border-left:0}
   .callStats{grid-template-columns:repeat(3,minmax(0,1fr))}
   .callStats>div:nth-child(3){border-left:0}
   .personalStrip{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -316,7 +400,11 @@
   .heroAside{margin-top:20px}
   .grid{grid-template-columns:1fr}
   .actions{align-items:flex-start;flex-direction:column}
-  .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .metric,.metricFeatured,
+  .featuredMetrics .metric:not(.metricFeatured){grid-column:span 6}
+  .healthGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .healthGrid article:nth-child(even){border-left:0}
+  .healthGrid article:nth-child(-n+2){border-bottom:1px solid #edf0f5}
 }
 
 @media (max-width:560px){
@@ -326,8 +414,22 @@
   .identity{font-size:.78rem}
   .heroAside{width:auto}
   .metrics{gap:9px}
+  .metric,.metricFeatured,
+  .featuredMetrics .metric:not(.metricFeatured){grid-column:1/-1}
   .metric{min-height:118px;padding:15px;border-radius:16px}
+  .metricFeatured{min-height:132px}
   .metric>b{font-size:1.35rem}
+  .metricFeatured>b{font-size:1.75rem}
+  .health{border-radius:17px}
+  .healthHead{padding:18px}
+  .healthGrid{grid-template-columns:1fr;padding:6px 14px}
+  .healthGrid article{
+    padding:13px 2px;
+    border-bottom:1px solid #edf0f5;
+    border-left:0;
+  }
+  .healthGrid article:nth-child(-n+2){border-bottom:1px solid #edf0f5}
+  .healthGrid article:last-child{border-bottom:0}
   .panel,.actions{border-radius:17px}
   .panelHead{align-items:flex-start;padding:17px}
   .legend{display:none}

@@ -19,7 +19,7 @@ test('lead intake is a tenant route protected by its own permission',async()=>{
   ]);
   assert.match(page,/requireTenantPermission\(slug,'tenant\.leads\.read'\)/);
   assert.match(page,/getTenantLeadIntake/);
-  assert.match(shell,/استقبال وتوزيع العملاء/);
+  assert.match(shell,/label:'توزيع العملاء'/);
   assert.match(shell,/permission:'tenant\.leads\.read'/);
 });
 

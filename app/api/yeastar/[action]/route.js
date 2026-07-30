@@ -52,6 +52,10 @@ function translated(value){
     yeastar_invalid_timezone:'المنطقة الزمنية غير مدعومة.',
     yeastar_invalid_sync_interval:'فترة المزامنة غير صالحة.',
     yeastar_invalid_history_days:'عدد أيام السحب الأول يجب أن يكون من 1 إلى 90.',
+    yeastar_invalid_extension_assignments:'صيغة ربط التحويلات بالموظفين غير صالحة.',
+    yeastar_extension_mapping_not_configured:`التحويلة غير موجودة ضمن التحويلات المحفوظة: ${raw.split(':')[1]||''}`,
+    yeastar_invalid_staff_assignment:'اختيار الموظف المرتبط بالتحويلة غير صالح.',
+    yeastar_staff_not_found:'الموظف المحدد غير نشط أو لا يتبع هذه المنشأة.',
     yeastar_credentials_required:'أدخل Client ID وClient Secret من إعدادات API في Yeastar.',
     yeastar_extensions_not_found:`التحويلة غير موجودة على الجهاز: ${raw.split(':')[1]||''}`,
     yeastar_token_missing:'استجاب الجهاز دون رمز وصول.',
@@ -67,11 +71,19 @@ export async function GET(request,{params}){
     const token=await userToken();
     if(!token)return json({error:'انتهت الجلسة'},401);
     const slug=new URL(request.url).searchParams.get('tenantSlug');
-    return json(await rpc(
-      token,
-      'v2_tenant_yeastar_settings_snapshot',
-      {p_slug:slug}
-    ));
+    const [settings,staffOptions]=await Promise.all([
+      rpc(
+        token,
+        'v2_tenant_yeastar_settings_snapshot',
+        {p_slug:slug}
+      ),
+      rpc(
+        token,
+        'v2_tenant_yeastar_staff_options',
+        {p_slug:slug}
+      ).catch(()=>[])
+    ]);
+    return json({...settings,staffOptions});
   }catch(error){
     return json({error:translated(error.message)},400);
   }
@@ -88,9 +100,12 @@ export async function POST(request,{params}){
     const body=await request.json().catch(()=>({}));
 
     if(['save','disable'].includes(action)){
-      const data=await rpc(token,'v2_tenant_yeastar_action',{
+      const procedure=action==='save'
+        ?'v2_tenant_yeastar_save_with_assignments'
+        :'v2_tenant_yeastar_action';
+      const data=await rpc(token,procedure,{
         p_tenant_slug:body.tenantSlug,
-        p_action:action,
+        ...(action==='disable'?{p_action:action}:{}),
         p_payload:body.payload||{}
       });
       return json({success:true,data});

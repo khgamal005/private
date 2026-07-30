@@ -35,8 +35,10 @@ export default function YeastarReports({slug,initialData}){
         headers:{'content-type':'application/json'},
         body:JSON.stringify({tenantSlug:slug})
       });
-      const payload=await response.json();
-      if(!response.ok)throw new Error(payload.error||'تعذرت المزامنة');
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok){
+        throw new Error(errorMessage(payload.error,'تعذرت المزامنة'));
+      }
       setNotice(`تمت المزامنة: ${payload.fetchedCount||0} سجل، جديد ${payload.insertedCount||0}، محدث ${payload.updatedCount||0}.`);
       router.refresh();
     }catch(err){setError(err.message)}finally{setBusy(false)}
@@ -120,7 +122,7 @@ export default function YeastarReports({slug,initialData}){
       <div className="mt-table-wrap"><table className="mt-table">
         <thead><tr><th>التحويلة</th><th>الإجمالي</th><th>تم الرد</th><th>فائتة</th><th>واردة</th><th>صادرة</th><th>نسبة الرد</th><th>وقت الحديث</th></tr></thead>
         <tbody>{extensions.map(row=><tr key={row.extension}>
-          <td><b>{row.extension}</b>{row.extension==='105'&&<small>شهد</small>}</td>
+          <td><b>{row.extension}</b></td>
           <td>{number(row.totalCalls)}</td>
           <td>{number(row.answeredCalls)}</td>
           <td>{number(row.missedCalls)}</td>
@@ -190,6 +192,14 @@ function knownExtensions(data){
   const configured=String(data.connection?.extensions||'').split(',').map(value=>value.trim()).filter(Boolean);
   const reported=(data.extensions||[]).map(row=>String(row.extension));
   return [...new Set([...configured,...reported])].sort();
+}
+
+function errorMessage(value,fallback){
+  if(typeof value==='string'&&value.trim())return value;
+  if(value&&typeof value==='object'){
+    return value.message||value.error_description||value.code||fallback;
+  }
+  return fallback;
 }
 
 function number(value){return new Intl.NumberFormat('ar-SA').format(Number(value)||0)}

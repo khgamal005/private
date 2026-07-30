@@ -14,7 +14,22 @@ function response(body:unknown,status=200){
 }
 
 function cleanError(value:unknown){
-  const text=String(value||'yeastar_connection_failed')
+  let source=value instanceof Error?value.message:value;
+  if(source&&typeof source==='object'){
+    const detail=source as Json;
+    const nested=detail.errmsg
+      ||detail.message
+      ||detail.error
+      ||detail.detail;
+    try{
+      source=typeof nested==='string'
+        ?nested
+        :JSON.stringify(nested||detail);
+    }catch{
+      source='yeastar_connection_failed';
+    }
+  }
+  const text=String(source||'yeastar_connection_failed')
     .replace(/access_token=[^&\s]+/gi,'access_token=[REDACTED]')
     .replace(/(client[_ -]?secret|password)["':=\s]+[^,\s"}]+/gi,'$1=[REDACTED]');
   return text.slice(0,500);
@@ -127,8 +142,8 @@ async function revokeToken(baseUrl:string,token:string){
 }
 
 function stringList(value:unknown,key?:string){
-  if(!Array.isArray(value))return [];
-  return [...new Set(value.map(item=>{
+  const items=Array.isArray(value)?value:value?[value]:[];
+  return [...new Set(items.map(item=>{
     if(typeof item==='string')return item;
     if(item&&typeof item==='object'&&key)return String((item as Json)[key]||'');
     return '';
@@ -222,14 +237,20 @@ function normalizeCall(
   ].map(String).filter(Boolean);
   const involved=[...new Set(numbers.filter(number=>monitored.includes(number)))];
   if(monitored.length&&involved.length===0)return null;
-  const note=(source.call_notes||{}) as Json;
+  const note=(source.call_notes||source.call_note||{}) as Json;
   const recording=source.recording_files||source.recordings||source.recording;
   const recordingList=Array.isArray(recording)?recording:recording?[recording]:[];
+  const timestamp=Number(source.timestamp||0);
+  const startedAt=Number.isFinite(timestamp)&&timestamp>0
+    ?new Date(timestamp*1000).toISOString()
+    :zonedIso(source.time,dateFormat,timeZone);
   return {
-    uid:String(source.uid||source.id||''),
-    sourceRecordId:String(source.id||''),
+    uid:String(source.uid||source.new_id||source.id||''),
+    sourceRecordId:String(
+      source.new_id||source.id||source.call_id||source.uid||''
+    ),
     apiVersion,
-    startedAt:zonedIso(source.time,dateFormat,timeZone),
+    startedAt,
     callType:String(source.call_type||'Unknown'),
     finalStatus:String(source.last_status||source.disposition||'UNKNOWN').toUpperCase(),
     callerNumber:String(source.call_from_number||''),
@@ -248,16 +269,29 @@ function normalizeCall(
     segments:Number(source.segments||1),
     queueNames:stringList(source.queues,'name'),
     ringGroupNames:stringList(source.ring_groups,'name'),
-    sourceTrunks:stringList(source.source_trunks,'name'),
-    destinationTrunks:stringList(source.destination_trunks,'name'),
-    didNumbers:stringList(source.dids,'number'),
+    sourceTrunks:stringList(
+      source.source_trunks||source.src_trunk,
+      'name'
+    ),
+    destinationTrunks:stringList(
+      source.destination_trunks||source.dst_trunk,
+      'name'
+    ),
+    didNumbers:stringList(
+      source.dids||source.did_number||source.did,
+      'number'
+    ),
     hasRecording:Boolean(
-      recordingList.length||source.recording_file||source.recording_path
+      recordingList.length
+      ||source.recording_file
+      ||source.recording_path
+      ||source.record_file
     ),
     recordingReference:String(
       (recordingList[0] as Json)?.file
       ||(recordingList[0] as Json)?.id
       ||source.recording_file
+      ||source.record_file
       ||''
     ),
     callNote:String(note.remark||source.call_note_remark||''),
@@ -323,15 +357,23 @@ async function fetchCalls(
   const dateFormat=String(device.dateFormat||'YYYY/MM/DD');
   const timeFormat=String(device.timeFormat||'HH:mm:ss');
   const all:Json[]=[];
+  const timeRange=apiVersion==='v1.0'
+    ?{
+      start_time:String(Math.floor(from.getTime()/1000)),
+      end_time:String(Math.floor(to.getTime()/1000))
+    }
+    :{
+      order_by:'asc',
+      sort_by:'time',
+      time_begin:pbxTime(from,dateFormat,timeFormat,timeZone),
+      time_end:pbxTime(to,dateFormat,timeFormat,timeZone)
+    };
   for(let page=1;page<=10;page+=1){
     const query=new URLSearchParams({
       access_token:token,
       page:String(page),
       page_size:'1000',
-      order_by:'asc',
-      sort_by:'time',
-      time_begin:pbxTime(from,dateFormat,timeFormat,timeZone),
-      time_end:pbxTime(to,dateFormat,timeFormat,timeZone)
+      ...timeRange
     });
     const payload=await yeastarFetch(
       baseUrl,
@@ -341,12 +383,15 @@ async function fetchCalls(
     all.push(...rows);
     if(rows.length<1000||all.length>=Number(payload.total_number||0))break;
   }
-  return {
-    apiVersion,
-    calls:all.map(item=>normalizeCall(
-      item,apiVersion,dateFormat,timeZone,monitored
-    )).filter(Boolean)
-  };
+  const calls=all.map(item=>normalizeCall(
+    item,apiVersion,dateFormat,timeZone,monitored
+  )).filter(call=>{
+    const startedAt=Date.parse(String(call?.startedAt||''));
+    return Number.isFinite(startedAt)
+      &&startedAt>=from.getTime()
+      &&startedAt<=to.getTime();
+  });
+  return {apiVersion,calls};
 }
 
 async function handleTest(connectionId:string,tenantId:string){

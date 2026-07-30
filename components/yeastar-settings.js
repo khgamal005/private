@@ -13,7 +13,8 @@ const DEFAULT={
     initialHistoryDays:30,
     apiMode:'auto'
   },
-  configuredSecrets:[]
+  configuredSecrets:[],
+  staffOptions:[]
 };
 
 export default function YeastarSettings({slug}){
@@ -23,16 +24,21 @@ export default function YeastarSettings({slug}){
   const [busy,setBusy]=useState('');
   const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
+  const [extensionsText,setExtensionsText]=useState(
+    DEFAULT.publicConfig.extensions
+  );
 
   useEffect(()=>{
     let alive=true;
-    fetch(`/api/yeastar/settings?tenantSlug=${encodeURIComponent(slug)}`,{
-      cache:'no-store'
-    })
-      .then(async response=>{
-        const payload=await response.json();
-        if(!response.ok)throw new Error(payload.error||'تعذر تحميل الإعدادات');
-        if(alive)setData({...DEFAULT,...payload});
+    fetchSettings(slug)
+      .then(next=>{
+        if(alive){
+          setData(next);
+          setExtensionsText(
+            next.publicConfig.extensions
+              ||DEFAULT.publicConfig.extensions
+          );
+        }
       })
       .catch(err=>alive&&setError(err.message))
       .finally(()=>alive&&setLoading(false));
@@ -45,8 +51,10 @@ export default function YeastarSettings({slug}){
       headers:{'content-type':'application/json'},
       body:JSON.stringify({tenantSlug:slug,payload})
     });
-    const result=await response.json();
-    if(!response.ok)throw new Error(result.error||'تعذر تنفيذ العملية');
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok){
+      throw new Error(errorMessage(result.error,'تعذر تنفيذ العملية'));
+    }
     return result;
   }
 
@@ -55,11 +63,21 @@ export default function YeastarSettings({slug}){
     setBusy('save');setError('');setNotice('');
     try{
       const values=Object.fromEntries(new FormData(event.currentTarget));
+      const extensions=parseExtensions(values.extensions);
+      const extensionAssignments=Object.fromEntries(
+        extensions
+          .map(extension=>[
+            extension,
+            String(values[`extensionAssignment:${extension}`]||'').trim()
+          ])
+          .filter(([,staffId])=>Boolean(staffId))
+      );
       await post('save',{
         displayName:String(values.displayName||'Yeastar P550').trim(),
         publicConfig:{
           baseUrl:String(values.baseUrl||'').trim(),
-          extensions:String(values.extensions||'').trim(),
+          extensions:extensions.join(', '),
+          extensionAssignments,
           timezone:values.timezone,
           syncIntervalMinutes:Number(values.syncIntervalMinutes),
           initialHistoryDays:Number(values.initialHistoryDays),
@@ -70,13 +88,14 @@ export default function YeastarSettings({slug}){
           clientSecret:String(values.clientSecret||'').trim()
         }
       });
+      const refreshed=await fetchSettings(slug);
+      setData(refreshed);
+      setExtensionsText(
+        refreshed.publicConfig.extensions
+          ||DEFAULT.publicConfig.extensions
+      );
       setNotice('تم حفظ الإعدادات وتشفير بيانات API. نفّذ اختبار الاتصال الآن.');
       router.refresh();
-      const refreshed=await fetch(
-        `/api/yeastar/settings?tenantSlug=${encodeURIComponent(slug)}`,
-        {cache:'no-store'}
-      ).then(response=>response.json());
-      setData({...DEFAULT,...refreshed});
     }catch(err){setError(err.message)}finally{setBusy('')}
   }
 
@@ -93,6 +112,12 @@ export default function YeastarSettings({slug}){
           `اكتملت المزامنة: ${result.fetchedCount||0} سجل، جديد ${result.insertedCount||0}، محدث ${result.updatedCount||0}.`
         );
       }
+      const refreshed=await fetchSettings(slug);
+      setData(refreshed);
+      setExtensionsText(
+        refreshed.publicConfig.extensions
+          ||DEFAULT.publicConfig.extensions
+      );
       router.refresh();
     }catch(err){setError(err.message)}finally{setBusy('')}
   }
@@ -100,6 +125,9 @@ export default function YeastarSettings({slug}){
   if(loading)return <section className="mt-panel"><div className="mt-empty">جارٍ تحميل إعدادات Yeastar…</div></section>;
   const config=data.publicConfig||DEFAULT.publicConfig;
   const configured=new Set(data.configuredSecrets||[]);
+  const extensions=parseExtensions(extensionsText);
+  const assignments=config.extensionAssignments||{};
+  const staffOptions=data.staffOptions||[];
 
   return <section className="mt-yeastar-settings">
     <section className="mt-kpis">
@@ -134,7 +162,7 @@ export default function YeastarSettings({slug}){
         <div>
           <small>YEASTAR P-SERIES API</small>
           <h3>ربط السنترال وتقارير المكالمات</h3>
-          <p>الإعداد الحالي مهيأ لجهاز P550 والتحويلة 105، ويمكن توسيعه لأي عدد من التحويلات.</p>
+          <p>اربط كل تحويلة بالموظف الصحيح لتظهر مكالماته داخل لوحة أدائه دون خلط بيانات الفريق.</p>
         </div>
         <div className="mt-page-actions">
           <button type="button" className="mt-button" disabled={!data.configured||Boolean(busy)} onClick={()=>run('test')}>
@@ -163,8 +191,15 @@ export default function YeastarSettings({slug}){
           <small>{configured.has('clientSecret')?'اتركه فارغًا للاحتفاظ بالقيمة الحالية':'يُحفظ داخل Supabase Vault'}</small>
         </label>
         <label className="mt-field">التحويلات المراد متابعتها
-          <input name="extensions" dir="ltr" defaultValue={config.extensions||'105'} placeholder="105, 106, 107" required/>
-          <small>افصل بين التحويلات بفاصلة. البداية الحالية: 105 لشهد.</small>
+          <input
+            name="extensions"
+            dir="ltr"
+            value={extensionsText}
+            onChange={event=>setExtensionsText(event.target.value)}
+            placeholder="105, 106, 107"
+            required
+          />
+          <small>افصل بين التحويلات بفاصلة، ثم اختر الموظف المقابل لكل تحويلة أدناه.</small>
         </label>
         <label className="mt-field">المنطقة الزمنية
           <select name="timezone" defaultValue={config.timezone||'Asia/Riyadh'}>
@@ -173,6 +208,36 @@ export default function YeastarSettings({slug}){
             <option value="UTC">UTC</option>
           </select>
         </label>
+        <fieldset className="mt-field" style={{gridColumn:'1 / -1'}}>
+          <legend>ربط التحويلات بالموظفين</legend>
+          <small>هذا الربط هو أساس إحصاءات المكالمات الشخصية ولوحة أداء الفريق.</small>
+          <div className="mt-form">
+            {extensions.map(extension=><label
+              className="mt-field"
+              key={extension}
+            >
+              التحويلة {extension}
+              <select
+                name={`extensionAssignment:${extension}`}
+                defaultValue={assignments[extension]||''}
+              >
+                <option value="">غير مرتبطة بموظف</option>
+                {staffOptions.map(staff=><option
+                  key={staff.id}
+                  value={staff.id}
+                >
+                  {staff.name} — {staff.jobTitle||staff.roleKey}
+                </option>)}
+              </select>
+            </label>)}
+            {!extensions.length&&<div className="mt-empty">
+              أدخل تحويلة صحيحة أولًا.
+            </div>}
+            {extensions.length>0&&!staffOptions.length&&<div className="mt-empty">
+              لا يوجد موظفون نشطون متاحون للربط.
+            </div>}
+          </div>
+        </fieldset>
         <label className="mt-field">تكرار المزامنة
           <select name="syncIntervalMinutes" defaultValue={String(config.syncIntervalMinutes||60)}>
             <option value="15">كل 15 دقيقة</option>
@@ -211,6 +276,33 @@ export default function YeastarSettings({slug}){
   </section>;
 }
 
+async function fetchSettings(slug){
+  const response=await fetch(
+    `/api/yeastar/settings?tenantSlug=${encodeURIComponent(slug)}`,
+    {cache:'no-store'}
+  );
+  const payload=await response.json().catch(()=>({}));
+  if(!response.ok){
+    throw new Error(errorMessage(payload.error,'تعذر تحميل الإعدادات'));
+  }
+  return {
+    ...DEFAULT,
+    ...payload,
+    publicConfig:{
+      ...DEFAULT.publicConfig,
+      ...(payload.publicConfig||{})
+    }
+  };
+}
+
+function errorMessage(value,fallback){
+  if(typeof value==='string'&&value.trim())return value;
+  if(value&&typeof value==='object'){
+    return value.message||value.error_description||value.code||fallback;
+  }
+  return fallback;
+}
+
 function statusLabel(value){
   return ({
     active:'متصل',
@@ -224,4 +316,13 @@ function statusLabel(value){
 
 function intervalLabel(value){
   return ({15:'15 د',30:'30 د',60:'ساعة',360:'6 ساعات',1440:'يومي'})[Number(value)]||'ساعة';
+}
+
+function parseExtensions(value){
+  return [...new Set(
+    String(value||'')
+      .split(/[\s,;]+/)
+      .map(item=>item.trim())
+      .filter(item=>/^\d{1,10}$/.test(item))
+  )].slice(0,100);
 }

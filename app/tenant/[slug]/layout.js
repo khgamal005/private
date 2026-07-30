@@ -6,8 +6,13 @@ export const dynamic='force-dynamic';
 
 export default async function TenantLayout({children,params}){
   const {slug}=await params;
-  const [context,data]=await Promise.all([requireTenant(slug),getTenant(slug)]);
-  const membership=context.memberships?.find(item=>item.tenantSlug===slug);
+  const [context,data]=await Promise.all([
+    requireTenant(slug),
+    getTenant(slug)
+  ]);
+  const membership=context.memberships?.find(
+    item=>item.tenantSlug===slug
+  );
   return <WorkspaceShell
     kind="tenant"
     slug={slug}
@@ -15,7 +20,9 @@ export default async function TenantLayout({children,params}){
     email={context.subject.email}
     permissions={membership?.permissions||[]}
     platformAccess={context.platformAccess}
-    roleLabel={context.platformAccess?'إدارة منصة ماركتون':roleName(membership?.roles?.[0])}
+    roleLabel={context.platformAccess
+      ?'إدارة منصة ماركتون'
+      :roleName(membership?.roles?.[0])}
   >{children}</WorkspaceShell>;
 }
 
@@ -29,6 +36,7 @@ function roleName(roleKey){
     sales_user:'مسؤول مبيعات',
     customer_service:'خدمة العملاء',
     data_officer:'مسؤول البيانات',
-    data_analyst:'محلل البيانات'
+    data_analyst:'محلل البيانات',
+    training_manager:'مدير التدريب'
   })[roleKey]||'مستخدم المنشأة';
 }

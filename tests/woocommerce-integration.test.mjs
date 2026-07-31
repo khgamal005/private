@@ -7,10 +7,13 @@ const migration=await read(
   '../supabase/migrations/20260731023000_woocommerce_course_commerce_sync_v1.sql'
 );
 const edge=await read('../supabase/functions/woocommerce-sync/index.ts');
-const api=await read('../app/api/woocommerce/[action]/route.js');
+const legacyApi=await read('../app/api/woocommerce/[action]/route.js');
+const commerceApi=await read('../app/api/commerce/[provider]/[action]/route.js');
 const panel=await read('../components/woocommerce-sync-panel.js');
+const hub=await read('../components/commerce-integration-hub.js');
 const catalog=await read('../components/course-catalog.js');
-const page=await read('../app/tenant/[slug]/courses/page.js');
+const coursesPage=await read('../app/tenant/[slug]/courses/page.js');
+const integrationsPage=await read('../app/tenant/[slug]/integrations/page.js');
 const config=await read('../supabase/config.toml');
 const proxy=await read('../proxy.js');
 
@@ -98,21 +101,29 @@ test('core WooCommerce resources and scheduled reconciliation are supported',()=
   assert.match(config,/\[functions\.woocommerce-sync\][\s\S]*verify_jwt\s*=\s*false/);
 });
 
-test('application route keeps secrets server-side and course UI exposes sync controls',()=>{
-  assert.match(api,/ACCESS_COOKIE/);
-  assert.match(api,/authorization:`Bearer \$\{token\}`/);
-  assert.doesNotMatch(api,/SERVICE_ROLE|service_role/);
+test('standalone integrations UI keeps secrets server-side and routes WooCommerce actions',()=>{
+  assert.match(legacyApi,/ACCESS_COOKIE/);
+  assert.match(legacyApi,/authorization:`Bearer \$\{token\}`/);
+  assert.doesNotMatch(legacyApi,/SERVICE_ROLE|service_role/);
+  assert.match(commerceApi,/provider==='woocommerce'/);
+  assert.match(commerceApi,/v2_tenant_woocommerce_action/);
+  assert.match(commerceApi,/\/functions\/v1\/woocommerce-sync/);
   assert.match(proxy,/\/api\/woocommerce/);
-  assert.match(page,/getTenantWooCommerce/);
-  assert.match(page,/commerce\?\.canManage/);
+  assert.match(proxy,/\/api\/commerce/);
+  assert.match(integrationsPage,/getTenantCommerceHub/);
+  assert.match(integrationsPage,/providerKey:'woocommerce'/);
+  assert.match(coursesPage,/safeCommerceHub/);
   assert.match(panel,/Consumer Key/);
   assert.match(panel,/Consumer Secret/);
-  assert.match(panel,/مزامنة الآن/);
-  assert.match(panel,/يدوي فقط/);
-  assert.match(panel,/أسبوعي/);
-  assert.match(panel,/الطلبات والمدفوعات/);
-  assert.match(panel,/syncScope:scopeList\(scope\)/);
-  assert.match(panel,/matchBySku:Boolean\(scope\.matchBySku\)/);
+  assert.match(hub,/consumerKey/);
+  assert.match(hub,/consumerSecret/);
+  assert.match(hub,/storeUrl/);
+  assert.match(hub,/مزامنة الآن/);
+  assert.match(hub,/يدوي فقط/);
+  assert.match(hub,/أسبوعي/);
+  assert.match(hub,/الطلبات والمدفوعات/);
+  assert.match(hub,/syncScope:scope/);
+  assert.match(hub,/matchBySku/);
   assert.match(catalog,/regularPriceMinor/);
   assert.match(catalog,/salePriceMinor/);
   assert.match(catalog,/فتح في المتجر/);

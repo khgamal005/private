@@ -11,6 +11,9 @@ const migration=[
   await read('../supabase/migrations/20260731040220_multi_store_commerce_service_api_v1.sql'),
   await read('../supabase/migrations/20260731040230_multi_store_commerce_runtime_v1.sql')
 ].join('\n');
+const activation=await read(
+  '../supabase/migrations/20260731123000_activate_multi_store_commerce_hub_v1.sql'
+);
 const edge=[
   await read('../supabase/functions/commerce-sync/index.ts'),
   await read('../supabase/functions/commerce-sync/shared.ts'),
@@ -21,7 +24,8 @@ const edge=[
 ].join('\n');
 const route=await read('../app/api/commerce/[provider]/[action]/route.js');
 const hub=await read('../components/commerce-integration-hub.js');
-const page=await read('../app/tenant/[slug]/courses/page.js');
+const css=await read('../components/commerce-integration-hub.module.css');
+const page=await read('../app/tenant/[slug]/integrations/page.js');
 const api=await read('../lib/commerce-api.js');
 const proxy=await read('../proxy.js');
 const config=await read('../supabase/config.toml');
@@ -72,11 +76,14 @@ test('configuration validates provider capabilities and blocks private custom UR
   assert.match(edge,/redirect:\s*'error'/);
 });
 
-test('tenant API uses the user session and never exposes a service key',()=>{
+test('tenant API uses the user session and unifies WooCommerce with the provider contract',()=>{
   assert.match(route,/ACCESS_COOKIE/);
   assert.match(route,/authorization:`Bearer \$\{token\}`/);
   assert.match(route,/v2_tenant_commerce_hub_action/);
+  assert.match(route,/v2_tenant_woocommerce_action/);
   assert.match(route,/\/functions\/v1\/commerce-sync/);
+  assert.match(route,/\/functions\/v1\/woocommerce-sync/);
+  assert.match(route,/PROVIDERS=new Set\(\['woocommerce','salla','zid','shopify','custom'\]\)/);
   assert.match(route,/x-idempotency-key/);
   assert.match(route,/test_connection/);
   assert.match(route,/sync_now/);
@@ -114,20 +121,34 @@ test('live adapters use current provider authentication and APIs',()=>{
   assert.match(edge,/graphql\.json/);
 });
 
-test('manager UI exposes setup, connection test, sync, schedules, and safe secret fields',()=>{
-  assert.match(hub,/مركز ربط المتاجر/);
-  assert.match(hub,/salla/);
-  assert.match(hub,/zid/);
-  assert.match(hub,/shopify/);
-  assert.match(hub,/custom/);
-  assert.match(hub,/type={SECRET_FIELDS\.has\(fieldKey\)\?'password':'text'}/);
+test('manager UI renders three branded cards per row and every connect button opens a modal',()=>{
+  assert.match(hub,/المزامنة والترابط/);
+  assert.match(hub,/\/integrations\/woocommerce\.svg/);
+  assert.match(hub,/\/integrations\/salla\.svg/);
+  assert.match(hub,/\/integrations\/zid\.svg/);
+  assert.match(hub,/\/integrations\/shopify\.svg/);
+  assert.match(hub,/onOpen=\{\(\)=>openModal\(provider,'connect'\)\}/);
+  assert.doesNotMatch(hub,/scrollIntoView/);
+  assert.match(hub,/consumerKey/);
+  assert.match(hub,/consumerSecret/);
   assert.match(hub,/اختبار الاتصال/);
   assert.match(hub,/مزامنة الآن/);
   assert.match(hub,/matchBySku/);
   assert.match(hub,/weekly/);
+  assert.match(css,/grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+  assert.match(page,/FALLBACK_PROVIDERS/);
+  assert.match(page,/normalizeProviders/);
   assert.match(page,/getTenantCommerceHub/);
   assert.match(api,/v2_tenant_commerce_hub_snapshot/);
   assert.match(proxy,/\/api\/commerce/);
+});
+
+test('activation grants integration management only to tenant leadership roles',()=>{
+  assert.match(activation,/tenant\.integrations\.manage/);
+  assert.match(activation,/tenant_owner/);
+  assert.match(activation,/tenant_admin/);
+  assert.match(activation,/commerce_hub_provider_catalog_incomplete/);
+  assert.doesNotMatch(activation,/sales_user|customer_service|data_officer/);
 });
 
 test('commerce Edge Function uses explicit tenant authorization contract',()=>{

@@ -5,7 +5,7 @@ import {ACCESS_COOKIE,SUPABASE_KEY,SUPABASE_URL} from '../../../../../lib/config
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 
-const PROVIDERS=new Set(['salla','zid','shopify','custom']);
+const PROVIDERS=new Set(['woocommerce','salla','zid','shopify','custom']);
 const ACTIONS=new Set(['save','disable','enable','test','sync']);
 
 function json(body,status=200){
@@ -16,8 +16,8 @@ async function userToken(){
   return (await cookies()).get(ACCESS_COOKIE)?.value||null;
 }
 
-async function rpc(token,args){
-  const response=await fetch(`${SUPABASE_URL}/rest/v1/rpc/v2_tenant_commerce_hub_action`,{
+async function rpc(token,name,args){
+  const response=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`,{
     method:'POST',
     headers:{
       apikey:SUPABASE_KEY,
@@ -56,6 +56,25 @@ async function invokeCommerceSync(token,provider,action,tenantSlug,payload,reque
   return result;
 }
 
+async function invokeWooCommerceSync(token,action,tenantSlug){
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/woocommerce-sync`,{
+    method:'POST',
+    headers:{
+      apikey:SUPABASE_KEY,
+      authorization:`Bearer ${token}`,
+      'content-type':'application/json'
+    },
+    body:JSON.stringify({
+      tenantSlug,
+      action:action==='test'?'test_connection':'sync_now'
+    }),
+    cache:'no-store'
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(result?.error||'woocommerce_connection_failed');
+  return result;
+}
+
 function translated(value){
   const raw=String(value||'');
   const messages={
@@ -65,7 +84,6 @@ function translated(value){
     integration_addon_not_enabled:'إضافة هذا المتجر غير مفعلة ضمن باقة المنشأة.',
     integration_connection_not_found:'احفظ إعدادات المتجر أولًا.',
     commerce_provider_not_supported:'منصة المتجر غير مدعومة.',
-    commerce_use_woocommerce_connector:'استخدم لوحة WooCommerce الحالية لإدارة هذا الربط.',
     commerce_invalid_frequency:'جدول المزامنة غير صالح.',
     commerce_invalid_scope:'اختيارات المزامنة غير صالحة.',
     commerce_scope_not_supported_by_provider:'اختر فقط البيانات التي تدعمها منصة المتجر.',
@@ -81,10 +99,43 @@ function translated(value){
     remote_http_403:'رمز الوصول لا يملك الصلاحيات المطلوبة.',
     remote_timeout:'انتهت مهلة اتصال المتجر.',
     remote_network_error:'تعذر الوصول إلى المتجر.',
-    commerce_sync_failed:'تعذر تشغيل المزامنة.'
+    commerce_sync_failed:'تعذر تشغيل المزامنة.',
+    woocommerce_connection_not_found:'احفظ إعدادات WooCommerce أولًا.',
+    woocommerce_credentials_required:'أدخل Consumer Key وConsumer Secret من WooCommerce.',
+    woocommerce_store_https_required:'أدخل رابط HTTPS عامًا وصحيحًا لمتجر WordPress.',
+    woocommerce_invalid_frequency:'جدول المزامنة غير صالح.',
+    woocommerce_invalid_scope:'اختيارات المزامنة غير صالحة.',
+    woocommerce_sync_in_progress:'توجد مزامنة تعمل الآن. انتظر اكتمالها ثم حاول مجددًا.',
+    woocommerce_authentication_failed:'رفض WooCommerce المفاتيح. راجع صلاحية Consumer Key وSecret.',
+    woocommerce_forbidden:'المفتاح لا يملك صلاحية قراءة البيانات المطلوبة.',
+    woocommerce_not_found:'لم يُعثر على WooCommerce REST API في هذا الرابط.',
+    woocommerce_rate_limited:'المتجر أوقف الطلبات مؤقتًا. أعد المحاولة بعد دقائق.',
+    woocommerce_invalid_response:'استجابة المتجر غير صالحة أو محجوبة من الاستضافة.',
+    woocommerce_connection_failed:'تعذر الوصول إلى المتجر. راجع الرابط والجدار الناري.',
+    woocommerce_remote_http_401:'رفض WooCommerce المفاتيح. راجع Consumer Key وSecret.',
+    woocommerce_remote_http_403:'المفتاح لا يملك صلاحية قراءة بيانات WooCommerce.',
+    woocommerce_remote_http_404:'لم يُعثر على WooCommerce REST API في رابط المتجر.',
+    woocommerce_remote_http_429:'المتجر أوقف الطلبات مؤقتًا. أعد المحاولة بعد دقائق.',
+    woocommerce_remote_unavailable:'تعذر الوصول إلى المتجر. راجع الرابط والجدار الناري.',
+    woocommerce_public_https_url_required:'يجب استخدام رابط HTTPS عام للمتجر.',
+    invalid_woocommerce_action:'عملية WooCommerce غير مدعومة.'
   };
   const key=Object.keys(messages).find(code=>raw.includes(code));
   return messages[key]||'تعذر حفظ ربط المتجر. راجع البيانات ثم أعد المحاولة.';
+}
+
+async function handleWooCommerce({token,action,tenantSlug,payload}){
+  if(action==='enable'){
+    throw new Error('invalid_woocommerce_action');
+  }
+  if(action==='test'||action==='sync'){
+    return invokeWooCommerceSync(token,action,tenantSlug);
+  }
+  return rpc(token,'v2_tenant_woocommerce_action',{
+    p_tenant_slug:tenantSlug,
+    p_action:action,
+    p_payload:payload
+  });
 }
 
 export async function POST(request,{params}){
@@ -99,11 +150,30 @@ export async function POST(request,{params}){
     const tenantSlug=String(body.tenantSlug||'').trim();
     if(!tenantSlug)return json({error:'المنشأة غير محددة'},400);
     const payload=body.payload||{};
-    if(action==='test'||action==='sync'){
-      const data=await invokeCommerceSync(token,provider,action,tenantSlug,payload,request);
+
+    if(provider==='woocommerce'){
+      const data=await handleWooCommerce({
+        token,
+        action,
+        tenantSlug,
+        payload
+      });
       return json({success:true,data});
     }
-    const data=await rpc(token,{
+
+    if(action==='test'||action==='sync'){
+      const data=await invokeCommerceSync(
+        token,
+        provider,
+        action,
+        tenantSlug,
+        payload,
+        request
+      );
+      return json({success:true,data});
+    }
+
+    const data=await rpc(token,'v2_tenant_commerce_hub_action',{
       p_tenant_slug:tenantSlug,
       p_provider:provider,
       p_action:action,

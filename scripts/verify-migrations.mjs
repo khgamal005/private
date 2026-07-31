@@ -44,10 +44,17 @@ const roleDashboardMembershipFix='20260730172630_fix_role_dashboard_membership_r
 const yeastarSyncWindowFix='20260730185254_fix_yeastar_v1_sync_window_context.sql';
 const tenantReportingCenter='20260730204215_tenant_reporting_center_v1.sql';
 const woocommerceCommerceSync='20260731023000_woocommerce_course_commerce_sync_v1.sql';
+const commerceHubCore='20260731040000_multi_store_commerce_hub_core_v1.sql';
+const commerceHubDataPlane='20260731040100_multi_store_commerce_data_plane_v1.sql';
+const commerceHubSnapshot='20260731040200_multi_store_commerce_snapshot_v1.sql';
+const commerceHubTenantActions='20260731040210_multi_store_commerce_tenant_actions_v1.sql';
+const commerceHubServiceApi='20260731040220_multi_store_commerce_service_api_v1.sql';
+const commerceHubRuntime='20260731040230_multi_store_commerce_runtime_v1.sql';
+const commerceHubActivation='20260731123000_activate_multi_store_commerce_hub_v1.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation,incentiveCourseTitle,legacyEngagementHardening,goalsIncentives,yeastarTelephony,yeastarSyncRunsIndex,roleDashboards,roleDashboardMembershipFix,yeastarSyncWindowFix,tenantReportingCenter,woocommerceCommerceSync],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation,incentiveCourseTitle,legacyEngagementHardening,goalsIncentives,yeastarTelephony,yeastarSyncRunsIndex,roleDashboards,roleDashboardMembershipFix,yeastarSyncWindowFix,tenantReportingCenter,woocommerceCommerceSync,commerceHubCore,commerceHubDataPlane,commerceHubSnapshot,commerceHubTenantActions,commerceHubServiceApi,commerceHubRuntime,commerceHubActivation],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -87,6 +94,13 @@ const roleDashboardMembershipFixSql=await readFile(new URL(roleDashboardMembersh
 const yeastarSyncWindowFixSql=await readFile(new URL(yeastarSyncWindowFix,migrationsUrl),'utf8');
 const tenantReportingCenterSql=await readFile(new URL(tenantReportingCenter,migrationsUrl),'utf8');
 const woocommerceCommerceSyncSql=await readFile(new URL(woocommerceCommerceSync,migrationsUrl),'utf8');
+const commerceHubCoreSql=await readFile(new URL(commerceHubCore,migrationsUrl),'utf8');
+const commerceHubDataPlaneSql=await readFile(new URL(commerceHubDataPlane,migrationsUrl),'utf8');
+const commerceHubSnapshotSql=await readFile(new URL(commerceHubSnapshot,migrationsUrl),'utf8');
+const commerceHubTenantActionsSql=await readFile(new URL(commerceHubTenantActions,migrationsUrl),'utf8');
+const commerceHubServiceApiSql=await readFile(new URL(commerceHubServiceApi,migrationsUrl),'utf8');
+const commerceHubRuntimeSql=await readFile(new URL(commerceHubRuntime,migrationsUrl),'utf8');
+const commerceHubActivationSql=await readFile(new URL(commerceHubActivation,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -337,3 +351,24 @@ assert.match(woocommerceCommerceSyncSql,/alter table commerce_sync\.connections 
 assert.match(woocommerceCommerceSyncSql,/revoke all on all tables in schema commerce_sync/);
 
 console.log('Verified the clean v2 database, tenant reporting, role dashboards, learner automation, modular integrations, Yeastar telephony, and WooCommerce commerce sync.');
+
+// Commerce Hub forward-migration review
+assert.match(commerceHubCoreSql,/create schema if not exists commerce_hub/);
+assert.match(commerceHubCoreSql,/tenant\.integrations\.manage/);
+assert.match(commerceHubCoreSql,/enable row level security/);
+assert.doesNotMatch(commerceHubCoreSql,/delete from academy\.courses|drop schema commerce_sync/i);
+assert.match(commerceHubDataPlaneSql,/v2_commerce_hub_store_batch/);
+assert.match(commerceHubDataPlaneSql,/match_by_sku/);
+assert.doesNotMatch(commerceHubDataPlaneSql,/delete from academy\.courses/i);
+assert.match(commerceHubSnapshotSql,/v2_tenant_commerce_hub_snapshot/);
+assert.doesNotMatch(commerceHubSnapshotSql,/decrypted_secrets/);
+assert.match(commerceHubTenantActionsSql,/v2_tenant_commerce_hub_action/);
+assert.match(commerceHubTenantActionsSql,/integration_secret_upsert/);
+assert.match(commerceHubServiceApiSql,/v2_commerce_hub_authorize/);
+assert.match(commerceHubServiceApiSql,/to service_role/);
+assert.match(commerceHubRuntimeSql,/v2_commerce_hub_finish_test/);
+assert.match(commerceHubRuntimeSql,/adapter_status = 'active'/);
+assert.match(commerceHubActivationSql,/tenant\.integrations\.manage/);
+assert.match(commerceHubActivationSql,/tenant_owner/);
+assert.match(commerceHubActivationSql,/tenant_admin/);
+assert.match(commerceHubActivationSql,/commerce_hub_provider_catalog_incomplete/);

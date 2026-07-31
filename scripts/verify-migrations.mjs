@@ -43,10 +43,11 @@ const roleDashboards='20260730170651_role_based_employee_dashboards_v2.sql';
 const roleDashboardMembershipFix='20260730172630_fix_role_dashboard_membership_resolution.sql';
 const yeastarSyncWindowFix='20260730185254_fix_yeastar_v1_sync_window_context.sql';
 const tenantReportingCenter='20260730204215_tenant_reporting_center_v1.sql';
+const woocommerceCommerceSync='20260731023000_woocommerce_course_commerce_sync_v1.sql';
 
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation,incentiveCourseTitle,legacyEngagementHardening,goalsIncentives,yeastarTelephony,yeastarSyncRunsIndex,roleDashboards,roleDashboardMembershipFix,yeastarSyncWindowFix,tenantReportingCenter],
+  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation,incentiveCourseTitle,legacyEngagementHardening,goalsIncentives,yeastarTelephony,yeastarSyncRunsIndex,roleDashboards,roleDashboardMembershipFix,yeastarSyncWindowFix,tenantReportingCenter,woocommerceCommerceSync],
   'the v2 branch must contain only the clean foundation and reviewed forward migrations'
 );
 
@@ -85,6 +86,7 @@ const roleDashboardSql=await readFile(new URL(roleDashboards,migrationsUrl),'utf
 const roleDashboardMembershipFixSql=await readFile(new URL(roleDashboardMembershipFix,migrationsUrl),'utf8');
 const yeastarSyncWindowFixSql=await readFile(new URL(yeastarSyncWindowFix,migrationsUrl),'utf8');
 const tenantReportingCenterSql=await readFile(new URL(tenantReportingCenter,migrationsUrl),'utf8');
+const woocommerceCommerceSyncSql=await readFile(new URL(woocommerceCommerceSync,migrationsUrl),'utf8');
 assert.match(sql,/create schema if not exists core;/);
 assert.match(sql,/create schema if not exists access_control;/);
 assert.match(sql,/create schema if not exists catalog;/);
@@ -320,5 +322,18 @@ assert.match(tenantReportingCenterSql,/v_to_date - v_from_date > 365/);
 assert.match(tenantReportingCenterSql,/revoke all on function[\s\S]*from public, anon/);
 assert.match(tenantReportingCenterSql,/grant execute on function[\s\S]*to authenticated/);
 assert.doesNotMatch(tenantReportingCenterSql,/service_role|SUPABASE_SECRET/i);
+assert.match(woocommerceCommerceSyncSql,/create schema if not exists commerce_sync/);
+assert.match(woocommerceCommerceSyncSql,/create table commerce_sync\.connections/);
+assert.match(woocommerceCommerceSyncSql,/create table commerce_sync\.external_entities/);
+assert.match(woocommerceCommerceSyncSql,/create table commerce_sync\.sync_runs/);
+assert.match(woocommerceCommerceSyncSql,/v2_tenant_woocommerce_snapshot/);
+assert.match(woocommerceCommerceSyncSql,/v2_tenant_woocommerce_action/);
+assert.match(woocommerceCommerceSyncSql,/v2_tenant_woocommerce_authorize/);
+assert.match(woocommerceCommerceSyncSql,/v2_woocommerce_store_batch/);
+assert.match(woocommerceCommerceSyncSql,/vault\.create_secret/);
+assert.match(woocommerceCommerceSyncSql,/cron\.schedule/);
+assert.match(woocommerceCommerceSyncSql,/woocommerce-sync/);
+assert.match(woocommerceCommerceSyncSql,/alter table commerce_sync\.connections enable row level security/);
+assert.match(woocommerceCommerceSyncSql,/revoke all on all tables in schema commerce_sync/);
 
-console.log('Verified the clean v2 database, tenant reporting, role dashboards, learner automation, modular integration hub, and Yeastar telephony.');
+console.log('Verified the clean v2 database, tenant reporting, role dashboards, learner automation, modular integrations, Yeastar telephony, and WooCommerce commerce sync.');

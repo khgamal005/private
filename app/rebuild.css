@@ -538,3 +538,198 @@ button,input,select,textarea{font:inherit}
   .mt-password-reset-modal .mt-reset-account>div{grid-template-columns:64px minmax(0,1fr)}
   .mt-password-reset-modal .mt-reset-success>div{grid-template-columns:1fr}
 }
+
+/* WooCommerce course-commerce connector */
+.mt-woocommerce-sync{
+  margin-bottom:18px;
+  overflow:hidden;
+  border:1px solid #d9d0ee;
+  border-radius:18px;
+  background:linear-gradient(135deg,#f8f4ff 0%,#fff 48%,#f6fbff 100%);
+  box-shadow:var(--mt-shadow);
+}
+.mt-woocommerce-sync.active{border-color:#b9dcc8}
+.mt-woocommerce-sync.error{border-color:#efc4ca}
+.mt-woocommerce-sync>header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:18px 20px;
+  border-bottom:1px solid rgba(113,84,151,.12);
+}
+.mt-woocommerce-brand{
+  display:flex;
+  min-width:0;
+  align-items:center;
+  gap:14px;
+}
+.mt-woocommerce-brand>span{
+  display:grid;
+  width:48px;
+  height:48px;
+  flex:0 0 auto;
+  place-items:center;
+  border-radius:15px;
+  background:#7f54b3;
+  color:#fff;
+  box-shadow:0 10px 24px rgba(127,84,179,.24);
+  font:900 13px/1 Arial,sans-serif;
+}
+.mt-woocommerce-brand>div{min-width:0}
+.mt-woocommerce-brand small{
+  color:#7f54b3;
+  font:800 8px/1.3 var(--mt-font-en,Arial,sans-serif);
+  letter-spacing:.11em;
+}
+.mt-woocommerce-brand h3{
+  margin:5px 0;
+  color:var(--mt-navy-900);
+  font-size:14px;
+}
+.mt-woocommerce-brand p{
+  margin:0;
+  color:var(--mt-muted);
+  font-size:9px;
+  line-height:1.8;
+}
+.mt-woocommerce-state{
+  display:flex;
+  flex:0 0 auto;
+  align-items:center;
+  gap:8px;
+}
+.mt-woocommerce-body{padding:16px 20px 18px}
+.mt-woocommerce-stats{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:9px;
+}
+.mt-woocommerce-stats>div{
+  display:grid;
+  gap:5px;
+  padding:11px 12px;
+  border:1px solid rgba(127,84,179,.13);
+  border-radius:12px;
+  background:rgba(255,255,255,.78);
+}
+.mt-woocommerce-stats b{color:var(--mt-navy-900);font-size:17px}
+.mt-woocommerce-stats span{color:var(--mt-muted);font-size:8px}
+.mt-woocommerce-meta{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:9px;
+  margin:12px 0;
+}
+.mt-woocommerce-meta>div{
+  min-width:0;
+  padding:9px 11px;
+  border-radius:10px;
+  background:#fff;
+}
+.mt-woocommerce-meta dt{color:var(--mt-muted);font-size:7px}
+.mt-woocommerce-meta dd{
+  overflow:hidden;
+  margin:4px 0 0;
+  font-size:8px;
+  font-weight:800;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.mt-woocommerce-last-run{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:12px;
+  padding:9px 11px;
+  border-radius:10px;
+  background:#eef3f7;
+  color:#506575;
+  font-size:8px;
+}
+.mt-woocommerce-last-run.success,
+.mt-woocommerce-last-run.succeeded{background:#eaf8f1;color:#246a48}
+.mt-woocommerce-last-run.failed{background:#fff0f1;color:#9e3040}
+.mt-woocommerce-body>footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mt-woocommerce-empty{
+  display:grid;
+  grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr);
+  gap:18px;
+  padding:17px 20px;
+}
+.mt-woocommerce-empty b{font-size:11px}
+.mt-woocommerce-empty p{
+  margin:6px 0 0;
+  color:var(--mt-muted);
+  font-size:9px;
+  line-height:1.9;
+}
+.mt-woocommerce-empty ol{
+  display:grid;
+  gap:6px;
+  margin:0;
+  padding-inline-start:22px;
+  color:#5d4775;
+  font-size:8px;
+}
+.mt-woocommerce-alert{margin:0 20px 16px}
+.mt-woocommerce-modal{width:min(850px,96vw)}
+.mt-woocommerce-modal>header p{
+  margin:5px 0 0;
+  color:var(--mt-muted);
+  font-size:8px;
+}
+.mt-woocommerce-scope{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.mt-woocommerce-scope>b{grid-column:1/-1;font-size:10px}
+.mt-woocommerce-scope .mt-checkbox-card{min-width:0}
+.mt-course-card-status{display:flex;align-items:center;gap:6px}
+.mt-woo-badge{
+  border-radius:999px;
+  background:#efe5fa;
+  color:#7f54b3;
+  padding:5px 7px;
+  font:900 7px/1 Arial,sans-serif;
+}
+.mt-course-sale-price{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.mt-course-sale-price b{color:#19704a;font-size:11px}
+.mt-course-sale-price s{color:#9a8e80;font-size:8px;font-weight:500}
+.mt-course-commerce-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:9px;
+  margin-top:-6px;
+  padding:0 16px 15px;
+}
+.mt-course-commerce-footer small{color:var(--mt-muted);font-size:7px}
+.mt-course-commerce-footer a{
+  color:#7f54b3;
+  font-size:8px;
+  font-weight:800;
+  text-decoration:none;
+}
+@media(max-width:900px){
+  .mt-woocommerce-stats,.mt-woocommerce-meta{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mt-woocommerce-empty{grid-template-columns:1fr}
+}
+@media(max-width:620px){
+  .mt-woocommerce-sync>header{
+    align-items:flex-start;
+    flex-direction:column;
+    padding:15px;
+  }
+  .mt-woocommerce-state{width:100%;justify-content:space-between}
+  .mt-woocommerce-body{padding:13px 15px 15px}
+  .mt-woocommerce-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mt-woocommerce-meta{grid-template-columns:1fr 1fr}
+  .mt-woocommerce-last-run{align-items:flex-start;flex-direction:column}
+  .mt-woocommerce-empty{padding:15px}
+  .mt-woocommerce-scope{grid-template-columns:1fr}
+  .mt-woocommerce-scope>b{grid-column:auto}
+  .mt-woocommerce-modal .mt-integration-modal-body{padding:13px}
+}

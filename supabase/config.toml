@@ -19,6 +19,16 @@ sql_paths = []
 [functions.training-automation-dispatch]
 verify_jwt = false
 
+[functions.woocommerce-sync]
+# User actions validate the bearer token through tenant-scoped RPCs, while the
+# scheduled dispatcher authenticates with its own Vault-backed secret.
+verify_jwt = false
+
+[functions.commerce-sync]
+# The function validates user JWTs through tenant-scoped RPCs and uses the
+# project secret key only for Vault-backed connector execution.
+verify_jwt = false
+
 [functions.tenant-invitation-activation]
 # The one-time invitation token is the custom bearer credential for activation.
 verify_jwt = false

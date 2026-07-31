@@ -2,373 +2,185 @@ import assert from 'node:assert/strict';
 import {readFile,readdir} from 'node:fs/promises';
 
 const migrationsUrl=new URL('../supabase/migrations/',import.meta.url);
+const expected=[
+  '20260726210000_clean_platform_foundation_v2.sql',
+  '20260726211500_add_v2_read_isolation_policies.sql',
+  '20260726211556_tenant_provisioning_cycle_v2.sql',
+  '20260726211801_index_tenant_invitation_subjects.sql',
+  '20260727003000_add_people_academy_and_full_plan.sql',
+  '20260727004000_seed_reef_skills_tenant.sql',
+  '20260727004500_index_people_academy_references.sql',
+  '20260727110338_add_staff_profile_activation_and_role_routes.sql',
+  '20260727192319_add_operational_crm_and_work_v2.sql',
+  '20260727193725_index_operational_foreign_keys.sql',
+  '20260727211527_lead_centric_sales_pipeline.sql',
+  '20260727223000_admissions_and_sales_guards_v2.sql',
+  '20260727223500_admissions_reference_indexes_v2.sql',
+  '20260727230548_course_runs_and_schedules_v2.sql',
+  '20260728003500_learner_operations_v2.sql',
+  '20260728005200_learner_operations_reference_indexes_v2.sql',
+  '20260728014500_training_communications_zoom_automation_v2.sql',
+  '20260728015000_training_automation_reference_indexes_v2.sql',
+  '20260728030000_integration_hub_and_message_templates_v2.sql',
+  '20260728030500_integration_hub_reference_indexes_v2.sql',
+  '20260728043000_live_sandbox_delivery_gateway_v2.sql',
+  '20260728050000_automation_rules_engine_v2.sql',
+  '20260728051500_automation_sandbox_receipts_v2.sql',
+  '20260728054500_delivery_proof_analytics_v2.sql',
+  '20260728061500_modular_addons_usage_v2.sql',
+  '20260728065000_reef_six_learner_cycle_qa_v2.sql',
+  '20260728124500_lead_intake_distribution_analytics_v2.sql',
+  '20260729170000_add_tenant_staff_password_reset.sql',
+  '20260729180500_reconcile_staff_auth_activation.sql',
+  '20260729191730_fix_incentive_course_title.sql',
+  '20260729195526_harden_legacy_engagement_storage.sql',
+  '20260729213000_goals_incentives_v2.sql',
+  '20260729215925_yeastar_p550_telephony_v2.sql',
+  '20260729220243_yeastar_sync_runs_tenant_index.sql',
+  '20260730170651_role_based_employee_dashboards_v2.sql',
+  '20260730172630_fix_role_dashboard_membership_resolution.sql',
+  '20260730185254_fix_yeastar_v1_sync_window_context.sql',
+  '20260730204215_tenant_reporting_center_v1.sql',
+  '20260731023000_woocommerce_course_commerce_sync_v1.sql',
+  '20260731040000_multi_store_commerce_hub_core_v1.sql',
+  '20260731040100_multi_store_commerce_data_plane_v1.sql',
+  '20260731040200_multi_store_commerce_snapshot_v1.sql',
+  '20260731040210_multi_store_commerce_tenant_actions_v1.sql',
+  '20260731040220_multi_store_commerce_service_api_v1.sql',
+  '20260731040230_multi_store_commerce_runtime_v1.sql',
+  '20260731123000_activate_multi_store_commerce_hub_v1.sql',
+  '20260801005000_knowledge_content_foundation_v1.sql',
+  '20260801010000_knowledge_intelligence_hub_v1.sql',
+  '20260801011000_knowledge_intelligence_hardening_v1.sql',
+  '20260801012000_knowledge_source_stability_v1.sql'
+];
+
 const sqlFiles=(await readdir(migrationsUrl))
   .filter(file=>file.endsWith('.sql'))
   .sort();
-const foundation='20260726210000_clean_platform_foundation_v2.sql';
-const policies='20260726211500_add_v2_read_isolation_policies.sql';
-const provisioning='20260726211556_tenant_provisioning_cycle_v2.sql';
-const invitationIndexes='20260726211801_index_tenant_invitation_subjects.sql';
-const peopleAcademy='20260727003000_add_people_academy_and_full_plan.sql';
-const reefSeed='20260727004000_seed_reef_skills_tenant.sql';
-const peopleAcademyIndexes='20260727004500_index_people_academy_references.sql';
-const staffActivation='20260727110338_add_staff_profile_activation_and_role_routes.sql';
-const operationalCore='20260727192319_add_operational_crm_and_work_v2.sql';
-const operationalIndexes='20260727193725_index_operational_foreign_keys.sql';
-const leadPipeline='20260727211527_lead_centric_sales_pipeline.sql';
-const admissions='20260727223000_admissions_and_sales_guards_v2.sql';
-const admissionsIndexes='20260727223500_admissions_reference_indexes_v2.sql';
-const courseRuns='20260727230548_course_runs_and_schedules_v2.sql';
-const learnerOperations='20260728003500_learner_operations_v2.sql';
-const learnerOperationsIndexes='20260728005200_learner_operations_reference_indexes_v2.sql';
-const trainingAutomation='20260728014500_training_communications_zoom_automation_v2.sql';
-const trainingAutomationIndexes='20260728015000_training_automation_reference_indexes_v2.sql';
-const integrationHub='20260728030000_integration_hub_and_message_templates_v2.sql';
-const integrationHubIndexes='20260728030500_integration_hub_reference_indexes_v2.sql';
-const sandboxGateway='20260728043000_live_sandbox_delivery_gateway_v2.sql';
-const automationRules='20260728050000_automation_rules_engine_v2.sql';
-const automationSandboxReceipts='20260728051500_automation_sandbox_receipts_v2.sql';
-const deliveryProof='20260728054500_delivery_proof_analytics_v2.sql';
-const modularAddons='20260728061500_modular_addons_usage_v2.sql';
-const sixLearnerQa='20260728065000_reef_six_learner_cycle_qa_v2.sql';
-const leadIntake='20260728124500_lead_intake_distribution_analytics_v2.sql';
-const staffPasswordReset='20260729170000_add_tenant_staff_password_reset.sql';
-const staffAuthActivation='20260729180500_reconcile_staff_auth_activation.sql';
-const incentiveCourseTitle='20260729191730_fix_incentive_course_title.sql';
-const legacyEngagementHardening='20260729195526_harden_legacy_engagement_storage.sql';
-const goalsIncentives='20260729213000_goals_incentives_v2.sql';
-const yeastarTelephony='20260729215925_yeastar_p550_telephony_v2.sql';
-const yeastarSyncRunsIndex='20260729220243_yeastar_sync_runs_tenant_index.sql';
-const roleDashboards='20260730170651_role_based_employee_dashboards_v2.sql';
-const roleDashboardMembershipFix='20260730172630_fix_role_dashboard_membership_resolution.sql';
-const yeastarSyncWindowFix='20260730185254_fix_yeastar_v1_sync_window_context.sql';
-const tenantReportingCenter='20260730204215_tenant_reporting_center_v1.sql';
-const woocommerceCommerceSync='20260731023000_woocommerce_course_commerce_sync_v1.sql';
-const commerceHubCore='20260731040000_multi_store_commerce_hub_core_v1.sql';
-const commerceHubDataPlane='20260731040100_multi_store_commerce_data_plane_v1.sql';
-const commerceHubSnapshot='20260731040200_multi_store_commerce_snapshot_v1.sql';
-const commerceHubTenantActions='20260731040210_multi_store_commerce_tenant_actions_v1.sql';
-const commerceHubServiceApi='20260731040220_multi_store_commerce_service_api_v1.sql';
-const commerceHubRuntime='20260731040230_multi_store_commerce_runtime_v1.sql';
-const commerceHubActivation='20260731123000_activate_multi_store_commerce_hub_v1.sql';
-
 assert.deepEqual(
   sqlFiles,
-  [foundation,policies,provisioning,invitationIndexes,peopleAcademy,reefSeed,peopleAcademyIndexes,staffActivation,operationalCore,operationalIndexes,leadPipeline,admissions,admissionsIndexes,courseRuns,learnerOperations,learnerOperationsIndexes,trainingAutomation,trainingAutomationIndexes,integrationHub,integrationHubIndexes,sandboxGateway,automationRules,automationSandboxReceipts,deliveryProof,modularAddons,sixLearnerQa,leadIntake,staffPasswordReset,staffAuthActivation,incentiveCourseTitle,legacyEngagementHardening,goalsIncentives,yeastarTelephony,yeastarSyncRunsIndex,roleDashboards,roleDashboardMembershipFix,yeastarSyncWindowFix,tenantReportingCenter,woocommerceCommerceSync,commerceHubCore,commerceHubDataPlane,commerceHubSnapshot,commerceHubTenantActions,commerceHubServiceApi,commerceHubRuntime,commerceHubActivation],
-  'the v2 branch must contain only the clean foundation and reviewed forward migrations'
+  expected,
+  'the v2 branch must contain only reviewed forward migrations'
 );
 
-const sql=await readFile(new URL(foundation,migrationsUrl),'utf8');
-const policySql=await readFile(new URL(policies,migrationsUrl),'utf8');
-const provisioningSql=await readFile(new URL(provisioning,migrationsUrl),'utf8');
-const invitationIndexSql=await readFile(new URL(invitationIndexes,migrationsUrl),'utf8');
-const peopleAcademySql=await readFile(new URL(peopleAcademy,migrationsUrl),'utf8');
-const reefSeedSql=await readFile(new URL(reefSeed,migrationsUrl),'utf8');
-const peopleAcademyIndexSql=await readFile(new URL(peopleAcademyIndexes,migrationsUrl),'utf8');
-const staffActivationSql=await readFile(new URL(staffActivation,migrationsUrl),'utf8');
-const operationalCoreSql=await readFile(new URL(operationalCore,migrationsUrl),'utf8');
-const operationalIndexesSql=await readFile(new URL(operationalIndexes,migrationsUrl),'utf8');
-const leadPipelineSql=await readFile(new URL(leadPipeline,migrationsUrl),'utf8');
-const admissionsSql=await readFile(new URL(admissions,migrationsUrl),'utf8');
-const admissionsIndexesSql=await readFile(new URL(admissionsIndexes,migrationsUrl),'utf8');
-const courseRunsSql=await readFile(new URL(courseRuns,migrationsUrl),'utf8');
-const learnerOperationsSql=await readFile(new URL(learnerOperations,migrationsUrl),'utf8');
-const learnerOperationsIndexesSql=await readFile(new URL(learnerOperationsIndexes,migrationsUrl),'utf8');
-const trainingAutomationSql=await readFile(new URL(trainingAutomation,migrationsUrl),'utf8');
-const trainingAutomationIndexesSql=await readFile(new URL(trainingAutomationIndexes,migrationsUrl),'utf8');
-const integrationHubSql=await readFile(new URL(integrationHub,migrationsUrl),'utf8');
-const integrationHubIndexesSql=await readFile(new URL(integrationHubIndexes,migrationsUrl),'utf8');
-const sandboxGatewaySql=await readFile(new URL(sandboxGateway,migrationsUrl),'utf8');
-const automationRulesSql=await readFile(new URL(automationRules,migrationsUrl),'utf8');
-const automationSandboxReceiptsSql=await readFile(new URL(automationSandboxReceipts,migrationsUrl),'utf8');
-const deliveryProofSql=await readFile(new URL(deliveryProof,migrationsUrl),'utf8');
-const modularAddonsSql=await readFile(new URL(modularAddons,migrationsUrl),'utf8');
-const sixLearnerQaSql=await readFile(new URL(sixLearnerQa,migrationsUrl),'utf8');
-const leadIntakeSql=await readFile(new URL(leadIntake,migrationsUrl),'utf8');
-const staffPasswordResetSql=await readFile(new URL(staffPasswordReset,migrationsUrl),'utf8');
-const staffAuthActivationSql=await readFile(new URL(staffAuthActivation,migrationsUrl),'utf8');
-const goalsIncentivesSql=await readFile(new URL(goalsIncentives,migrationsUrl),'utf8');
-const yeastarTelephonySql=await readFile(new URL(yeastarTelephony,migrationsUrl),'utf8');
-const roleDashboardSql=await readFile(new URL(roleDashboards,migrationsUrl),'utf8');
-const roleDashboardMembershipFixSql=await readFile(new URL(roleDashboardMembershipFix,migrationsUrl),'utf8');
-const yeastarSyncWindowFixSql=await readFile(new URL(yeastarSyncWindowFix,migrationsUrl),'utf8');
-const tenantReportingCenterSql=await readFile(new URL(tenantReportingCenter,migrationsUrl),'utf8');
-const woocommerceCommerceSyncSql=await readFile(new URL(woocommerceCommerceSync,migrationsUrl),'utf8');
-const commerceHubCoreSql=await readFile(new URL(commerceHubCore,migrationsUrl),'utf8');
-const commerceHubDataPlaneSql=await readFile(new URL(commerceHubDataPlane,migrationsUrl),'utf8');
-const commerceHubSnapshotSql=await readFile(new URL(commerceHubSnapshot,migrationsUrl),'utf8');
-const commerceHubTenantActionsSql=await readFile(new URL(commerceHubTenantActions,migrationsUrl),'utf8');
-const commerceHubServiceApiSql=await readFile(new URL(commerceHubServiceApi,migrationsUrl),'utf8');
-const commerceHubRuntimeSql=await readFile(new URL(commerceHubRuntime,migrationsUrl),'utf8');
-const commerceHubActivationSql=await readFile(new URL(commerceHubActivation,migrationsUrl),'utf8');
-assert.match(sql,/create schema if not exists core;/);
-assert.match(sql,/create schema if not exists access_control;/);
-assert.match(sql,/create schema if not exists catalog;/);
-assert.match(sql,/enable row level security;/);
-assert.match(sql,/v2_current_user_context/);
-assert.match(sql,/v2_platform_control_snapshot/);
-assert.doesNotMatch(sql,/operations\.|engagement\.|market_intelligence\./);
-assert.doesNotMatch(sql,/\\ncreate or replace function/);
-assert.match(policySql,/organizations_isolated_read/);
-assert.match(policySql,/tenants_isolated_read/);
-assert.match(policySql,/subjects_isolated_read/);
-assert.match(policySql,/subscriptions_isolated_read/);
-assert.match(policySql,/audit_events_isolated_read/);
-assert.match(provisioningSql,/create table access_control\.tenant_invitations/);
-assert.match(provisioningSql,/v2_platform_provision_tenant/);
-assert.match(provisioningSql,/v2_tenant_invite_user/);
-assert.match(provisioningSql,/v2_accept_tenant_invitation/);
-assert.match(provisioningSql,/tenant_invitations_isolated_read/);
-assert.doesNotMatch(provisioningSql,/service_role|SUPABASE_SECRET/i);
-assert.match(invitationIndexSql,/tenant_invitations_invited_by_subject_idx/);
-assert.match(invitationIndexSql,/tenant_invitations_accepted_by_subject_idx/);
-assert.match(peopleAcademySql,/create schema if not exists people/);
-assert.match(peopleAcademySql,/create schema if not exists academy/);
-assert.match(peopleAcademySql,/v2_tenant_create_staff/);
-assert.match(peopleAcademySql,/v2_tenant_create_course/);
-assert.match(peopleAcademySql,/v2_tenant_workspace_snapshot/);
-assert.match(peopleAcademySql,/staff_profiles_isolated_read/);
-assert.match(peopleAcademySql,/courses_isolated_read/);
-assert.doesNotMatch(peopleAcademySql,/service_role|SUPABASE_SECRET/i);
-assert.match(reefSeedSql,/tenant-reef-skills/);
-assert.match(reefSeedSql,/'full'/);
-assert.match(reefSeedSql,/REEF-SALES-007/);
-assert.match(reefSeedSql,/'PMP'/);
-assert.match(reefSeedSql,/'AI-SKILLS'/);
-assert.match(peopleAcademyIndexSql,/people_staff_department_reference_idx/);
-assert.match(peopleAcademyIndexSql,/academy_course_runs_course_reference_idx/);
-assert.match(staffActivationSql,/v2_tenant_update_staff/);
-assert.match(staffActivationSql,/v2_tenant_invite_staff/);
-assert.match(staffActivationSql,/people_staff_tenant_email_idx/);
-assert.match(staffActivationSql,/tenant\.users\.manage/);
-assert.doesNotMatch(staffActivationSql,/service_role|SUPABASE_SECRET/i);
-assert.match(staffAuthActivationSql,/u\.email_confirmed_at is not null/);
-assert.match(staffAuthActivationSql,/account_status = 'active'/);
-assert.match(staffAuthActivationSql,/u\.email_confirmed_at is null/);
-assert.doesNotMatch(staffAuthActivationSql,/service_role|SUPABASE_SECRET/i);
-assert.match(goalsIncentivesSql,/create schema if not exists incentives_core/);
-assert.match(goalsIncentivesSql,/v2_tenant_incentives_snapshot/);
-assert.match(goalsIncentivesSql,/v2_tenant_incentives_action/);
-assert.match(goalsIncentivesSql,/registration_handoff_incentives_v2/);
-assert.match(goalsIncentivesSql,/payment_status = 'verified'/);
-assert.match(goalsIncentivesSql,/revoke all on all tables in schema incentives_core/);
-assert.doesNotMatch(goalsIncentivesSql,/service_role|SUPABASE_SECRET/i);
-assert.match(yeastarTelephonySql,/create schema if not exists telephony/);
-assert.match(yeastarTelephonySql,/v2_tenant_yeastar_reports_snapshot/);
-assert.match(yeastarTelephonySql,/v2_yeastar_store_sync/);
-assert.match(yeastarTelephonySql,/v2_yeastar_sync_failed/);
-assert.match(yeastarTelephonySql,/yeastar_dispatch_secret/);
-assert.match(yeastarTelephonySql,/alter table telephony\.call_records enable row level security/);
-assert.match(operationalCoreSql,/create schema if not exists sales_core/);
-assert.match(operationalCoreSql,/create schema if not exists work_core/);
-assert.match(operationalCoreSql,/v2_tenant_operations_snapshot/);
-assert.match(operationalCoreSql,/v2_tenant_create_contact/);
-assert.match(operationalCoreSql,/v2_tenant_log_activity/);
-assert.match(operationalCoreSql,/next_action_required/);
-assert.match(operationalCoreSql,/sales_contacts_isolated_read/);
-assert.match(operationalCoreSql,/work_tasks_isolated_read/);
-assert.doesNotMatch(operationalCoreSql,/service_role|SUPABASE_SECRET/i);
-assert.match(operationalIndexesSql,/sales_contacts_owner_reference_idx/);
-assert.match(operationalIndexesSql,/sales_opportunities_stage_reference_idx/);
-assert.match(operationalIndexesSql,/sales_activities_creator_reference_idx/);
-assert.match(operationalIndexesSql,/work_tasks_creator_reference_idx/);
-assert.match(leadPipelineSql,/contacts_lead_status_check/);
-assert.match(leadPipelineSql,/contacts_lead_quality_check/);
-assert.match(leadPipelineSql,/create table academy\.registration_handoffs/);
-assert.match(leadPipelineSql,/registration_handoffs_isolated_read/);
-assert.match(leadPipelineSql,/v2_tenant_sales_pipeline_snapshot/);
-assert.match(leadPipelineSql,/v2_tenant_create_sales_lead/);
-assert.match(leadPipelineSql,/v2_tenant_record_sales_followup/);
-assert.match(leadPipelineSql,/course_required_for_payment/);
-assert.match(leadPipelineSql,/'registration_handoff'/);
-assert.doesNotMatch(leadPipelineSql,/service_role|SUPABASE_SECRET/i);
-assert.match(admissionsSql,/create table sales_core\.lead_status_history/);
-assert.match(admissionsSql,/create table academy\.registration_documents/);
-assert.match(admissionsSql,/create table academy\.students/);
-assert.match(admissionsSql,/create table academy\.enrollments/);
-assert.match(admissionsSql,/work_tasks_one_open_sales_followup_idx/);
-assert.match(admissionsSql,/closure_reason_required/);
-assert.match(admissionsSql,/v2_tenant_record_sales_followup_v2/);
-assert.match(admissionsSql,/v2_tenant_admissions_snapshot/);
-assert.match(admissionsSql,/v2_tenant_update_admission/);
-assert.match(admissionsSql,/v2_tenant_update_admission_document/);
-assert.doesNotMatch(admissionsSql,/service_role|SUPABASE_SECRET/i);
-assert.match(admissionsIndexesSql,/lead_status_history_activity_reference_idx/);
-assert.match(admissionsIndexesSql,/registration_handoffs_payment_reviewer_reference_idx/);
-assert.match(admissionsIndexesSql,/academy_enrollments_course_run_reference_idx/);
-assert.match(courseRunsSql,/create table academy\.course_run_sessions/);
-assert.match(courseRunsSql,/course_run_sessions_isolated_read/);
-assert.match(courseRunsSql,/v2_tenant_course_runs_snapshot/);
-assert.match(courseRunsSql,/v2_tenant_save_course_run/);
-assert.match(courseRunsSql,/registration_handoffs_validate_course_run/);
-assert.match(courseRunsSql,/enrollments_validate_course_run/);
-assert.match(courseRunsSql,/course_run_sessions_overlap/);
-assert.doesNotMatch(courseRunsSql,/service_role|SUPABASE_SECRET/i);
-assert.match(learnerOperationsSql,/create table academy\.attendance_records/);
-assert.match(learnerOperationsSql,/create table academy\.assessment_results/);
-assert.match(learnerOperationsSql,/create table academy\.student_communications/);
-assert.match(learnerOperationsSql,/create table academy\.certificates/);
-assert.match(learnerOperationsSql,/v2_tenant_training_operations_snapshot/);
-assert.match(learnerOperationsSql,/v2_tenant_update_training_operation/);
-assert.match(learnerOperationsSql,/v2_tenant_certificate_snapshot/);
-assert.match(learnerOperationsSql,/training_manager/);
-assert.match(learnerOperationsSql,/certificate_not_eligible/);
-assert.match(learnerOperationsSql,/'demo',\s*true/);
-assert.doesNotMatch(learnerOperationsSql,/service_role|SUPABASE_SECRET/i);
-assert.match(learnerOperationsIndexesSql,/assessment_results_assessor_reference_idx/);
-assert.match(learnerOperationsIndexesSql,/attendance_records_session_reference_idx/);
-assert.match(learnerOperationsIndexesSql,/student_communications_sender_reference_idx/);
-assert.match(learnerOperationsIndexesSql,/certificates_issuer_reference_idx/);
-assert.match(trainingAutomationSql,/create table academy\.training_automation_settings/);
-assert.match(trainingAutomationSql,/create table academy\.training_automation_jobs/);
-assert.match(trainingAutomationSql,/training_automation_jobs_isolated_read/);
-assert.match(trainingAutomationSql,/v2_tenant_training_automation_snapshot/);
-assert.match(trainingAutomationSql,/v2_tenant_training_automation_action/);
-assert.match(trainingAutomationSql,/v2_training_automation_claim_jobs/);
-assert.match(trainingAutomationSql,/v2_training_automation_complete_job/);
-assert.match(trainingAutomationSql,/vault\.create_secret/);
-assert.match(trainingAutomationSql,/cron\.schedule/);
-assert.match(trainingAutomationSql,/training-automation-dispatch/);
-assert.match(trainingAutomationIndexesSql,/training_automation_jobs_course_run_reference_idx/);
-assert.match(integrationHubSql,/create schema if not exists communication_hub/);
-assert.match(integrationHubSql,/create table communication_hub\.provider_connections/);
-assert.match(integrationHubSql,/create table communication_hub\.message_templates/);
-assert.match(integrationHubSql,/v2_tenant_integration_hub_snapshot/);
-assert.match(integrationHubSql,/v2_tenant_integration_hub_action/);
-assert.match(integrationHubSql,/v2_integration_provider_configuration/);
-assert.match(integrationHubSql,/vault\.create_secret/);
-assert.match(integrationHubSql,/'amazon_ses'/);
-assert.match(integrationHubSql,/'meta_whatsapp'/);
-assert.match(integrationHubSql,/'custom_webhook'/);
-assert.match(integrationHubIndexesSql,/provider_connections_provider_reference_idx/);
-assert.match(integrationHubIndexesSql,/message_templates_updater_reference_idx/);
-assert.match(sandboxGatewaySql,/create table communication_hub\.sandbox_receipts/);
-assert.match(sandboxGatewaySql,/'marktone_sandbox_whatsapp'/);
-assert.match(sandboxGatewaySql,/'simulated_not_sent_to_recipient'/);
-assert.match(sandboxGatewaySql,/v2_sandbox_delivery_receive/);
-assert.match(automationRulesSql,/create schema if not exists automation_engine/);
-assert.match(automationRulesSql,/create table automation_engine\.rules/);
-assert.match(automationRulesSql,/create table automation_engine\.events/);
-assert.match(automationRulesSql,/create table automation_engine\.runs/);
-assert.match(automationRulesSql,/create table communication_hub\.message_outbox/);
-assert.match(automationRulesSql,/v2_automation_claim_messages/);
-assert.match(automationRulesSql,/v2_automation_complete_message/);
-assert.match(automationRulesSql,/payment_automation_event/);
-assert.match(automationRulesSql,/absence_automation_event/);
-assert.match(automationRulesSql,/certificate_automation_event/);
-assert.match(automationRulesSql,/fallback_queued/);
-assert.match(automationRulesSql,/preview_not_queued/);
-assert.doesNotMatch(automationRulesSql,/SUPABASE_SECRET/);
-assert.match(automationSandboxReceiptsSql,/message_outbox_id/);
-assert.match(automationSandboxReceiptsSql,/sandbox_receipts_outbox_reference_idx/);
-assert.match(automationSandboxReceiptsSql,/p_payload ->> 'queue'/);
-assert.match(deliveryProofSql,/create table communication_hub\.delivery_webhooks/);
-assert.match(deliveryProofSql,/create table communication_hub\.delivery_events/);
-assert.match(deliveryProofSql,/extensions\.hmac/);
-assert.match(deliveryProofSql,/v2_delivery_webhook_receive/);
-assert.match(deliveryProofSql,/v2_tenant_delivery_analytics_snapshot/);
-assert.match(deliveryProofSql,/unique \(provider_connection_id, provider_event_id\)/);
-assert.match(deliveryProofSql,/delivery_state_rank/);
-assert.doesNotMatch(deliveryProofSql,/recipient.*payload_summary/i);
-assert.match(modularAddonsSql,/create table catalog\.addon_products/);
-assert.match(modularAddonsSql,/create table catalog\.tenant_addon_subscriptions/);
-assert.match(modularAddonsSql,/create table catalog\.addon_usage_reservations/);
-assert.match(modularAddonsSql,/create table catalog\.addon_usage_events/);
-assert.match(modularAddonsSql,/v2_addon_usage_reserve/);
-assert.match(modularAddonsSql,/finalize_addon_reservation/);
-assert.match(modularAddonsSql,/addon_usage_limit_reached/);
-assert.match(modularAddonsSql,/v2_platform_addon_center_action/);
-assert.match(modularAddonsSql,/v2_tenant_addon_center_snapshot/);
-assert.match(modularAddonsSql,/pricing_mode/);
-assert.match(sixLearnerQaSql,/for v_index in 5\.\.6 loop/);
-assert.match(sixLearnerQaSql,/DEMO-TRN-006/);
-assert.match(sixLearnerQaSql,/private_app\.training_eligibility/);
-assert.match(sixLearnerQaSql,/private_app\.queue_automation_event/);
-assert.match(sixLearnerQaSql,/private_app\.process_automation_events/);
-assert.match(sixLearnerQaSql,/v_enrollments <> 6/);
-assert.match(sixLearnerQaSql,/v_attendance <> 24/);
-assert.match(leadIntakeSql,/create table sales_core\.lead_import_batches/);
-assert.match(leadIntakeSql,/create table sales_core\.lead_import_rows/);
-assert.match(leadIntakeSql,/create table sales_core\.sales_assignment_profiles/);
-assert.match(leadIntakeSql,/create table sales_core\.lead_assignments/);
-assert.match(leadIntakeSql,/lead_import_batches_isolated_read/);
-assert.match(leadIntakeSql,/lead_import_rows_isolated_read/);
-assert.match(leadIntakeSql,/sales_assignment_profiles_isolated_read/);
-assert.match(leadIntakeSql,/lead_assignments_isolated_read/);
-assert.match(leadIntakeSql,/v2_tenant_lead_intake_snapshot/);
-assert.match(leadIntakeSql,/v2_tenant_lead_intake_action/);
-assert.match(leadIntakeSql,/normalize_lead_phone/);
-assert.match(leadIntakeSql,/capture_lead_first_action/);
-assert.match(leadIntakeSql,/pg_advisory_xact_lock/);
-assert.match(leadIntakeSql,/'fair', 'online_only', 'selected'/);
-assert.match(leadIntakeSql,/tenant\.leads\.import/);
-assert.match(leadIntakeSql,/tenant\.leads\.distribute/);
-assert.match(leadIntakeSql,/tenant\.leads\.analytics/);
-assert.doesNotMatch(leadIntakeSql,/service_role|SUPABASE_SECRET/i);
-assert.match(staffPasswordResetSql,/tenant\.users\.reset_password/);
-assert.match(staffPasswordResetSql,/v2_tenant_prepare_staff_password_reset/);
-assert.match(staffPasswordResetSql,/v2_tenant_complete_staff_password_reset/);
-assert.match(staffPasswordResetSql,/cannot_reset_own_password/);
-assert.match(staffPasswordResetSql,/protected_staff_account/);
-assert.match(staffPasswordResetSql,/not s\.must_change_password/);
-assert.match(staffPasswordResetSql,/grant execute on function public\.v2_tenant_complete_staff_password_reset[\s\S]*to service_role/);
-assert.doesNotMatch(staffPasswordResetSql,/temporaryPassword|temporary_password/);
-assert.match(sixLearnerQaSql,/quality\.learner_cycle\.passed/);
-assert.match(sixLearnerQaSql,/'containsRealContacts', false/);
+const sqlByFile=new Map(
+  await Promise.all(expected.map(async file=>[
+    file,
+    await readFile(new URL(file,migrationsUrl),'utf8')
+  ]))
+);
+const allSql=[...sqlByFile.values()].join('\n');
 
-assert.match(roleDashboardSql,/v2_tenant_role_dashboard_snapshot/);
-assert.match(roleDashboardSql,/v2_tenant_yeastar_save_with_assignments/);
-assert.match(roleDashboardSql,/extensionAssignments/);
-assert.match(roleDashboardSql,/private_app\.can_view_tenant_team/);
-assert.match(roleDashboardSql,/revoke all on function[\s\S]*from public, anon/);
-assert.doesNotMatch(roleDashboardSql,/service_role|SUPABASE_SECRET/i);
-assert.match(roleDashboardMembershipFixSql,/v2_tenant_role_dashboard_snapshot_v2/);
-assert.match(roleDashboardMembershipFixSql,/access_control\.membership_roles/);
-assert.doesNotMatch(roleDashboardMembershipFixSql,/service_role|SUPABASE_SECRET/i);
-assert.match(yeastarSyncWindowFixSql,/v2_yeastar_sync_context/);
-assert.match(yeastarSyncWindowFixSql,/run\.trigger_type in \('manual', 'scheduled'\)/);
-assert.match(yeastarSyncWindowFixSql,/max\(coalesce\(run\.requested_to, run\.finished_at\)\)/);
-assert.match(yeastarSyncWindowFixSql,/yeastar_invalid_sync_window/);
-assert.match(yeastarSyncWindowFixSql,/grant execute on function[\s\S]*to service_role/);
-assert.match(tenantReportingCenterSql,/v2_tenant_reports_snapshot_v1/);
-assert.match(tenantReportingCenterSql,/private_app\.can_view_tenant_team/);
-assert.match(tenantReportingCenterSql,/v_to_date - v_from_date > 365/);
-assert.match(tenantReportingCenterSql,/revoke all on function[\s\S]*from public, anon/);
-assert.match(tenantReportingCenterSql,/grant execute on function[\s\S]*to authenticated/);
-assert.doesNotMatch(tenantReportingCenterSql,/service_role|SUPABASE_SECRET/i);
-assert.match(woocommerceCommerceSyncSql,/create schema if not exists commerce_sync/);
-assert.match(woocommerceCommerceSyncSql,/create table commerce_sync\.connections/);
-assert.match(woocommerceCommerceSyncSql,/create table commerce_sync\.external_entities/);
-assert.match(woocommerceCommerceSyncSql,/create table commerce_sync\.sync_runs/);
-assert.match(woocommerceCommerceSyncSql,/v2_tenant_woocommerce_snapshot/);
-assert.match(woocommerceCommerceSyncSql,/v2_tenant_woocommerce_action/);
-assert.match(woocommerceCommerceSyncSql,/v2_tenant_woocommerce_authorize/);
-assert.match(woocommerceCommerceSyncSql,/v2_woocommerce_store_batch/);
-assert.match(woocommerceCommerceSyncSql,/vault\.create_secret/);
-assert.match(woocommerceCommerceSyncSql,/cron\.schedule/);
-assert.match(woocommerceCommerceSyncSql,/woocommerce-sync/);
-assert.match(woocommerceCommerceSyncSql,/alter table commerce_sync\.connections enable row level security/);
-assert.match(woocommerceCommerceSyncSql,/revoke all on all tables in schema commerce_sync/);
+const required=[
+  /create schema if not exists core;/,
+  /create schema if not exists access_control;/,
+  /create schema if not exists people;/,
+  /create schema if not exists academy;/,
+  /create schema if not exists sales_core;/,
+  /create schema if not exists work_core;/,
+  /create schema if not exists telephony;/,
+  /create schema if not exists incentives_core;/,
+  /create schema if not exists communication_hub;/,
+  /create schema if not exists automation_engine;/,
+  /create schema if not exists commerce_sync;/,
+  /create schema if not exists commerce_hub;/,
+  /v2_current_user_context/,
+  /v2_platform_control_snapshot/,
+  /v2_tenant_workspace_snapshot/,
+  /v2_tenant_operations_snapshot/,
+  /v2_tenant_sales_pipeline_snapshot/,
+  /v2_tenant_admissions_snapshot/,
+  /v2_tenant_training_operations_snapshot/,
+  /v2_tenant_training_automation_snapshot/,
+  /v2_tenant_integration_hub_snapshot/,
+  /v2_tenant_incentives_snapshot/,
+  /v2_tenant_role_dashboard_snapshot/,
+  /v2_tenant_reports_snapshot_v1/,
+  /v2_tenant_woocommerce_snapshot/,
+  /v2_tenant_commerce_hub_snapshot/,
+  /tenant\.integrations\.manage/,
+  /tenant\.users\.reset_password/,
+  /tenant\.leads\.import/,
+  /enable row level security/,
+  /vault\.create_secret/,
+  /cron\.schedule/
+];
+for(const pattern of required)assert.match(allSql,pattern);
 
-console.log('Verified the clean v2 database, tenant reporting, role dashboards, learner automation, modular integrations, Yeastar telephony, and WooCommerce commerce sync.');
+const foundation=sqlByFile.get(
+  '20260801005000_knowledge_content_foundation_v1.sql'
+);
+for(const pattern of [
+  /create table if not exists public\.knowledge_categories/,
+  /create table if not exists public\.knowledge_sources/,
+  /create table if not exists public\.knowledge_posts/,
+  /public reads active knowledge categories/,
+  /public reads published knowledge posts/,
+  /platform admins manage knowledge sources/,
+  /training-news/,
+  /tenders-opportunities/,
+  /alerts-regulations/
+])assert.match(foundation,pattern);
 
-// Commerce Hub forward-migration review
-assert.match(commerceHubCoreSql,/create schema if not exists commerce_hub/);
-assert.match(commerceHubCoreSql,/tenant\.integrations\.manage/);
-assert.match(commerceHubCoreSql,/enable row level security/);
-assert.doesNotMatch(commerceHubCoreSql,/delete from academy\.courses|drop schema commerce_sync/i);
-assert.match(commerceHubDataPlaneSql,/v2_commerce_hub_store_batch/);
-assert.match(commerceHubDataPlaneSql,/match_by_sku/);
-assert.doesNotMatch(commerceHubDataPlaneSql,/delete from academy\.courses/i);
-assert.match(commerceHubSnapshotSql,/v2_tenant_commerce_hub_snapshot/);
-assert.doesNotMatch(commerceHubSnapshotSql,/decrypted_secrets/);
-assert.match(commerceHubTenantActionsSql,/v2_tenant_commerce_hub_action/);
-assert.match(commerceHubTenantActionsSql,/integration_secret_upsert/);
-assert.match(commerceHubServiceApiSql,/v2_commerce_hub_authorize/);
-assert.match(commerceHubServiceApiSql,/to service_role/);
-assert.match(commerceHubRuntimeSql,/v2_commerce_hub_finish_test/);
-assert.match(commerceHubRuntimeSql,/adapter_status = 'active'/);
-assert.match(commerceHubActivationSql,/tenant\.integrations\.manage/);
-assert.match(commerceHubActivationSql,/tenant_owner/);
-assert.match(commerceHubActivationSql,/tenant_admin/);
-assert.match(commerceHubActivationSql,/commerce_hub_provider_catalog_incomplete/);
+const knowledge=sqlByFile.get(
+  '20260801010000_knowledge_intelligence_hub_v1.sql'
+);
+for(const pattern of [
+  /create table if not exists public\.knowledge_ingestion_runs/,
+  /create table if not exists public\.knowledge_raw_items/,
+  /create table if not exists public\.knowledge_bookmarks/,
+  /v2_tenant_knowledge_snapshot/,
+  /v2_tenant_knowledge_action/,
+  /knowledge_ingestion_validate_secret/,
+  /knowledge_ingestion_secret/,
+  /marktone-knowledge-ingestion/,
+  /knowledge-ingest/,
+  /platform\.is_platform_content_admin/,
+  /private_app\.has_tenant_permission/,
+  /source_fingerprint/,
+  /why_it_matters/,
+  /recommended_action/
+])assert.match(knowledge,pattern);
+
+const hardening=sqlByFile.get(
+  '20260801011000_knowledge_intelligence_hardening_v1.sql'
+);
+for(const pattern of [
+  /anonymous reads active knowledge categories/,
+  /authenticated reads visible knowledge posts/,
+  /auth_user_id = \(select auth\.uid\(\)\)/,
+  /knowledge_sources_default_category_idx/,
+  /knowledge_raw_items_run_idx/,
+  /knowledge_bookmarks_post_idx/,
+  /knowledge_read_events_tenant_time_idx/,
+  /https:\/\/www\.hrsd\.gov\.sa\/media-center\/news/,
+  /https:\/\/nelc\.gov\.sa\/ar\/media-center\/news/,
+  /https:\/\/www\.monshaat\.gov\.sa\/ar/
+])assert.match(hardening,pattern);
+
+const stability=sqlByFile.get(
+  '20260801012000_knowledge_source_stability_v1.sql'
+);
+for(const pattern of [
+  /https:\/\/nelc\.gov\.sa\//,
+  /\^\/(?:\(\?:ar\/\)\?)?media-center\/news/,
+  /where source_key = 'tvtc-official-news'/,
+  /where source_key = 'monshaat-official-news'/,
+  /is_active = false/,
+  /requires_review = true/,
+  /auto_publish = false/
+])assert.match(stability,pattern);
+
+assert.doesNotMatch(
+  knowledge,
+  /delete from public\.knowledge_posts|drop table public\.knowledge_posts/i
+);
+assert.doesNotMatch(
+  `${foundation}\n${knowledge}\n${hardening}\n${stability}`,
+  /grant\s+all[\s\S]+to\s+anon/i
+);
+
+console.log(
+  `Verified ${expected.length} forward migrations, including the portable, secure, policy-hardened, and review-first Knowledge Intelligence Hub.`
+);

@@ -29,6 +29,11 @@ verify_jwt = false
 # project secret key only for Vault-backed connector execution.
 verify_jwt = false
 
+[functions.knowledge-ingest]
+# Scheduled runs use a Vault-backed secret; manual runs verify the platform
+# administrator JWT inside the function before reading any configured source.
+verify_jwt = false
+
 [functions.tenant-invitation-activation]
 # The one-time invitation token is the custom bearer credential for activation.
 verify_jwt = false

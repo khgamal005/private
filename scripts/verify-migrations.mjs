@@ -52,7 +52,13 @@ const expected=[
   '20260801005000_knowledge_content_foundation_v1.sql',
   '20260801010000_knowledge_intelligence_hub_v1.sql',
   '20260801011000_knowledge_intelligence_hardening_v1.sql',
-  '20260801012000_knowledge_source_stability_v1.sql'
+  '20260801012000_knowledge_source_stability_v1.sql',
+  '20260802003000_replace_static_workspace_and_platform_metrics.sql',
+  '20260802004000_baseline_yeastar_sync_after_operational_reset.sql',
+  '20260802005000_enforce_settings_and_commerce_permissions_at_rpc_boundary.sql',
+  '20260802006000_harden_legacy_market_and_operations_helpers.sql',
+  '20260802007000_align_commerce_snapshot_with_workspace_access.sql',
+  '20260802232000_role_guide_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl))
@@ -99,6 +105,8 @@ const required=[
   /v2_tenant_reports_snapshot_v1/,
   /v2_tenant_woocommerce_snapshot/,
   /v2_tenant_commerce_hub_snapshot/,
+  /v2_tenant_role_guide_snapshot/,
+  /v2_tenant_role_guide_action/,
   /tenant\.integrations\.manage/,
   /tenant\.users\.reset_password/,
   /tenant\.leads\.import/,
@@ -172,15 +180,27 @@ for(const pattern of [
   /auto_publish = false/
 ])assert.match(stability,pattern);
 
+const roleGuide=sqlByFile.get('20260802232000_role_guide_v1.sql');
+for(const pattern of [
+  /create table if not exists people\.role_guide_progress/,
+  /unique \(tenant_id, subject_id, guide_version\)/,
+  /status in \('not_started','in_progress','completed','skipped','dismissed'\)/,
+  /v2_tenant_role_guide_snapshot/,
+  /v2_tenant_role_guide_action/,
+  /private_app\.can_access_tenant/,
+  /revoke all on table people\.role_guide_progress/,
+  /grant execute on function public\.v2_tenant_role_guide_snapshot/
+])assert.match(roleGuide,pattern);
+
 assert.doesNotMatch(
   knowledge,
   /delete from public\.knowledge_posts|drop table public\.knowledge_posts/i
 );
 assert.doesNotMatch(
-  `${foundation}\n${knowledge}\n${hardening}\n${stability}`,
+  `${foundation}\n${knowledge}\n${hardening}\n${stability}\n${roleGuide}`,
   /grant\s+all[\s\S]+to\s+anon/i
 );
 
 console.log(
-  `Verified ${expected.length} forward migrations, including the portable, secure, policy-hardened, and review-first Knowledge Intelligence Hub.`
+  `Verified ${expected.length} forward migrations, including the secure interactive My Role guide and the review-first Knowledge Intelligence Hub.`
 );

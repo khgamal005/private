@@ -1,6 +1,7 @@
 import {getTenant,getTenantRoleDashboard} from '../../../lib/api';
 import {requireTenant} from '../../../lib/server-auth';
 import WorkspaceShell from '../../../components/workspace-shell';
+import MyRoleGuide from '../../../components/my-role-guide';
 
 export const dynamic='force-dynamic';
 
@@ -14,22 +15,41 @@ export default async function TenantLayout({children,params}){
   const membership=context.memberships?.find(
     item=>item.tenantSlug===slug
   );
+  const roleKey=context.platformAccess
+    ?'platform_owner'
+    :dashboard?.viewer?.roleKey
+      ||membership?.roles?.[0]
+      ||'member';
+  const userName=dashboard?.viewer?.name
+    ||context.subject?.fullName
+    ||context.subject?.email?.split('@')[0];
+  const roleLabel=context.platformAccess
+    ?'إدارة منصة ماركتون'
+    :dashboard?.viewer?.roleLabel
+      ||roleName(roleKey);
+  const permissions=membership?.permissions||[];
+
   return <WorkspaceShell
     kind="tenant"
     slug={slug}
     title={data?.tenant?.name||'منشأة ماركتون'}
     email={context.subject.email}
-    userName={dashboard?.viewer?.name
-      ||context.subject?.fullName
-      ||context.subject?.email?.split('@')[0]}
-    permissions={membership?.permissions||[]}
+    userName={userName}
+    permissions={permissions}
     platformAccess={context.platformAccess}
-    roleLabel={context.platformAccess
-      ?'إدارة منصة ماركتون'
-      :dashboard?.viewer?.roleLabel
-        ||roleName(membership?.roles?.[0])}
+    roleLabel={roleLabel}
     notificationSummary={headerSummary(dashboard)}
-  >{children}</WorkspaceShell>;
+  >
+    {children}
+    <MyRoleGuide
+      slug={slug}
+      userName={userName}
+      roleKey={roleKey}
+      roleLabel={roleLabel}
+      permissions={permissions}
+      platformAccess={context.platformAccess}
+    />
+  </WorkspaceShell>;
 }
 
 function headerSummary(dashboard){
@@ -61,6 +81,7 @@ function roleName(roleKey){
     customer_service:'خدمة العملاء',
     data_officer:'مسؤول البيانات',
     data_analyst:'محلل البيانات',
-    training_manager:'مدير التدريب'
+    training_manager:'مدير التدريب',
+    platform_owner:'إدارة منصة ماركتون'
   })[roleKey]||'مستخدم المنشأة';
 }

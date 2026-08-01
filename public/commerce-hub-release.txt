@@ -1,3 +1,4 @@
 Marktone Commerce Hub production release
-2026-07-31
+2026-08-01 15:28 Africa/Cairo
 Five providers · three cards per desktop row · secure connection workflows
+Production redeploy requested after deployment limit reset

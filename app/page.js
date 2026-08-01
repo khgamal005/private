@@ -1,2 +1,23 @@
 import Link from 'next/link';
-export default function Home(){return <main className="landing"><section><div className="mark">M</div><p className="eyebrow">MARKTONE PLATFORM</p><h1>منصة واحدة لإدارة كل منشآت ماركتون</h1><p>لوحة مركزية آمنة، ومساحة CRM مستقلة لكل منشأة، وصلاحيات مرتبطة بالموظف والدور.</p><div className="landing-actions"><Link href="/login">تسجيل الدخول</Link><Link className="secondary" href="/login?next=/tenant/safwat-al-samaa">دخول منصة صفوة السماء</Link></div></section></main>}
+
+export default function Home() {
+  return (
+    <main className="landing">
+      <section>
+        <div className="mark">M</div>
+        <p className="eyebrow">MARKTONE PLATFORM</p>
+        <h1>منصة واحدة لإدارة كل منشآت ماركتون</h1>
+        <p>
+          لوحة مركزية آمنة، ومساحة CRM مستقلة لكل منشأة، وصلاحيات مرتبطة
+          بالموظف والدور.
+        </p>
+        <div className="landing-actions">
+          <Link href="/login">تسجيل الدخول</Link>
+          <Link className="secondary" href="/login?next=/tenant/reef-skills">
+            دخول منصة ريف المهارات
+          </Link>
+        </div>
+      </section>
+    </main>
+  );
+}

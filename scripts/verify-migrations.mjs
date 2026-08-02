@@ -58,7 +58,8 @@ const expected=[
   '20260802005000_enforce_settings_and_commerce_permissions_at_rpc_boundary.sql',
   '20260802006000_harden_legacy_market_and_operations_helpers.sql',
   '20260802007000_align_commerce_snapshot_with_workspace_access.sql',
-  '20260802232000_role_guide_v1.sql'
+  '20260802232000_role_guide_v1.sql',
+  '20260802233000_operational_role_visibility_and_personal_reports.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl))
@@ -181,6 +182,9 @@ for(const pattern of [
 ])assert.match(stability,pattern);
 
 const roleGuide=sqlByFile.get('20260802232000_role_guide_v1.sql');
+const operationalRoleVisibility=sqlByFile.get(
+  '20260802233000_operational_role_visibility_and_personal_reports.sql'
+);
 for(const pattern of [
   /create table if not exists people\.role_guide_progress/,
   /unique \(tenant_id, subject_id, guide_version\)/,
@@ -191,6 +195,16 @@ for(const pattern of [
   /revoke all on table people\.role_guide_progress/,
   /grant execute on function public\.v2_tenant_role_guide_snapshot/
 ])assert.match(roleGuide,pattern);
+
+for(const pattern of [
+  /v2_tenant_reports_snapshot_v2/,
+  /v2_tenant_yeastar_reports_snapshot_v2/,
+  /v_personal_only/,
+  /p_report = 'campaigns' and not v_campaign_allowed/,
+  /record\.involved_extensions && v_staff_extensions/,
+  /revoke all on function public\.v2_tenant_reports_snapshot_v1[\s\S]*from authenticated/,
+  /grant execute on function public\.v2_tenant_reports_snapshot_v2[\s\S]*to authenticated, service_role/
+])assert.match(operationalRoleVisibility,pattern);
 
 assert.doesNotMatch(
   knowledge,

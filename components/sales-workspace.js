@@ -66,7 +66,11 @@ function inputDate(value){
   return `${year}-${month}-${day}`;
 }
 
-export default function SalesWorkspace({slug,initialData}){
+export default function SalesWorkspace({
+  slug,
+  initialData,
+  focusContactId=''
+}){
   const router=useRouter();
   const [data,setData]=useState(initialData);
   const [view,setView]=useState('pipeline');
@@ -81,6 +85,20 @@ export default function SalesWorkspace({slug,initialData}){
   const [error,setError]=useState('');
 
   useEffect(()=>setData(initialData),[initialData]);
+
+  useEffect(()=>{
+    if(!focusContactId)return;
+    const focused=(initialData.contacts||EMPTY).find(
+      contact=>contact.id===focusContactId
+    );
+    if(!focused)return;
+    setView('contacts');
+    setQuery(focused.phone||focused.name||'');
+    setQuickFilter('all');
+    setDatePreset('all');
+    setFromDate('');
+    setToDate('');
+  },[focusContactId,initialData]);
 
   const contacts=data.contacts||EMPTY;
   const activities=data.activities||EMPTY;

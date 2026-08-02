@@ -54,6 +54,7 @@ function tenantItems(slug,permissions,platformAccess,roleKey){
       {key:'interactive',label:'منصة التدريب التفاعلي (قريبًا)',permission:'tenant.academy.read',visible:policy.showInteractiveTraining,disabled:true}
     ]},
     {key:'sales',label:'المبيعات والعملاء',children:[
+      {key:'search',label:'البحث عن عميل',href:`${base}/customer-search`,permission:'tenant.crm.read'},
       {key:'sales',label:'إدارة المبيعات والعملاء',href:`${base}/sales`,permission:'tenant.crm.read'},
       {key:'leadQueue',label:'توزيع العملاء',href:`${base}/lead-queue`,permission:'tenant.leads.read'},
       {key:'incentives',label:'الأهداف والحوافز',href:`${base}/incentives`,permission:'tenant.incentives.read'}
@@ -116,7 +117,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
     courses:pathname.includes('/courses'),
-    sales:['/sales','/lead-queue','/incentives'].some(path=>pathname.includes(path)),
+    sales:['/customer-search','/sales','/lead-queue','/incentives'].some(path=>pathname.includes(path)),
     marketing:pathname.includes('/settings'),
     reports:pathname.includes('/reports')||pathname.includes('/call-reports')
   }));
@@ -150,7 +151,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
     <div className="mt-main">
       <header className="mt-topbar">
         <div className="mt-topbar-identity"><button className="mt-menu-toggle" onClick={()=>setMobileOpen(true)} aria-label="فتح القائمة"><span/><span/><span/></button><div><small>{areaLabel}</small><h1>{title}</h1></div></div>
-        {canSearch&&<Link className="mt-global-search" href={`/tenant/${encodeURIComponent(slug)}/sales`}><ShellIcon name="search"/><span>البحث في العملاء أو الجوال أو الفرص…</span></Link>}
+        {canSearch&&<Link className="mt-global-search" href={`/tenant/${encodeURIComponent(slug)}/customer-search`}><ShellIcon name="search"/><span>ابحث برقم الجوال أو اسم العميل…</span></Link>}
         <div className="mt-topbar-tools">
           {kind===WORKSPACE_KINDS.tenant&&canCreateTask&&<Link className="mt-quick-link" href={`/tenant/${encodeURIComponent(slug)}/tasks`}>+ مهمة جديدة</Link>}
           {kind===WORKSPACE_KINDS.platform&&<Link className="mt-quick-link" href="/control/tenants">إدارة المنشآت</Link>}

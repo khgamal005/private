@@ -64,7 +64,8 @@ const expected=[
   '20260802235000_employee_yeastar_extensions_v1.sql',
   '20260802235500_gate_yeastar_employee_extension_by_addon_v1.sql',
   '20260802241100_tenant_role_management_snapshots_v1.sql',
-  '20260802241200_tenant_role_management_actions_v1.sql'
+  '20260802241200_tenant_role_management_actions_v1.sql',
+  '20260803010000_tenant_customer_search_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl))
@@ -116,6 +117,7 @@ for(const pattern of [
   /v2_tenant_effective_roles_snapshot/,
   /v2_tenant_role_management_snapshot/,
   /v2_tenant_role_management_action/,
+  /v2_tenant_customer_search/,
   /tenant\.integrations\.manage/,
   /tenant\.users\.reset_password/,
   /tenant\.leads\.import/,

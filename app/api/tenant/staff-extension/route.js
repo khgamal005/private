@@ -46,7 +46,8 @@ function translate(value){
     forbidden:'ليس لديك صلاحية لتعديل بيانات الموظفين',
     tenant_not_found:'المنشأة غير موجودة',
     staff_not_found:'الموظف غير موجود أو غير نشط',
-    yeastar_connection_not_configured:'يجب تفعيل ربط Yeastar من إعدادات المنشأة أولًا',
+    yeastar_addon_not_enabled:'إضافة Yeastar غير مفعّلة لهذه المنشأة',
+    yeastar_connection_not_configured:'استكمل ربط Yeastar من إعدادات المنشأة أولًا',
     yeastar_invalid_extension:'رقم التحويلة يجب أن يتكون من أرقام فقط وبحد أقصى 10 أرقام',
     yeastar_extension_already_assigned:'هذه التحويلة مرتبطة بموظف آخر بالفعل'
   })[value]||'تعذر حفظ تحويلة Yeastar';

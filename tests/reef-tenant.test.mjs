@@ -74,6 +74,34 @@ test('role-protected tenant routes enforce their permissions on the server',asyn
   }
 });
 
+test('temporary-password redirects finish before protected tenant data loads',async()=>{
+  const routes=[
+    ['../app/tenant/[slug]/layout.js','requireTenant','getTenant'],
+    [
+      '../app/tenant/[slug]/team/page.js',
+      'requireTenantPermission',
+      'getTenant'
+    ],
+    [
+      '../app/tenant/[slug]/courses/page.js',
+      'requireTenantPermission',
+      'getTenant'
+    ]
+  ];
+
+  for(const [path,gate,dataCall] of routes){
+    const source=await read(path);
+    const gateAwait=source.indexOf(`await ${gate}(`);
+    const protectedFetch=source.indexOf(`${dataCall}(`,gateAwait+1);
+    assert.notEqual(gateAwait,-1,`${path} must await its auth gate`);
+    assert.notEqual(protectedFetch,-1,`${path} must load tenant data`);
+    assert.ok(
+      gateAwait<protectedFetch,
+      `${path} must finish its auth gate before protected tenant RPCs`
+    );
+  }
+});
+
 test('employee tenant routes do not eagerly load administrator-only settings',async()=>{
   const data=await read('../lib/api.js');
   const overview=await read('../app/tenant/[slug]/page.js');

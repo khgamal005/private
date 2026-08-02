@@ -17,5 +17,8 @@ export default async function EmployeesReportsPage({params,searchParams}){
     });
     return <ReportsUnavailable/>;
   }
-  return <ReportingCenter data={data} slug={slug} view="employees" range={range}/>;
+  const view=data?.viewer?.scope==='employee'&&data?.selectedEmployee
+    ?'employee'
+    :'employees';
+  return <ReportingCenter data={data} slug={slug} view={view} range={range}/>;
 }

@@ -1,5 +1,8 @@
 import {getTenant,getTenantRoleDashboard} from '../../../lib/api';
 import {requireTenant} from '../../../lib/server-auth';
+import {
+  navigationPolicyRoleKey
+} from '../../../lib/tenant-role-policy';
 import WorkspaceShell from '../../../components/workspace-shell';
 import MyRoleGuide from '../../../components/my-role-guide';
 
@@ -29,6 +32,13 @@ export default async function TenantLayout({children,params}){
     :dashboard?.viewer?.roleLabel
       ||roleName(roleKey);
   const permissions=membership?.permissions||[];
+  const guideRoleKey=roleKey==='admissions_officer'
+    ?'customer_service'
+    :roleKey;
+  const navigationRoleKey=navigationPolicyRoleKey(
+    permissions,
+    {platformAccess:Boolean(context.platformAccess)}
+  );
 
   return <WorkspaceShell
     kind="tenant"
@@ -38,7 +48,7 @@ export default async function TenantLayout({children,params}){
     userName={userName}
     permissions={permissions}
     platformAccess={context.platformAccess}
-    roleKey={roleKey}
+    roleKey={navigationRoleKey}
     roleLabel={roleLabel}
     notificationSummary={headerSummary(dashboard)}
   >
@@ -46,7 +56,7 @@ export default async function TenantLayout({children,params}){
     <MyRoleGuide
       slug={slug}
       userName={userName}
-      roleKey={roleKey}
+      roleKey={guideRoleKey}
       roleLabel={roleLabel}
       permissions={permissions}
       platformAccess={context.platformAccess}
@@ -84,6 +94,7 @@ function roleName(roleKey){
     data_officer:'مسؤول البيانات',
     data_analyst:'محلل البيانات',
     training_manager:'مدير التدريب',
+    admissions_officer:'مسؤول التسجيل والقبول',
     platform_owner:'إدارة منصة ماركتون'
   })[roleKey]||'مستخدم المنشأة';
 }

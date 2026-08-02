@@ -6,10 +6,8 @@ export const dynamic='force-dynamic';
 
 export default async function TeamPage({params}){
   const {slug}=await params;
-  const [context,data]=await Promise.all([
-    requireTenantPermission(slug,'tenant.people.read'),
-    getTenant(slug)
-  ]);
+  const context=await requireTenantPermission(slug,'tenant.people.read');
+  const data=await getTenant(slug);
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
   const canManage=Boolean(
     context.platformAccess

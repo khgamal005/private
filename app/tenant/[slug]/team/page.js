@@ -7,16 +7,17 @@ export const dynamic='force-dynamic';
 export default async function TeamPage({params}){
   const {slug}=await params;
   const context=await requireTenantPermission(slug,'tenant.people.read');
-  const data=await getTenant(slug);
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
+  const canManageUsers=Boolean(
+    context.platformAccess
+    ||membership?.permissions?.includes('tenant.users.manage')
+  );
+  const data=await getTenant(slug,{includeAccess:canManageUsers});
   const canManage=Boolean(
     context.platformAccess
     ||membership?.permissions?.includes('tenant.people.manage')
   );
-  const canInvite=Boolean(
-    context.platformAccess
-    ||membership?.permissions?.includes('tenant.users.manage')
-  );
+  const canInvite=canManageUsers;
   const canResetPasswords=Boolean(
     context.platformAccess
     ||membership?.permissions?.includes('tenant.users.reset_password')

@@ -1,12 +1,17 @@
+import {redirect} from 'next/navigation';
 import TeamDirectory from '../../../../components/team-directory';
 import {getTenant} from '../../../../lib/api';
 import {requireTenantPermission} from '../../../../lib/server-auth';
+import {tenantRolePolicyFromContext} from '../../../../lib/tenant-role-policy';
 
 export const dynamic='force-dynamic';
 
 export default async function TeamPage({params}){
   const {slug}=await params;
   const context=await requireTenantPermission(slug,'tenant.people.read');
+  if(!tenantRolePolicyFromContext(context,slug).showTeam){
+    redirect(`/tenant/${encodeURIComponent(slug)}`);
+  }
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
   const canManageUsers=Boolean(
     context.platformAccess

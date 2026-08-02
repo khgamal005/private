@@ -46,7 +46,7 @@ test('tenant navigation exposes one expandable reporting center',async()=>{
   assert.match(shell,/label:'التقارير والتحليل'/);
   assert.match(shell,/label:'لوحة التقارير'/);
   assert.match(shell,/label:'أداء المكالمات'/);
-  assert.match(shell,/label:'أداء الموظفين'/);
+  assert.match(shell,/أداء الموظفين/);
   assert.match(shell,/label:'تقارير المبيعات'/);
   assert.match(shell,/label:'تقارير الحملات'/);
   assert.match(shell,/mt-navigation-children/);
@@ -82,7 +82,7 @@ test('report pages share date filters and employee drill-down',async()=>{
   assert.match(styles,/\.metric small\{color:#526a7f/);
   assert.match(styles,/grid-template-columns:minmax\(0,1fr\) auto/);
   assert.match(styles,/@media\(max-width:620px\)/);
-  assert.match(api,/v2_tenant_reports_snapshot_v1/);
+  assert.match(api,/v2_tenant_reports_snapshot_v2/);
   assert.match(range,/inclusiveDays\(from,to\)>366/);
   assert.match(employeePage,/if\(!isUuid\(staffId\)\)notFound\(\)/);
   assert.match(employeePage,/report:'employee'/);

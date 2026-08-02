@@ -22,7 +22,7 @@ export default async function CallReportsPage({params,searchParams}){
   await requireTenantPermission(slug,'tenant.crm.read');
   let data;
   try{
-    data=await authRpc('v2_tenant_yeastar_reports_snapshot',{
+    data=await authRpc('v2_tenant_yeastar_reports_snapshot_v2',{
       p_slug:slug,
       p_from:isoStart(query.from),
       p_to:isoEnd(query.to),

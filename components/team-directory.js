@@ -33,6 +33,7 @@ const reefDemoAliases={
 export default function TeamDirectory({
   slug,
   initialData,
+  salesTeams,
   canManage,
   canInvite,
   canResetPasswords,
@@ -52,6 +53,14 @@ export default function TeamDirectory({
   const staff=useMemo(()=>initialData.employees||[],[initialData.employees]);
   const departments=initialData.departments||[];
   const roles=initialData.roles||[];
+  const supervisors=salesTeams?.supervisors||[];
+  const salesMembers=salesTeams?.members||[];
+  const supervisorByStaffId=useMemo(()=>new Map(
+    salesMembers.map(member=>[member.id,member.supervisorStaffId||''])
+  ),[salesMembers]);
+  const supervisorNameById=useMemo(()=>new Map(
+    supervisors.map(supervisor=>[supervisor.id,supervisor.name])
+  ),[supervisors]);
   const shown=useMemo(()=>staff.filter(item=>{
     const matchesDepartment=department==='all'||item.departmentKey===department;
     const haystack=`${item.name||''} ${item.jobTitle||''} ${item.role||''} ${item.department||''} ${item.email||''}`;
@@ -78,7 +87,13 @@ export default function TeamDirectory({
     setError('');
     setInvitationUrl('');
     setResetResult(null);
-    setModal({type:'edit',staff:staffMember});
+    setModal({
+      type:'edit',
+      staff:{
+        ...staffMember,
+        supervisorStaffId:supervisorByStaffId.get(staffMember.id)||''
+      }
+    });
   }
 
   function openInvite(staffMember){
@@ -119,17 +134,37 @@ export default function TeamDirectory({
     return payload.data;
   }
 
+  async function assignSalesSupervisor(staffId,supervisorStaffId){
+    const response=await fetch('/api/tenant/sales-teams',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        tenantSlug:slug,
+        staffId,
+        supervisorStaffId:supervisorStaffId||null
+      })
+    });
+    const payload=await response.json();
+    if(!response.ok)throw new Error(payload.error||'تعذر حفظ إسناد المشرف');
+    return payload.data;
+  }
+
   async function saveStaff(event){
     event.preventDefault();
     setBusy(true);setError('');setMessage('');
     const values=Object.fromEntries(new FormData(event.currentTarget).entries());
     const isEdit=modal.type==='edit';
+    const previousRole=modal.staff?.roleKey;
+    const nextRole=values.role_key;
     try{
+      if(isEdit&&previousRole==='sales_user'&&nextRole!=='sales_user'){
+        await assignSalesSupervisor(modal.staff.id,null);
+      }
       await call(isEdit?'update-staff':'create-staff',isEdit?{
         p_tenant_slug:slug,
         p_staff_id:modal.staff.id,
         p_full_name:values.full_name,
-        p_role_key:values.role_key,
+        p_role_key:nextRole,
         p_department_key:values.department_key,
         p_job_title:values.job_title,
         p_email:values.email||null,
@@ -139,14 +174,19 @@ export default function TeamDirectory({
       }:{
         p_tenant_slug:slug,
         p_full_name:values.full_name,
-        p_role_key:values.role_key,
+        p_role_key:nextRole,
         p_department_key:values.department_key,
         p_job_title:values.job_title,
         p_email:values.email||null,
         p_phone:values.phone||null
       });
+      if(isEdit&&nextRole==='sales_user'){
+        await assignSalesSupervisor(modal.staff.id,values.supervisor_staff_id||null);
+      }
       setMessage(isEdit
-        ?'تم تحديث بيانات الموظف وصلاحياته'
+        ?nextRole==='sales_user'
+          ?'تم تحديث بيانات الموظف وإسناده إلى المشرف المحدد'
+          :'تم تحديث بيانات الموظف وصلاحياته'
         :'تم إنشاء الملف الوظيفي وربطه بهيكل المنشأة'
       );
       setModal(null);
@@ -248,7 +288,7 @@ export default function TeamDirectory({
 
     <section className="mt-kpis">
       <article className="mt-kpi"><span>إجمالي الفريق</span><b>{staff.length}</b><small>ملفًا وظيفيًا فعليًا</small></article>
-      <article className="mt-kpi"><span>فريق المبيعات</span><b>{sales.length}</b><small>7 مسؤولين + مشرف</small></article>
+      <article className="mt-kpi"><span>فريق المبيعات</span><b>{sales.length}</b><small>مسؤولو ومشرفو المبيعات</small></article>
       <article className="mt-kpi"><span>حسابات الدخول النشطة</span><b>{activeAccounts}</b><small>{staff.length-activeAccounts} ملفات بلا دخول نشط</small></article>
       <article className="mt-kpi"><span>الأقسام</span><b>{departments.length}</b><small>إدارة ومبيعات وخدمة عملاء وبيانات</small></article>
     </section>
@@ -271,33 +311,37 @@ export default function TeamDirectory({
         />
       </div>
       <div className="mt-team-grid">
-        {shown.map(item=><article className="mt-person-card" key={item.id}>
-          <header>
-            <span className="mt-person-avatar">{item.name?.[0]||'م'}</span>
-            <div><h3>{item.name}</h3><p>{item.jobTitle||item.role}</p></div>
-            <em className={item.status==='active'?'mt-status active':'mt-status'}>{employmentLabels[item.status]||item.status}</em>
-          </header>
-          <dl>
-            <div><dt>القسم</dt><dd>{item.department||'غير محدد'}</dd></div>
-            <div><dt>الدور</dt><dd>{item.role||item.roleKey}</dd></div>
-            <div><dt>البريد</dt><dd>{item.email||'لم يضف بعد'}</dd></div>
-            <div><dt>الجوال</dt><dd>{item.phone||'لم يضف بعد'}</dd></div>
-          </dl>
-          <footer>
-            <span className={`mt-account-state ${item.accountStatus==='active'?'active':''}`}>
-              {accountLabels[item.accountStatus]||item.accountStatus}
-            </span>
-            {canManage&&<div className="mt-card-actions">
-              <button className="mt-button soft" onClick={()=>openEdit(item)}>تعديل البيانات</button>
-              {canInvite&&item.accountStatus!=='active'&&<button className="mt-button" onClick={()=>openInvite(item)}>
-                {item.accountStatus==='invited'?'إعادة الدعوة':'دعوة للدخول'}
-              </button>}
-              {canReset(item)&&<button className="mt-button" onClick={()=>openPasswordReset(item)}>
-                إعادة تعيين كلمة المرور
-              </button>}
-            </div>}
-          </footer>
-        </article>)}
+        {shown.map(item=>{
+          const supervisorId=supervisorByStaffId.get(item.id)||'';
+          return <article className="mt-person-card" key={item.id}>
+            <header>
+              <span className="mt-person-avatar">{item.name?.[0]||'م'}</span>
+              <div><h3>{item.name}</h3><p>{item.jobTitle||item.role}</p></div>
+              <em className={item.status==='active'?'mt-status active':'mt-status'}>{employmentLabels[item.status]||item.status}</em>
+            </header>
+            <dl>
+              <div><dt>القسم</dt><dd>{item.department||'غير محدد'}</dd></div>
+              <div><dt>الدور</dt><dd>{item.role||item.roleKey}</dd></div>
+              {item.roleKey==='sales_user'&&<div><dt>المشرف المباشر</dt><dd>{supervisorNameById.get(supervisorId)||'غير مسند'}</dd></div>}
+              <div><dt>البريد</dt><dd>{item.email||'لم يضف بعد'}</dd></div>
+              <div><dt>الجوال</dt><dd>{item.phone||'لم يضف بعد'}</dd></div>
+            </dl>
+            <footer>
+              <span className={`mt-account-state ${item.accountStatus==='active'?'active':''}`}>
+                {accountLabels[item.accountStatus]||item.accountStatus}
+              </span>
+              {canManage&&<div className="mt-card-actions">
+                <button className="mt-button soft" onClick={()=>openEdit(item)}>تعديل البيانات</button>
+                {canInvite&&item.accountStatus!=='active'&&<button className="mt-button" onClick={()=>openInvite(item)}>
+                  {item.accountStatus==='invited'?'إعادة الدعوة':'دعوة للدخول'}
+                </button>}
+                {canReset(item)&&<button className="mt-button" onClick={()=>openPasswordReset(item)}>
+                  إعادة تعيين كلمة المرور
+                </button>}
+              </div>}
+            </footer>
+          </article>;
+        })}
         {!shown.length&&<div className="mt-empty">لا توجد نتائج مطابقة.</div>}
       </div>
     </section>
@@ -411,6 +455,16 @@ export default function TeamDirectory({
           <label className="mt-field">البريد — اختياري<input name="email" type="email" defaultValue={modal.staff?.email||''}/></label>
           <label className="mt-field">الجوال — اختياري<input name="phone" inputMode="tel" defaultValue={modal.staff?.phone||''}/></label>
           {modal.type==='edit'&&<>
+            {modal.staff?.roleKey==='sales_user'&&<label className="mt-field wide">
+              المشرف المباشر
+              <select name="supervisor_staff_id" defaultValue={modal.staff?.supervisorStaffId||''}>
+                <option value="">غير مسند إلى مشرف</option>
+                {supervisors.map(supervisor=><option value={supervisor.id} key={supervisor.id}>
+                  {supervisor.name} — {supervisor.jobTitle||'مشرف مبيعات'}
+                </option>)}
+              </select>
+              <small>يُستخدم هذا الإسناد في ترتيب المبيعات ولوحات الأداء وتقارير الفريق.</small>
+            </label>}
             <label className="mt-field">الحالة الوظيفية<select name="employment_status" defaultValue={modal.staff?.status||'active'}>
               <option value="active">نشط</option>
               <option value="leave">في إجازة</option>

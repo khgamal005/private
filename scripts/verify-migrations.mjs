@@ -61,13 +61,18 @@ const expected=[
   '20260802232000_role_guide_v1.sql',
   '20260802233000_operational_role_visibility_and_personal_reports.sql',
   '20260802234000_sales_teams_and_achievement_board_v1.sql',
-  '20260802235000_employee_yeastar_extensions_v1.sql'
+  '20260802235000_employee_yeastar_extensions_v1.sql',
+  '20260802235500_gate_yeastar_employee_extension_by_addon_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl))
   .filter(file=>file.endsWith('.sql'))
   .sort();
-assert.deepEqual(sqlFiles,expected,'the v2 branch must contain only reviewed forward migrations');
+assert.deepEqual(
+  sqlFiles,
+  expected,
+  'the v2 branch must contain only reviewed forward migrations'
+);
 
 const sqlByFile=new Map(
   await Promise.all(expected.map(async file=>[
@@ -114,7 +119,9 @@ for(const pattern of [
   /cron\.schedule/
 ])assert.match(allSql,pattern);
 
-const foundation=sqlByFile.get('20260801005000_knowledge_content_foundation_v1.sql');
+const foundation=sqlByFile.get(
+  '20260801005000_knowledge_content_foundation_v1.sql'
+);
 for(const pattern of [
   /create table if not exists public\.knowledge_categories/,
   /create table if not exists public\.knowledge_sources/,
@@ -127,7 +134,9 @@ for(const pattern of [
   /alerts-regulations/
 ])assert.match(foundation,pattern);
 
-const knowledge=sqlByFile.get('20260801010000_knowledge_intelligence_hub_v1.sql');
+const knowledge=sqlByFile.get(
+  '20260801010000_knowledge_intelligence_hub_v1.sql'
+);
 for(const pattern of [
   /create table if not exists public\.knowledge_ingestion_runs/,
   /create table if not exists public\.knowledge_raw_items/,
@@ -145,7 +154,9 @@ for(const pattern of [
   /recommended_action/
 ])assert.match(knowledge,pattern);
 
-const hardening=sqlByFile.get('20260801011000_knowledge_intelligence_hardening_v1.sql');
+const hardening=sqlByFile.get(
+  '20260801011000_knowledge_intelligence_hardening_v1.sql'
+);
 for(const pattern of [
   /anonymous reads active knowledge categories/,
   /authenticated reads visible knowledge posts/,
@@ -159,7 +170,9 @@ for(const pattern of [
   /https:\/\/www\.monshaat\.gov\.sa\/ar/
 ])assert.match(hardening,pattern);
 
-const stability=sqlByFile.get('20260801012000_knowledge_source_stability_v1.sql');
+const stability=sqlByFile.get(
+  '20260801012000_knowledge_source_stability_v1.sql'
+);
 for(const pattern of [
   /https:\/\/nelc\.gov\.sa\//,
   /\^\/(?:\(\?:ar\/\)\?)?media-center\/news/,
@@ -171,9 +184,18 @@ for(const pattern of [
 ])assert.match(stability,pattern);
 
 const roleGuide=sqlByFile.get('20260802232000_role_guide_v1.sql');
-const operationalRoleVisibility=sqlByFile.get('20260802233000_operational_role_visibility_and_personal_reports.sql');
-const salesTeams=sqlByFile.get('20260802234000_sales_teams_and_achievement_board_v1.sql');
-const staffExtensions=sqlByFile.get('20260802235000_employee_yeastar_extensions_v1.sql');
+const operationalRoleVisibility=sqlByFile.get(
+  '20260802233000_operational_role_visibility_and_personal_reports.sql'
+);
+const salesTeams=sqlByFile.get(
+  '20260802234000_sales_teams_and_achievement_board_v1.sql'
+);
+const staffExtensions=sqlByFile.get(
+  '20260802235000_employee_yeastar_extensions_v1.sql'
+);
+const yeastarAddonGate=sqlByFile.get(
+  '20260802235500_gate_yeastar_employee_extension_by_addon_v1.sql'
+);
 
 for(const pattern of [
   /create table if not exists people\.role_guide_progress/,
@@ -218,12 +240,26 @@ for(const pattern of [
   /grant execute on function public\.v2_tenant_assign_staff_extension[\s\S]*to authenticated/
 ])assert.match(staffExtensions,pattern);
 
-assert.doesNotMatch(knowledge,/delete from public\.knowledge_posts|drop table public\.knowledge_posts/i);
+for(const pattern of [
+  /addon\.integration\.yeastar/,
+  /product_key[\s\S]*'yeastar'/,
+  /private_app\.tenant_addon_installed/,
+  /subscription\.status in \('trialing', 'active'\)/,
+  /'enabled', v_enabled/,
+  /addon_not_installed/,
+  /yeastar_addon_not_enabled/,
+  /legacy_yeastar_connection/
+])assert.match(yeastarAddonGate,pattern);
+
 assert.doesNotMatch(
-  `${foundation}\n${knowledge}\n${hardening}\n${stability}\n${roleGuide}\n${staffExtensions}`,
+  knowledge,
+  /delete from public\.knowledge_posts|drop table public\.knowledge_posts/i
+);
+assert.doesNotMatch(
+  `${foundation}\n${knowledge}\n${hardening}\n${stability}\n${roleGuide}\n${staffExtensions}\n${yeastarAddonGate}`,
   /grant\s+all[\s\S]+to\s+anon/i
 );
 
 console.log(
-  `Verified ${expected.length} forward migrations, including employee Yeastar extensions, secure sales teams, the interactive My Role guide, and the review-first Knowledge Intelligence Hub.`
+  `Verified ${expected.length} forward migrations, including add-on-gated Yeastar employee extensions, secure sales teams, the interactive My Role guide, and the review-first Knowledge Intelligence Hub.`
 );

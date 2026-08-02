@@ -15,8 +15,11 @@ async function safeCommerceHub(slug){
 
 export default async function CoursesPage({params}){
   const {slug}=await params;
-  const [context,data,commerceHub]=await Promise.all([
-    requireTenantPermission(slug,'tenant.academy.read'),
+  const context=await requireTenantPermission(
+    slug,
+    'tenant.academy.read'
+  );
+  const [data,commerceHub]=await Promise.all([
     getTenant(slug),
     safeCommerceHub(slug)
   ]);

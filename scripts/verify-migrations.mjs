@@ -59,7 +59,8 @@ const expected=[
   '20260802006000_harden_legacy_market_and_operations_helpers.sql',
   '20260802007000_align_commerce_snapshot_with_workspace_access.sql',
   '20260802232000_role_guide_v1.sql',
-  '20260802233000_operational_role_visibility_and_personal_reports.sql'
+  '20260802233000_operational_role_visibility_and_personal_reports.sql',
+  '20260802234000_sales_teams_and_achievement_board_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl))
@@ -185,6 +186,9 @@ const roleGuide=sqlByFile.get('20260802232000_role_guide_v1.sql');
 const operationalRoleVisibility=sqlByFile.get(
   '20260802233000_operational_role_visibility_and_personal_reports.sql'
 );
+const salesTeams=sqlByFile.get(
+  '20260802234000_sales_teams_and_achievement_board_v1.sql'
+);
 for(const pattern of [
   /create table if not exists people\.role_guide_progress/,
   /unique \(tenant_id, subject_id, guide_version\)/,
@@ -206,6 +210,16 @@ for(const pattern of [
   /grant execute on function public\.v2_tenant_reports_snapshot_v2[\s\S]*to authenticated, service_role/
 ])assert.match(operationalRoleVisibility,pattern);
 
+for(const pattern of [
+  /supervisor_staff_id/,
+  /v2_tenant_sales_team_snapshot/,
+  /v2_tenant_assign_sales_team_member/,
+  /v2_tenant_employee_achievement_snapshot/,
+  /dense_rank\(\)/,
+  /peer\.supervisor_staff_id = v_supervisor_id/,
+  /tenant\.people\.manage/
+])assert.match(salesTeams,pattern);
+
 assert.doesNotMatch(
   knowledge,
   /delete from public\.knowledge_posts|drop table public\.knowledge_posts/i
@@ -216,5 +230,5 @@ assert.doesNotMatch(
 );
 
 console.log(
-  `Verified ${expected.length} forward migrations, including the secure interactive My Role guide and the review-first Knowledge Intelligence Hub.`
+  `Verified ${expected.length} forward migrations, including secure sales teams, the interactive My Role guide, and the review-first Knowledge Intelligence Hub.`
 );

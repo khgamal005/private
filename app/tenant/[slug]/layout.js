@@ -38,6 +38,7 @@ export default async function TenantLayout({children,params}){
     userName={userName}
     permissions={permissions}
     platformAccess={context.platformAccess}
+    roleKey={roleKey}
     roleLabel={roleLabel}
     notificationSummary={headerSummary(dashboard)}
   >

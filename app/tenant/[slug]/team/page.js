@@ -28,7 +28,11 @@ export default async function TeamPage({params}){
   const [data,salesTeams,staffExtensions]=await Promise.all([
     getTenant(slug,{includeAccess:canManageUsers}),
     getTenantSalesTeams(slug).catch(()=>({supervisors:[],members:[]})),
-    getTenantStaffExtensions(slug).catch(()=>({configured:false,extensions:[]}))
+    getTenantStaffExtensions(slug).catch(()=>({
+      enabled:false,
+      configured:false,
+      extensions:[]
+    }))
   ]);
   const canInvite=canManageUsers;
   const canResetPasswords=Boolean(

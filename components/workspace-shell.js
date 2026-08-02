@@ -6,6 +6,7 @@ import {useMemo,useState} from 'react';
 import LogoutButton from './logout-button';
 import MarktoneLogo from './marktone-logo';
 import {WORKSPACE_KINDS} from '../lib/workspaces';
+import {tenantRolePolicy} from '../lib/tenant-role-policy';
 
 const ICON_PATHS={
   overview:['M3 10.8 12 3l9 7.8','M5.5 9.4V21h13V9.4','M9 21v-6h6v6'],
@@ -41,15 +42,16 @@ function ShellIcon({name}){
   </svg>;
 }
 
-function tenantItems(slug,permissions,platformAccess){
+function tenantItems(slug,permissions,platformAccess,roleKey){
   const base=`/tenant/${encodeURIComponent(slug)}`;
+  const policy=tenantRolePolicy(roleKey,{platformAccess});
   const items=[
     {key:'overview',label:'لوحة القيادة',href:base,permission:'tenant.workspace.read'},
-    {key:'news',label:'الأخبار والمعارف',href:`${base}/news`,permission:'tenant.content.read'},
+    {key:'news',label:'الأخبار والمعارف',href:`${base}/news`,permission:'tenant.content.read',visible:policy.showNews},
     {key:'tasks',label:'تقويم المهام',href:`${base}/tasks`,permission:'tenant.work.read'},
     {key:'courses',label:'البرامج والدورات',children:[
       {key:'courses',label:'متجر البرامج والدورات',href:`${base}/courses`,permission:'tenant.academy.read'},
-      {key:'interactive',label:'منصة التدريب التفاعلي (قريبًا)',permission:'tenant.academy.read',disabled:true}
+      {key:'interactive',label:'منصة التدريب التفاعلي (قريبًا)',permission:'tenant.academy.read',visible:policy.showInteractiveTraining,disabled:true}
     ]},
     {key:'sales',label:'المبيعات والعملاء',children:[
       {key:'sales',label:'إدارة المبيعات والعملاء',href:`${base}/sales`,permission:'tenant.crm.read'},
@@ -57,18 +59,18 @@ function tenantItems(slug,permissions,platformAccess){
       {key:'incentives',label:'الأهداف والحوافز',href:`${base}/incentives`,permission:'tenant.incentives.read'}
     ]},
     {key:'admissions',label:'التسجيل والقبول',href:`${base}/admissions`,permission:'tenant.admissions.read'},
-    {key:'marketing',label:'التسويق والأتمتة',children:[
+    {key:'marketing',label:'التسويق والأتمتة',visible:policy.showMarketingAutomation,children:[
       {key:'marketing',label:'الحملات والتسويق (قريبًا)',permission:['tenant.crm.read','tenant.leads.read','tenant.leads.analytics'],disabled:true},
       {key:'automation',label:'الأتمتة',href:`${base}/settings?tab=automation`,permission:'tenant.users.manage'}
     ]},
     {key:'accounting',label:'الحسابات والفوترة (قريبًا)',permission:'tenant.workspace.read',disabled:true},
-    {key:'people',label:'فريق العمل',href:`${base}/team`,permission:'tenant.people.read'},
+    {key:'people',label:'فريق العمل',href:`${base}/team`,permission:'tenant.people.read',visible:policy.showTeam},
     {key:'reports',label:'التقارير والتحليل',children:[
       {key:'overview',label:'لوحة التقارير',href:`${base}/reports`,permission:'tenant.workspace.read'},
       {key:'callReports',label:'أداء المكالمات',href:`${base}/call-reports`,permission:'tenant.crm.read'},
-      {key:'people',label:'أداء الموظفين',href:`${base}/reports/employees`,permission:'tenant.workspace.read'},
+      {key:'people',label:policy.personalReportsOnly?'أدائي':'أداء الموظفين',href:`${base}/reports/employees`,permission:'tenant.workspace.read'},
       {key:'sales',label:'تقارير المبيعات',href:`${base}/reports/sales`,permission:'tenant.crm.read'},
-      {key:'campaignReports',label:'تقارير الحملات',href:`${base}/reports/campaigns`,permission:['tenant.crm.read','tenant.leads.read','tenant.leads.analytics']}
+      {key:'campaignReports',label:'تقارير الحملات',href:`${base}/reports/campaigns`,permission:['tenant.crm.read','tenant.leads.read','tenant.leads.analytics'],visible:policy.showCampaignReports}
     ]},
     {key:'settings',label:'الإعدادات والصلاحيات',href:`${base}/settings`,permission:'tenant.users.manage'},
     {key:'integrations',label:'المزامنة والترابط',href:`${base}/integrations`,permission:'tenant.users.manage'}
@@ -80,8 +82,8 @@ function tenantItems(slug,permissions,platformAccess){
     return required.some(key=>allowed.has(key));
   };
   return items
-    .map(item=>item.children?{...item,children:item.children.filter(child=>canUse(child.permission))}:item)
-    .filter(item=>item.children?.length||canUse(item.permission));
+    .map(item=>item.children?{...item,children:item.children.filter(child=>child.visible!==false&&canUse(child.permission))}:item)
+    .filter(item=>item.visible!==false&&(item.children?.length||canUse(item.permission)));
 }
 
 const platformItems=[
@@ -109,7 +111,7 @@ function notificationItems(summary,slug){
   return items;
 }
 
-export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleLabel='',notificationSummary=null}){
+export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null}){
   const pathname=usePathname();
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
@@ -118,7 +120,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
     marketing:pathname.includes('/settings'),
     reports:pathname.includes('/reports')||pathname.includes('/call-reports')
   }));
-  const items=useMemo(()=>kind===WORKSPACE_KINDS.tenant?tenantItems(slug,permissions,platformAccess):platformItems,[kind,slug,permissions,platformAccess]);
+  const items=useMemo(()=>kind===WORKSPACE_KINDS.tenant?tenantItems(slug,permissions,platformAccess,roleKey):platformItems,[kind,slug,permissions,platformAccess,roleKey]);
   const areaLabel=kind===WORKSPACE_KINDS.tenant?'لوحة المنشأة':'لوحة إدارة المنصة';
   const canCreateTask=platformAccess||permissions.includes('tenant.work.write');
   const canSearch=kind===WORKSPACE_KINDS.tenant&&(platformAccess||permissions.includes('tenant.crm.read'));

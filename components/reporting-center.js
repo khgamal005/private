@@ -3,11 +3,11 @@ import styles from './reporting-center.module.css';
 import {reportQuery} from '../lib/reporting';
 
 const REPORT_TABS=[
-  ['overview','لوحة التقارير',''],
-  ['employees','أداء الموظفين','/employees'],
-  ['sales','تقارير المبيعات','/sales'],
-  ['campaigns','تقارير الحملات','/campaigns'],
-  ['calls','أداء المكالمات','/call-reports']
+  ['overview','لوحة التقارير','',null],
+  ['employees','أداء الموظفين','/employees',null],
+  ['sales','تقارير المبيعات','/sales','sales'],
+  ['campaigns','تقارير الحملات','/campaigns','campaigns'],
+  ['calls','أداء المكالمات','/call-reports','sales']
 ];
 
 const STATUS_LABELS={
@@ -152,11 +152,15 @@ function PeriodFilter({range}){
   </form>;
 }
 
-function ReportTabs({slug,view,range}){
+function ReportTabs({slug,view,range,availability={},personalOnly=false}){
   const tenantBase=`/tenant/${encodeURIComponent(slug)}`;
   const query=reportQuery(range);
   return <nav className={styles.tabs} aria-label="أنواع التقارير">
-    {REPORT_TABS.map(([key,label,path])=>{
+    {REPORT_TABS
+      .filter(([, , ,capability])=>
+        !capability||availability[capability]!==false
+      )
+      .map(([key,label,path])=>{
       const href=key==='calls'
         ?`${tenantBase}${path}?${query}`
         :`${tenantBase}/reports${path}?${query}`;
@@ -164,7 +168,7 @@ function ReportTabs({slug,view,range}){
         key={key}
         href={href}
         className={view===key?styles.activeTab:''}
-      >{label}</Link>;
+      >{key==='employees'&&personalOnly?'أدائي':label}</Link>;
     })}
   </nav>;
 }
@@ -380,14 +384,29 @@ function CourseTable({courses=[]}){
 
 function ReportDirectory({slug,range,data}){
   const summary=data.summary||{};
+  const availability=data.availability||{};
+  const personalOnly=data.viewer?.scope==='employee'
+    ||availability.team===false;
   const cards=[
-    ['أداء الموظفين','قائمة الموظفين ثم تقرير شامل لكل موظف بالمبيعات والمهام والمكالمات وجودة البيانات.',`/tenant/${slug}/reports/employees`,`${number(data.employees?.length)} موظف`],
-    ['تقارير المبيعات','اتجاه المبيعات والمسار والتحويل والدورات وأداء الفريق خلال أي فترة.',`/tenant/${slug}/reports/sales`,`${number(summary.paidContacts)} مبيعات`],
-    ['تقارير الحملات','المصدر والحملة والإعلان والعملاء والمتابعة والتحويل والقيمة المحققة.',`/tenant/${slug}/reports/campaigns`,`${number(summary.campaignCount)} حملة`],
-    ['أداء المكالمات','المكالمات الواردة والصادرة والفائتة ونسبة الرد وأداء التحويلات.',`/tenant/${slug}/call-reports`,`${number(summary.calls)} مكالمة`]
+    [
+      personalOnly?'أدائي':'أداء الموظفين',
+      personalOnly
+        ?'تقريرك الشخصي في المبيعات والمهام والمكالمات وجودة استكمال البيانات.'
+        :'قائمة الموظفين ثم تقرير شامل لكل موظف بالمبيعات والمهام والمكالمات وجودة البيانات.',
+      `/tenant/${slug}/reports/employees`,
+      personalOnly?'تقريري':`${number(data.employees?.length)} موظف`,
+      null
+    ],
+    ['تقارير المبيعات','اتجاه المبيعات والمسار والتحويل والدورات خلال أي فترة.',`/tenant/${slug}/reports/sales`,`${number(summary.paidContacts)} مبيعات`,'sales'],
+    ['تقارير الحملات','المصدر والحملة والإعلان والعملاء والمتابعة والتحويل والقيمة المحققة.',`/tenant/${slug}/reports/campaigns`,`${number(summary.campaignCount)} حملة`,'campaigns'],
+    ['أداء المكالمات','المكالمات الواردة والصادرة والفائتة ونسبة الرد وأداء التحويلات.',`/tenant/${slug}/call-reports`,`${number(summary.calls)} مكالمة`,'sales']
   ];
   return <section className={styles.directory}>
-    {cards.map(([title,description,href,badge])=><Link
+    {cards
+      .filter(([, , , ,capability])=>
+        !capability||availability[capability]!==false
+      )
+      .map(([title,description,href,badge])=><Link
       key={title}
       href={`${href}?${reportQuery(range)}`}
     >
@@ -468,6 +487,9 @@ export default function ReportingCenter({
 }){
   const summary=data?.summary||{};
   const selectedEmployee=data?.selectedEmployee||null;
+  const availability=data?.availability||{};
+  const personalOnly=data?.viewer?.scope==='employee'
+    ||availability.team===false;
   const title=view==='employees'
     ?'أداء الموظفين'
     :view==='employee'
@@ -490,7 +512,13 @@ export default function ReportingCenter({
       </div>
       <PeriodFilter range={range}/>
     </section>
-    <ReportTabs slug={slug} view={view==='employee'?'employees':view} range={range}/>
+    <ReportTabs
+      slug={slug}
+      view={view==='employee'?'employees':view}
+      range={range}
+      availability={availability}
+      personalOnly={personalOnly}
+    />
     {view==='employee'&&<EmployeeHero employee={selectedEmployee} summary={summary}/>}
     <MetricGrid items={metricsFor(view,summary)}/>
 
@@ -505,7 +533,8 @@ export default function ReportingCenter({
         />
       </section>
       <EmployeeTable employees={data.employees||[]} slug={slug} range={range} compact/>
-      <CampaignTable campaigns={data.campaigns||[]} compact/>
+      {availability.campaigns!==false
+        &&<CampaignTable campaigns={data.campaigns||[]} compact/>}
     </>}
 
     {view==='employees'&&<>

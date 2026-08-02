@@ -7,8 +7,9 @@ export const dynamic='force-dynamic';
 
 export default async function TenantLayout({children,params}){
   const {slug}=await params;
-  const [context,data,dashboard]=await Promise.all([
-    requireTenant(slug),
+  // Finish the temporary-password redirect before protected tenant RPCs.
+  const context=await requireTenant(slug);
+  const [data,dashboard]=await Promise.all([
     getTenant(slug),
     getTenantRoleDashboard(slug).catch(()=>null)
   ]);

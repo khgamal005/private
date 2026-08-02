@@ -78,10 +78,7 @@ export default function RolePermissionsManager({
       roleKey:null,
       nameAr:'',
       nameEn:'',
-      permissions:new Set([
-        'tenant.workspace.read',
-        'tenant.reports.read'
-      ])
+      permissions:new Set(['tenant.workspace.read'])
     });
     setNotice('');
     setError('');
@@ -95,7 +92,7 @@ export default function RolePermissionsManager({
     if(!draft)return;
     const locked=new Set(
       creating
-        ?['tenant.workspace.read','tenant.reports.read']
+        ?['tenant.workspace.read']
         :selectedRole?.lockedPermissions||[]
     );
     if(locked.has(permissionKey))return;
@@ -172,7 +169,7 @@ export default function RolePermissionsManager({
 
   const locked=new Set(
     creating
-      ?['tenant.workspace.read','tenant.reports.read']
+      ?['tenant.workspace.read']
       :selectedRole?.lockedPermissions||[]
   );
   const assignedTotal=(selectedRole?.assignedStaffCount||0)

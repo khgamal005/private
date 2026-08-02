@@ -6,6 +6,7 @@ import IntegrationHub from './integration-hub';
 import AutomationStudio from './automation-studio';
 import DeliveryAnalytics from './delivery-analytics';
 import AddonCenter from './addon-center';
+import RolePermissionsManager from './role-permissions-manager';
 
 const TABS=[
   ['users','المستخدمون'],
@@ -30,9 +31,9 @@ const HEADINGS={
     description:'متابعة دعوات الدخول وحالات قبولها وانتهائها.'
   },
   roles:{
-    eyebrow:'ROLES & PERMISSIONS',
+    eyebrow:'إدارة الوصول',
     title:'الأدوار والصلاحيات',
-    description:'قوالب الوصول الفعلية المطبقة على فريق المنشأة.'
+    description:'اختر ما يستطيع كل دور رؤيته وتنفيذه بأسماء عربية واضحة.'
   },
   addons:{
     eyebrow:'MODULAR ADD-ONS',
@@ -80,7 +81,7 @@ export default function TenantSettings({slug,initialData,initialTab='users'}){
   const shown=useMemo(()=>users.filter(user=>
     `${user.name||''} ${user.email||''} ${user.role||''}`.toLowerCase().includes(query.toLowerCase())
   ),[users,query]);
-  const accessTab=['users','invitations','roles'].includes(tab);
+  const accessTab=['users','invitations'].includes(tab);
 
   async function inviteUser(event){
     event.preventDefault();
@@ -141,6 +142,11 @@ export default function TenantSettings({slug,initialData,initialTab='users'}){
       roles={roles}
       invitations={invitations}
       domains={domains}
+    />}
+
+    {tab==='roles'&&<RolePermissionsManager
+      slug={slug}
+      initialData={initialData.roleManagement}
     />}
 
     {tab==='integrations'&&<IntegrationHub
@@ -229,7 +235,7 @@ function AccessSettings({
           <td><span className={user.status==='active'?'mt-status active':'mt-status'}>{user.status==='active'?'نشط':user.status}</span></td>
         </tr>)}</tbody>
       </table>{!shown.length&&<div className="mt-empty">لا توجد حسابات مرتبطة بعد.</div>}</div>
-      :tab==='invitations'?<div className="mt-table-wrap"><table className="mt-table">
+      :<div className="mt-table-wrap"><table className="mt-table">
         <thead><tr><th>المستخدم</th><th>الدور</th><th>الحالة</th><th>تنتهي في</th></tr></thead>
         <tbody>{invitations.map(invitation=><tr key={invitation.id}>
           <td><b>{invitation.fullName}</b><small>{invitation.email}</small></td>
@@ -237,14 +243,7 @@ function AccessSettings({
           <td><span className={invitation.status==='accepted'?'mt-status active':'mt-status'}>{invitationStatus(invitation.status)}</span></td>
           <td>{new Date(invitation.expiresAt).toLocaleDateString('ar-SA')}</td>
         </tr>)}</tbody>
-      </table>{!invitations.length&&<div className="mt-empty">لا توجد دعوات حتى الآن.</div>}</div>
-      :<div className="mt-role-cards">
-        {roles.map(role=><article key={role.id}>
-          <header><div><b>{role.nameAr}</b><small>{role.key}</small></div><span className="mt-status active">مفعّل</span></header>
-          <p>{(role.permissions||[]).join('، ')||'لم تُحدد صلاحيات تفصيلية لهذا الدور.'}</p>
-        </article>)}
-        {!roles.length&&<div className="mt-empty">لم تُضبط أدوار المنشأة بعد.</div>}
-      </div>}
+      </table>{!invitations.length&&<div className="mt-empty">لا توجد دعوات حتى الآن.</div>}</div>}
     </section>
   </>;
 }

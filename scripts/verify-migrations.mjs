@@ -62,7 +62,9 @@ const expected=[
   '20260802233000_operational_role_visibility_and_personal_reports.sql',
   '20260802234000_sales_teams_and_achievement_board_v1.sql',
   '20260802235000_employee_yeastar_extensions_v1.sql',
-  '20260802235500_gate_yeastar_employee_extension_by_addon_v1.sql'
+  '20260802235500_gate_yeastar_employee_extension_by_addon_v1.sql',
+  '20260802241100_tenant_role_management_snapshots_v1.sql',
+  '20260802241200_tenant_role_management_actions_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl))
@@ -111,6 +113,9 @@ for(const pattern of [
   /v2_tenant_commerce_hub_snapshot/,
   /v2_tenant_role_guide_snapshot/,
   /v2_tenant_role_guide_action/,
+  /v2_tenant_effective_roles_snapshot/,
+  /v2_tenant_role_management_snapshot/,
+  /v2_tenant_role_management_action/,
   /tenant\.integrations\.manage/,
   /tenant\.users\.reset_password/,
   /tenant\.leads\.import/,

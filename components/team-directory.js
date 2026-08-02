@@ -17,23 +17,16 @@ const employmentLabels={
 };
 
 const reefDemoAliases={
-  نور:'noor.demo',
-  مي:'mai.demo',
-  ليلى:'layla.demo',
-  روان:'rawan.demo',
-  عبدالجليل:'abdeljalil.demo',
-  عمر:'omar.demo',
-  رزان:'razan.demo',
-  ياسمين:'yasmin.demo',
-  داليا:'dalia.demo',
-  وعد:'waad.demo',
-  ياسر:'yasser.demo'
+  نور:'noor.demo',مي:'mai.demo',ليلى:'layla.demo',روان:'rawan.demo',
+  عبدالجليل:'abdeljalil.demo',عمر:'omar.demo',رزان:'razan.demo',
+  ياسمين:'yasmin.demo',داليا:'dalia.demo',وعد:'waad.demo',ياسر:'yasser.demo'
 };
 
 export default function TeamDirectory({
   slug,
   initialData,
   salesTeams,
+  staffExtensions,
   canManage,
   canInvite,
   canResetPasswords,
@@ -50,6 +43,7 @@ export default function TeamDirectory({
   const [error,setError]=useState('');
   const [invitationUrl,setInvitationUrl]=useState('');
   const [resetResult,setResetResult]=useState(null);
+
   const staff=useMemo(()=>initialData.employees||[],[initialData.employees]);
   const departments=initialData.departments||[];
   const roles=initialData.roles||[];
@@ -61,22 +55,34 @@ export default function TeamDirectory({
   const supervisorNameById=useMemo(()=>new Map(
     supervisors.map(supervisor=>[supervisor.id,supervisor.name])
   ),[supervisors]);
+  const extensionByStaffId=useMemo(()=>new Map(
+    (staffExtensions?.extensions||[]).map(item=>[
+      item.staffId,
+      item.extension||''
+    ])
+  ),[staffExtensions]);
   const shown=useMemo(()=>staff.filter(item=>{
     const matchesDepartment=department==='all'||item.departmentKey===department;
-    const haystack=`${item.name||''} ${item.jobTitle||''} ${item.role||''} ${item.department||''} ${item.email||''}`;
+    const extension=extensionByStaffId.get(item.id)||'';
+    const haystack=`${item.name||''} ${item.jobTitle||''} ${item.role||''} ${item.department||''} ${item.email||''} ${item.phone||''} ${extension}`;
     return matchesDepartment&&haystack.toLowerCase().includes(query.toLowerCase());
-  }),[staff,department,query]);
+  }),[staff,department,query,extensionByStaffId]);
   const sales=staff.filter(item=>['sales_user','sales_supervisor','sales_manager'].includes(item.roleKey));
   const activeAccounts=staff.filter(item=>item.accountStatus==='active').length;
   const managerProfiles=staff.filter(item=>['tenant_admin','executive_manager'].includes(item.roleKey));
 
-  function openCreate(roleKey='sales_user'){
+  function resetModalState(){
     setError('');
     setInvitationUrl('');
     setResetResult(null);
+  }
+
+  function openCreate(roleKey='sales_user'){
+    resetModalState();
     setModal({
       type:'create',
       roleKey,
+      selectedRole:roleKey,
       departmentKey:['tenant_admin','executive_manager'].includes(roleKey)
         ?'management'
         :'sales'
@@ -84,22 +90,20 @@ export default function TeamDirectory({
   }
 
   function openEdit(staffMember){
-    setError('');
-    setInvitationUrl('');
-    setResetResult(null);
+    resetModalState();
     setModal({
       type:'edit',
+      selectedRole:staffMember.roleKey,
       staff:{
         ...staffMember,
-        supervisorStaffId:supervisorByStaffId.get(staffMember.id)||''
+        supervisorStaffId:supervisorByStaffId.get(staffMember.id)||'',
+        yeastarExtension:extensionByStaffId.get(staffMember.id)||''
       }
     });
   }
 
   function openInvite(staffMember){
-    setError('');
-    setInvitationUrl('');
-    setResetResult(null);
+    resetModalState();
     setModal({
       type:'invite',
       staff:staffMember,
@@ -108,19 +112,15 @@ export default function TeamDirectory({
   }
 
   function openPasswordReset(staffMember){
-    setError('');
+    resetModalState();
     setMessage('');
-    setInvitationUrl('');
-    setResetResult(null);
     setModal({type:'resetPassword',staff:staffMember});
   }
 
   function closeModal(){
     if(busy)return;
     setModal(null);
-    setError('');
-    setInvitationUrl('');
-    setResetResult(null);
+    resetModalState();
   }
 
   async function call(action,body){
@@ -129,7 +129,7 @@ export default function TeamDirectory({
       headers:{'content-type':'application/json'},
       body:JSON.stringify(body)
     });
-    const payload=await response.json();
+    const payload=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(payload.error||'تعذر تنفيذ العملية');
     return payload.data;
   }
@@ -144,8 +144,23 @@ export default function TeamDirectory({
         supervisorStaffId:supervisorStaffId||null
       })
     });
-    const payload=await response.json();
+    const payload=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(payload.error||'تعذر حفظ إسناد المشرف');
+    return payload.data;
+  }
+
+  async function assignYeastarExtension(staffId,extension){
+    const response=await fetch('/api/tenant/staff-extension',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        tenantSlug:slug,
+        staffId,
+        extension:String(extension||'').trim()||null
+      })
+    });
+    const payload=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(payload.error||'تعذر حفظ تحويلة Yeastar');
     return payload.data;
   }
 
@@ -160,7 +175,7 @@ export default function TeamDirectory({
       if(isEdit&&previousRole==='sales_user'&&nextRole!=='sales_user'){
         await assignSalesSupervisor(modal.staff.id,null);
       }
-      await call(isEdit?'update-staff':'create-staff',isEdit?{
+      const saved=await call(isEdit?'update-staff':'create-staff',isEdit?{
         p_tenant_slug:slug,
         p_staff_id:modal.staff.id,
         p_full_name:values.full_name,
@@ -180,14 +195,18 @@ export default function TeamDirectory({
         p_email:values.email||null,
         p_phone:values.phone||null
       });
-      if(isEdit&&nextRole==='sales_user'){
-        await assignSalesSupervisor(modal.staff.id,values.supervisor_staff_id||null);
+      const staffId=isEdit?modal.staff.id:saved?.id;
+      if(staffId&&nextRole==='sales_user'&&values.supervisor_staff_id){
+        await assignSalesSupervisor(staffId,values.supervisor_staff_id);
+      }else if(isEdit&&nextRole==='sales_user'){
+        await assignSalesSupervisor(staffId,null);
+      }
+      if(staffId&&staffExtensions?.configured){
+        await assignYeastarExtension(staffId,values.yeastar_extension||null);
       }
       setMessage(isEdit
-        ?nextRole==='sales_user'
-          ?'تم تحديث بيانات الموظف وإسناده إلى المشرف المحدد'
-          :'تم تحديث بيانات الموظف وصلاحياته'
-        :'تم إنشاء الملف الوظيفي وربطه بهيكل المنشأة'
+        ?'تم تحديث بيانات الموظف والمشرف وتحويلة Yeastar'
+        :'تم إنشاء الملف الوظيفي وحفظ بيانات الاتصال'
       );
       setModal(null);
       router.refresh();
@@ -233,12 +252,9 @@ export default function TeamDirectory({
           p_staff_id:modal.staff.id
         })
       });
-      const payload=await response.json();
-      if(!response.ok){
-        throw new Error(payload.error||'تعذر إعادة تعيين كلمة المرور');
-      }
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(payload.error||'تعذر إعادة تعيين كلمة المرور');
       setResetResult(payload.data);
-      setMessage('');
       router.refresh();
     }catch(err){setError(err.message)}finally{setBusy(false)}
   }
@@ -250,14 +266,9 @@ export default function TeamDirectory({
 
   function canReset(staffMember){
     if(!canResetPasswords||staffMember.accountStatus!=='active')return false;
-    if(staffMember.membershipId&&staffMember.membershipId===viewerMembershipId){
-      return false;
-    }
+    if(staffMember.membershipId&&staffMember.membershipId===viewerMembershipId)return false;
     if(platformAccess)return true;
-    const viewerRank=Math.max(
-      0,
-      ...(viewerRoleKeys||[]).map(roleRank)
-    );
+    const viewerRank=Math.max(0,...(viewerRoleKeys||[]).map(roleRank));
     return viewerRank>roleRank(staffMember.roleKey);
   }
 
@@ -266,7 +277,7 @@ export default function TeamDirectory({
       <div>
         <small>PEOPLE & ACCESS</small>
         <h2>فريق عمل ريف المهارات</h2>
-        <p>أكمل البيانات من لوحة المنشأة، ثم حوّل أي ملف وظيفي إلى حساب دخول بالدور والصلاحيات المحددة.</p>
+        <p>إدارة بيانات الموظفين والأدوار والمشرف المباشر وتحويلات Yeastar من ملف وظيفي واحد.</p>
       </div>
       <div className="mt-page-actions">
         {canManage&&<button className="mt-button primary" onClick={()=>openCreate()}>+ إضافة موظف</button>}
@@ -275,10 +286,16 @@ export default function TeamDirectory({
 
     {message&&<div className="mt-alert">{message}</div>}
     {error&&!modal&&<div className="mt-alert error">{error}</div>}
+    {!staffExtensions?.configured&&<section className="mt-data-note warning">
+      <div>
+        <b>تكامل Yeastar غير مفعّل لهذه المنشأة</b>
+        <p>سيظهر حقل التحويلة داخل بيانات الموظف، ويصبح قابلًا للحفظ بعد إدخال بيانات السنترال من الإعدادات.</p>
+      </div>
+    </section>}
     {!managerProfiles.length&&<section className="mt-data-note warning">
       <div>
         <b>مدير المنشأة والمدير التنفيذي جاهزان للإضافة من لوحة التحكم</b>
-        <p>اترك الاسم والبريد فارغين الآن، أو أضفهما لاحقًا ثم أرسل دعوة الدخول. كلا الدورين يملك جميع الصلاحيات الحالية.</p>
+        <p>يمكن إنشاء الملف الآن ثم إرسال دعوة الدخول بعد مراجعة الدور والصلاحيات.</p>
       </div>
       {canManage&&<div className="mt-data-note-actions">
         <button className="mt-button soft" onClick={()=>openCreate('tenant_admin')}>+ مدير منشأة</button>
@@ -289,8 +306,8 @@ export default function TeamDirectory({
     <section className="mt-kpis">
       <article className="mt-kpi"><span>إجمالي الفريق</span><b>{staff.length}</b><small>ملفًا وظيفيًا فعليًا</small></article>
       <article className="mt-kpi"><span>فريق المبيعات</span><b>{sales.length}</b><small>مسؤولو ومشرفو المبيعات</small></article>
-      <article className="mt-kpi"><span>حسابات الدخول النشطة</span><b>{activeAccounts}</b><small>{staff.length-activeAccounts} ملفات بلا دخول نشط</small></article>
-      <article className="mt-kpi"><span>الأقسام</span><b>{departments.length}</b><small>إدارة ومبيعات وخدمة عملاء وبيانات</small></article>
+      <article className="mt-kpi"><span>تحويلات مرتبطة</span><b>{extensionByStaffId.size}</b><small>مرتبطة بتقارير المكالمات</small></article>
+      <article className="mt-kpi"><span>حسابات نشطة</span><b>{activeAccounts}</b><small>{staff.length-activeAccounts} ملفات بلا دخول نشط</small></article>
     </section>
 
     <section className="mt-panel">
@@ -303,16 +320,12 @@ export default function TeamDirectory({
             key={item.id}
           >{item.nameAr}</button>)}
         </div>
-        <input
-          className="mt-search"
-          value={query}
-          onChange={event=>setQuery(event.target.value)}
-          placeholder="ابحث بالاسم أو الوظيفة أو البريد"
-        />
+        <input className="mt-search" value={query} onChange={event=>setQuery(event.target.value)} placeholder="ابحث بالاسم أو الوظيفة أو التحويلة"/>
       </div>
       <div className="mt-team-grid">
         {shown.map(item=>{
           const supervisorId=supervisorByStaffId.get(item.id)||'';
+          const extension=extensionByStaffId.get(item.id)||'';
           return <article className="mt-person-card" key={item.id}>
             <header>
               <span className="mt-person-avatar">{item.name?.[0]||'م'}</span>
@@ -323,21 +336,16 @@ export default function TeamDirectory({
               <div><dt>القسم</dt><dd>{item.department||'غير محدد'}</dd></div>
               <div><dt>الدور</dt><dd>{item.role||item.roleKey}</dd></div>
               {item.roleKey==='sales_user'&&<div><dt>المشرف المباشر</dt><dd>{supervisorNameById.get(supervisorId)||'غير مسند'}</dd></div>}
+              <div><dt>تحويلة Yeastar</dt><dd dir="ltr">{extension||'غير مضافة'}</dd></div>
               <div><dt>البريد</dt><dd>{item.email||'لم يضف بعد'}</dd></div>
               <div><dt>الجوال</dt><dd>{item.phone||'لم يضف بعد'}</dd></div>
             </dl>
             <footer>
-              <span className={`mt-account-state ${item.accountStatus==='active'?'active':''}`}>
-                {accountLabels[item.accountStatus]||item.accountStatus}
-              </span>
+              <span className={`mt-account-state ${item.accountStatus==='active'?'active':''}`}>{accountLabels[item.accountStatus]||item.accountStatus}</span>
               {canManage&&<div className="mt-card-actions">
                 <button className="mt-button soft" onClick={()=>openEdit(item)}>تعديل البيانات</button>
-                {canInvite&&item.accountStatus!=='active'&&<button className="mt-button" onClick={()=>openInvite(item)}>
-                  {item.accountStatus==='invited'?'إعادة الدعوة':'دعوة للدخول'}
-                </button>}
-                {canReset(item)&&<button className="mt-button" onClick={()=>openPasswordReset(item)}>
-                  إعادة تعيين كلمة المرور
-                </button>}
+                {canInvite&&item.accountStatus!=='active'&&<button className="mt-button" onClick={()=>openInvite(item)}>{item.accountStatus==='invited'?'إعادة الدعوة':'دعوة للدخول'}</button>}
+                {canReset(item)&&<button className="mt-button" onClick={()=>openPasswordReset(item)}>إعادة تعيين كلمة المرور</button>}
               </div>}
             </footer>
           </article>;
@@ -346,144 +354,74 @@ export default function TeamDirectory({
       </div>
     </section>
 
-    {modal?.type==='invite'&&<div className="mt-modal-layer">
-      <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={closeModal}/>
-      <form className="mt-modal" onSubmit={inviteStaff}>
-        <header>
-          <div><small>ACCOUNT ACTIVATION</small><h3>دعوة {modal.staff.name} للدخول</h3></div>
-          <button type="button" onClick={closeModal}>×</button>
-        </header>
+    {modal?.type==='invite'&&<Modal title={`دعوة ${modal.staff.name} للدخول`} onClose={closeModal}>
+      <form onSubmit={inviteStaff}>
         <div className="mt-form">
-          <label className="mt-field wide">
-            البريد الإلكتروني
-            <input
-              name="email"
-              type="email"
-              defaultValue={modal.suggestedEmail}
-              required
-            />
-          </label>
-          {modal.suggestedEmail?.endsWith('.demo@reefskills.sa')&&<div className="mt-field wide mt-inline-help">
-            هذا عنوان تجريبي مقترح تحت دومين ريف، ولا يعني وجود صندوق بريد فعلي. غيّره إلى البريد الحقيقي قبل التشغيل الفعلي.
-          </div>}
-          {invitationUrl&&<div className="mt-invitation-link mt-field wide">
-            <span>رابط التفعيل يظهر مرة واحدة</span>
-            <input readOnly value={invitationUrl}/>
-            <button type="button" className="mt-button" onClick={copyInvitation}>نسخ الرابط</button>
-          </div>}
+          <label className="mt-field wide">البريد الإلكتروني<input name="email" type="email" defaultValue={modal.suggestedEmail} required/></label>
+          {invitationUrl&&<div className="mt-invitation-link mt-field wide"><span>رابط التفعيل يظهر مرة واحدة</span><input readOnly value={invitationUrl}/><button type="button" className="mt-button" onClick={copyInvitation}>نسخ الرابط</button></div>}
           {error&&<div className="mt-alert error mt-field wide">{error}</div>}
         </div>
-        <footer>
-          <button type="button" className="mt-button" onClick={closeModal}>إغلاق</button>
-          {!invitationUrl&&<button className="mt-button primary" disabled={busy}>{busy?'جارٍ إنشاء الدعوة…':'حفظ البريد وإنشاء الدعوة'}</button>}
-        </footer>
+        <footer><button type="button" className="mt-button" onClick={closeModal}>إغلاق</button>{!invitationUrl&&<button className="mt-button primary" disabled={busy}>{busy?'جارٍ إنشاء الدعوة…':'حفظ البريد وإنشاء الدعوة'}</button>}</footer>
       </form>
-    </div>}
+    </Modal>}
 
-    {modal?.type==='resetPassword'&&<div className="mt-modal-layer" dir="rtl">
-      <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={closeModal}/>
-      <form
-        className="mt-modal mt-password-reset-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="password-reset-title"
-        onSubmit={resetPassword}
-      >
-        <header>
-          <div><small>SECURE PASSWORD RESET</small><h3 id="password-reset-title">إعادة كلمة مرور {modal.staff.name}</h3></div>
-          <button type="button" aria-label="إغلاق النافذة" onClick={closeModal}>×</button>
-        </header>
+    {modal?.type==='resetPassword'&&<Modal title={`إعادة كلمة مرور ${modal.staff.name}`} onClose={closeModal}>
+      <form onSubmit={resetPassword}>
         <div className="mt-form">
-          {!resetResult&&<>
-            <div className="mt-field wide mt-reset-warning">
-              <b>سيتم إلغاء كلمة المرور الحالية</b>
-              <p>سينشئ النظام كلمة مؤقتة قوية، ولن تُعرض إلا مرة واحدة. يجب إرسالها للموظف عبر قناة آمنة، وسيُطلب منه تغييرها فور تسجيل الدخول.</p>
-            </div>
-            <dl className="mt-field wide mt-reset-account">
-              <div><dt>الموظف</dt><dd>{modal.staff.name}</dd></div>
-              <div><dt>البريد</dt><dd>{modal.staff.email}</dd></div>
-              <div><dt>الدور</dt><dd>{modal.staff.role}</dd></div>
-            </dl>
-            <label className="mt-field wide mt-confirm-reset">
-              <input name="confirm_reset" type="checkbox" required/>
-              <span>أؤكد أنني أريد إعادة تعيين كلمة مرور هذا الموظف.</span>
-            </label>
-          </>}
-          {resetResult&&<div className="mt-field wide mt-reset-success">
-            <b>تم إنشاء كلمة المرور المؤقتة</b>
-            <p>انسخها الآن؛ لن يحتفظ النظام بنسخة قابلة للعرض منها.</p>
-            <div>
-              <input
-                dir="ltr"
-                readOnly
-                value={resetResult.temporaryPassword}
-                aria-label="كلمة المرور المؤقتة"
-              />
-              <button type="button" className="mt-button" onClick={copyTemporaryPassword}>نسخ</button>
-            </div>
-          </div>}
+          {!resetResult?<>
+            <div className="mt-field wide mt-reset-warning"><b>سيتم إلغاء كلمة المرور الحالية</b><p>سينشئ النظام كلمة مؤقتة قوية تُعرض مرة واحدة.</p></div>
+            <label className="mt-field wide mt-confirm-reset"><input name="confirm_reset" type="checkbox" required/><span>أؤكد إعادة تعيين كلمة مرور هذا الموظف.</span></label>
+          </>:<div className="mt-field wide mt-reset-success"><b>تم إنشاء كلمة المرور المؤقتة</b><div><input dir="ltr" readOnly value={resetResult.temporaryPassword}/><button type="button" className="mt-button" onClick={copyTemporaryPassword}>نسخ</button></div></div>}
           {message&&<div className="mt-alert mt-field wide">{message}</div>}
           {error&&<div className="mt-alert error mt-field wide">{error}</div>}
         </div>
-        <footer>
-          <button type="button" className="mt-button" onClick={closeModal}>
-            {resetResult?'تم':'إلغاء'}
-          </button>
-          {!resetResult&&<button className="mt-button primary" disabled={busy}>
-            {busy?'جارٍ إعادة التعيين…':'إنشاء كلمة مرور مؤقتة'}
-          </button>}
-        </footer>
+        <footer><button type="button" className="mt-button" onClick={closeModal}>{resetResult?'تم':'إلغاء'}</button>{!resetResult&&<button className="mt-button primary" disabled={busy}>{busy?'جارٍ إعادة التعيين…':'إنشاء كلمة مرور مؤقتة'}</button>}</footer>
       </form>
-    </div>}
+    </Modal>}
 
-    {modal&&['create','edit'].includes(modal.type)&&<div className="mt-modal-layer">
-      <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={closeModal}/>
-      <form className="mt-modal" onSubmit={saveStaff}>
-        <header>
-          <div><small>STAFF PROFILE</small><h3>{modal.type==='edit'?'تعديل بيانات الموظف':'إضافة موظف إلى المنشأة'}</h3></div>
-          <button type="button" onClick={closeModal}>×</button>
-        </header>
+    {modal&&['create','edit'].includes(modal.type)&&<Modal title={modal.type==='edit'?'تعديل بيانات الموظف':'إضافة موظف إلى المنشأة'} onClose={closeModal}>
+      <form onSubmit={saveStaff}>
         <div className="mt-form">
           <label className="mt-field wide">اسم الموظف<input name="full_name" defaultValue={modal.staff?.name||''} required/></label>
           <label className="mt-field">المسمى الوظيفي<input name="job_title" defaultValue={modal.staff?.jobTitle||roleJobTitle(modal.roleKey)} required/></label>
-          <label className="mt-field">الدور<select name="role_key" defaultValue={modal.staff?.roleKey||modal.roleKey||'sales_user'}>
-            {roles.map(role=><option value={role.key} key={role.key}>{role.nameAr}</option>)}
-          </select></label>
-          <label className="mt-field">القسم<select name="department_key" defaultValue={modal.staff?.departmentKey||modal.departmentKey||'sales'}>
-            {departments.map(item=><option value={item.key} key={item.key}>{item.nameAr}</option>)}
-          </select></label>
+          <label className="mt-field">الدور<select name="role_key" value={modal.selectedRole||'sales_user'} onChange={event=>setModal(current=>({...current,selectedRole:event.target.value}))}>{roles.map(role=><option value={role.key} key={role.key}>{role.nameAr}</option>)}</select></label>
+          <label className="mt-field">القسم<select name="department_key" defaultValue={modal.staff?.departmentKey||modal.departmentKey||'sales'}>{departments.map(item=><option value={item.key} key={item.key}>{item.nameAr}</option>)}</select></label>
           <label className="mt-field">البريد — اختياري<input name="email" type="email" defaultValue={modal.staff?.email||''}/></label>
           <label className="mt-field">الجوال — اختياري<input name="phone" inputMode="tel" defaultValue={modal.staff?.phone||''}/></label>
+          <label className="mt-field">
+            رقم تحويلة Yeastar — اختياري
+            <input name="yeastar_extension" dir="ltr" inputMode="numeric" pattern="[0-9]{1,10}" maxLength={10} defaultValue={modal.staff?.yeastarExtension||''} disabled={!staffExtensions?.configured}/>
+            <small>{staffExtensions?.configured?'تربط مكالمات هذه التحويلة بلوحة أداء الموظف وتقاريره.':'فعّل تكامل Yeastar من الإعدادات أولًا.'}</small>
+          </label>
+          {modal.selectedRole==='sales_user'&&<label className="mt-field wide">
+            المشرف المباشر
+            <select name="supervisor_staff_id" defaultValue={modal.staff?.supervisorStaffId||''}>
+              <option value="">غير مسند إلى مشرف</option>
+              {supervisors.map(supervisor=><option value={supervisor.id} key={supervisor.id}>{supervisor.name} — {supervisor.jobTitle||'مشرف مبيعات'}</option>)}
+            </select>
+            <small>يُستخدم في ترتيب المبيعات ولوحات الأداء وتقارير الفريق.</small>
+          </label>}
           {modal.type==='edit'&&<>
-            {modal.staff?.roleKey==='sales_user'&&<label className="mt-field wide">
-              المشرف المباشر
-              <select name="supervisor_staff_id" defaultValue={modal.staff?.supervisorStaffId||''}>
-                <option value="">غير مسند إلى مشرف</option>
-                {supervisors.map(supervisor=><option value={supervisor.id} key={supervisor.id}>
-                  {supervisor.name} — {supervisor.jobTitle||'مشرف مبيعات'}
-                </option>)}
-              </select>
-              <small>يُستخدم هذا الإسناد في ترتيب المبيعات ولوحات الأداء وتقارير الفريق.</small>
-            </label>}
-            <label className="mt-field">الحالة الوظيفية<select name="employment_status" defaultValue={modal.staff?.status||'active'}>
-              <option value="active">نشط</option>
-              <option value="leave">في إجازة</option>
-              <option value="inactive">غير نشط</option>
-            </select></label>
+            <label className="mt-field">الحالة الوظيفية<select name="employment_status" defaultValue={modal.staff?.status||'active'}><option value="active">نشط</option><option value="leave">في إجازة</option><option value="inactive">غير نشط</option></select></label>
             <label className="mt-field">الطاقة الأسبوعية بالدقائق<input name="capacity_minutes_weekly" type="number" min="0" max="10080" defaultValue={modal.staff?.capacityMinutesWeekly||2400}/></label>
           </>}
-          <div className="mt-field wide mt-inline-help">
-            إضافة البريد هنا تحفظه في الملف فقط. إنشاء حساب الدخول يتم من زر «دعوة للدخول» بعد مراجعة الدور.
-          </div>
+          <div className="mt-field wide mt-inline-help">إنشاء حساب الدخول يتم من زر «دعوة للدخول» بعد مراجعة الدور والبيانات.</div>
           {error&&<div className="mt-alert error mt-field wide">{error}</div>}
         </div>
-        <footer>
-          <button type="button" className="mt-button" onClick={closeModal}>إلغاء</button>
-          <button className="mt-button primary" disabled={busy}>{busy?'جارٍ الحفظ…':modal.type==='edit'?'حفظ التعديلات':'حفظ الملف الوظيفي'}</button>
-        </footer>
+        <footer><button type="button" className="mt-button" onClick={closeModal}>إلغاء</button><button className="mt-button primary" disabled={busy}>{busy?'جارٍ الحفظ…':modal.type==='edit'?'حفظ التعديلات':'حفظ الملف الوظيفي'}</button></footer>
       </form>
-    </div>}
+    </Modal>}
   </>;
+}
+
+function Modal({title,onClose,children}){
+  return <div className="mt-modal-layer" dir="rtl">
+    <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={onClose}/>
+    <div className="mt-modal" role="dialog" aria-modal="true">
+      <header><div><small>STAFF PROFILE</small><h3>{title}</h3></div><button type="button" onClick={onClose}>×</button></header>
+      {children}
+    </div>
+  </div>;
 }
 
 function demoEmail(staffMember,slug){
@@ -493,24 +431,9 @@ function demoEmail(staffMember,slug){
 }
 
 function roleJobTitle(roleKey){
-  return ({
-    tenant_admin:'مدير المنشأة',
-    executive_manager:'المدير التنفيذي',
-    sales_user:'مسؤول مبيعات'
-  })[roleKey]||'موظف';
+  return ({tenant_admin:'مدير المنشأة',executive_manager:'المدير التنفيذي',sales_user:'مسؤول مبيعات'})[roleKey]||'موظف';
 }
 
 function roleRank(roleKey){
-  return ({
-    tenant_owner:100,
-    tenant_admin:90,
-    executive_manager:80,
-    sales_manager:70,
-    sales_supervisor:60,
-    training_manager:60,
-    sales_user:40,
-    customer_service:40,
-    data_officer:40,
-    data_analyst:40
-  })[roleKey]||10;
+  return ({tenant_owner:100,tenant_admin:90,executive_manager:80,sales_manager:70,sales_supervisor:60,training_manager:60,sales_user:40,customer_service:40,data_officer:40,data_analyst:40})[roleKey]||10;
 }

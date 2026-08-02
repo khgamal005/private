@@ -1,7 +1,10 @@
 import {redirect} from 'next/navigation';
 import TeamDirectory from '../../../../components/team-directory';
 import {getTenant} from '../../../../lib/api';
-import {getTenantSalesTeams} from '../../../../lib/achievement';
+import {
+  getTenantSalesTeams,
+  getTenantStaffExtensions
+} from '../../../../lib/achievement';
 import {requireTenantPermission} from '../../../../lib/server-auth';
 import {tenantRolePolicyFromContext} from '../../../../lib/tenant-role-policy';
 
@@ -22,9 +25,10 @@ export default async function TeamPage({params}){
     context.platformAccess
     ||membership?.permissions?.includes('tenant.people.manage')
   );
-  const [data,salesTeams]=await Promise.all([
+  const [data,salesTeams,staffExtensions]=await Promise.all([
     getTenant(slug,{includeAccess:canManageUsers}),
-    getTenantSalesTeams(slug).catch(()=>({supervisors:[],members:[]}))
+    getTenantSalesTeams(slug).catch(()=>({supervisors:[],members:[]})),
+    getTenantStaffExtensions(slug).catch(()=>({configured:false,extensions:[]}))
   ]);
   const canInvite=canManageUsers;
   const canResetPasswords=Boolean(
@@ -35,6 +39,7 @@ export default async function TeamPage({params}){
     slug={slug}
     initialData={data}
     salesTeams={salesTeams}
+    staffExtensions={staffExtensions}
     canManage={canManage}
     canInvite={canInvite}
     canResetPasswords={canResetPasswords}

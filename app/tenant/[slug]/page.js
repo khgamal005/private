@@ -71,7 +71,6 @@ export default async function TenantOverview({params}){
   if(!data)return notFound();
 
   return <>
-    <AchievementBoard achievement={achievement}/>
     <RoleDashboard
       slug={slug}
       dashboard={dashboard||fallbackDashboard(membership,operations)}
@@ -88,5 +87,6 @@ export default async function TenantOverview({params}){
         :permissions}
       fallbackRoleKey={membership?.roles?.[0]}
     />
+    <AchievementBoard achievement={achievement}/>
   </>;
 }

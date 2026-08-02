@@ -2,7 +2,6 @@
 
 import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
-import WooCommerceSyncPanel from './woocommerce-sync-panel';
 
 const deliveryLabels={
   online:'عن بُعد',
@@ -24,8 +23,7 @@ export default function CourseCatalog({
   slug,
   initialData,
   commerceData,
-  canManage,
-  canManageCommerce
+  canManage
 }){
   const router=useRouter();
   const [category,setCategory]=useState('all');
@@ -101,11 +99,6 @@ export default function CourseCatalog({
 
     {message&&<div className="mt-alert">{message}</div>}
     {error&&!modal&&<div className="mt-alert error">{error}</div>}
-    <WooCommerceSyncPanel
-      slug={slug}
-      initialData={commerceData}
-      canManage={canManageCommerce}
-    />
     <section className="mt-data-note">
       {wooConnected
         ?<div>

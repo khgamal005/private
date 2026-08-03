@@ -229,7 +229,7 @@ export function usePageBuilder(initialData){
       setDirty(true);
       setNotice({
         type:'success',
-        text:'تمت استعادة الإصدار إلى المسودة. اضغط نشر لتحديx� الموقع.'
+        text:'تمت استعادة الإصدار إلى المسودة. اضغط نشر لتحديث الموقع.'
       });
     }catch{}
   }

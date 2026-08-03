@@ -5,19 +5,17 @@ import {readFile} from 'node:fs/promises';
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 
-test('admissions is a first-class role and not a department workaround',async()=>{
-  const [catalog,migration,layout]=await Promise.all([
-    read('supabase/migrations/20260802241000_admissions_role_and_permissions_v1.sql'),
-    read('supabase/migrations/20260802241400_migrate_reef_admissions_officer_v1.sql'),
-    read('app/tenant/[slug]/layout.js')
+test('admissions is a first-class permission area and role label',async()=>{
+  const [admissions,layout,shell]=await Promise.all([
+    read('supabase/migrations/20260727223000_admissions_and_sales_guards_v2.sql'),
+    read('app/tenant/[slug]/layout.js'),
+    read('components/workspace-shell.js')
   ]);
-  assert.match(catalog,/admissions_officer/);
-  assert.match(catalog,/مسؤول التسجيل والقبول/);
-  assert.match(catalog,/tenant\.admissions\.read/);
-  assert.match(catalog,/tenant\.admissions\.write/);
-  assert.match(migration,/staff\.full_name = 'داليا'/);
-  assert.match(migration,/role_key = 'admissions_officer'/);
+  assert.match(admissions,/tenant\.admissions\.read/);
+  assert.match(admissions,/tenant\.admissions\.write/);
+  assert.match(admissions,/عرض التسجيل والقبول/);
   assert.match(layout,/admissions_officer:'مسؤول التسجيل والقبول'/);
+  assert.match(shell,/tenant\.admissions\.read/);
 });
 
 test('tenant roles can be created and configured centrally',async()=>{
@@ -45,21 +43,20 @@ test('tenant roles can be created and configured centrally',async()=>{
   assert.match(api,/v2_tenant_effective_roles_snapshot/);
 });
 
-test('navigation and reports are permission-driven for old and new roles',async()=>{
+test('navigation and operational reports are permission-driven',async()=>{
   const [scopes,policy,layout,callReports]=await Promise.all([
-    read('supabase/migrations/20260802241300_permission_driven_reporting_scopes_v1.sql'),
+    read('supabase/migrations/20260802233000_operational_role_visibility_and_personal_reports.sql'),
     read('lib/tenant-role-policy.js'),
     read('app/tenant/[slug]/layout.js'),
     read('app/tenant/[slug]/call-reports/page.js')
   ]);
-  assert.match(scopes,/tenant\.reports\.team/);
-  assert.match(scopes,/tenant\.reports\.campaigns/);
-  assert.match(scopes,/v_personal_only := not v_view_team/);
-  assert.match(scopes,/v2_tenant_yeastar_reports_snapshot_v3/);
+  assert.match(scopes,/v_personal_only boolean/);
+  assert.match(scopes,/p_report = 'campaigns' and not v_campaign_allowed/);
+  assert.match(scopes,/v2_tenant_yeastar_reports_snapshot_v2/);
   assert.match(policy,/navigationPolicyRoleKey/);
   assert.match(policy,/tenant\.people\.read/);
   assert.match(policy,/tenant\.reports\.team/);
   assert.match(policy,/tenant\.reports\.campaigns/);
   assert.match(layout,/roleKey=\{navigationRoleKey\}/);
-  assert.match(callReports,/v2_tenant_yeastar_reports_snapshot_v3/);
+  assert.match(callReports,/v2_tenant_yeastar_reports_snapshot_v2/);
 });

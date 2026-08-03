@@ -1,6 +1,8 @@
 import {notFound} from 'next/navigation';
+import BuiltPublicPage from '../../../components/built-public-page';
 import {PublicContentPage} from '../../../components/public-site';
 import {getPublicSiteSnapshot} from '../../../lib/public-site';
+import {isBuilderDocument} from '../../../lib/website-builder';
 
 export const dynamic='force-dynamic';
 
@@ -21,5 +23,8 @@ export default async function PublicPage({params}){
   const {slug}=await params;
   const snapshot=await getPublicSiteSnapshot({pageSlug:slug});
   if(!snapshot?.page)notFound();
+  if(isBuilderDocument(snapshot.page.content)){
+    return <BuiltPublicPage snapshot={snapshot} content={snapshot.page}/>;
+  }
   return <PublicContentPage snapshot={snapshot} content={snapshot.page}/>;
 }

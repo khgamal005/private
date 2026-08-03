@@ -70,7 +70,9 @@ const expected=[
   '20260803020100_marketing_hub_tenant_actions_v1.sql',
   '20260803020200_marketing_hub_service_api_v1.sql',
   '20260803020300_marketing_hub_attribution_snapshot_v1.sql',
-  '20260803020400_marketing_hub_fk_indexes_v1.sql'
+  '20260803020400_marketing_hub_fk_indexes_v1.sql',
+  '20260803141411_marktone_public_site_cms_v1.sql',
+  '20260803143208_marktone_public_site_cms_hardening_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl))
@@ -104,6 +106,7 @@ for(const pattern of [
   /create schema if not exists commerce_sync;/,
   /create schema if not exists commerce_hub;/,
   /create schema if not exists marketing_hub;/,
+  /create schema if not exists website;/,
   /v2_current_user_context/,
   /v2_platform_control_snapshot/,
   /v2_tenant_workspace_snapshot/,
@@ -127,6 +130,11 @@ for(const pattern of [
   /v2_tenant_marketing_hub_snapshot/,
   /v2_tenant_marketing_hub_action/,
   /v2_marketing_hub_refresh_attribution/,
+  /v2_public_site_snapshot/,
+  /v2_public_site_submit_contact/,
+  /v2_platform_site_snapshot/,
+  /v2_platform_site_action/,
+  /platform\.website\.manage/,
   /tenant\.integrations\.manage/,
   /tenant\.marketing\.manage/,
   /tenant\.users\.reset_password/,
@@ -213,6 +221,12 @@ const staffExtensions=sqlByFile.get(
 const yeastarAddonGate=sqlByFile.get(
   '20260802235500_gate_yeastar_employee_extension_by_addon_v1.sql'
 );
+const websiteCms=sqlByFile.get(
+  '20260803141411_marktone_public_site_cms_v1.sql'
+);
+const websiteCmsHardening=sqlByFile.get(
+  '20260803143208_marktone_public_site_cms_hardening_v1.sql'
+);
 
 for(const pattern of [
   /create table if not exists people\.role_guide_progress/,
@@ -268,15 +282,34 @@ for(const pattern of [
   /legacy_yeastar_connection/
 ])assert.match(yeastarAddonGate,pattern);
 
+for(const pattern of [
+  /create table if not exists website\.sites/,
+  /create table if not exists website\.menu_items/,
+  /create table if not exists website\.sections/,
+  /create table if not exists website\.pages/,
+  /create table if not exists website\.articles/,
+  /create table if not exists website\.contact_submissions/,
+  /revoke all on schema website from public, anon, authenticated/,
+  /grant execute on function public\.v2_public_site_snapshot[\s\S]*to anon, authenticated/,
+  /grant execute on function public\.v2_platform_site_action[\s\S]*to authenticated/
+])assert.match(websiteCms,pattern);
+
+for(const pattern of [
+  /website_sync_page_menu/,
+  /old\.slug is distinct from new\.slug/,
+  /new\.show_in_menu/,
+  /status='archived',is_visible=false/
+])assert.match(websiteCmsHardening,pattern);
+
 assert.doesNotMatch(
   knowledge,
   /delete from public\.knowledge_posts|drop table public\.knowledge_posts/i
 );
 assert.doesNotMatch(
-  `${foundation}\n${knowledge}\n${hardening}\n${stability}\n${roleGuide}\n${staffExtensions}\n${yeastarAddonGate}`,
+  `${foundation}\n${knowledge}\n${hardening}\n${stability}\n${roleGuide}\n${staffExtensions}\n${yeastarAddonGate}\n${websiteCms}\n${websiteCmsHardening}`,
   /grant\s+all[\s\S]+to\s+anon/i
 );
 
 console.log(
-  `Verified ${expected.length} forward migrations, including add-on-gated Yeastar employee extensions, secure sales teams, the interactive My Role guide, and the review-first Knowledge Intelligence Hub.`
+  `Verified ${expected.length} forward migrations, including the secured Marktone website CMS, add-on-gated Yeastar employee extensions, secure sales teams, the interactive My Role guide, and the review-first Knowledge Intelligence Hub.`
 );

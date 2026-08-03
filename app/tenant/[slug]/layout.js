@@ -1,8 +1,7 @@
+import Link from 'next/link';
 import {getTenant,getTenantRoleDashboard} from '../../../lib/api';
 import {requireTenant} from '../../../lib/server-auth';
-import {
-  navigationPolicyRoleKey
-} from '../../../lib/tenant-role-policy';
+import {navigationPolicyRoleKey} from '../../../lib/tenant-role-policy';
 import WorkspaceShell from '../../../components/workspace-shell';
 import MyRoleGuide from '../../../components/my-role-guide';
 
@@ -10,35 +9,23 @@ export const dynamic='force-dynamic';
 
 export default async function TenantLayout({children,params}){
   const {slug}=await params;
-  // Finish the temporary-password redirect before protected tenant RPCs.
   const context=await requireTenant(slug);
   const [data,dashboard]=await Promise.all([
     getTenant(slug),
     getTenantRoleDashboard(slug).catch(()=>null)
   ]);
-  const membership=context.memberships?.find(
-    item=>item.tenantSlug===slug
-  );
+  const membership=context.memberships?.find(item=>item.tenantSlug===slug);
   const roleKey=context.platformAccess
     ?'platform_owner'
-    :dashboard?.viewer?.roleKey
-      ||membership?.roles?.[0]
-      ||'member';
-  const userName=dashboard?.viewer?.name
-    ||context.subject?.fullName
-    ||context.subject?.email?.split('@')[0];
+    :dashboard?.viewer?.roleKey||membership?.roles?.[0]||'member';
+  const userName=dashboard?.viewer?.name||context.subject?.fullName||context.subject?.email?.split('@')[0];
   const roleLabel=context.platformAccess
     ?'إدارة منصة ماركتون'
-    :dashboard?.viewer?.roleLabel
-      ||roleName(roleKey);
+    :dashboard?.viewer?.roleLabel||roleName(roleKey);
   const permissions=membership?.permissions||[];
-  const guideRoleKey=roleKey==='admissions_officer'
-    ?'customer_service'
-    :roleKey;
-  const navigationRoleKey=navigationPolicyRoleKey(
-    permissions,
-    {platformAccess:Boolean(context.platformAccess)}
-  );
+  const guideRoleKey=roleKey==='admissions_officer'?'customer_service':roleKey;
+  const navigationRoleKey=navigationPolicyRoleKey(permissions,{platformAccess:Boolean(context.platformAccess)});
+  const showWebsite=context.platformAccess||permissions.includes('tenant.website.read');
 
   return <WorkspaceShell
     kind="tenant"
@@ -52,6 +39,17 @@ export default async function TenantLayout({children,params}){
     roleLabel={roleLabel}
     notificationSummary={headerSummary(dashboard)}
   >
+    {showWebsite&&<Link
+      href={`/tenant/${encodeURIComponent(slug)}/website`}
+      aria-label="فتح إدارة الموقع الإلكتروني"
+      style={{
+        position:'fixed',left:'22px',bottom:'92px',zIndex:55,
+        display:'inline-flex',alignItems:'center',gap:'8px',
+        padding:'11px 14px',borderRadius:'999px',background:'#06182e',
+        color:'#fff',textDecoration:'none',fontSize:'11px',fontWeight:900,
+        boxShadow:'0 16px 45px rgba(6,24,46,.24)'
+      }}
+    ><span style={{color:'#e6b34e'}}>▤</span> الموقع الإلكتروني</Link>}
     {children}
     <MyRoleGuide
       slug={slug}
@@ -76,25 +74,16 @@ function headerSummary(dashboard){
     overdueTasks:personal.overdueTasks||sales.overdueFollowUps||0,
     activitiesToday:personal.activitiesToday||0,
     activeLeads:sales.activeLeads||personal.activeLeads||0,
-    pendingAdmissions:executive.pendingAdmissions
-      ||training.pendingAdmissions
-      ||0
+    pendingAdmissions:executive.pendingAdmissions||training.pendingAdmissions||0
   };
 }
 
 function roleName(roleKey){
   return ({
-    tenant_owner:'مالك المنشأة',
-    tenant_admin:'مدير المنشأة',
-    executive_manager:'المدير التنفيذي',
-    sales_manager:'مدير المبيعات',
-    sales_supervisor:'مشرف المبيعات',
-    sales_user:'مسؤول مبيعات',
-    customer_service:'خدمة العملاء',
-    data_officer:'مسؤول البيانات',
-    data_analyst:'محلل البيانات',
-    training_manager:'مدير التدريب',
-    admissions_officer:'مسؤول التسجيل والقبول',
+    tenant_owner:'مالك المنشأة',tenant_admin:'مدير المنشأة',executive_manager:'المدير التنفيذي',
+    sales_manager:'مدير المبيعات',sales_supervisor:'مشرف المبيعات',sales_user:'مسؤول مبيعات',
+    customer_service:'خدمة العملاء',data_officer:'مسؤول البيانات',data_analyst:'محلل البيانات',
+    training_manager:'مدير التدريب',admissions_officer:'مسؤول التسجيل والقبول',
     platform_owner:'إدارة منصة ماركتون'
   })[roleKey]||'مستخدم المنشأة';
 }

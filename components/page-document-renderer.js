@@ -183,7 +183,7 @@ function DropZone({index,onDropAt}){
 function SectionHeading({props}){
   return <div className={styles.sectionHeading}>
     {props.eyebrow&&<p className={styles.eyebrow}>{props.eyebrow}</p>}
-    {props.title&&<h2>{props.title|</h2>}
+    {props.title&&<h2>{props.title}</h2>}
     {props.body&&<p>{props.body}</p>}
   </div>;
 }
@@ -197,47 +197,51 @@ function ButtonRow({props}){
 
 function SmartLink({href,children,className=''}){
   const target=safeHref(href);
-  if(!target)return <span className={className}>{children|</span>;
+  if(!target)return <span className={className}>{children}</span>;
   if(target.startsWith('#')||target.startsWith('mailto:')||target.startsWith('tel:')||/^https?:\/\//i.test(target)){
     return <a href={target} className={className} rel={/^https?:\/\//i.test(target)?'noreferrer':undefined}>{children}</a>;
   }
-  return <Link href={target} className={className}>{children|</ink>;
+  return <Link href={target} className={className}>{children}</Link>;
 }
 
 function ContactBlock({props,editor}){
   const [state,setState]=useState({status:'idle',message:''});
   async function submit(event){
     event.preventDefault();
-    if(editor)\™]\›ÂˆÛÛœİ›Ü›OY]™[˜İ\œ™[\™Ù]ÂˆÛÛœİ^[ØYSØš™Xİ™œ›ÛQ[šY\Ê™]È›Ü›Q]J›Ü›JJNÂˆÙ]İ]JÜİ]\Î‰ÛØY[™ÉËY\ÜØYÙN‰ÉßJNÂˆ^ÂˆÛÛœİ™\ÜÛœÙOX]ØZ]™]Ú
-	ËØ\KÜX›XËØÛÛXİ	ËÂˆY]Ù‰ÔÔÕ	ËXY\œÎÉĞÛÛ[U\IÎ‰Ø\XØ][Û‹ÚœÛÛ‰ßKˆ›ÙN’”ÓÓ‹œİš[™ÚYJË‹‹œ^[ØYÛÛœÙ[›ÛÛX[Š^[ØY˜ÛÛœÙ[
-KÛİ\˜ÙTYÙNÚ[™İË›ØØ][Û‹œ]˜[Y_JBˆJNÂˆÛÛœİ™\İ[X]ØZ]™\ÜÛœÙKšœÛÛŠ
-NÂˆYŠ\™\ÜÛœÙK›ÚÊ]›İÈ™]È\œ›ÜŠ™\İ[Ë™\œ›ÜŸ	ö*¶.v,6,H6)v,v,ö)öa6)öa6-öa6*	ÊNÂˆ›Ü›Kœ™\Ù]
+    if(editor)return;
+    const form=event.currentTarget;
+    const payload=Object.fromEntries(new FormData(form));
+    setState({status:'loading',message:''});
+    try{
+      const response=await fetch('/api/public/contact',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({...payload,consent:Boolean(payload.consent),sourcePage:window.location.pathname})
+      });
+      const result=await response.json();
+      if(!response.ok)throw new Error(result?.error||'ØªØ¹Ø°Ø± Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø·Ù„Ø¨');
+      form.reset();
+      setState({status:'success',message:result.message||'ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø·Ù„Ø¨'});
+    }catch(error){setState({status:'error',message:error.message});}
+  }
+  return <div className={styles.contactBlock}>
+    <div><p className={styles.eyebrow}>{props.eyebrow}</p><h2>{props.title}</h2><p>{props.body}</p><small>Ø³ÙŠØªÙ… Ø­ÙØ¸ Ø§Ù„Ø±Ø³Ø§Ø¦Ù„ Ø¯Ø§Ø®Ù„ Ù„ÙˆØ­Ø© Ø¥Ø¯Ø§Ø±Ø© Ù…ÙˆÙ‚Ø¹ Ù…Ø§Ø±ÙƒØªÙˆÙ†.</small></div>
+    <form onSubmit={submit}>
+      <div><label><span>Ø§Ù„Ø§Ø³Ù… *</span><input name="name" required minLength={2} disabled={editor}/></label><label><span>Ø§Ø³Ù… Ø§Ù„Ù…Ù†Ø´Ø£Ø©</span><input name="organization" disabled={editor}/></label></div>
+      <div><label><span>Ø§Ù„Ø¬ÙˆØ§Ù„</span><input name="phone" inputMode="tel" disabled={editor}/></label><label><span>Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ</span><input name="email" type="email" disabled={editor}/></label></div>
+      <label><span>Ø§Ù„ØªØ­Ø¯ÙŠ Ø§Ù„Ø­Ø§Ù„ÙŠ *</span><textarea name="message" rows={4} required minLength={10} disabled={editor}/></label>
+      <label className={styles.consent}><input type="checkbox" name="consent" disabled={editor}/><span>Ø£ÙˆØ§ÙÙ‚ Ø¹Ù„Ù‰ ØªÙˆØ§ØµÙ„ ÙØ±ÙŠÙ‚ Ù…Ø§Ø±ÙƒØªÙˆÙ† Ø¨Ø®ØµÙˆØµ Ø§Ù„Ø·Ù„Ø¨.</span></label>
+      <input className={styles.honeypot} name="website" tabIndex={-1} autoComplete="off"/>
+      <button disabled={editor||state.status==='loading'}>{state.status==='loading'?'Ø¬Ø§Ø±Ù Ø§Ù„Ø¥Ø±Ø³Ø§Ù„â€¦':props.buttonLabel||'Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø·Ù„Ø¨'} <span>â†—</span></button>
+      {state.message&&<p className={state.status==='success'?styles.formSuccess:styles.formError}>{state.message}</p>}
+    </form>
+  </div>;
+}
 
-NÂˆÙ]İ]JÜİ]\Î‰ÜİXØÙ\ÜÉËY\ÜØYÙNœ™\İ[›Y\ÜØYÙ_	ö*¶aH6)v,v,ö)öa6)öa6-öa6*	ßJNÂˆXØ]Ú
-\œ›ÜŠ^ÜÙ]İ]JÜİ]\Î‰Ù\œ›Ü‰ËY\ÜØYÙN™\œ›Ü‹›Y\ÜØYÙ_JNßBˆBˆ™]\›ˆ]ˆÛ\ÜÓ˜[YO^Üİ[\Ë˜ÛÛXİ›ØÚßO‚ˆ]Û\ÜÓ˜[YO^Üİ[\Ë™^YXœ›İßOÜ›ÜË™^YXœ›İßÜÜ›ÜË]_ÚÜ›ÜË˜›Ù_OÜÛX[¶,öb¶*¶aH6+v`v.6)öa6,v,ö)ö)¶a6+ö)ö+¶a6a6b6+v*H6)v+ö)ö,v*H6avb6`¶.H6av)ö,v`ö*¶b6a‹ÜÛX[Ù]‚ˆ›Ü›HÛ”İX›Z]^ÜİX›Z]O‚ˆ]X™[Ü[¶)öa6)ö,öaH
-ÜÜ[[œ]˜[YOH›˜[YHˆ™\]Z\™YZ[“[™İ^ÌŸH\ØX›Y^ÙY]ÜŸKÏÛX™[X™[Ü[¶)ö,öaH6)öa6ava¶-6(ö*OÜÜ[[œ]˜[YOH›Ü™Ø[š^˜][Ûˆˆ\ØX›Y^ÙY]ÜŸKÏÛX™[Ù]‚ˆ]X™[Ü[¶)öa6+6b6)öaÜÜ[[œ]˜[YOHœÛ™Hˆ[œ][ÙOH[ˆ\ØX›Y^ÙY]ÜŸKÏÛX™[X™[Ü[¶)öa6*6,vb¶+È6)öa6)va6`ö*¶,vb6a¶bÜÜ[[œ]˜[YOH™[XZ[ˆ\OH™[XZ[ˆ\ØX›Y^ÙY]ÜŸKÏÛX™[Ù]‚ˆX™[Ü[¶)öa6*¶+v+öbˆ6)öa6+v)öa6bˆ
-ÜÜ[^\™XH˜[YOH›Y\ÜØYÙHˆ›İÜÏ^ÍH™\]Z\™YZ[“[™İ^ÌLH\ØX›Y^ÙY]ÜŸKÏÛX™[‚ˆX™[Û\ÜÓ˜[YO^Üİ[\Ë˜ÛÛœÙ[O[œ]\OH˜ÚXÚØ›Şˆ˜[YOH˜ÛÛœÙ[ˆ\ØX›Y^ÙY]ÜŸKÏÜ[¶(öb6)ö`v`ˆ6.va6bH6*¶b6)ö-va6`v,vb¶`ˆ6av)ö,v`ö*¶b6aˆ6*6+¶-vb6-H6)öa6-öa6*ÜÜ[ÛX™[‚ˆ[œ]Û\ÜÓ˜[YO^Üİ[\ËšÛ™^\İH˜[YOHÙXœÚ]HˆX’[™^^ËL_H]]ĞÛÛ\]OH›Ù™ˆ‹Ï‚ˆ]Ûˆ\ØX›Y^ÙY]ÜŸİ]Kœİ]\ÏOOIÛØY[™ÉßOÜİ]Kœİ]\ÏOOIÛØY[™ÉÏÉö+6)ö,vcH6)öa6)v,v,ö)öa8 )‰Îœ›ÜË˜]Û“X™[	ö)v,v,ö)öa6)öa6-öa6*	ßHÜ[¸¡¥ÏÜÜ[Ø]Û‚ˆÜİ]K›Y\ÜØYÙI‰Û\ÜÓ˜[YO^Üİ]Kœİ]\ÏOOIÜİXØÙ\ÜÉÏÜİ[\Ë™›Ü›TİXØÙ\ÜÎœİ[\Ë™›Ü›Q\œ›ÜŸOÜİ]K›Y\ÜØYÙ_OÜŸBˆÙ›Ü›O‚ˆÙ]ÂŸB‚™[˜İ[Ûˆ^›ØÚÜÊ˜[YJ^Âˆ™]\›ˆİš[™Ê˜[Y_	ÉÊKœÜ]
-×Ì‹KÊK™š[\Š›ÛÛX[ŠK›X\
-
-^[™^
-OOÙ^O^Ø	İ^œÛXÙJŒ
-_KIÚ[™^XOİ^œÜ]
-	×‰ÊK›X\
-
-[™K[™R[™^
-OOÜ[ˆÙ^O^Ø	Û[™_KIÛ[™R[™^XOÛ[™_^Û[™R[™^^œÜ]
-	×‰ÊK›[™İLI‰œ‹ÏŸOÜÜ[Š_OÜŠNÂŸB™[˜İ[Ûˆ\œ˜^J˜[YJ^Ü™]\›ˆ\œ˜^Kš\Ğ\œ˜^J˜[YJOİ˜[YN–×NßB™[˜İ[ÛˆÛ[\
-˜[YKZ[‹X^˜[˜XÚÊ^ØÛÛœİ[X™\S[X™\Š˜[YJNÜ™]\›ˆ[X™\‹š\Ñš[š]J[X™\ŠOÓX]›Z[ŠX]›X^
-[X™\‹Z[ŠKX^
-N™˜[˜XÚÎßB™[˜İ[Ûˆ›ØÚÓX™[
-\J^Ü™]\›ˆ
-Ú\›Î‰öb6)ö+6aö*H6,v)¶b¶,öb¶*IËXY[™Î‰ö.va¶b6)öaˆ6`¶,öaIË^‰öa¶-IË[XYÙN‰ö-vb6,v*IË]ÛœÎ‰ö(ö,¶,v)ö,IËØ\™Î‰ö*6-ö)ö`¶)ö*‰Ëİ]Î‰ö)v+v-v)ö)¶b¶)ö*‰ËÛÛ[[œÎ‰ö(ö.vav+ö*IË][İN‰ö)ö`¶*¶*6)ö,ÉË˜\N‰ö(ö,ö)¶a6*H6-6)ö)¶.v*IËİN‰ö+ö.vb6*H6a6)ö*¶+¶)ö,6)v+6,v)ö(IËÛÛXİ‰öa¶avb6,6+6*¶b6)ö-va	Ë]šY\‰ö`v)ö-va	ËÜXÙ\‰öav,ö)ö`v*IßJVİ\W_\NßB™[˜İ[ÛˆØY™R™YŠ˜[YJ^ØÛÛœİ™YTİš[™Ê˜[Y_	ÉÊKš[J
-NÚYŠZ™YŠ\™]\›ˆ	ÉÎÚYŠ×Š˜]˜\ØÜš\]_˜œØÜš\
-N‹ÚK\İ
-™YŠJ\™]\›ˆ	ÉÎÜ™]\›ˆ™YßB™[˜İ[ÛˆØY™R[XYÙJ˜[YJ^ØÛÛœİ\›Tİš[™Ê˜[Y_	ÉÊKš[J
-NÚYŠ]\›×Š˜]˜\ØÜš\]N^Ú[˜œØÜš\
-N‹ÚK\İ
-\›
-J\™]\›ˆ	ÉÎÜ™]\›ˆ\›œ™\XÙJÖÈ‰Ê
-WKÙË[˜ÛÙUT’PÛÛ\Û™[
-NßB
+function textBlocks(value){
+  return String(value||'').split(/\n{2,}/).filter(Boolean).map((text,index)=><p key={`${text.slice(0,20)}-${index}`}>{text.split('\n').map((line,lineIndex)=><span key={`${line}-${lineIndex}`}>{line}{lineIndex<text.split('\n').length-1&&<br/>}</span>)}</p>);
+}
+function array(value){return Array.isArray(value)?value:[];}
+function clamp(value,min,max,fallback){const number=Number(value);return Number.isFinite(number)?Math.min(Math.max(number,min),max):fallback;}
+function blockLabel(type){return ({hero:'ÙˆØ§Ø¬Ù‡Ø© Ø±Ø¦ÙŠØ³ÙŠØ©',heading:'Ø¹Ù†ÙˆØ§Ù† Ù‚Ø³Ù…',text:'Ù†Øµ',image:'ØµÙˆØ±Ø©',buttons:'Ø£Ø²Ø±Ø§Ø±',cards:'Ø¨Ø·Ø§Ù‚Ø§Øª',stats:'Ø¥Ø­ØµØ§Ø¦ÙŠØ§Øª',columns:'Ø£Ø¹Ù…Ø¯Ø©',quote:'Ø§Ù‚ØªØ¨Ø§Ø³',faq:'Ø£Ø³Ø¦Ù„Ø© Ø´Ø§Ø¦Ø¹Ø©',cta:'Ø¯Ø¹ÙˆØ© Ù„Ø§ØªØ®Ø§Ø° Ø¥Ø¬Ø±Ø§Ø¡',contact:'Ù†Ù…ÙˆØ°Ø¬ ØªÙˆØ§ØµÙ„',divider:'ÙØ§ØµÙ„',spacer:'Ù…Ø³Ø§ÙØ©'})[type]||type;}
+function safeHref(value){const href=String(value||'').trim();if(!href)return '';if(/^(javascript|data|vbscript):/i.test(href))return '';return href;}
+function safeImage(value){const url=String(value||'').trim();if(!url||/^(javascript|data:text\/html|vbscript):/i.test(url))return '';return url.replace(/["'()]/g,encodeURIComponent);}

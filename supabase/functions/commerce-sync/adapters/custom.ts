@@ -8,10 +8,12 @@ import type {
 } from '../types.ts';
 import {
   asRecord,
+  attributionFields,
   configuration,
   externalItem,
   itemsFrom,
   moneyMinor,
+  normalizedEntity,
   normalizedProduct,
   numberValue,
   remoteJson,
@@ -97,6 +99,36 @@ function product(item: JsonRecord) {
   });
 }
 
+function entityItem(entity: CommerceEntity, item: JsonRecord) {
+  const externalId = valueAt(item, 'id', 'uuid', 'code');
+  if (entity === 'orders') {
+    const customer = asRecord(valueAt(item, 'customer', 'buyer', 'billing')) || {};
+    return normalizedEntity(item, {
+      externalId: text(externalId),
+      externalUpdatedAt: text(valueAt(item, 'updated_at', 'updatedAt')),
+      orderNumber: text(valueAt(item, 'order_number', 'number', 'code', 'id')),
+      occurredAt: text(valueAt(item, 'occurred_at', 'created_at', 'createdAt')),
+      status: text(valueAt(item, 'status', 'order_status')),
+      paymentStatus: text(valueAt(item, 'payment_status', 'payment.status')),
+      amountMinor: moneyMinor(valueAt(item, 'total', 'amount', 'total_amount')),
+      currency: text(valueAt(item, 'currency', 'currency_code')) || 'SAR',
+      customerId: text(valueAt(customer, 'id', 'uuid')),
+      customerEmail: text(valueAt(customer, 'email')),
+      customerPhone: text(valueAt(customer, 'phone', 'mobile')),
+      ...attributionFields(item)
+    });
+  }
+  if (entity === 'customers') {
+    return normalizedEntity(item, {
+      externalId: text(externalId),
+      externalUpdatedAt: text(valueAt(item, 'updated_at', 'updatedAt')),
+      customerEmail: text(valueAt(item, 'email')),
+      customerPhone: text(valueAt(item, 'phone', 'mobile'))
+    });
+  }
+  return externalItem(item, externalId);
+}
+
 async function* pages(
   connection: ConnectionConfiguration,
   entity: CommerceEntity
@@ -110,7 +142,7 @@ async function* pages(
     const raw = itemsFrom(data, entity);
     const items = raw.map(item => entity === 'products'
       ? product(item)
-      : externalItem(item, valueAt(item, 'id', 'uuid', 'code')));
+      : entityItem(entity, item));
     const record = asRecord(data) || {};
     const pagination = asRecord(record.pagination) || {};
     const totalPages = numberValue(valueAt(pagination, 'total_pages', 'totalPages'));

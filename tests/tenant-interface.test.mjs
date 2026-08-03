@@ -55,7 +55,9 @@ test('tenant navigation follows the approved business order and groups',async()=
   assert.match(shell,/label:'منصة التدريب التفاعلي \(قريبًا\)'/);
   assert.match(shell,/label:'توزيع العملاء'/);
   assert.match(shell,/label:'الأهداف والحوافز'/);
-  assert.match(shell,/label:'الحملات والتسويق \(قريبًا\)'/);
+  assert.match(shell,/label:'مركز الحملات والتسويق'/);
+  assert.match(shell,/href:`\$\{base\}\/marketing`/);
+  assert.match(shell,/permission:'tenant\.marketing\.read'/);
   assert.match(shell,/label:'الأتمتة'/);
   assert.match(shell,/const \[openGroups,setOpenGroups\]/);
   assert.match(shell,/aria-disabled=\{child\.disabled\|\|undefined\}/);

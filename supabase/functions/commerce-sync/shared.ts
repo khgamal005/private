@@ -91,6 +91,118 @@ export function normalizedProduct(
   };
 }
 
+export function normalizedEntity(
+  item: JsonRecord,
+  normalized: JsonRecord
+): JsonRecord {
+  return {
+    ...item,
+    _marktone: normalized
+  };
+}
+
+function metadataMap(item: JsonRecord) {
+  const result: Record<string, Json> = {};
+  for (const path of [
+    'meta_data',
+    'metadata',
+    'custom_attributes',
+    'customAttributes',
+    'note_attributes',
+    'noteAttributes'
+  ]) {
+    const value = valueAt(item, path);
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const record = asRecord(entry);
+        if (!record) continue;
+        const key = text(valueAt(record, 'key', 'name', 'attribute'));
+        if (key) result[key] = valueAt(record, 'value', 'text');
+      }
+    } else {
+      const record = asRecord(value);
+      if (record) Object.assign(result, record);
+    }
+  }
+  return result;
+}
+
+function trackedValue(item: JsonRecord, metadata: Record<string, Json>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = valueAt(
+      item,
+      key,
+      `tracking.${key}`,
+      `attribution.${key}`,
+      `marketing.${key}`
+    );
+    if (text(value)) return text(value);
+    for (const alias of [key, key.toLowerCase(), key.replace(/[A-Z]/g, match => `_${match.toLowerCase()}`)]) {
+      if (text(metadata[alias])) return text(metadata[alias]);
+    }
+  }
+  return '';
+}
+
+export function attributionFields(item: JsonRecord): JsonRecord {
+  const metadata = metadataMap(item);
+  const clickEntries = [
+    ['gclid', trackedValue(item, metadata, 'gclid')],
+    ['gbraid', trackedValue(item, metadata, 'gbraid')],
+    ['wbraid', trackedValue(item, metadata, 'wbraid')],
+    ['fbclid', trackedValue(item, metadata, 'fbclid', 'fbc')],
+    ['ttclid', trackedValue(item, metadata, 'ttclid')],
+    ['sc_click_id', trackedValue(item, metadata, 'sc_click_id', 'scClickId')]
+  ].filter(([, value]) => Boolean(value));
+  const [clickIdType, clickId] = clickEntries[0] || ['', ''];
+  return {
+    source: trackedValue(item, metadata, 'source', 'sourceName'),
+    clickIdType,
+    clickId,
+    utmSource: trackedValue(item, metadata, 'utm_source', 'utmSource'),
+    utmMedium: trackedValue(item, metadata, 'utm_medium', 'utmMedium'),
+    utmCampaign: trackedValue(item, metadata, 'utm_campaign', 'utmCampaign'),
+    utmContent: trackedValue(item, metadata, 'utm_content', 'utmContent'),
+    utmTerm: trackedValue(item, metadata, 'utm_term', 'utmTerm'),
+    externalCampaignId: trackedValue(
+      item,
+      metadata,
+      'external_campaign_id',
+      'campaign_id',
+      'campaignId'
+    ),
+    externalAdGroupId: trackedValue(
+      item,
+      metadata,
+      'external_ad_group_id',
+      'adset_id',
+      'ad_group_id',
+      'adGroupId'
+    ),
+    externalAdId: trackedValue(
+      item,
+      metadata,
+      'external_ad_id',
+      'ad_id',
+      'adId'
+    ),
+    landingUrl: trackedValue(
+      item,
+      metadata,
+      'landing_url',
+      'landingPageUrl',
+      'landingPage'
+    ),
+    referrerUrl: trackedValue(
+      item,
+      metadata,
+      'referrer_url',
+      'referringSite',
+      'referrerUrl'
+    )
+  };
+}
+
 function retryDelay(response: Response | null, attempt: number) {
   const retryAfter = response?.headers.get('retry-after');
   const seconds = retryAfter ? Number(retryAfter) : NaN;

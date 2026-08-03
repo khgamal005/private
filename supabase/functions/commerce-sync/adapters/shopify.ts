@@ -8,11 +8,13 @@ import type {
 } from '../types.ts';
 import {
   asRecord,
+  attributionFields,
   compact,
   configuration,
   externalItem,
   listAt,
   moneyMinor,
+  normalizedEntity,
   normalizedProduct,
   numberValue,
   remoteJson,
@@ -80,6 +82,8 @@ query Orders($first: Int!, $after: String) {
   orders(first: $first, after: $after, sortKey: UPDATED_AT) {
     nodes {
       id name createdAt updatedAt displayFinancialStatus displayFulfillmentStatus
+      landingPageUrl referringSite sourceIdentifier sourceName
+      customAttributes { key value }
       totalPriceSet { shopMoney { amount currencyCode } }
       customer { id displayName email phone }
       lineItems(first: 100) { nodes { id title quantity product { id } variant { id sku } } }
@@ -136,6 +140,36 @@ function product(connection: ConnectionConfiguration, item: JsonRecord) {
   });
 }
 
+function entityItem(entity: CommerceEntity, item: JsonRecord) {
+  if (entity === 'orders') {
+    const customer = asRecord(item.customer) || {};
+    const money = asRecord(valueAt(item, 'totalPriceSet.shopMoney')) || {};
+    return normalizedEntity(item, {
+      externalId: text(item.id),
+      externalUpdatedAt: text(item.updatedAt),
+      orderNumber: text(item.name || item.id),
+      occurredAt: text(item.createdAt),
+      status: text(item.displayFulfillmentStatus),
+      paymentStatus: text(item.displayFinancialStatus),
+      amountMinor: moneyMinor(money.amount),
+      currency: text(money.currencyCode) || 'SAR',
+      customerId: text(customer.id),
+      customerEmail: text(customer.email),
+      customerPhone: text(customer.phone),
+      ...attributionFields(item)
+    });
+  }
+  if (entity === 'customers') {
+    return normalizedEntity(item, {
+      externalId: text(item.id),
+      externalUpdatedAt: text(item.updatedAt),
+      customerEmail: text(item.email),
+      customerPhone: text(item.phone)
+    });
+  }
+  return externalItem(item, valueAt(item, 'id'));
+}
+
 function connectionFor(entity: CommerceEntity, data: JsonRecord) {
   return asRecord(data[entity]);
 }
@@ -156,7 +190,7 @@ async function* queryPages(
       .filter(Boolean)
       .map(item => entity === 'products'
         ? product(connection, item as JsonRecord)
-        : externalItem(item as JsonRecord, valueAt(item as JsonRecord, 'id')));
+        : entityItem(entity, item as JsonRecord));
     const pageInfo = asRecord(container?.pageInfo) || {};
     const hasMore = Boolean(pageInfo.hasNextPage);
     after = text(pageInfo.endCursor) || null;

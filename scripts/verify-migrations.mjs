@@ -65,7 +65,12 @@ const expected=[
   '20260802235500_gate_yeastar_employee_extension_by_addon_v1.sql',
   '20260802241100_tenant_role_management_snapshots_v1.sql',
   '20260802241200_tenant_role_management_actions_v1.sql',
-  '20260803010000_tenant_customer_search_v1.sql'
+  '20260803010000_tenant_customer_search_v1.sql',
+  '20260803020000_marketing_hub_core_v1.sql',
+  '20260803020100_marketing_hub_tenant_actions_v1.sql',
+  '20260803020200_marketing_hub_service_api_v1.sql',
+  '20260803020300_marketing_hub_attribution_snapshot_v1.sql',
+  '20260803020400_marketing_hub_fk_indexes_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl))
@@ -98,6 +103,7 @@ for(const pattern of [
   /create schema if not exists automation_engine;/,
   /create schema if not exists commerce_sync;/,
   /create schema if not exists commerce_hub;/,
+  /create schema if not exists marketing_hub;/,
   /v2_current_user_context/,
   /v2_platform_control_snapshot/,
   /v2_tenant_workspace_snapshot/,
@@ -118,7 +124,11 @@ for(const pattern of [
   /v2_tenant_role_management_snapshot/,
   /v2_tenant_role_management_action/,
   /v2_tenant_customer_search/,
+  /v2_tenant_marketing_hub_snapshot/,
+  /v2_tenant_marketing_hub_action/,
+  /v2_marketing_hub_refresh_attribution/,
   /tenant\.integrations\.manage/,
+  /tenant\.marketing\.manage/,
   /tenant\.users\.reset_password/,
   /tenant\.leads\.import/,
   /enable row level security/,

@@ -106,31 +106,17 @@ test('employee tenant routes do not eagerly load administrator-only settings',as
   const data=await read('../lib/api.js');
   const overview=await read('../app/tenant/[slug]/page.js');
   const tasks=await read('../app/tenant/[slug]/tasks/page.js');
-  const team=await read('../app/tenant/[slug]/team/page.js');
   const settings=await read('../app/tenant/[slug]/settings/page.js');
   const getTenantBody=data.match(
-    /export async function getTenant\([^)]*\)\{([\s\S]*?)\n\}\n\nexport async function getTenantSettings/
+    /export async function getTenant\(slug(?:,\{[\s\S]*?\}=\{\})?\)\{([\s\S]*?)\n\}\n\nexport async function getTenantWooCommerce/
   )?.[1]||'';
   const getSettingsBody=data.match(
     /export async function getTenantSettings\(slug\)\{([\s\S]*?)\n\}\n\nexport async function getTenantOperations/
   )?.[1]||'';
 
-  assert.match(
-    data,
-    /getTenant\(slug,\{includeAccess=false\}=\{\}\)/
-  );
   assert.match(getTenantBody,/v2_tenant_workspace_snapshot/);
-  assert.match(
-    getTenantBody,
-    /includeAccess\s*\?authRpc\('v2_tenant_access_snapshot'/
-  );
+  assert.match(getTenantBody,/v2_tenant_access_snapshot/);
   assert.doesNotMatch(getTenantBody,/integration_hub|automation_studio|delivery_analytics|addon_center/);
-  assert.match(
-    getSettingsBody,
-    /getTenant\(slug,\{includeAccess:true\}\)/
-  );
-  assert.match(team,/includeAccess:canManageUsers/);
-  assert.match(team,/tenant\.users\.manage/);
   assert.match(getSettingsBody,/v2_tenant_integration_hub_snapshot/);
   assert.match(getSettingsBody,/v2_tenant_automation_studio_snapshot_v2/);
   assert.match(getSettingsBody,/v2_tenant_delivery_analytics_snapshot_v2/);

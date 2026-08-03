@@ -149,6 +149,108 @@ function recordText(record: JsonRecord, ...keys: string[]) {
   return textValue(recordValue(record, ...keys));
 }
 
+function pathValue(record: JsonRecord, ...paths: string[]): Json {
+  for (const path of paths) {
+    let current: Json = record;
+    let found = true;
+    for (const part of path.split('.')) {
+      const object = asRecord(current);
+      if (!object || !(part in object)) {
+        found = false;
+        break;
+      }
+      current = object[part];
+    }
+    if (found && current != null) return current;
+  }
+  return null;
+}
+
+function metadataValues(record: JsonRecord) {
+  const result: JsonRecord = {};
+  if (!Array.isArray(record.meta_data)) return result;
+  for (const entry of record.meta_data) {
+    const item = asRecord(entry);
+    const key = item ? recordText(item, 'key') : '';
+    if (item && key) result[key] = recordValue(item, 'value');
+  }
+  return result;
+}
+
+function trackedOrderValue(
+  order: JsonRecord,
+  metadata: JsonRecord,
+  ...keys: string[]
+) {
+  for (const key of keys) {
+    const direct = pathValue(order, key, `tracking.${key}`, `attribution.${key}`);
+    if (textValue(direct)) return textValue(direct);
+    for (const alias of [
+      key,
+      `_${key}`,
+      `_wc_order_attribution_${key.replace(/^utm_/, 'utm_')}`
+    ]) {
+      if (textValue(metadata[alias])) return textValue(metadata[alias]);
+    }
+  }
+  return '';
+}
+
+function orderAttribution(order: JsonRecord): JsonRecord {
+  const metadata = metadataValues(order);
+  const clickEntries = [
+    ['gclid', trackedOrderValue(order, metadata, 'gclid')],
+    ['gbraid', trackedOrderValue(order, metadata, 'gbraid')],
+    ['wbraid', trackedOrderValue(order, metadata, 'wbraid')],
+    ['fbclid', trackedOrderValue(order, metadata, 'fbclid', 'fbc')],
+    ['ttclid', trackedOrderValue(order, metadata, 'ttclid')],
+    ['sc_click_id', trackedOrderValue(order, metadata, 'sc_click_id')]
+  ].filter(([, value]) => Boolean(value));
+  const [clickIdType, clickId] = clickEntries[0] || ['', ''];
+  return {
+    source: trackedOrderValue(
+      order,
+      metadata,
+      'source',
+      'source_type',
+      'utm_source'
+    ),
+    clickIdType,
+    clickId,
+    utmSource: trackedOrderValue(order, metadata, 'utm_source'),
+    utmMedium: trackedOrderValue(order, metadata, 'utm_medium'),
+    utmCampaign: trackedOrderValue(order, metadata, 'utm_campaign'),
+    utmContent: trackedOrderValue(order, metadata, 'utm_content'),
+    utmTerm: trackedOrderValue(order, metadata, 'utm_term'),
+    externalCampaignId: trackedOrderValue(
+      order,
+      metadata,
+      'external_campaign_id',
+      'campaign_id'
+    ),
+    externalAdGroupId: trackedOrderValue(
+      order,
+      metadata,
+      'external_ad_group_id',
+      'adset_id',
+      'ad_group_id'
+    ),
+    externalAdId: trackedOrderValue(
+      order,
+      metadata,
+      'external_ad_id',
+      'ad_id'
+    ),
+    landingUrl: trackedOrderValue(
+      order,
+      metadata,
+      'landing_url',
+      'session_entry'
+    ),
+    referrerUrl: trackedOrderValue(order, metadata, 'referrer_url', 'referrer')
+  };
+}
+
 function numberValue(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   const text = textValue(value);
@@ -993,6 +1095,42 @@ function normalizeProduct(
   };
 }
 
+function normalizeOrder(item: JsonRecord, fallbackCurrency: string): JsonRecord {
+  const currency = recordText(item, 'currency').toUpperCase() || fallbackCurrency;
+  const billing = asRecord(item.billing) || {};
+  const customer = asRecord(item.customer) || {};
+  return {
+    ...item,
+    _marktone: {
+      externalId: recordText(item, 'id'),
+      externalUpdatedAt: recordText(item, 'date_modified_gmt', 'date_modified'),
+      orderNumber: recordText(item, 'number', 'id'),
+      occurredAt: recordText(item, 'date_created_gmt', 'date_created'),
+      status: recordText(item, 'status'),
+      paymentStatus: recordText(item, 'status'),
+      amountMinor: priceMinor(item.total, currencyMinorDigits(currency)),
+      currency,
+      customerId: recordText(item, 'customer_id') || recordText(customer, 'id'),
+      customerEmail: recordText(billing, 'email') || recordText(customer, 'email'),
+      customerPhone: recordText(billing, 'phone') || recordText(customer, 'phone'),
+      ...orderAttribution(item)
+    }
+  };
+}
+
+function normalizeCustomer(item: JsonRecord): JsonRecord {
+  const billing = asRecord(item.billing) || {};
+  return {
+    ...item,
+    _marktone: {
+      externalId: recordText(item, 'id'),
+      externalUpdatedAt: recordText(item, 'date_modified_gmt', 'date_modified'),
+      customerEmail: recordText(item, 'email') || recordText(billing, 'email'),
+      customerPhone: recordText(billing, 'phone')
+    }
+  };
+}
+
 async function currentCurrency(client: WooClient) {
   const response = await wooRequest(
     client,
@@ -1344,14 +1482,16 @@ async function syncAllEntities(
     await walkPages({
       ...common,
       endpoint: 'orders',
-      entityType: 'orders'
+      entityType: 'orders',
+      transform: item => normalizeOrder(item, currency)
     });
   }
   if (selected.has('customers')) {
     await walkPages({
       ...common,
       endpoint: 'customers',
-      entityType: 'customers'
+      entityType: 'customers',
+      transform: normalizeCustomer
     });
   }
 

@@ -9,11 +9,13 @@ import type {
 import {
   asRecord,
   assertPageLimit,
+  attributionFields,
   compact,
   configuration,
   externalItem,
   listAt,
   moneyMinor,
+  normalizedEntity,
   normalizedProduct,
   numberValue,
   remoteJson,
@@ -114,6 +116,54 @@ function managerItems(entity: CommerceEntity, record: JsonRecord) {
   return Array.isArray(record[key]) ? record[key] as unknown[] : [];
 }
 
+function managerEntity(entity: CommerceEntity, item: JsonRecord) {
+  const externalId = valueAt(item, 'id', 'uuid', 'coupon_id', 'invoice_number');
+  if (entity === 'orders') {
+    const customer = asRecord(valueAt(item, 'customer', 'client', 'shipping.address')) || {};
+    return normalizedEntity(item, {
+      externalId: text(externalId),
+      externalUpdatedAt: text(valueAt(item, 'updated_at', 'updatedAt')),
+      orderNumber: text(valueAt(item, 'invoice_number', 'order_number', 'id')),
+      occurredAt: text(valueAt(item, 'created_at', 'createdAt', 'date')),
+      status: text(valueAt(item, 'status.code', 'status.name', 'status')),
+      paymentStatus: text(valueAt(
+        item,
+        'payment_status.code',
+        'payment_status.name',
+        'payment_status',
+        'payment.status'
+      )),
+      amountMinor: moneyMinor(valueAt(
+        item,
+        'order_total',
+        'order_amount',
+        'total.amount',
+        'total',
+        'amount'
+      )),
+      currency: text(valueAt(
+        item,
+        'currency.code',
+        'currency',
+        'total.currency'
+      )) || 'SAR',
+      customerId: text(valueAt(customer, 'id', 'uuid')),
+      customerEmail: text(valueAt(customer, 'email')),
+      customerPhone: text(valueAt(customer, 'mobile', 'phone')),
+      ...attributionFields(item)
+    });
+  }
+  if (entity === 'customers') {
+    return normalizedEntity(item, {
+      externalId: text(externalId),
+      externalUpdatedAt: text(valueAt(item, 'updated_at', 'updatedAt')),
+      customerEmail: text(valueAt(item, 'email')),
+      customerPhone: text(valueAt(item, 'mobile', 'phone'))
+    });
+  }
+  return externalItem(item, externalId);
+}
+
 async function* managerPages(
   connection: ConnectionConfiguration,
   entity: CommerceEntity
@@ -136,10 +186,7 @@ async function* managerPages(
     const items = managerItems(entity, record)
       .map(asRecord)
       .filter(Boolean)
-      .map(item => externalItem(
-        item as JsonRecord,
-        valueAt(item as JsonRecord, 'id', 'uuid', 'coupon_id', 'invoice_number')
-      ));
+      .map(item => managerEntity(entity, item as JsonRecord));
     let hasMore = false;
     if (entity === 'customers') {
       const next = numberValue(record.next_cursor);

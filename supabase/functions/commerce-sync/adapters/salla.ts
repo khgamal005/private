@@ -9,10 +9,12 @@ import type {
 import {
   asRecord,
   assertPageLimit,
+  attributionFields,
   compact,
   externalItem,
   listAt,
   moneyMinor,
+  normalizedEntity,
   normalizedProduct,
   numberValue,
   remoteJson,
@@ -78,6 +80,46 @@ function product(item: JsonRecord) {
 
 function generic(entity: CommerceEntity, item: JsonRecord) {
   const id = valueAt(item, 'id', 'coupon_id', 'reference_id');
+  if (entity === 'orders') {
+    const customer = asRecord(valueAt(item, 'customer', 'buyer')) || {};
+    return normalizedEntity(item, {
+      externalId: text(id),
+      externalUpdatedAt: text(valueAt(item, 'updated_at', 'updatedAt')),
+      orderNumber: text(valueAt(item, 'reference_id', 'number', 'id')),
+      occurredAt: text(valueAt(item, 'date.date', 'created_at', 'createdAt')),
+      status: text(valueAt(item, 'status.slug', 'status.name', 'status')),
+      paymentStatus: text(valueAt(
+        item,
+        'payment_status',
+        'payment.status',
+        'status.slug'
+      )),
+      amountMinor: moneyMinor(valueAt(
+        item,
+        'amounts.total.amount',
+        'total.amount',
+        'total'
+      )),
+      currency: text(valueAt(
+        item,
+        'amounts.total.currency',
+        'total.currency',
+        'currency'
+      )) || 'SAR',
+      customerId: text(valueAt(customer, 'id')),
+      customerEmail: text(valueAt(customer, 'email')),
+      customerPhone: text(valueAt(customer, 'mobile', 'phone')),
+      ...attributionFields(item)
+    });
+  }
+  if (entity === 'customers') {
+    return normalizedEntity(item, {
+      externalId: text(id),
+      externalUpdatedAt: text(valueAt(item, 'updated_at', 'updatedAt')),
+      customerEmail: text(valueAt(item, 'email')),
+      customerPhone: text(valueAt(item, 'mobile', 'phone'))
+    });
+  }
   return externalItem(item, id);
 }
 

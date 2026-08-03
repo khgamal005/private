@@ -29,6 +29,11 @@ verify_jwt = false
 # project secret key only for Vault-backed connector execution.
 verify_jwt = false
 
+[functions.ads-sync]
+# Manual requests are authorized by tenant-scoped RPCs. Scheduled requests
+# require a dedicated server-side dispatcher secret before service RPC access.
+verify_jwt = false
+
 [functions.knowledge-ingest]
 # Scheduled runs use a Vault-backed secret; manual runs verify the platform
 # administrator JWT inside the function before reading any configured source.

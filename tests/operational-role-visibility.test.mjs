@@ -34,7 +34,7 @@ test('focused operational roles share one explicit navigation policy',async()=>{
   assert.match(shell,/visible:policy\.showCampaignReports/);
   assert.match(shell,/policy\.personalReportsOnly\?'أدائي':'أداء الموظفين'/);
   assert.match(shell,/child\.visible!==false/);
-  assert.match(layout,/roleKey=\{roleKey\}/);
+  assert.match(layout,/roleKey=\{navigationRoleKey\}/);
 });
 
 test('hidden navigation destinations also enforce server route guards',async()=>{

@@ -61,7 +61,7 @@ function tenantItems(slug,permissions,platformAccess,roleKey){
     ]},
     {key:'admissions',label:'التسجيل والقبول',href:`${base}/admissions`,permission:'tenant.admissions.read'},
     {key:'marketing',label:'التسويق والأتمتة',visible:policy.showMarketingAutomation,children:[
-      {key:'marketing',label:'الحملات والتسويق (قريبًا)',permission:['tenant.crm.read','tenant.leads.read','tenant.leads.analytics'],disabled:true},
+      {key:'marketing',label:'مركز الحملات والتسويق',href:`${base}/marketing`,permission:'tenant.marketing.read'},
       {key:'automation',label:'الأتمتة',href:`${base}/settings?tab=automation`,permission:'tenant.users.manage'}
     ]},
     {key:'accounting',label:'الحسابات والفوترة (قريبًا)',permission:'tenant.workspace.read',disabled:true},
@@ -118,7 +118,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
   const [openGroups,setOpenGroups]=useState(()=>({
     courses:pathname.includes('/courses'),
     sales:['/customer-search','/sales','/lead-queue','/incentives'].some(path=>pathname.includes(path)),
-    marketing:pathname.includes('/settings'),
+    marketing:pathname.includes('/marketing')||pathname.includes('/settings'),
     reports:pathname.includes('/reports')||pathname.includes('/call-reports')
   }));
   const items=useMemo(()=>kind===WORKSPACE_KINDS.tenant?tenantItems(slug,permissions,platformAccess,roleKey):platformItems,[kind,slug,permissions,platformAccess,roleKey]);

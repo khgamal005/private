@@ -4,10 +4,14 @@ import test from 'node:test';
 
 const read=path=>readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
 
-test('public site renders from the published website snapshot',()=>{
+test('public site renders from the published CMS website snapshot',()=>{
   const page=read('app/page.js');
   const publicSite=read('components/public-site.js');
-  assert.match(page,/getPublicSiteSnapshot/);
+  const builtPage=read('components/built-public-page.js');
+  assert.match(page,/getCmsPublicSnapshot/);
+  assert.match(page,/BuiltPublicPage/);
+  assert.match(page,/isBuilderDocument/);
+  assert.match(builtPage,/PageDocumentRenderer/);
   assert.match(publicSite,/customerLoginUrl/);
   assert.match(publicSite,/api\/public\/contact/);
   assert.match(publicSite,/marktone-logo-light\.svg/);

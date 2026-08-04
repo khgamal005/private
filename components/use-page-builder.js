@@ -9,8 +9,8 @@ import {
 
 export function usePageBuilder(initialData){
   const router=useRouter();
-  const entity=initialData?.entity||initialData?.page||{};
-  const context=initialData?.context||{};
+  const entity=useMemo(()=>initialData?.entity||initialData?.page||{},[initialData]);
+  const context=useMemo(()=>initialData?.context||{},[initialData]);
   const initialDocument=useMemo(()=>normalizeBuilderDocument(
     initialData?.document?.draftDocument||entity?.content||createBuilderDocument(entity.type==='article'?'service':'landing')
   ),[initialData,entity]);
@@ -75,28 +75,28 @@ export function usePageBuilder(initialData){
 
   function addBlock(type,index){
     if(type==='columns')return addRow('1',index);
-    const module=createBuilderBlock(type);
+    const builderModule=createBuilderBlock(type);
     const target=currentModuleTarget();
-    if(target)return insertModule(target.rowId,target.columnId,module,target.index);
-    const row=createLayoutRow('1');row.props.items[0].modules=[module];
+    if(target)return insertModule(target.rowId,target.columnId,builderModule,target.index);
+    const row=createLayoutRow('1');row.props.items[0].modules=[builderModule];
     const blocks=[...document.blocks];
     const targetIndex=index===undefined?defaultTopIndex(true):index;
     blocks.splice(clampIndex(targetIndex,blocks.length),0,row);
-    commit({...document,blocks},{selection:{kind:'module',rowId:row.id,columnId:row.props.items[0].id,moduleId:module.id}});
+    commit({...document,blocks},{selection:{kind:'module',rowId:row.id,columnId:row.props.items[0].id,moduleId:builderModule.id}});
   }
 
   function insertModule(rowId,columnId,moduleOrType,index){
-    const module=typeof moduleOrType==='string'?createBuilderBlock(moduleOrType):createBuilderBlock(moduleOrType.type,moduleOrType);
+    const builderModule=typeof moduleOrType==='string'?createBuilderBlock(moduleOrType):createBuilderBlock(moduleOrType.type,moduleOrType);
     const blocks=document.blocks.map(block=>{
       if(block.id!==rowId||block.type!=='columns'||block.props?.row!==true)return block;
       const items=block.props.items.map(column=>{
         if(column.id!==columnId)return column;
-        const modules=[...(column.modules||[])];modules.splice(clampIndex(index??modules.length,modules.length),0,module);
+        const modules=[...(column.modules||[])];modules.splice(clampIndex(index??modules.length,modules.length),0,builderModule);
         return {...column,modules};
       });
       return {...block,props:{...block.props,items}};
     });
-    commit({...document,blocks},{selection:{kind:'module',rowId,columnId,moduleId:module.id}});
+    commit({...document,blocks},{selection:{kind:'module',rowId,columnId,moduleId:builderModule.id}});
   }
 
   function insertPreset(key,index=defaultTopIndex(true)){
@@ -119,12 +119,12 @@ export function usePageBuilder(initialData){
   }
 
   function addBlockDefinition(source){
-    const module=createBuilderBlock(source.type,{props:source.props,style:source.style,responsive:source.responsive});
+    const builderModule=createBuilderBlock(source.type,{props:source.props,style:source.style,responsive:source.responsive});
     const target=currentModuleTarget();
-    if(target)return insertModule(target.rowId,target.columnId,module,target.index);
-    const row=createLayoutRow('1');row.props.items[0].modules=[module];
+    if(target)return insertModule(target.rowId,target.columnId,builderModule,target.index);
+    const row=createLayoutRow('1');row.props.items[0].modules=[builderModule];
     const blocks=[...document.blocks];blocks.splice(defaultTopIndex(true),0,row);
-    commit({...document,blocks},{selection:{kind:'module',rowId:row.id,columnId:row.props.items[0].id,moduleId:module.id}});
+    commit({...document,blocks},{selection:{kind:'module',rowId:row.id,columnId:row.props.items[0].id,moduleId:builderModule.id}});
   }
 
   function duplicateBlock(id){
@@ -143,23 +143,23 @@ export function usePageBuilder(initialData){
 
   function duplicateModule(rowId,columnId,moduleId){
     const row=document.blocks.find(block=>block.id===rowId);const column=row?.props?.items?.find(item=>item.id===columnId);
-    const index=column?.modules?.findIndex(module=>module.id===moduleId)??-1;if(index<0)return;
-    const source=column.modules[index];const module=createBuilderBlock(source.type,{props:source.props,style:source.style,responsive:source.responsive});
+    const index=column?.modules?.findIndex(item=>item.id===moduleId)??-1;if(index<0)return;
+    const source=column.modules[index];const builderModule=createBuilderBlock(source.type,{props:source.props,style:source.style,responsive:source.responsive});
     const blocks=document.blocks.map(block=>block.id!==rowId?block:{...block,props:{...block.props,items:block.props.items.map(item=>{
-      if(item.id!==columnId)return item;const modules=[...item.modules];modules.splice(index+1,0,module);return {...item,modules};
+      if(item.id!==columnId)return item;const modules=[...item.modules];modules.splice(index+1,0,builderModule);return {...item,modules};
     })}});
-    commit({...document,blocks},{selection:{kind:'module',rowId,columnId,moduleId:module.id}});
+    commit({...document,blocks},{selection:{kind:'module',rowId,columnId,moduleId:builderModule.id}});
   }
 
   function deleteModule(rowId,columnId,moduleId){
-    const blocks=document.blocks.map(block=>block.id!==rowId?block:{...block,props:{...block.props,items:block.props.items.map(item=>item.id!==columnId?item:{...item,modules:item.modules.filter(module=>module.id!==moduleId)})}});
+    const blocks=document.blocks.map(block=>block.id!==rowId?block:{...block,props:{...block.props,items:block.props.items.map(item=>item.id!==columnId?item:{...item,modules:item.modules.filter(entry=>entry.id!==moduleId)})}});
     commit({...document,blocks},{selection:{kind:'column',rowId,columnId}});
   }
 
   function duplicateColumn(rowId,columnId){
     const row=document.blocks.find(block=>block.id===rowId);const sourceIndex=row?.props?.items?.findIndex(item=>item.id===columnId)??-1;if(sourceIndex<0)return;
     const source=row.props.items[sourceIndex];
-    const modules=source.modules.map(module=>createBuilderBlock(module.type,{props:module.props,style:module.style,responsive:module.responsive}));
+    const modules=source.modules.map(item=>createBuilderBlock(item.type,{props:item.props,style:item.style,responsive:item.responsive}));
     const copy={...source,id:freshId('column'),modules};
     if(row.props.items.length>=6){
       const newRow=createLayoutRow('1');newRow.props.items[0]={...copy,id:freshId('column')};
@@ -235,7 +235,7 @@ export function usePageBuilder(initialData){
 
   function moveModule(source,target){
     const row=document.blocks.find(block=>block.id===source.rowId);const column=row?.props?.items?.find(item=>item.id===source.columnId);
-    const module=column?.modules?.find(item=>item.id===source.moduleId);if(!module)return;
+    const builderModule=column?.modules?.find(item=>item.id===source.moduleId);if(!builderModule)return;
     let blocks=document.blocks.map(block=>block.id!==source.rowId?block:{...block,props:{...block.props,items:block.props.items.map(item=>item.id!==source.columnId?item:{...item,modules:item.modules.filter(entry=>entry.id!==source.moduleId)})}});
     blocks=blocks.map(block=>block.id!==target.rowId?block:{...block,props:{...block.props,items:block.props.items.map(item=>{
       if(item.id!==target.columnId)return item;
@@ -243,17 +243,17 @@ export function usePageBuilder(initialData){
       if(source.rowId===target.rowId&&source.columnId===target.columnId){
         const oldIndex=column.modules.findIndex(entry=>entry.id===source.moduleId);if(oldIndex<targetIndex)targetIndex-=1;
       }
-      modules.splice(clampIndex(targetIndex,modules.length),0,module);return {...item,modules};
+      modules.splice(clampIndex(targetIndex,modules.length),0,builderModule);return {...item,modules};
     })}});
-    commit({...document,blocks},{selection:{kind:'module',rowId:target.rowId,columnId:target.columnId,moduleId:module.id}});
+    commit({...document,blocks},{selection:{kind:'module',rowId:target.rowId,columnId:target.columnId,moduleId:builderModule.id}});
   }
 
   function moveModuleToTop(source,index){
     const row=document.blocks.find(block=>block.id===source.rowId);const column=row?.props?.items?.find(item=>item.id===source.columnId);
-    const module=column?.modules?.find(item=>item.id===source.moduleId);if(!module)return;
-    let blocks=document.blocks.map(block=>block.id!==source.rowId?block:{...block,props:{...block.props,items:block.props.items.map(item=>item.id!==source.columnId?item:{...item,modules:item.modules.filter(entry=>entry.id!==source.moduleId)})}});
-    const newRow=createLayoutRow('1');newRow.props.items[0].modules=[module];blocks.splice(clampIndex(index,blocks.length),0,newRow);
-    commit({...document,blocks},{selection:{kind:'module',rowId:newRow.id,columnId:newRow.props.items[0].id,moduleId:module.id}});
+    const builderModule=column?.modules?.find(item=>item.id===source.moduleId);if(!builderModule)return;
+    const blocks=document.blocks.map(block=>block.id!==source.rowId?block:{...block,props:{...block.props,items:block.props.items.map(item=>item.id!==source.columnId?item:{...item,modules:item.modules.filter(entry=>entry.id!==source.moduleId)})}});
+    const newRow=createLayoutRow('1');newRow.props.items[0].modules=[builderModule];blocks.splice(clampIndex(index,blocks.length),0,newRow);
+    commit({...document,blocks},{selection:{kind:'module',rowId:newRow.id,columnId:newRow.props.items[0].id,moduleId:builderModule.id}});
   }
 
   function moveTopBlockIntoColumn(topId,target){
@@ -278,7 +278,7 @@ export function usePageBuilder(initialData){
         return {...block,props:{...block.props,items:block.props.items.map(column=>{
           if(column.id!==selected.column.id)return column;
           if(selected.kind==='column')return setPath(column,path,value);
-          return {...column,modules:column.modules.map(module=>module.id===selected.module.id?setPath(module,path,value):module)};
+          return {...column,modules:column.modules.map(item=>item.id===selected.module.id?setPath(item,path,value):item)};
         })}};
       }
       return block;
@@ -290,7 +290,7 @@ export function usePageBuilder(initialData){
     const found=locateSelection(document,target);if(!found)return;
     const blocks=document.blocks.map(block=>{
       if(found.kind==='block'&&block.id===found.block.id)return setPath(block,path,value);
-      if(found.kind==='module'&&block.id===found.row.id)return {...block,props:{...block.props,items:block.props.items.map(column=>column.id!==found.column.id?column:{...column,modules:column.modules.map(module=>module.id===found.module.id?setPath(module,path,value):module)})}};
+      if(found.kind==='module'&&block.id===found.row.id)return {...block,props:{...block.props,items:block.props.items.map(column=>column.id!==found.column.id?column:{...column,modules:column.modules.map(item=>item.id===found.module.id?setPath(item,path,value):item)})}};
       return block;
     });
     commit({...document,blocks},{selection:target});
@@ -358,7 +358,7 @@ function locateSelection(document,selection){
   const columnIndex=row.props.items.findIndex(column=>column.id===selection.columnId);if(columnIndex<0)return null;
   const column=row.props.items[columnIndex];
   if(selection.kind==='column')return {kind:'column',block:row,row,column,blockIndex,columnIndex};
-  const moduleIndex=column.modules.findIndex(module=>module.id===selection.moduleId);if(moduleIndex<0)return null;
+  const moduleIndex=column.modules.findIndex(item=>item.id===selection.moduleId);if(moduleIndex<0)return null;
   return {kind:'module',block:row,row,column,module:column.modules[moduleIndex],blockIndex,columnIndex,moduleIndex};
 }
 function firstSelection(document){
@@ -376,7 +376,7 @@ function cloneRowWithFreshIds(source){
   const row=createLayoutRow(source.props?.layoutKey||'1',{props:{...source.props,items:[]},style:source.style,responsive:source.responsive});
   row.props.items=source.props.items.map(column=>({
     ...column,id:freshId('column'),
-    modules:(column.modules||[]).map(module=>createBuilderBlock(module.type,{props:module.props,style:module.style,responsive:module.responsive}))
+    modules:(column.modules||[]).map(item=>createBuilderBlock(item.type,{props:item.props,style:item.style,responsive:item.responsive}))
   }));
   return row;
 }

@@ -95,13 +95,21 @@ export async function POST(request){
       },{status:403});
     }
 
+    const platformPermissions=Array.isArray(context.platformPermissions)
+      ?context.platformPermissions
+      :[];
+    const platformControlAccess=Boolean(
+      context.platformControlAccess
+      ||platformPermissions.includes('platform.control.read')
+    );
+
     const next=acceptedPlatformInvitation
       ?'/control'
       :acceptedTenantInvitation?.tenantSlug
         ?`/tenant/${acceptedTenantInvitation.tenantSlug}`
         :context.subject?.mustChangePassword
           ?'/change-password'
-          :context.platformAccess
+          :platformControlAccess
             ?'/control'
             :context.memberships?.[0]?.tenantSlug
               ?`/tenant/${context.memberships[0].tenantSlug}`

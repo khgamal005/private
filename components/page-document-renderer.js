@@ -1,247 +1,87 @@
 'use client';
 
-import Link from 'next/link';
-import {useState} from 'react';
-import {normalizeBuilderDocument} from '../lib/website-builder';
-import styles from './page-document-renderer.module.css';
+import {normalizeBuilderDocument,ROW_LAYOUTS} from '../lib/website-builder';
+import baseStyles from './page-document-renderer.module.css';
+import proStyles from './page-document-renderer-pro.module.css';
+import {ModuleView,blockLabel,blockStyle,hiddenFor,safeCss} from './page-builder-module-view';
 
-const ICONS=['✦','↗','◎','◇','◌','⌁','▦','↳'];
+const styles={...baseStyles,...proStyles};
 
 export default function PageDocumentRenderer({
-  document,
-  editor=false,
-  device='desktop',
-  selectedId='',
-  onSelect,
-  onDropAt,
-  onDragStart,
-  onDuplicate,
-  onDelete
+  document,editor=false,device='desktop',selection=null,onSelect,onDropAt,onDragStart,
+  onDuplicate,onDelete,onColumnDrop,onModuleDragStart,onDuplicateModule,onDeleteModule,
+  onInlineEdit,showOutlines=true
 }){
   const normalized=normalizeBuilderDocument(document);
-  return <div
-    className={`${styles.document} ${styles[`device_${device}`]||''}`}
-    style={{background:normalized.settings.background}}
-  >
-    {editor&&<DropZone index={0} onDropAt={onDropAt}/>} 
-    {normalized.blocks.map((block,index)=>{
-      const hidden=Boolean(
-        device==='desktop'&&block.responsive?.hideDesktop
-        ||device==='tablet'&&block.responsive?.hideTablet
-        ||device==='mobile'&&block.responsive?.hideMobile
-      );
-      const content=<BlockView block={block} editor={editor}/>;
-      if(!editor)return <ResponsiveBlock key={block.id} block={block}>{content}</ResponsiveBlock>;
-      return <div key={block.id}>
-        <article
-          className={`${styles.editorBlock} ${selectedId===block.id?styles.selected:''} ${hidden?styles.hiddenInDevice:''}`}
-          draggable
-          onDragStart={event=>onDragStart?.(event,block.id)}
-          onClick={event=>{event.stopPropagation();onSelect?.(block.id);}}
-          data-block-id={block.id}
-        >
-          <div className={styles.editorToolbar}>
-            <span className={styles.dragHandle} title="اسحب لإعادة الترتيب">⋮⋮</span>
-            <b>{blockLabel(block.type)}</b>
-            {hidden&&<small>مخفي على هذا المقاس</small>}
-            <button type="button" onClick={event=>{event.stopPropagation();onDuplicate?.(block.id);}}>نسخ</button>
-            <button type="button" onClick={event=>{event.stopPropagation();onDelete?.(block.id);}}>حذف</button>
-          </div>
-          {content}
-        </article>
-        <DropZone index={index+1} onDropAt={onDropAt}/>
-      </div>;
-    })}
-    {editor&&!normalized.blocks.length&&<div className={styles.emptyCanvas}>
-      <strong>ابدأ بإضافة أول عنصر</strong>
-      <span>اسحب عنصرًا من المكتبة أو اضغط عليه.</span>
-    </div>}
+  return <div className={`${styles.document} ${styles[`device_${device}`]||''} ${editor&&showOutlines?styles.showOutlines:''}`} style={{background:normalized.settings.background}}>
+    {normalized.settings.customCss&&<style dangerouslySetInnerHTML={{__html:safeCss(normalized.settings.customCss)}}/>}
+    {editor&&<TopDrop index={0} onDropAt={onDropAt}/>} 
+    {normalized.blocks.map((block,index)=><TopBlock
+      key={block.id} block={block} index={index} editor={editor} device={device} selection={selection}
+      onSelect={onSelect} onDropAt={onDropAt} onDragStart={onDragStart} onDuplicate={onDuplicate}
+      onDelete={onDelete} onColumnDrop={onColumnDrop} onModuleDragStart={onModuleDragStart}
+      onDuplicateModule={onDuplicateModule} onDeleteModule={onDeleteModule} onInlineEdit={onInlineEdit}
+    />)}
+    {editor&&!normalized.blocks.length&&<div className={styles.emptyCanvas}><strong>ابدأ بإضافة أول صف</strong><span>اسحب توزيع أعمدة أو موديول من المكتبة.</span></div>}
   </div>;
 }
 
-export function BlockView({block,editor=false}){
-  const style=block.style||{};
-  const props=block.props||{};
-  const className=[
-    styles.block,
-    styles[`variant_${style.variant||'light'}`]||'',
-    styles[`align_${style.align||'right'}`]||'',
-    styles[`width_${style.maxWidth||'wide'}`]||''
-  ].join(' ');
-  const inline={
-    '--block-padding':`${clamp(style.paddingY,0,180,72)}px`,
-    '--block-background':style.background||'transparent',
-    '--block-color':style.color||'inherit'
-  };
-  const common={id:props.anchor||undefined,className,style:inline,'data-builder-type':block.type};
-
-  if(block.type==='hero')return <section {...common} className={`${className} ${styles.hero}`}>
-    <div className={styles.heroCopy}>
-      {props.eyebrow&&<p className={styles.eyebrow}>{props.eyebrow}</p>}
-      <h1>{props.title||'عنوان الصفحة'}</h1>
-      {props.body&&<p className={styles.lead}>{props.body}</p>}
-      <ButtonRow props={props}/>
-    </div>
-    <div className={styles.heroVisual} style={props.imageUrl?{backgroundImage:`url(${safeImage(props.imageUrl)})`}:undefined} role={props.imageUrl?'img':undefined} aria-label={props.imageAlt||undefined}>
-      {!props.imageUrl&&<><i/><i/><i/><strong>Marktone</strong><small>Visual Builder</small></>}
-    </div>
-  </section>;
-
-  if(block.type==='heading'){
-    const Tag=['h2','h3','h4'].includes(props.level)?props.level:'h2';
-    return <section {...common}>
-      <div className={styles.headingBlock}>
-        {props.eyebrow&&<p className={styles.eyebrow}>{props.eyebrow}</p>}
-        <Tag>{props.title||'عنوان القسم'}</Tag>
-        {props.body&&<p>{props.body}</p>}
-      </div>
-    </section>;
-  }
-
-  if(block.type==='text')return <section {...common}>
-    <div className={styles.textBlock} style={{columnCount:clamp(props.columns,1,3,1)}}>{textBlocks(props.content)}</div>
-  </section>;
-
-  if(block.type==='image')return <section {...common}>
-    <figure className={styles.imageBlock}>
-      <div style={{aspectRatio:props.ratio||'16 / 9',backgroundImage:props.url?`url(${safeImage(props.url)})`:undefined,backgroundSize:props.fit||'cover'}}>
-        {!props.url&&<span>أضف رابط الصورة من لوحة الخصائص</span>}
-      </div>
-      {props.caption&&<figcaption>{props.caption}</figcaption>}
-    </figure>
-  </section>;
-
-  if(block.type==='buttons')return <section {...common}><ButtonRow props={props}/></section>;
-
-  if(block.type==='cards')return <section {...common}>
-    <SectionHeading props={props}/>
-    <div className={styles.cardGrid} style={{'--columns':clamp(props.columns,1,4,3)}}>
-      {array(props.items).map((item,index)=><article key={`${item.title}-${index}`} className={styles.card}>
-        <span>{ICONS[index%ICONS.length]}</span><small>{String(index+1).padStart(2,'0')}</small>
-        <h3>{item.title}</h3><p>{item.description}</p>
-      </article>)}
-    </div>
-  </section>;
-
-  if(block.type==='stats')return <section {...common}>
-    <SectionHeading props={props}/>
-    <div className={styles.statsGrid} style={{'--columns':clamp(props.columns,2,4,4)}}>
-      {array(props.items).map((item,index)=><article key={`${item.title}-${index}`}>
-        <strong>{item.value}</strong><h3>{item.title}</h3><p>{item.description}</p>
-      </article>)}
-    </div>
-  </section>;
-
-  if(block.type==='columns')return <section {...common}>
-    <div className={styles.columnsGrid} style={{'--columns':clamp(props.columns,1,3,2)}}>
-      {array(props.items).map((item,index)=><article key={`${item.title}-${index}`}><span>{String(index+1).padStart(2,'0')}</span><h3>{item.title}</h3><p>{item.description}</p></article>)}
-    </div>
-  </section>;
-
-  if(block.type==='quote')return <section {...common}>
-    <blockquote className={styles.quote}><span>“</span><p>{props.quote}</p><footer><strong>{props.author}</strong><small>{props.role}</small></footer></blockquote>
-  </section>;
-
-  if(block.type==='faq')return <section {...common}>
-    <SectionHeading props={props}/>
-    <div className={styles.faqList}>{array(props.items).map((item,index)=><details key={`${item.title}-${index}`} open={editor&&index===0}><summary>{item.title}<span>+</span></summary><p>{item.description}</p></details>)}</div>
-  </section>;
-
-  if(block.type==='cta')return <section {...common}>
-    <div className={styles.ctaBlock}><div>{props.eyebrow&&<p className={styles.eyebrow}>{props.eyebrow}</p>}<h2>{props.title}</h2><p>{props.body}</p></div><SmartLink href={props.buttonHref} className={styles.primaryButton}>{props.buttonLabel||'ابدأ الآن'} <span>↗</span></SmartLink></div>
-  </section>;
-
-  if(block.type==='contact')return <section {...common}>
-    <ContactBlock props={props} editor={editor}/>
-  </section>;
-
-  if(block.type==='divider')return <section {...common}><div className={styles.divider} style={{width:`${clamp(props.width,10,100,100)}%`,borderTopWidth:clamp(props.thickness,1,8,1)}}/></section>;
-
-  if(block.type==='spacer')return <section {...common} className={`${className} ${styles.spacer}`} style={{...inline,'--desktop-space':`${clamp(props.desktop,0,300,72)}px`,'--tablet-space':`${clamp(props.tablet,0,240,52)}px`,'--mobile-space':`${clamp(props.mobile,0,200,36)}px`}} aria-hidden="true"/>;
-
-  return <section {...common}><div className={styles.textBlock}>عنصر غير مدعوم</div></section>;
-}
-
-function ResponsiveBlock({block,children}){
-  const responsive=block.responsive||{};
-  return <div
-    className={styles.responsiveBlock}
-    data-hide-desktop={responsive.hideDesktop||undefined}
-    data-hide-tablet={responsive.hideTablet||undefined}
-    data-hide-mobile={responsive.hideMobile||undefined}
-  >{children}</div>;
-}
-
-function DropZone({index,onDropAt}){
-  return <div
-    className={styles.dropZone}
-    onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move';}}
-    onDrop={event=>{event.preventDefault();onDropAt?.(index,event);}}
-  ><span>ضع العنصر هنا</span></div>;
-}
-
-function SectionHeading({props}){
-  return <div className={styles.sectionHeading}>
-    {props.eyebrow&&<p className={styles.eyebrow}>{props.eyebrow}</p>}
-    {props.title&&<h2>{props.title}</h2>}
-    {props.body&&<p>{props.body}</p>}
+function TopBlock(props){
+  const {block,index,editor,device,selection,onSelect,onDropAt,onDragStart,onDuplicate,onDelete}=props;
+  const row=isRow(block);const hidden=hiddenFor(block.responsive,device);
+  const selected=row?selection?.kind==='row'&&selection.rowId===block.id:selection?.kind==='block'&&selection.blockId===block.id;
+  if(!editor)return <Responsive responsive={block.responsive}><BlockView block={block} device={device}/></Responsive>;
+  return <div className={styles.editorBlockWrap}>
+    <article className={`${styles.editorBlock} ${row?styles.editorRow:''} ${selected?styles.selected:''} ${hidden?styles.hiddenInDevice:''}`} draggable onDragStart={event=>onDragStart?.(event,block.id)} onClick={event=>{event.stopPropagation();onSelect?.(row?{kind:'row',rowId:block.id}:{kind:'block',blockId:block.id});}}>
+      <Toolbar label={row?'صف':blockLabel(block.type)} detail={row?ROW_LAYOUTS[block.props.layoutKey]?.label:''} hidden={hidden} onDuplicate={()=>onDuplicate?.(block.id)} onDelete={()=>onDelete?.(block.id)}/>
+      <BlockView {...props}/>
+    </article>
+    <TopDrop index={index+1} onDropAt={onDropAt}/>
   </div>;
 }
 
-function ButtonRow({props}){
-  return <div className={styles.buttonRow}>
-    {props.primaryLabel&&<SmartLink href={props.primaryHref} className={styles.primaryButton}>{props.primaryLabel}<span>↗</span></SmartLink>}
-    {props.secondaryLabel&&<SmartLink href={props.secondaryHref} className={styles.secondaryButton}>{props.secondaryLabel}<span>↗</span></SmartLink>}
+export function BlockView({
+  block,editor=false,device='desktop',selection=null,onSelect,onColumnDrop,onModuleDragStart,
+  onDuplicateModule,onDeleteModule,onInlineEdit
+}){
+  if(!isRow(block))return <ModuleView block={block} editor={editor} target={{kind:'block',blockId:block.id}} onInlineEdit={onInlineEdit}/>;
+  const p=block.props||{};const s=block.style||{};const layout=ROW_LAYOUTS[p.layoutKey]||ROW_LAYOUTS['1'];
+  const className=[styles.block,styles.layoutSection,styles[`variant_${s.variant||'light'}`]||'',styles[`align_${s.align||'right'}`]||'',styles[`width_${s.maxWidth||'wide'}`]||'',s.cssClass||''].filter(Boolean).join(' ');
+  return <section id={p.anchor||undefined} className={className} style={blockStyle(s)} data-builder-type="columns" data-animation={s.animation&&s.animation!=='none'?s.animation:undefined}>
+    <div className={`${styles.layoutRow} ${p.fullWidth?styles.fullWidthRow:''}`} style={{gridTemplateColumns:layout.template,gap:clamp(p.gap,0,64,18),minHeight:clamp(p.minHeight,0,1200,0),alignItems:p.verticalAlign||'stretch'}}>
+      {p.items.map((column,columnIndex)=><Column key={column.id} row={block} column={column} columnIndex={columnIndex} editor={editor} device={device} selection={selection} onSelect={onSelect} onColumnDrop={onColumnDrop} onModuleDragStart={onModuleDragStart} onDuplicateModule={onDuplicateModule} onDeleteModule={onDeleteModule} onInlineEdit={onInlineEdit}/>) }
+    </div>
+  </section>;
+}
+
+function Column({row,column,columnIndex,editor,device,selection,onSelect,onColumnDrop,onModuleDragStart,onDuplicateModule,onDeleteModule,onInlineEdit}){
+  const hidden=hiddenFor(column.responsive,device);const selected=selection?.kind==='column'&&selection.rowId===row.id&&selection.columnId===column.id;
+  const style=columnStyle(column.style);
+  if(!editor)return <Responsive responsive={column.responsive}><div className={styles.publicColumn} style={style}>{column.modules.map(module=><Responsive key={module.id} responsive={module.responsive}><ModuleView block={module} nested/></Responsive>)}</div></Responsive>;
+  return <div className={`${styles.builderColumn} ${selected?styles.selectedColumn:''} ${hidden?styles.hiddenColumn:''}`} style={style} onClick={event=>{event.stopPropagation();onSelect?.({kind:'column',rowId:row.id,columnId:column.id});}}>
+    <div className={styles.columnToolbar}><span>عمود {columnIndex+1}</span><small>{column.modules.length} عنصر</small></div>
+    <ColumnDrop rowId={row.id} columnId={column.id} index={0} onColumnDrop={onColumnDrop}/>
+    {column.modules.map((module,moduleIndex)=><NestedModule key={module.id} row={row} column={column} module={module} moduleIndex={moduleIndex} device={device} selection={selection} onSelect={onSelect} onColumnDrop={onColumnDrop} onModuleDragStart={onModuleDragStart} onDuplicateModule={onDuplicateModule} onDeleteModule={onDeleteModule} onInlineEdit={onInlineEdit}/>) }
+    {!column.modules.length&&<div className={styles.emptyColumn}><span>＋</span><b>اسحب موديول هنا</b></div>}
   </div>;
 }
 
-function SmartLink({href,children,className=''}){
-  const target=safeHref(href);
-  if(!target)return <span className={className}>{children}</span>;
-  if(target.startsWith('#')||target.startsWith('mailto:')||target.startsWith('tel:')||/^https?:\/\//i.test(target)){
-    return <a href={target} className={className} rel={/^https?:\/\//i.test(target)?'noreferrer':undefined}>{children}</a>;
-  }
-  return <Link href={target} className={className}>{children}</Link>;
-}
-
-function ContactBlock({props,editor}){
-  const [state,setState]=useState({status:'idle',message:''});
-  async function submit(event){
-    event.preventDefault();
-    if(editor)return;
-    const form=event.currentTarget;
-    const payload=Object.fromEntries(new FormData(form));
-    setState({status:'loading',message:''});
-    try{
-      const response=await fetch('/api/public/contact',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({...payload,consent:Boolean(payload.consent),sourcePage:window.location.pathname})
-      });
-      const result=await response.json();
-      if(!response.ok)throw new Error(result?.error||'تعذر إرسال الطلب');
-      form.reset();
-      setState({status:'success',message:result.message||'تم إرسال الطلب'});
-    }catch(error){setState({status:'error',message:error.message});}
-  }
-  return <div className={styles.contactBlock}>
-    <div><p className={styles.eyebrow}>{props.eyebrow}</p><h2>{props.title}</h2><p>{props.body}</p><small>سيتم حفظ الرسائل داخل لوحة إدارة موقع ماركتون.</small></div>
-    <form onSubmit={submit}>
-      <div><label><span>الاسم *</span><input name="name" required minLength={2} disabled={editor}/></label><label><span>اسم المنشأة</span><input name="organization" disabled={editor}/></label></div>
-      <div><label><span>الجوال</span><input name="phone" inputMode="tel" disabled={editor}/></label><label><span>البريد الإلكتروني</span><input name="email" type="email" disabled={editor}/></label></div>
-      <label><span>التحدي الحالي *</span><textarea name="message" rows={4} required minLength={10} disabled={editor}/></label>
-      <label className={styles.consent}><input type="checkbox" name="consent" disabled={editor}/><span>أوافق على تواصل فريق ماركتون بخصوص الطلب.</span></label>
-      <input className={styles.honeypot} name="website" tabIndex={-1} autoComplete="off"/>
-      <button disabled={editor||state.status==='loading'}>{state.status==='loading'?'جارٍ الإرسال…':props.buttonLabel||'إرسال الطلب'} <span>↗</span></button>
-      {state.message&&<p className={state.status==='success'?styles.formSuccess:styles.formError}>{state.message}</p>}
-    </form>
+function NestedModule({row,column,module,moduleIndex,device,selection,onSelect,onColumnDrop,onModuleDragStart,onDuplicateModule,onDeleteModule,onInlineEdit}){
+  const target={kind:'module',rowId:row.id,columnId:column.id,moduleId:module.id};
+  const selected=selection?.kind==='module'&&selection.rowId===row.id&&selection.columnId===column.id&&selection.moduleId===module.id;
+  return <div className={styles.nestedEditorWrap}>
+    <article className={`${styles.nestedEditor} ${selected?styles.selectedModule:''} ${hiddenFor(module.responsive,device)?styles.hiddenInDevice:''}`} draggable onDragStart={event=>{event.stopPropagation();onModuleDragStart?.(event,row.id,column.id,module.id);}} onClick={event=>{event.stopPropagation();onSelect?.(target);}}>
+      <div className={styles.moduleToolbar}><span className={styles.dragHandle}>⋮⋮</span><b>{blockLabel(module.type)}</b><button type="button" onClick={event=>{event.stopPropagation();onDuplicateModule?.(row.id,column.id,module.id);}}>نسخ</button><button type="button" onClick={event=>{event.stopPropagation();onDeleteModule?.(row.id,column.id,module.id);}}>حذف</button></div>
+      <ModuleView block={module} editor nested target={target} onInlineEdit={onInlineEdit}/>
+    </article>
+    <ColumnDrop rowId={row.id} columnId={column.id} index={moduleIndex+1} onColumnDrop={onColumnDrop}/>
   </div>;
 }
 
-function textBlocks(value){
-  return String(value||'').split(/\n{2,}/).filter(Boolean).map((text,index)=><p key={`${text.slice(0,20)}-${index}`}>{text.split('\n').map((line,lineIndex)=><span key={`${line}-${lineIndex}`}>{line}{lineIndex<text.split('\n').length-1&&<br/>}</span>)}</p>);
-}
-function array(value){return Array.isArray(value)?value:[];}
-function clamp(value,min,max,fallback){const number=Number(value);return Number.isFinite(number)?Math.min(Math.max(number,min),max):fallback;}
-function blockLabel(type){return ({hero:'واجهة رئيسية',heading:'عنوان قسم',text:'نص',image:'صورة',buttons:'أزرار',cards:'بطاقات',stats:'إحصائيات',columns:'أعمدة',quote:'اقتباس',faq:'أسئلة شائعة',cta:'دعوة لاتخاذ إجراء',contact:'نموذج تواصل',divider:'فاصل',spacer:'مسافة'})[type]||type;}
-function safeHref(value){const href=String(value||'').trim();if(!href)return '';if(/^(javascript|data|vbscript):/i.test(href))return '';return href;}
-function safeImage(value){const url=String(value||'').trim();if(!url||/^(javascript|data:text\/html|vbscript):/i.test(url))return '';return url.replace(/["'()]/g,encodeURIComponent);}
+function Toolbar({label,detail,hidden,onDuplicate,onDelete}){return <div className={styles.editorToolbar}><span className={styles.dragHandle} title="اسحب لإعادة الترتيب">⋮⋮</span><b>{label}</b>{detail&&<small>{detail}</small>}{hidden&&<small>مخفي</small>}<button type="button" onClick={event=>{event.stopPropagation();onDuplicate();}}>نسخ</button><button type="button" onClick={event=>{event.stopPropagation();onDelete();}}>حذف</button></div>}
+function TopDrop({index,onDropAt}){return <div className={styles.dropZone} onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move';}} onDrop={event=>{event.preventDefault();onDropAt?.(index,event);}}><span>ضع الصف أو العنصر هنا</span></div>}
+function ColumnDrop({rowId,columnId,index,onColumnDrop}){return <div className={styles.columnDropZone} onDragOver={event=>{event.preventDefault();event.stopPropagation();event.dataTransfer.dropEffect='move';}} onDrop={event=>{event.preventDefault();event.stopPropagation();onColumnDrop?.(rowId,columnId,index,event);}}><span>إفلات هنا</span></div>}
+function Responsive({responsive,children}){return <div className={styles.responsiveBlock} data-hide-desktop={responsive?.hideDesktop||undefined} data-hide-tablet={responsive?.hideTablet||undefined} data-hide-mobile={responsive?.hideMobile||undefined}>{children}</div>}
+function isRow(block){return block.type==='columns'&&block.props?.row===true}
+function columnStyle(s={}){return {'--column-background':s.background||'transparent','--column-color':s.color||'inherit','--column-padding':`${clamp(s.padding,0,100,18)}px`,'--column-gap':`${clamp(s.gap,0,64,14)}px`,'--column-border':s.borderColor||'transparent','--column-border-width':`${clamp(s.borderWidth,0,12,0)}px`,'--column-radius':`${clamp(s.borderRadius,0,80,0)}px`,'--column-shadow':({none:'none',soft:'0 12px 35px rgba(10,31,53,.09)',medium:'0 20px 55px rgba(10,31,53,.14)',strong:'0 28px 80px rgba(10,31,53,.22)'})[s.shadow]||'none',alignContent:s.verticalAlign||'stretch'}}
+function clamp(value,min,max,fallback){const n=Number(value);return Number.isFinite(n)?Math.min(Math.max(n,min),max):fallback}

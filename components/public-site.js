@@ -78,7 +78,7 @@ export function ArticlesIndex({snapshot}){
 function PublicHeader({menu,settings}){
   const [open,setOpen]=useState(false);
   const loginUrl=settings.customerLoginUrl||'/login';
-  const contactUrl=settings.contactCtaUrl||'#contact';
+  const freeTrialUrl=settings.freeTrialUrl||'/free-trial';
   return <header className={styles.header}>
     <div className={styles.headerInner}>
       <Link href="/" className={styles.brand} aria-label="ماركتون - الرئيسية">
@@ -89,7 +89,7 @@ function PublicHeader({menu,settings}){
       </nav>
       <div className={styles.headerActions}>
         <SmartLink href={loginUrl} className={styles.loginButton}>{settings.customerLoginLabel||'دخول العملاء'}</SmartLink>
-        <SmartLink href={contactUrl} className={styles.primaryButton}>{settings.contactCtaLabel||'تواصل معنا'}<span>↗</span></SmartLink>
+        <SmartLink href={freeTrialUrl} className={styles.primaryButton}>{settings.freeTrialLabel||'جرّب الآن مجانًا'}<span>↗</span></SmartLink>
       </div>
       <button type="button" className={styles.menuToggle} aria-expanded={open} aria-label={open?'إغلاق القائمة':'فتح القائمة'} onClick={()=>setOpen(value=>!value)}>
         <span/><span/><span/>
@@ -107,7 +107,7 @@ function PublicFooter({menu,settings}){
       </div>
       <nav aria-label="روابط الموقع">
         {menu.map(item=><SmartLink key={item.id||`${item.label}-${item.href}`} href={item.href}>{item.label}</SmartLink>)}
-        <Link href="/articles">المقالات</Link>
+        <Link href="/free-trial">جرّب الآن مجانًا</Link>\n        <Link href="/articles">المقالات</Link>
         <SmartLink href={settings.customerLoginUrl||'/login'}>دخول العملاء</SmartLink>
       </nav>
       <div className={styles.footerContact}>

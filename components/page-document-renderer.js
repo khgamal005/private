@@ -6,6 +6,12 @@ import proStyles from './page-document-renderer-pro.module.css';
 import {ModuleView,blockLabel,blockStyle,hiddenFor,safeCss} from './page-builder-module-view';
 
 const styles={...baseStyles,...proStyles};
+const COPY_DRAG_TYPES=new Set([
+  'application/x-marktone-row-layout',
+  'application/x-marktone-new-block',
+  'application/x-marktone-preset',
+  'application/x-marktone-saved'
+]);
 
 export default function PageDocumentRenderer({
   document,editor=false,device='desktop',selection=null,onSelect,onDropAt,onDragStart,
@@ -13,7 +19,17 @@ export default function PageDocumentRenderer({
   onInlineEdit,showOutlines=true
 }){
   const normalized=normalizeBuilderDocument(document);
-  return <div className={`${styles.document} ${styles[`device_${device}`]||''} ${editor&&showOutlines?styles.showOutlines:''}`} style={{background:normalized.settings.background}}>
+  return <div
+    className={`${styles.document} ${styles[`device_${device}`]||''} ${editor&&showOutlines?styles.showOutlines:''}`}
+    style={{background:normalized.settings.background}}
+    onDragOver={editor?event=>allowDrop(event):undefined}
+    onDrop={editor?event=>{
+      if(event.target?.closest?.(`.${styles.dropZone},.${styles.columnDropZone}`))return;
+      event.preventDefault();
+      event.stopPropagation();
+      onDropAt?.(normalized.blocks.length,event);
+    }:undefined}
+  >
     {normalized.settings.customCss&&<style dangerouslySetInnerHTML={{__html:safeCss(normalized.settings.customCss)}}/>}
     {editor&&<TopDrop index={0} onDropAt={onDropAt}/>} 
     {normalized.blocks.map((block,index)=><TopBlock
@@ -79,9 +95,17 @@ function NestedModule({row,column,module,moduleIndex,device,selection,onSelect,o
 }
 
 function Toolbar({label,detail,hidden,onDuplicate,onDelete}){return <div className={styles.editorToolbar}><span className={styles.dragHandle} title="اسحب لإعادة الترتيب">⋮⋮</span><b>{label}</b>{detail&&<small>{detail}</small>}{hidden&&<small>مخفي</small>}<button type="button" onClick={event=>{event.stopPropagation();onDuplicate();}}>نسخ</button><button type="button" onClick={event=>{event.stopPropagation();onDelete();}}>حذف</button></div>}
-function TopDrop({index,onDropAt}){return <div className={styles.dropZone} onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move';}} onDrop={event=>{event.preventDefault();onDropAt?.(index,event);}}><span>ضع الصف أو العنصر هنا</span></div>}
-function ColumnDrop({rowId,columnId,index,onColumnDrop}){return <div className={styles.columnDropZone} onDragOver={event=>{event.preventDefault();event.stopPropagation();event.dataTransfer.dropEffect='move';}} onDrop={event=>{event.preventDefault();event.stopPropagation();onColumnDrop?.(rowId,columnId,index,event);}}><span>إفلات هنا</span></div>}
+function TopDrop({index,onDropAt}){return <div className={styles.dropZone} onDragEnter={event=>allowDrop(event,true)} onDragOver={event=>allowDrop(event,true)} onDrop={event=>{event.preventDefault();event.stopPropagation();onDropAt?.(index,event);}}><span>ضع الصف أو العنصر هنا</span></div>}
+function ColumnDrop({rowId,columnId,index,onColumnDrop}){return <div className={styles.columnDropZone} onDragEnter={event=>allowDrop(event,true)} onDragOver={event=>allowDrop(event,true)} onDrop={event=>{event.preventDefault();event.stopPropagation();onColumnDrop?.(rowId,columnId,index,event);}}><span>إفلات هنا</span></div>}
 function Responsive({responsive,children}){return <div className={styles.responsiveBlock} data-hide-desktop={responsive?.hideDesktop||undefined} data-hide-tablet={responsive?.hideTablet||undefined} data-hide-mobile={responsive?.hideMobile||undefined}>{children}</div>}
 function isRow(block){return block.type==='columns'&&block.props?.row===true}
+function allowDrop(event,stopPropagation=false){
+  event.preventDefault();
+  if(stopPropagation)event.stopPropagation();
+  if(!event.dataTransfer)return;
+  const types=Array.from(event.dataTransfer.types||[]);
+  const copySource=event.dataTransfer.effectAllowed==='copy'||types.some(type=>COPY_DRAG_TYPES.has(type));
+  event.dataTransfer.dropEffect=copySource?'copy':'move';
+}
 function columnStyle(s={}){return {'--column-background':s.background||'transparent','--column-color':s.color||'inherit','--column-padding':`${clamp(s.padding,0,100,18)}px`,'--column-gap':`${clamp(s.gap,0,64,14)}px`,'--column-border':s.borderColor||'transparent','--column-border-width':`${clamp(s.borderWidth,0,12,0)}px`,'--column-radius':`${clamp(s.borderRadius,0,80,0)}px`,'--column-shadow':({none:'none',soft:'0 12px 35px rgba(10,31,53,.09)',medium:'0 20px 55px rgba(10,31,53,.14)',strong:'0 28px 80px rgba(10,31,53,.22)'})[s.shadow]||'none',alignContent:s.verticalAlign||'stretch'}}
 function clamp(value,min,max,fallback){const n=Number(value);return Number.isFinite(n)?Math.min(Math.max(n,min),max):fallback}

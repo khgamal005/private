@@ -33,6 +33,9 @@ test('builder pro supports nested module drag and drop, inline editing and saved
   assert.match(moduleView,/contentEditable/);
   assert.match(renderer,/ColumnDrop/);
   assert.match(renderer,/layoutRow/);
+  assert.match(renderer,/COPY_DRAG_TYPES/);
+  assert.match(renderer,/dropEffect=copySource\?'copy':'move'/);
+  assert.match(renderer,/onDropAt\?\.\(normalized\.blocks\.length,event\)/);
   assert.match(inspector,/حفظ الصف في Saved/);
   assert.match(inspector,/رفع من الجهاز/);
 });

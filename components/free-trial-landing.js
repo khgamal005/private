@@ -605,5 +605,5 @@ const LanguageIcon = () => <Svg><circle cx="12" cy="12" r="9" /><path d="M3 12h1
 const LinkIcon = () => <Svg><path d="m9.5 14.5 5-5M7.5 17.5l-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0M16.5 6.5l1-1a3.5 3.5 0 0 1 5 5l-4 4a3.5 3.5 0 0 1-5 0" /></Svg>;
 const Spinner = () => <span className="spinner" aria-label="جارٍ التحميل" />;
 export {
-  TrialExperience as default
+  FreeTrialLanding as default
 };

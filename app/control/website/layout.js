@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import {requirePlatformPermission} from '../../../lib/server-auth';
 import styles from './website-control-nav.module.css';
 
-export default function WebsiteControlLayout({children}){
+export default async function WebsiteControlLayout({children}){
+  await requirePlatformPermission('platform.website.manage');
   return <>
     <nav className={styles.nav} aria-label="أدوات إدارة الموقع">
       <Link href="/control/website">إدارة المحتوى</Link>

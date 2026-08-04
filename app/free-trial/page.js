@@ -1,20 +1,27 @@
-import FreeTrialLanding from '../../components/free-trial-landing';
+import BuiltPublicPage from '../../components/built-public-page';
+import LifetimeFreeApplication from '../../components/lifetime-free-application';
+import {getCmsPublicSnapshot} from '../../lib/cms-public';
+import {isBuilderDocument} from '../../lib/website-builder';
 
 export const dynamic='force-dynamic';
 
-export const metadata={
-  title:'ماركتون فلو | جرّب نظام تشغيل منشآت التدريب مجانًا',
-  description:'ابحث عن منشأتك واطلب تجربة ماركتون فلو المجانية لمدة 14 يومًا؛ منصة موحدة للتسويق والمبيعات والتسجيل والدورات والتقارير.',
-  alternates:{canonical:'/free-trial'},
-  openGraph:{
-    title:'ماركتون فلو | من أول إعلان إلى متدرب مسجّل',
-    description:'كل رحلة منشأة التدريب في مسار تشغيل واحد.',
-    type:'website',
-    locale:'ar_SA',
-    siteName:'Marktone'
-  }
-};
+export async function generateMetadata(){
+  const snapshot=await getCmsPublicSnapshot({siteKey:'marktone-main',pageSlug:'free-trial'});
+  const page=snapshot?.page||{};
+  const title=page.seoTitle||'برنامج ماركتون المجاني مدى الحياة';
+  const description=page.seoDescription||'نظام تشغيل أساسي مجاني لمنشآت التدريب دون بطاقة بنكية أو مدة انتهاء.';
+  return {
+    title,
+    description,
+    alternates:{canonical:'/free-trial'},
+    openGraph:{title,description,type:'website',locale:'ar_SA',siteName:'Marktone'}
+  };
+}
 
-export default function FreeTrialPage(){
-  return <FreeTrialLanding/>;
+export default async function FreeTrialPage(){
+  const snapshot=await getCmsPublicSnapshot({siteKey:'marktone-main',pageSlug:'free-trial'});
+  if(snapshot?.page&&isBuilderDocument(snapshot.page.content)){
+    return <BuiltPublicPage snapshot={snapshot} content={snapshot.page}/>;
+  }
+  return <LifetimeFreeApplication/>;
 }

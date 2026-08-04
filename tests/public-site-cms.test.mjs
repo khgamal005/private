@@ -17,16 +17,32 @@ test('public site renders from the published CMS website snapshot',()=>{
   assert.match(publicSite,/marktone-logo-light\.svg/);
 });
 
-test('free trial route is part of the Marktone public website',()=>{
+test('lifetime-free program has an editable landing page and a working application route',()=>{
   const page=read('app/free-trial/page.js');
+  const applyPage=read('app/free-trial/apply/page.js');
+  const wrapper=read('components/lifetime-free-application.js');
   const landing=read('components/free-trial-landing.js');
-  const publicSite=read('components/public-site.js');
-  assert.match(page,/FreeTrialLanding/);
+  assert.match(page,/getCmsPublicSnapshot/);
+  assert.match(page,/pageSlug:'free-trial'/);
+  assert.match(page,/BuiltPublicPage/);
+  assert.match(applyPage,/LifetimeFreeApplication/);
+  assert.match(wrapper,/مجانا.*مدى الحياة|مجاني.*مدى الحياة/);
+  assert.match(wrapper,/FreeTrialLanding/);
   assert.match(landing,/marktone-free-trial/);
-  assert.match(landing,/ماركتون فلو/);
   assert.match(landing,/المؤسسة العامة للتدريب التقني والمهني/);
-  assert.match(publicSite,/free-trial/);
-  assert.match(publicSite,/جرّب الآن مجانًا/);
+});
+
+test('company homepage migration preserves the old platform page and publishes the service portfolio',()=>{
+  const migration=read('supabase/migrations/20260805001500_company_home_and_lifetime_free.sql');
+  assert.match(migration,/v_trial_document:=v_current_home/);
+  assert.match(migration,/برنامج ماركتون المجاني مدى الحياة/);
+  assert.match(migration,/مركز الاتصال للمبيعات وخدمة العملاء/);
+  assert.match(migration,/تطوير العمليات والحلول التقنية/);
+  assert.match(migration,/الاستشارات الإدارية والجودة/);
+  assert.match(migration,/الشراكات الدولية في التعليم والتدريب/);
+  assert.match(migration,/إعداد وتطوير الحقائب التدريبية/);
+  assert.match(migration,/company_home_block_count_invalid/);
+  assert.match(migration,/content_document_versions/);
 });
 
 test('website management is protected by platform authentication and the CMS v3 boundary',()=>{

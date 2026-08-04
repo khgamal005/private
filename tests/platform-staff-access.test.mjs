@@ -23,6 +23,30 @@ test('platform staff access has isolated roles, invitations and guarded RPCs',as
   ])assert.match(migration,pattern);
 });
 
+test('delegated platform employees cannot inherit the owner cross-tenant bypass',async()=>{
+  const [migration,auth,login]=await Promise.all([
+    read('supabase/migrations/20260804201500_platform_access_scope_hardening_v1.sql'),
+    read('lib/server-auth.js'),
+    read('app/api/auth/login/route.js')
+  ]);
+  assert.match(migration,/'platformAccess',v_platform_full_access/);
+  assert.match(migration,/'platformControlAccess',v_platform_control_access/);
+  assert.match(migration,/role\.role_key='platform_owner'/);
+  assert.match(migration,/'platform_access',v_platform_content_access/);
+  assert.match(auth,/canAccessPlatformControl/);
+  assert.match(auth,/context\?\.platformControlAccess/);
+  assert.doesNotMatch(
+    auth,
+    /function hasPlatformPermission[\s\S]*?context\?\.platformAccess[\s\S]*?\n}/
+  );
+  assert.match(
+    auth,
+    /if\(!context\.platformAccess&&!context\.memberships\?\.some/
+  );
+  assert.match(login,/platformControlAccess/);
+  assert.match(login,/platform\.control\.read/);
+});
+
 test('platform navigation and routes are driven by explicit permissions',async()=>{
   const [shell,auth,layout,tenants,billing,content,website,settings,team]=await Promise.all([
     read('components/workspace-shell.js'),

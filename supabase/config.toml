@@ -43,5 +43,9 @@ verify_jwt = false
 # The one-time invitation token is the custom bearer credential for activation.
 verify_jwt = false
 
+[functions.platform-invitation-activation]
+# The one-time platform invitation token is validated by a narrow preview RPC.
+verify_jwt = false
+
 [functions.tenant-staff-password-reset]
 verify_jwt = true

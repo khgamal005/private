@@ -9,10 +9,13 @@ export default function LoginForm(){
   const router=useRouter();
   const search=useSearchParams();
   const invitationToken=search.get('invite');
+  const platformInvitationToken=search.get('platformInvite');
+  const hasInvitation=Boolean(invitationToken||platformInvitationToken);
 
   async function submit(event){
     event.preventDefault();
-    setLoading(true);setError('');
+    setLoading(true);
+    setError('');
     const form=new FormData(event.currentTarget);
     const response=await fetch('/api/auth/login',{
       method:'POST',
@@ -20,10 +23,11 @@ export default function LoginForm(){
       body:JSON.stringify({
         email:form.get('email'),
         password:form.get('password'),
-        invitationToken
+        invitationToken,
+        platformInvitationToken
       })
     });
-    const data=await response.json();
+    const data=await response.json().catch(()=>({}));
     setLoading(false);
     if(!response.ok){
       setError(data.error||'تعذر تسجيل الدخول');
@@ -40,10 +44,11 @@ export default function LoginForm(){
 
   return <form className="auth-form" onSubmit={submit}>
     {invitationToken&&<div className="form-success">سجّل الدخول بالبريد المدعو وسيتم ربط حسابك بالمنشأة تلقائيًا.</div>}
-    <label>البريد الإلكتروني<input name="email" type="email" defaultValue={invitationToken?'':'admin@marktone.sa'} autoComplete="email" required/></label>
+    {platformInvitationToken&&<div className="form-success">سجّل الدخول بالبريد المدعو وسيتم ربط حسابك بفريق إدارة منصة ماركتون حسب الدور المحدد.</div>}
+    <label>البريد الإلكتروني<input name="email" type="email" defaultValue={hasInvitation?'':'admin@marktone.sa'} autoComplete="email" required/></label>
     <label>كلمة المرور<input name="password" type="password" autoComplete="current-password" required/></label>
     {error&&<div className="form-error">{error}</div>}
-    <button disabled={loading}>{loading?'جارٍ التحقق...':invitationToken?'تسجيل الدخول وقبول الدعوة':'تسجيل الدخول'}</button>
-    <small>الدخول محمي ومربوط بصلاحيات ماركتون وبيانات المنشأة.</small>
+    <button disabled={loading}>{loading?'جارٍ التحقق...':hasInvitation?'تسجيل الدخول وقبول الدعوة':'تسجيل الدخول'}</button>
+    <small>الدخول محمي ومربوط بصلاحيات ماركتون الدقيقة على مستوى المنصة والمنشآت.</small>
   </form>;
 }

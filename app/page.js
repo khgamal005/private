@@ -1,24 +1,29 @@
+import BuiltPublicPage from '../components/built-public-page';
 import PublicSite from '../components/public-site';
-import {getPublicSiteSnapshot} from '../lib/public-site';
+import {getCmsPublicSnapshot} from '../lib/cms-public';
+import {isBuilderDocument} from '../lib/website-builder';
 
 export const dynamic='force-dynamic';
 
 export async function generateMetadata(){
-  const snapshot=await getPublicSiteSnapshot();
+  const snapshot=await getCmsPublicSnapshot({siteKey:'marktone-main'});
   const settings=snapshot?.site?.settings||{};
+  const home=snapshot?.homePage||{};
+  const title=home.seoTitle||settings.siteTitle||'ماركتون | منصة تشغيل ونمو لمراكز التدريب';
+  const description=home.seoDescription||settings.description||'ماركتون منصة تشغيل ونمو متخصصة لمراكز ومعاهد التدريب.';
   return {
-    title:settings.siteTitle||'ماركتون | منظومات نمو للمؤسسات',
-    description:settings.description||'ماركتون منظومة تشغيل ونمو متخصصة للمؤسسات ومراكز التدريب.',
+    title,
+    description,
     alternates:{canonical:'/'},
-    openGraph:{
-      title:settings.siteTitle||'ماركتون',
-      description:settings.description||'',
-      type:'website',locale:'ar_SA',siteName:'Marktone'
-    }
+    openGraph:{title,description,type:'website',locale:'ar_SA',siteName:'Marktone'}
   };
 }
 
 export default async function HomePage(){
-  const snapshot=await getPublicSiteSnapshot();
+  const snapshot=await getCmsPublicSnapshot({siteKey:'marktone-main'});
+  const home=snapshot?.homePage;
+  if(home&&isBuilderDocument(home.content)){
+    return <BuiltPublicPage snapshot={snapshot} content={home}/>;
+  }
   return <PublicSite snapshot={snapshot}/>;
 }

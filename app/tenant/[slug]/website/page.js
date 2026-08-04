@@ -7,17 +7,22 @@ export const dynamic='force-dynamic';
 export default async function TenantWebsitePage({params}){
   const {slug}=await params;
   await requireTenantPermission(slug,'tenant.website.read');
+
+  let data=null;
+  let addonRequired=false;
   try{
-    const data=await authRpc('v3_cms_workspace_snapshot',{
+    data=await authRpc('v3_cms_workspace_snapshot',{
       p_site_key:'marktone-main',
       p_tenant_slug:slug
     });
-    return <CmsStudio initialData={data}/>;
   }catch(error){
     const detail=error instanceof Error?error.message:String(error);
     if(!detail.includes('cms_addon_required'))throw error;
-    return <CmsAddonRequired slug={slug}/>;
+    addonRequired=true;
   }
+
+  if(addonRequired)return <CmsAddonRequired slug={slug}/>;
+  return <CmsStudio initialData={data}/>;
 }
 
 function CmsAddonRequired({slug}){
@@ -28,7 +33,7 @@ function CmsAddonRequired({slug}){
       <p style={{maxWidth:'760px',lineHeight:1.9,color:'#cbd8e5',margin:0}}>حوّل منشأتك إلى موقع متكامل بصفحات قابلة للتصميم، متجر دورات، مقالات، ميجا منيو، مكتبة وسائط، نماذج مرتبطة بالعملاء، وتتبع للحملات — من داخل منصة ماركتون نفسها.</p>
     </div>
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'14px',padding:'28px'}}>
-      {['مصمم صفحات مرئي','صفحات هبوط للحملات','مقالات وSEO','قوائم وميجا منيو','مكتبة صور','نشر وإصدارات'].map(item=><article key={item} style={{padding:'18px',border:'1px solid #e1e7ed',borderRadius:'14px',background:'#fff'}}><b>{item}</b><p style={{fontSize:'12px',color:'#708092',margin:'8px 0 0'}}>جزء من نفس المحرك الذي يدير موقع ماركتون.</p></article>)}
+      {['مصمم صفحات مرئي','صفوف وأعمدة مرنة','صفحات هبوط للحملات','مقالات وSEO','قوائم وميجا منيو','مكتبة صور','نشر وإصدارات'].map(item=><article key={item} style={{padding:'18px',border:'1px solid #e1e7ed',borderRadius:'14px',background:'#fff'}}><b>{item}</b><p style={{fontSize:'12px',color:'#708092',margin:'8px 0 0'}}>جزء من نفس المحرك الذي يدير موقع ماركتون.</p></article>)}
     </div>
     <footer style={{display:'flex',gap:'10px',flexWrap:'wrap',padding:'0 28px 28px'}}>
       <Link href={`/tenant/${encodeURIComponent(slug)}/settings`} className="mt-button mt-button-primary">طلب تفعيل الإضافة</Link>

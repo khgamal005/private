@@ -63,8 +63,8 @@ test('platform access UI supports employees, custom roles and safe invitations',
     'invite_employee','update_employee','suspend_employee','activate_employee',
     'create_role','update_role','delete_role','renew_invitation','revoke_invitation'
   ])assert.match(manager,new RegExp(action));
-  assert.match(manager,/إدارة الموقع الإلكتروني/);
-  assert.match(manager,/إدارة المنشآت/);
+  assert.match(manager,/مسؤول الموقع الإلكتروني/);
+  assert.match(manager,/مسؤول إدارة المنشآت/);
   assert.match(route,/v2_platform_access_action/);
   assert.match(login,/platformInvite/);
   assert.match(loginApi,/v2_accept_platform_invitation/);

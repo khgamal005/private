@@ -15,6 +15,7 @@ const ICON_PATHS={
   content:['M5 4h14v16H5z','M8 8h8M8 12h8M8 16h5'],
   website:['M3 5h18v14H3z','M3 9h18','M7 7h.01M10 7h.01','M7 13h5M7 16h10'],
   settings:['M4 7h10M18 7h2M4 17h2M10 17h10','M14 4v6M6 14v6'],
+  website:['M3 5h18v14H3z','M3 9h18','M7 7h.01M10 7h.01','M7 13h4M7 16h8'],
   integrations:['M8 12h8','M6 8a4 4 0 0 1 4-4h2','M18 16a4 4 0 0 1-4 4h-2','M8 8 5 8M16 16l-5-8'],
   tasks:['M5 4h14v16H5z','m8 14 2 2 4-5'],
   sales:['M4 18 9 13l4 3 7-9','M15 7h5v5'],
@@ -74,6 +75,7 @@ function tenantItems(slug,permissions,platformAccess,roleKey){
       {key:'sales',label:'تقارير المبيعات',href:`${base}/reports/sales`,permission:'tenant.crm.read'},
       {key:'campaignReports',label:'تقارير الحملات',href:`${base}/reports/campaigns`,permission:['tenant.crm.read','tenant.leads.read','tenant.leads.analytics'],visible:policy.showCampaignReports}
     ]},
+    {key:'website',label:'الموقع الإلكتروني',href:`${base}/website`,permission:'tenant.website.read'},
     {key:'settings',label:'الإعدادات والصلاحيات',href:`${base}/settings`,permission:'tenant.users.manage'},
     {key:'integrations',label:'المزامنة والترابط',href:`${base}/integrations`,permission:'tenant.users.manage'}
   ];

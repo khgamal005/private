@@ -13,9 +13,8 @@ const ICON_PATHS={
   tenants:['M4 21V8l8-5 8 5v13','M9 21v-5h6v5','M8 10h.01M12 10h.01M16 10h.01'],
   subscriptions:['M4 6h16v12H4z','M4 10h16','M8 15h3'],
   content:['M5 4h14v16H5z','M8 8h8M8 12h8M8 16h5'],
-  website:['M3 5h18v14H3z','M3 9h18','M7 7h.01M10 7h.01','M7 13h5M7 16h10'],
-  settings:['M4 7h10M18 7h2M4 17h2M10 17h10','M14 4v6M6 14v6'],
   website:['M3 5h18v14H3z','M3 9h18','M7 7h.01M10 7h.01','M7 13h4M7 16h8'],
+  settings:['M4 7h10M18 7h2M4 17h2M10 17h10','M14 4v6M6 14v6'],
   integrations:['M8 12h8','M6 8a4 4 0 0 1 4-4h2','M18 16a4 4 0 0 1-4 4h-2','M8 8 5 8M16 16l-5-8'],
   tasks:['M5 4h14v16H5z','m8 14 2 2 4-5'],
   sales:['M4 18 9 13l4 3 7-9','M15 7h5v5'],
@@ -90,14 +89,22 @@ function tenantItems(slug,permissions,platformAccess,roleKey){
     .filter(item=>item.visible!==false&&(item.children?.length||canUse(item.permission)));
 }
 
-const platformItems=[
-  {key:'overview',label:'لوحة المنصة',href:'/control'},
-  {key:'tenants',label:'المنشآت',href:'/control/tenants'},
-  {key:'subscriptions',label:'الباقات والاشتراكات',href:'/control/subscriptions'},
-  {key:'content',label:'المحتوى والمعارف',href:'/control/content'},
-  {key:'website',label:'إدارة الموقع',href:'/control/website'},
-  {key:'settings',label:'إعدادات المنصة',href:'/control/settings'}
-];
+function platformItems(permissions){
+  const allowed=new Set(permissions||[]);
+  const items=[
+    {key:'overview',label:'لوحة المنصة',href:'/control',permission:'platform.control.read'},
+    {key:'tenants',label:'المنشآت',href:'/control/tenants',permission:'platform.tenants.manage'},
+    {key:'subscriptions',label:'الباقات والاشتراكات',href:'/control/subscriptions',permission:'platform.billing.manage'},
+    {key:'content',label:'المحتوى والمعارف',href:'/control/content',permission:'platform.content.manage'},
+    {key:'website',label:'إدارة الموقع',href:'/control/website',permission:'platform.website.manage'},
+    {key:'people',label:'فريق المنصة والصلاحيات',href:'/control/team',permission:'platform.access.manage'},
+    {key:'settings',label:'إعدادات المنصة',href:'/control/settings',permission:['platform.settings.manage','platform.control.write']}
+  ];
+  return items.filter(item=>{
+    const required=Array.isArray(item.permission)?item.permission:[item.permission];
+    return required.some(permission=>allowed.has(permission));
+  });
+}
 
 function isActive(pathname,href){
   if(href==='/control')return pathname===href;
@@ -125,11 +132,21 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
     marketing:pathname.includes('/marketing')||pathname.includes('/settings'),
     reports:pathname.includes('/reports')||pathname.includes('/call-reports')
   }));
-  const items=useMemo(()=>kind===WORKSPACE_KINDS.tenant?tenantItems(slug,permissions,platformAccess,roleKey):platformItems,[kind,slug,permissions,platformAccess,roleKey]);
+  const items=useMemo(()=>kind===WORKSPACE_KINDS.tenant
+    ?tenantItems(slug,permissions,platformAccess,roleKey)
+    :platformItems(permissions),[kind,slug,permissions,platformAccess,roleKey]);
   const areaLabel=kind===WORKSPACE_KINDS.tenant?'لوحة المنشأة':'لوحة إدارة المنصة';
   const canCreateTask=platformAccess||permissions.includes('tenant.work.write');
   const canSearch=kind===WORKSPACE_KINDS.tenant&&(platformAccess||permissions.includes('tenant.crm.read'));
-  const canOpenSettings=platformAccess||permissions.includes('tenant.users.manage');
+  const platformSettingsHref=permissions.includes('platform.settings.manage')||permissions.includes('platform.control.write')
+    ?'/control/settings'
+    :permissions.includes('platform.access.manage')
+      ?'/control/team'
+      :null;
+  const canOpenSettings=kind===WORKSPACE_KINDS.tenant
+    ?platformAccess||permissions.includes('tenant.users.manage')
+    :Boolean(platformSettingsHref);
+  const canManageTenants=permissions.includes('platform.tenants.manage');
   const profileName=userName||email?.split('@')[0]||'مستخدم ماركتون';
   const profileInitial=Array.from(profileName.trim())[0]||'م';
   const notifications=kind===WORKSPACE_KINDS.tenant?notificationItems(notificationSummary,slug):[];
@@ -158,9 +175,9 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
         {canSearch&&<Link className="mt-global-search" href={`/tenant/${encodeURIComponent(slug)}/customer-search`}><ShellIcon name="search"/><span>ابحث برقم الجوال أو اسم العميل…</span></Link>}
         <div className="mt-topbar-tools">
           {kind===WORKSPACE_KINDS.tenant&&canCreateTask&&<Link className="mt-quick-link" href={`/tenant/${encodeURIComponent(slug)}/tasks`}>+ مهمة جديدة</Link>}
-          {kind===WORKSPACE_KINDS.platform&&<Link className="mt-quick-link" href="/control/tenants">إدارة المنشآت</Link>}
+          {kind===WORKSPACE_KINDS.platform&&canManageTenants&&<Link className="mt-quick-link" href="/control/tenants">إدارة المنشآت</Link>}
           {kind===WORKSPACE_KINDS.tenant&&<details className="mt-toolbar-menu mt-notification-menu"><summary aria-label="فتح التنبيهات"><span className="mt-toolbar-icon"><ShellIcon name="bell"/></span>{notificationCount>0&&<b>{notificationLabel}</b>}</summary><div className="mt-toolbar-popover"><header><div><small>مركز المتابعة</small><h2>التنبيهات والمهام</h2></div><span>{notificationCount?`${notificationLabel} تحتاج متابعة`:'لا توجد عناصر عاجلة'}</span></header><div className="mt-notification-list">{notifications.map(item=><Link key={`${item.href}-${item.title}`} href={item.href}><i className={item.tone}/><span><b>{item.title}</b><small>{item.description}</small></span></Link>)}{!notifications.length&&<div className="mt-notification-empty"><span>✓</span><b>كل شيء تحت السيطرة</b><small>لا توجد مهام أو تنبيهات عاجلة الآن.</small></div>}</div><footer><Link href={`/tenant/${encodeURIComponent(slug)}/tasks`}>فتح مركز المهام</Link></footer></div></details>}
-          <details className="mt-toolbar-menu mt-account-menu"><summary><span className="mt-user-avatar">{profileInitial}</span><span className="mt-user-copy"><b>{profileName}</b><small>{roleLabel||email}</small></span><ShellIcon name="chevron"/></summary><div className="mt-account-popover"><header><span className="mt-user-avatar">{profileInitial}</span><div><b>{profileName}</b><small>{email}</small></div></header><p>{roleLabel||areaLabel}</p>{canOpenSettings&&<Link href={kind===WORKSPACE_KINDS.tenant?`/tenant/${encodeURIComponent(slug)}/settings`:'/control/settings'}>إعدادات الحساب والصلاحيات</Link>}<LogoutButton/></div></details>
+          <details className="mt-toolbar-menu mt-account-menu"><summary><span className="mt-user-avatar">{profileInitial}</span><span className="mt-user-copy"><b>{profileName}</b><small>{roleLabel||email}</small></span><ShellIcon name="chevron"/></summary><div className="mt-account-popover"><header><span className="mt-user-avatar">{profileInitial}</span><div><b>{profileName}</b><small>{email}</small></div></header><p>{roleLabel||areaLabel}</p>{canOpenSettings&&<Link href={kind===WORKSPACE_KINDS.tenant?`/tenant/${encodeURIComponent(slug)}/settings`:platformSettingsHref}>إعدادات الحساب والصلاحيات</Link>}<LogoutButton/></div></details>
         </div>
       </header>
       <main className="mt-content">{children}</main>

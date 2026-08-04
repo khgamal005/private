@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import PageDocumentRenderer from './page-document-renderer';
+import PageSourceModal from './page-source-modal';
 import {BLOCK_CATALOG,BUILDER_TEMPLATES,ROW_LAYOUTS,SECTION_PRESETS} from '../lib/website-builder';
 import {cmsBasePath,cmsPreviewPath} from '../lib/cms';
 import {usePageBuilder} from './use-page-builder';
@@ -27,6 +28,7 @@ export default function PageBuilder({initialData}){
   const [inspectorMode,setInspectorMode]=useState('selection');
   const [libraryOpen,setLibraryOpen]=useState(true);
   const [inspectorOpen,setInspectorOpen]=useState(true);
+  const [sourceOpen,setSourceOpen]=useState(false);
   const [savedItems,setSavedItems]=useState([]);
   const importRef=useRef(null);
   const isArticle=entity.type==='article';
@@ -35,6 +37,7 @@ export default function PageBuilder({initialData}){
   const storageKey=`marktone-builder-saved:${context.siteKey||'marktone-main'}:${context.tenantSlug||'platform'}`;
 
   useEffect(()=>{try{const stored=JSON.parse(localStorage.getItem(storageKey)||'[]');setSavedItems(Array.isArray(stored)?stored:[]);}catch{setSavedItems([]);}},[storageKey]);
+  useEffect(()=>{function closeSource(event){if(event.key==='Escape')setSourceOpen(false);}window.addEventListener('keydown',closeSource);return()=>window.removeEventListener('keydown',closeSource);},[]);
 
   const filteredGroups=useMemo(()=>{
     const term=query.trim().toLowerCase();
@@ -45,6 +48,7 @@ export default function PageBuilder({initialData}){
   const filteredSaved=useMemo(()=>savedItems.filter(item=>!query||`${item.name} ${item.type}`.toLowerCase().includes(query.toLowerCase())),[savedItems,query]);
 
   function selectTarget(target){setSelection(target);setInspectorMode('selection');if(!inspectorOpen)setInspectorOpen(true);}
+  function addHtmlModule(){addBlock('html');setLibraryOpen(true);setLibraryTab('modules');setInspectorMode('selection');setInspectorOpen(true);setNotice({type:'success',text:'تمت إضافة عنصر HTML. حدده داخل الصفحة ثم أضف الكود من لوحة الخصائص.'});}
   function saveToLibrary(kind,data){
     const item={id:`saved-${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}`,kind,type:data.type,name:`${kind==='block'?'صف':'موديول'} · ${BLOCK_CATALOG[data.type]?.label||'عنصر محفوظ'}`,data,createdAt:new Date().toISOString()};
     const next=[item,...savedItems].slice(0,60);setSavedItems(next);localStorage.setItem(storageKey,JSON.stringify(next));setNotice({type:'success',text:'تم حفظ العنصر في تبويب Saved.'});setLibraryTab('saved');
@@ -72,6 +76,8 @@ export default function PageBuilder({initialData}){
         <button type="button" title="مساعدة">?</button>
         <button type="button" title="إظهار حدود العناصر" className={showOutlines?styles.activeUtility:''} onClick={()=>setShowOutlines(value=>!value)}>⌗</button>
         <button type="button" title="CSS وإعدادات الصفحة" className={inspectorMode==='page'?styles.activeUtility:''} onClick={()=>{setInspectorMode('page');setInspectorOpen(true);}}>CSS</button>
+        <button type="button" title="مشاهدة سورس HTML وBuilder JSON" className={sourceOpen?styles.activeUtility:''} onClick={()=>setSourceOpen(true)}>&lt;/&gt;</button>
+        <button type="button" title="إضافة كود HTML إلى الصفحة" onClick={addHtmlModule}>HTML＋</button>
         <button type="button" title="استيراد التصميم" onClick={()=>importRef.current?.click()}>⇧</button>
         <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={importDesign}/>
         <button type="button" title="تصدير التصميم" onClick={exportDesign}>⇩</button>
@@ -136,6 +142,7 @@ export default function PageBuilder({initialData}){
       </aside>
       {!inspectorOpen&&<button type="button" className={styles.openInspector} onClick={()=>setInspectorOpen(true)}>⚙</button>}
     </div>
+    {sourceOpen&&<PageSourceModal document={document} page={entity} onClose={()=>setSourceOpen(false)} onAddHtml={addHtmlModule}/>} 
   </div>;
 }
 

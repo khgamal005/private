@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import {useMemo,useState} from 'react';
+import {useState} from 'react';
 import {useRouter,useSearchParams} from 'next/navigation';
 import {
   CMS_SECTIONS,buildMenuTree,cmsBasePath,cmsBuilderPath,
@@ -37,7 +37,7 @@ export default function CmsStudio({initialData}){
   const submissions=Array.isArray(data.submissions)?data.submissions:[];
   const home=pages.find(page=>page.isHome);
   const activeMenu=menus.find(menu=>menu.id===activeMenuId)||menus[0];
-  const activeTree=useMemo(()=>buildMenuTree(menuItems,activeMenu?.id),[menuItems,activeMenu?.id]);
+  const activeTree=buildMenuTree(menuItems,activeMenu?.id);
 
   function setSection(key){
     setSectionState(key);

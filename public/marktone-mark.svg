@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="Marktone mark">
+  <defs><linearGradient id="g" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#06b7c8"/><stop offset=".55" stop-color="#16c5ca"/><stop offset="1" stop-color="#ffd34f"/></linearGradient></defs>
+  <path d="M15 104c19 0 20-58 39-58 20 0 18 84 38 84 21 0 19-101 39-101 18 0 18 74 34 77" fill="none" stroke="url(#g)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

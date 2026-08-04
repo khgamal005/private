@@ -21,7 +21,7 @@ export default function WebsiteBuilderHome({pages=[]}){
           <div className={styles.pageBody}>
             <div><small dir="ltr">/p/{page.slug}</small><Status value={page.status}/></div>
             <h3>{page.title}</h3><p>{page.excerpt||'صفحة ماركتون قابلة للتصميم المرئي.'}</p>
-            <footer><Link className={styles.design} href={`/control/website/builder/${page.id}`}>فتح المصمم</Link>{page.status==='published'&&<Link href={`/p/${page.slug}`} target="_blank">عرض الصفحة ↗</Link>}</footer>
+            <footer><Link className={styles.design} href={`/control/website/builder/page/${page.id}`}>فتح المصمم</Link>{page.status==='published'&&<Link href={`/p/${page.slug}`} target="_blank">عرض الصفحة ↗</Link>}</footer>
           </div>
         </article>)}
         {!rows.length&&<div className={styles.empty}><strong>لا توجد صفحات بعد</strong><p>أنشئ أول صفحة من إدارة الموقع، ثم ارجع إلى المصمم.</p><Link href="/control/website">فتح إدارة الموقع</Link></div>}

@@ -25,13 +25,14 @@ test('free trial route is part of the Marktone public website',()=>{
   assert.match(publicSite,/جرّب الآن مجانًا/);
 });
 
-test('website management is protected by platform authentication',()=>{
+test('website management is protected by platform authentication and the CMS v3 boundary',()=>{
   const page=read('app/control/website/page.js');
-  const route=read('app/api/platform/website/[action]/route.js');
+  const route=read('app/api/cms/[action]/route.js');
   assert.match(page,/requirePlatform\(\)/);
-  assert.match(page,/v2_platform_site_snapshot/);
+  assert.match(page,/v3_cms_workspace_snapshot/);
+  assert.match(page,/CmsStudio/);
   assert.match(route,/ACCESS_COOKIE/);
-  assert.match(route,/v2_platform_site_action/);
+  assert.match(route,/v3_cms_action/);
 });
 
 test('CMS migration exposes only narrow RPC boundaries',()=>{

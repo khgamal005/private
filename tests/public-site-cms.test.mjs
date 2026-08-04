@@ -13,6 +13,18 @@ test('public site renders from the published website snapshot',()=>{
   assert.match(publicSite,/marktone-logo-light\.svg/);
 });
 
+test('free trial route is part of the Marktone public website',()=>{
+  const page=read('app/free-trial/page.js');
+  const landing=read('components/free-trial-landing.js');
+  const publicSite=read('components/public-site.js');
+  assert.match(page,/FreeTrialLanding/);
+  assert.match(landing,/marktone-free-trial/);
+  assert.match(landing,/ماركتون فلو/);
+  assert.match(landing,/المؤسسة العامة للتدريب التقني والمهني/);
+  assert.match(publicSite,/free-trial/);
+  assert.match(publicSite,/جرّب الآن مجانًا/);
+});
+
 test('website management is protected by platform authentication',()=>{
   const page=read('app/control/website/page.js');
   const route=read('app/api/platform/website/[action]/route.js');

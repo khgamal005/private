@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import {getTenant,getTenantRoleDashboard} from '../../../lib/api';
 import {requireTenant} from '../../../lib/server-auth';
 import {navigationPolicyRoleKey} from '../../../lib/tenant-role-policy';
@@ -25,7 +24,6 @@ export default async function TenantLayout({children,params}){
   const permissions=membership?.permissions||[];
   const guideRoleKey=roleKey==='admissions_officer'?'customer_service':roleKey;
   const navigationRoleKey=navigationPolicyRoleKey(permissions,{platformAccess:Boolean(context.platformAccess)});
-  const showWebsite=context.platformAccess||permissions.includes('tenant.website.read');
 
   return <WorkspaceShell
     kind="tenant"
@@ -39,17 +37,6 @@ export default async function TenantLayout({children,params}){
     roleLabel={roleLabel}
     notificationSummary={headerSummary(dashboard)}
   >
-    {showWebsite&&<Link
-      href={`/tenant/${encodeURIComponent(slug)}/website`}
-      aria-label="فتح إدارة الموقع الإلكتروني"
-      style={{
-        position:'fixed',left:'22px',bottom:'92px',zIndex:55,
-        display:'inline-flex',alignItems:'center',gap:'8px',
-        padding:'11px 14px',borderRadius:'999px',background:'#06182e',
-        color:'#fff',textDecoration:'none',fontSize:'11px',fontWeight:900,
-        boxShadow:'0 16px 45px rgba(6,24,46,.24)'
-      }}
-    ><span style={{color:'#e6b34e'}}>▤</span> الموقع الإلكتروني</Link>}
     {children}
     <MyRoleGuide
       slug={slug}

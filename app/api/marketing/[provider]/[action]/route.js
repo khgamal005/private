@@ -55,7 +55,7 @@ async function invokeSync(accessToken,provider,action,tenantSlug,payload,request
     cache:'no-store'
   });
   const result=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(result?.error||result?.detail||'marketing_sync_failed');
+  if(!response.ok)throw new Error([result?.error,result?.detail].filter(Boolean).join(': ')||'marketing_sync_failed');
   return result;
 }
 
@@ -74,6 +74,8 @@ function translated(value){
     marketing_api_version_invalid:'إصدار API غير مدعوم لهذا الموصل.',
     marketing_sync_range_invalid:'الفترة المطلوبة غير صالحة أو أكبر من الحد المسموح.',
     marketing_sync_in_progress:'توجد مزامنة تعمل الآن لهذا الحساب.',
+    business_management:'اتصال Meta يطلب صلاحية إدارية غير لازمة. حدّث الصفحة ثم أعد اختبار الاتصال.',
+    remote_http_400:'رفضت منصة الإعلانات الطلب. راجع معرّف الحساب وصلاحيات رمز الوصول.',
     remote_http_401:'رمز الوصول منتهي أو غير صحيح. أعد التفويض ثم اختبر الاتصال.',
     remote_http_403:'الحساب لا يمنح صلاحية قراءة الحملات والتقارير.',
     remote_timeout:'انتهت مهلة اتصال منصة الإعلانات. أعد المحاولة.',

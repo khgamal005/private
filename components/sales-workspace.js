@@ -2,6 +2,7 @@
 
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import CustomerHistoryDrawer from './customer-history-drawer';
 import SalesFollowupModal,{
   ACTIONS,
   ActionSelect,
@@ -80,6 +81,7 @@ export default function SalesWorkspace({
   const [fromDate,setFromDate]=useState('');
   const [toDate,setToDate]=useState('');
   const [modal,setModal]=useState(null);
+  const [historyContact,setHistoryContact]=useState(null);
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
   const [error,setError]=useState('');
@@ -302,6 +304,7 @@ export default function SalesWorkspace({
                 contact={contact}
                 canWrite={canWrite}
                 onFollowup={()=>openModal('followup',contact)}
+                onHistory={()=>setHistoryContact(contact)}
               />)}
               {!items.length&&<div className="mt-column-empty">لا يوجد عملاء</div>}
             </div>
@@ -318,11 +321,14 @@ export default function SalesWorkspace({
           <td><b>{contact.source||'غير محدد'}</b><small>{contact.campaignName||contact.adName||'لا توجد حملة'}</small></td>
           <td>{contact.ownerName||'غير مسند'}</td>
           <td><b>{contact.nextActionType?ACTIONS[contact.nextActionType]||contact.nextActionType:'لا توجد متابعة'}</b><small>{when(contact.nextActionAt)}</small></td>
-          <td>{canWrite&&(
-            ['payment_submitted','paid'].includes(contact.leadStatus)
-              ?<span className="mt-status warning">مع التسجيل والقبول</span>
-              :<button className="mt-button soft mt-followup-button" onClick={()=>openModal('followup',contact)}>تسجيل متابعة</button>
-          )}</td>
+          <td><div className="mt-customer-row-actions">
+            <button className="mt-button" onClick={()=>setHistoryContact(contact)}>سجل العميل</button>
+            {canWrite&&(
+              ['payment_submitted','paid'].includes(contact.leadStatus)
+                ?<span className="mt-status warning">مع التسجيل والقبول</span>
+                :<button className="mt-button soft mt-followup-button" onClick={()=>openModal('followup',contact)}>تسجيل متابعة</button>
+            )}
+          </div></td>
         </tr>)}</tbody>
       </table>{!shownContacts.length&&<div className="mt-empty">لا توجد نتائج مطابقة.</div>}</div>}
 
@@ -424,10 +430,16 @@ export default function SalesWorkspace({
         router.refresh();
       }}
     />}
+
+    {historyContact&&<CustomerHistoryDrawer
+      slug={slug}
+      contact={historyContact}
+      onClose={()=>setHistoryContact(null)}
+    />}
   </>;
 }
 
-function LeadCard({contact,canWrite,onFollowup}){
+function LeadCard({contact,canWrite,onFollowup,onHistory}){
   return <article className="mt-lead-card">
     <header>
       <div><h3>{contact.name}</h3><small>{contact.interestCourseName||'الدورة غير محددة'}</small></div>
@@ -443,7 +455,10 @@ function LeadCard({contact,canWrite,onFollowup}){
       <div><dt>المصدر</dt><dd>{contact.source||'غير محدد'}</dd></div>
       <div className="wide"><dt>الإجراء التالي</dt><dd>{contact.nextActionType?`${ACTIONS[contact.nextActionType]||contact.nextActionType} · ${when(contact.nextActionAt)}`:'تم إنهاء المتابعة البيعية'}</dd></div>
     </dl>
-    {canWrite&&!['payment_submitted','paid'].includes(contact.leadStatus)&&<button className="mt-button primary wide mt-followup-button" onClick={onFollowup}>تسجيل نتيجة المتابعة</button>}
+    <div className="mt-lead-card-actions">
+      <button className="mt-button" onClick={onHistory}>سجل العميل</button>
+      {canWrite&&!['payment_submitted','paid'].includes(contact.leadStatus)&&<button className="mt-button primary mt-followup-button" onClick={onFollowup}>تسجيل نتيجة المتابعة</button>}
+    </div>
   </article>;
 }
 

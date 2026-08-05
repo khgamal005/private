@@ -863,7 +863,7 @@ begin
     seed.delivery_mode,
     seed.starts_at,
     seed.ends_at,
-    now() - interval '1 day',
+    seed.registration_closes_at - interval '30 days',
     seed.registration_closes_at,
     seed.capacity,
     0,

@@ -71,6 +71,9 @@ test('official ad adapters are version-isolated, bounded, retryable, and read-on
   }
   assert.match(meta,/graph\.facebook\.com/);
   assert.match(meta,/v26\.0/);
+  assert.match(meta,/fields: 'id,name,currency,timezone_name,account_status'/);
+  assert.doesNotMatch(meta,/account_status,business,owner/);
+  assert.match(meta,/businessId: configuration\(connection, 'businessId'\)/);
   assert.match(google,/googleads\.googleapis\.com/);
   assert.match(google,/oauth2\.googleapis\.com\/token/);
   assert.match(google,/developer-token/);
@@ -134,6 +137,9 @@ test('tenant command center exposes decision metrics, connections, and protected
   assert.match(route,/ACCESS_COOKIE/);
   assert.match(route,/v2_tenant_marketing_hub_action/);
   assert.match(route,/\/functions\/v1\/ads-sync/);
+  assert.match(route,/\[result\?\.error,result\?\.detail\]/);
+  assert.match(component,/const canSync=\['active','degraded'\]\.includes\(status\)/);
+  assert.match(component,/running\|\|!canSync/);
   assert.doesNotMatch(route,/SERVICE_ROLE|service_role/);
   assert.match(shell,/href:`\$\{base\}\/marketing`/);
   assert.match(proxy,/\/api\/marketing/);

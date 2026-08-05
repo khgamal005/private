@@ -55,7 +55,7 @@ function tenantItems(slug,permissions,platformAccess,roleKey){
       {key:'interactive',label:'منصة التدريب التفاعلي (قريبًا)',permission:'tenant.academy.read',visible:policy.showInteractiveTraining,disabled:true}
     ]},
     {key:'sales',label:'المبيعات والعملاء',children:[
-      {key:'search',label:'البحث عن عميل',href:`${base}/customer-search`,permission:'tenant.crm.read'},
+      {key:'search',label:'البحث عن عميل',href:`${base}/customer-search`,always:true},
       {key:'sales',label:'إدارة المبيعات والعملاء',href:`${base}/sales`,permission:'tenant.crm.read'},
       {key:'leadQueue',label:'توزيع العملاء',href:`${base}/lead-queue`,permission:'tenant.leads.read'},
       {key:'incentives',label:'الأهداف والحوافز',href:`${base}/incentives`,permission:'tenant.incentives.read'}
@@ -85,7 +85,7 @@ function tenantItems(slug,permissions,platformAccess,roleKey){
     return required.some(key=>allowed.has(key));
   };
   return items
-    .map(item=>item.children?{...item,children:item.children.filter(child=>child.visible!==false&&canUse(child.permission))}:item)
+    .map(item=>item.children?{...item,children:item.children.filter(child=>child.visible!==false&&(child.always||canUse(child.permission)))}:item)
     .filter(item=>item.visible!==false&&(item.children?.length||canUse(item.permission)));
 }
 
@@ -137,7 +137,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
     :platformItems(permissions),[kind,slug,permissions,platformAccess,roleKey]);
   const areaLabel=kind===WORKSPACE_KINDS.tenant?'لوحة المنشأة':'لوحة إدارة المنصة';
   const canCreateTask=platformAccess||permissions.includes('tenant.work.write');
-  const canSearch=kind===WORKSPACE_KINDS.tenant&&(platformAccess||permissions.includes('tenant.crm.read'));
+  const canSearch=kind===WORKSPACE_KINDS.tenant;
   const platformSettingsHref=permissions.includes('platform.settings.manage')||permissions.includes('platform.control.write')
     ?'/control/settings'
     :permissions.includes('platform.access.manage')

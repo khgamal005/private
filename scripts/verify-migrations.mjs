@@ -74,7 +74,8 @@ const required=[
   '20260803141411_marktone_public_site_cms_v1.sql',
   '20260803143208_marktone_public_site_cms_hardening_v1.sql',
   '20260803163000_marktone_visual_builder_core_v1.sql',
-  '20260803163100_marktone_visual_builder_api_v1.sql'
+  '20260803163100_marktone_visual_builder_api_v1.sql',
+  '20260805161821_enable_customer_search_for_all_tenant_accounts.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();

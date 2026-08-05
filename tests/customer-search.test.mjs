@@ -19,7 +19,7 @@ test('customer search uses real tenant data and optional Arabic filters',async()
     read('components/customer-search.js'),
     read('app/tenant/[slug]/customer-search/page.js'),
     read('app/api/tenant/customer-search/route.js'),
-    read('supabase/migrations/20260803010000_tenant_customer_search_v1.sql'),
+    read('supabase/migrations/20260805161821_enable_customer_search_for_all_tenant_accounts.sql'),
     read('components/workspace-shell.js'),
     read('lib/api.js'),
     read('app/tenant/[slug]/sales/page.js'),
@@ -32,18 +32,23 @@ test('customer search uses real tenant data and optional Arabic filters',async()
   assert.match(component,/name="courseId"/);
   assert.match(component,/name="ownerStaffId"/);
   assert.match(component,/العميل موجود بالفعل/);
-  assert.match(page,/requireTenantPermission\(slug,'tenant\.crm\.read'\)/);
+  assert.match(page,/requireTenant\(slug\)/);
+  assert.doesNotMatch(page,/requireTenantPermission/);
   assert.match(route,/v2_tenant_customer_search/);
   assert.match(route,/p_phone/);
   assert.match(migration,/v2_tenant_customer_search/);
   assert.match(migration,/v_exact_phone_lookup/);
   assert.match(migration,/right\(v_phone_digits, 9\)/);
   assert.match(migration,/'restricted', not page\.can_open/);
-  assert.match(migration,/private_app\.has_tenant_permission/);
+  assert.match(migration,/private_app\.can_access_tenant\(v_tenant\.id\)/);
+  assert.doesNotMatch(migration,/'tenant\.crm\.read'/);
   assert.match(migration,/revoke all on function public\.v2_tenant_customer_search/);
   assert.match(migration,/grant execute on function public\.v2_tenant_customer_search/);
   assert.match(shell,/label:'البحث عن عميل'/);
   assert.match(shell,/href:`\$\{base\}\/customer-search`/);
+  assert.match(shell,/{key:'search',[^\n]+always:true}/);
+  assert.match(shell,/child\.always\|\|canUse\(child\.permission\)/);
+  assert.match(shell,/const canSearch=kind===WORKSPACE_KINDS\.tenant;/);
   assert.match(api,/getTenantCustomerSearch/);
   assert.match(api,/v2_tenant_customer_search/);
   assert.match(salesPage,/focusContactId/);

@@ -449,6 +449,7 @@ function ProviderCard({provider,canManage,busy,onOpen,onTest,onSync,onToggle}){
   const meta=providerMeta(provider.providerKey);
   const connection=provider.connection;
   const status=connection?.status||'not_connected';
+  const canSync=['active','degraded'].includes(status);
   const running=Boolean(busy);
   const recentRun=connection?.recentRuns?.[0];
   return <article className={styles.providerCard}>
@@ -463,7 +464,7 @@ function ProviderCard({provider,canManage,busy,onOpen,onTest,onSync,onToggle}){
     <footer>
       {!connection&&<button disabled={!canManage||running} onClick={onOpen}>ربط الحساب</button>}
       {connection&&<>
-        <button disabled={!canManage||running} onClick={onSync}>مزامنة الآن</button>
+        <button disabled={!canManage||running||!canSync} title={!canSync?'اختبر الاتصال أولًا':undefined} onClick={onSync}>مزامنة الآن</button>
         <button className={styles.secondary} disabled={!canManage||running} onClick={onTest}>اختبار</button>
         <button className={styles.textButton} disabled={!canManage||running} onClick={onOpen}>الإعدادات</button>
         <button className={styles.textButton} disabled={!canManage||running} onClick={onToggle}>{status==='disabled'?'تفعيل':'إيقاف'}</button>

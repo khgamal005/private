@@ -63,7 +63,7 @@ async function* graphPages(
 async function test(connection: MarketingConnection): Promise<AccountIdentity> {
   const {data} = await remoteJson(queryUrl(
     `${base(connection)}/act_${accountId(connection)}`,
-    {fields: 'id,name,currency,timezone_name,account_status,business,owner'}
+    {fields: 'id,name,currency,timezone_name,account_status'}
   ), {headers: headers(connection)});
   const account = asRecord(data) || {};
   const externalAccountId = text(account.id).replace(/^act_/, '');
@@ -75,11 +75,10 @@ async function test(connection: MarketingConnection): Promise<AccountIdentity> {
     currency: text(account.currency).toUpperCase() || 'USD',
     timezone: text(account.timezone_name),
     status: accountStatus === 1 ? 'active' : accountStatus == null ? 'unknown' : 'inactive',
-    externalUserId: text(valueAt(account, 'owner.id')),
     metadata: {
       apiVersion: version(connection),
-      businessId: text(valueAt(account, 'business.id')),
-      accountStatus: accountStatus
+      businessId: configuration(connection, 'businessId'),
+      accountStatus
     }
   };
 }

@@ -114,24 +114,58 @@ test('commerce adapters normalize order revenue and first-party attribution sign
   assert.match(woo,/transform: item => normalizeOrder/);
 });
 
+test('marketing snapshot keeps platform outcomes separate from verified CRM results',async()=>{
+  const sql=await read(
+    'supabase/migrations/20260805154228_consolidate_marketing_platform_results.sql'
+  );
+  for(const pattern of [
+    /platformLeads/,
+    /platformConversions/,
+    /platformRevenueMinor/,
+    /platformRoas/,
+    /platformCplMinor/,
+    /platformCostPerConversionMinor/
+  ])assert.match(sql,pattern);
+  assert.match(
+    sql,
+    /drop function if exists public\.v2_tenant_marketing_hub_snapshot_v2/
+  );
+});
+
 test('tenant command center exposes decision metrics, connections, and protected actions',async()=>{
-  const [page,component,route,shell,proxy]=await Promise.all([
+  const [page,component,route,shell,proxy,marketingApi]=await Promise.all([
     read('app/tenant/[slug]/marketing/page.js'),
     read('components/marketing-command-center.js'),
     read('app/api/marketing/[provider]/[action]/route.js'),
     read('components/workspace-shell.js'),
-    read('proxy.js')
+    read('proxy.js'),
+    read('lib/marketing-api.js')
   ]);
   assert.match(page,/requireTenantPermission\(slug,'tenant\.marketing\.read'\)/);
   for(const pattern of [
     /مركز قرار الحملات/,
-    /العائد على الإنفاق ROAS/,
-    /تغطية الإسناد/,
     /سلامة البيانات/,
     /الحسابات الإعلانية الرسمية/,
     /المتاجر والإيراد/,
-    /سياسة الإسناد/
+    /سياسة الإسناد/,
+    /تحليل مستقل لكل منصة/,
+    /التحليل الشامل/,
+    /أفضل حملة/,
+    /الحملة الأَولى بالمراجعة/,
+    /نتائج المنصات/,
+    /ROAS حسب المنصات/,
+    /عملاء CRM الموثقون/
   ])assert.match(component,pattern);
+  assert.match(component,/function buildPlatformAnalysis/);
+  assert.match(component,/function PortfolioAnalysis/);
+  assert.match(component,/function SinglePlatformAnalysis/);
+  assert.match(component,/platformLeads/);
+  assert.match(component,/platformConversions/);
+  assert.match(component,/platformRoas/);
+  assert.match(
+    marketingApi,
+    /authRpc\('v2_tenant_marketing_hub_snapshot'/
+  );
   assert.match(component,/every_6_hours/);
   assert.match(component,/ar-SA-u-ca-gregory/);
   assert.match(route,/ACCESS_COOKIE/);

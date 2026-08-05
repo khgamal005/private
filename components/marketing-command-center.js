@@ -108,13 +108,16 @@ function providerMeta(key){
 
 function metricCards(summary){
   const currency=summary?.currency||'SAR';
+  const platformCpl=summary?.platformCplMinor==null
+    ?'—'
+    :money(summary.platformCplMinor,currency);
   return [
     {key:'spend',label:'الإنفاق الإعلاني',value:money(summary?.spendMinor,currency),note:`${number(summary?.clicks)} نقرة`,tone:'navy'},
-    {key:'revenue',label:'الإيراد المنسوب',value:money(summary?.revenueMinor,currency),note:`${number(summary?.sales)} مبيعات موثقة`,tone:'green'},
-    {key:'roas',label:'العائد على الإنفاق ROAS',value:ratio(summary?.roas),note:'بعد المرتجعات وبعملة الأساس',tone:'violet'},
-    {key:'leads',label:'العملاء من الحملات',value:number(summary?.leads,0),note:`${number(summary?.qualifiedLeads,0)} مؤهلون`,tone:'blue'},
-    {key:'cac',label:'تكلفة اكتساب عميل',value:summary?.cacMinor==null?'—':money(summary.cacMinor,currency),note:`CPL ${summary?.cplMinor==null?'—':money(summary.cplMinor,currency)}`,tone:'amber'},
-    {key:'coverage',label:'تغطية الإسناد',value:percent(summary?.attributionCoverageRate),note:`نموذج ${MODEL_LABELS[summary?.model]||'موحّد'}`,tone:'cyan'}
+    {key:'platformLeads',label:'نتائج المنصات',value:number(summary?.platformLeads,0),note:`${number(summary?.platformConversions,0)} تحويلات أبلغت بها المنصات`,tone:'blue'},
+    {key:'platformRoas',label:'ROAS حسب المنصات',value:ratio(summary?.platformRoas),note:`CPL حسب المنصة ${platformCpl}`,tone:'violet'},
+    {key:'verifiedLeads',label:'عملاء CRM الموثقون',value:number(summary?.leads,0),note:`${number(summary?.qualifiedLeads,0)} مؤهلون`,tone:'cyan'},
+    {key:'revenue',label:'الإيراد الموثق المنسوب',value:money(summary?.revenueMinor,currency),note:`${number(summary?.sales)} مبيعات موثقة`,tone:'green'},
+    {key:'verifiedRoas',label:'ROAS الموثق',value:ratio(summary?.roas),note:'من المبيعات الفعلية بعد المرتجعات',tone:'amber'}
   ];
 }
 
@@ -136,6 +139,91 @@ function chartBuckets(rows=[],maxBuckets=18){
   return result;
 }
 
+
+function sumMetric(rows,key){
+  return rows.reduce((total,row)=>total+(Number(row?.[key])||0),0);
+}
+
+function buildPlatformAnalysis(provider,campaigns,sources,insights){
+  const rows=campaigns.filter(row=>row.providerKey===provider.providerKey);
+  const source=sources.find(row=>row.providerKey===provider.providerKey)||{};
+  const spendMinor=Number(source.spendMinor)||sumMetric(rows,'spendMinor');
+  const platformLeads=Number(source.platformLeads)||sumMetric(rows,'platformLeads');
+  const platformConversions=Number(source.platformConversions)
+    ||sumMetric(rows,'platformConversions');
+  const platformRevenueMinor=Number(source.platformRevenueMinor)
+    ||sumMetric(rows,'platformRevenueMinor');
+  const revenueMinor=Number(source.revenueMinor)||sumMetric(rows,'revenueMinor');
+  const leads=Number(source.leads)||sumMetric(rows,'leads');
+  const sales=Number(source.sales)||sumMetric(rows,'sales');
+  const qualifiedLeads=sumMetric(rows,'qualifiedLeads');
+  const impressions=sumMetric(rows,'impressions');
+  const clicks=sumMetric(rows,'clicks');
+  const activeCampaigns=rows.filter(row=>
+    ['active','enabled'].includes(String(row.status||'').toLowerCase())
+    ||['active','enabled'].includes(String(row.effectiveStatus||'').toLowerCase())
+  ).length;
+  const confidenceRows=rows.filter(row=>row.confidenceScore!=null);
+  const confidenceScore=confidenceRows.length
+    ?confidenceRows.reduce((total,row)=>total+(Number(row.confidenceScore)||0),0)
+      /confidenceRows.length
+    :null;
+  const topCampaign=rows.filter(row=>
+    (Number(row.spendMinor)||0)>0
+    ||(Number(row.platformLeads)||0)>0
+    ||(Number(row.platformConversions)||0)>0
+  ).slice().sort((a,b)=>
+    (Number(b.platformConversions)||0)-(Number(a.platformConversions)||0)
+    ||(Number(b.platformLeads)||0)-(Number(a.platformLeads)||0)
+    ||(Number(b.platformRoas)||0)-(Number(a.platformRoas)||0)
+    ||(Number(b.roas)||0)-(Number(a.roas)||0)
+  )[0]||null;
+  const weakCampaign=rows.filter(row=>
+    (Number(row.spendMinor)||0)>0
+  ).slice().sort((a,b)=>
+    ((Number(a.platformConversions)||0)+(Number(a.platformLeads)||0))
+      -((Number(b.platformConversions)||0)+(Number(b.platformLeads)||0))
+    ||(Number(b.platformCplMinor)||0)-(Number(a.platformCplMinor)||0)
+    ||(Number(b.spendMinor)||0)-(Number(a.spendMinor)||0)
+  )[0]||null;
+  return {
+    providerKey:provider.providerKey,nameAr:provider.nameAr,
+    connection:provider.connection,channel:providerMeta(provider.providerKey).channel,
+    campaigns:rows,
+    insights:insights.filter(item=>item.providerKey===provider.providerKey),
+    hasData:rows.length>0||spendMinor>0||platformLeads>0
+      ||platformConversions>0||leads>0||sales>0,
+    spendMinor,platformLeads,platformConversions,platformRevenueMinor,
+    revenueMinor,leads,qualifiedLeads,sales,
+    impressions,clicks,activeCampaigns,campaignCount:rows.length,
+    confidenceScore,topCampaign,weakCampaign,
+    platformRoas:spendMinor>0?platformRevenueMinor/spendMinor:null,
+    platformCplMinor:platformLeads>0?spendMinor/platformLeads:null,
+    platformCostPerConversionMinor:platformConversions>0
+      ?spendMinor/platformConversions
+      :null,
+    platformLeadToConversionRate:platformLeads>0
+      ?100*platformConversions/platformLeads
+      :null,
+    roas:spendMinor>0?revenueMinor/spendMinor:null,
+    ctr:impressions>0?100*clicks/impressions:null,
+    cpcMinor:clicks>0?spendMinor/clicks:null,
+    cplMinor:leads>0?spendMinor/leads:null,
+    cacMinor:sales>0?spendMinor/sales:null,
+    qualificationRate:leads>0?100*qualifiedLeads/leads:null,
+    leadToSaleRate:leads>0?100*sales/leads:null
+  };
+}
+
+function analysisDecision(analysis){
+  if(!analysis?.hasData)return {tone:'neutral',label:'بانتظار البيانات',text:'اختبر الاتصال وشغّل المزامنة لتظهر قراءة هذه المنصة.'};
+  if(analysis.sales>0&&(analysis.roas||0)>=2)return {tone:'good',label:'أداء موثّق جيد',text:'المبيعات والإيراد الموثقان يحققان عائدًا جيدًا؛ راقب CAC قبل التوسع.'};
+  if(analysis.sales>0&&(analysis.roas||0)<1)return {tone:'risk',label:'العائد الموثق دون التعادل',text:'الإيراد الموثق أقل من الإنفاق؛ راجع الحملات والإسناد قبل زيادة الميزانية.'};
+  if(analysis.platformLeads>0||analysis.platformConversions>0)return {tone:'watch',label:'نتائج تحتاج توثيقًا',text:'المنصة تسجّل نتائج فعلية، لكن يلزم ربط المتجر أو توحيد CRM لتأكيد المبيعات والإيراد.'};
+  if(analysis.spendMinor>0)return {tone:'risk',label:'مراجعة عاجلة',text:'يوجد إنفاق دون نتائج مسجلة حتى داخل المنصة؛ راجع التتبع والاستهداف قبل زيادة الميزانية.'};
+  return {tone:'watch',label:'تحتاج تحسينًا',text:'البيانات محدودة؛ شغّل المزامنة وراجع التتبع قبل اتخاذ قرار ميزانية.'};
+}
+
 export default function MarketingCommandCenter({slug,initialData,canManage}){
   const router=useRouter();
   const providers=useMemo(
@@ -152,6 +240,7 @@ export default function MarketingCommandCenter({slug,initialData,canManage}){
   const [search,setSearch]=useState('');
   const [sourceFilter,setSourceFilter]=useState('all');
   const [sortKey,setSortKey]=useState('spend');
+  const [analysisKey,setAnalysisKey]=useState('all');
   const selected=providers.find(provider=>provider.providerKey===selectedKey)||null;
   const summary=useMemo(()=>initialData?.summary||{},[initialData?.summary]);
   const cards=useMemo(
@@ -164,6 +253,13 @@ export default function MarketingCommandCenter({slug,initialData,canManage}){
     ['active','degraded'].includes(provider.connection?.status)
   ).length;
   const connectedCount=providers.filter(provider=>provider.connection).length;
+  const platformAnalyses=useMemo(
+    ()=>providers.map(provider=>buildPlatformAnalysis(
+      provider,initialData?.campaigns||[],initialData?.sources||[],
+      initialData?.insights||[]
+    )),
+    [providers,initialData?.campaigns,initialData?.sources,initialData?.insights]
+  );
 
   const campaigns=useMemo(()=>{
     const query=search.trim().toLowerCase();
@@ -174,7 +270,7 @@ export default function MarketingCommandCenter({slug,initialData,canManage}){
     return filtered.slice().sort((a,b)=>{
       if(sortKey==='roas')return (Number(b.roas)||0)-(Number(a.roas)||0);
       if(sortKey==='revenue')return (Number(b.revenueMinor)||0)-(Number(a.revenueMinor)||0);
-      if(sortKey==='leads')return (Number(b.leads)||0)-(Number(a.leads)||0);
+      if(sortKey==='leads')return (Number(b.platformLeads)||0)-(Number(a.platformLeads)||0)||(Number(b.leads)||0)-(Number(a.leads)||0);
       return (Number(b.spendMinor)||0)-(Number(a.spendMinor)||0);
     });
   },[initialData?.campaigns,search,sourceFilter,sortKey]);
@@ -353,6 +449,14 @@ export default function MarketingCommandCenter({slug,initialData,canManage}){
       </article>)}
     </div>
 
+    <PlatformAnalytics
+      analyses={platformAnalyses}
+      selectedKey={analysisKey}
+      onSelect={setAnalysisKey}
+      currency={currency}
+      summary={summary}
+    />
+
     <DataHealth
       data={initialData?.dataHealth||{}}
       activeConnections={activeConnections}
@@ -402,7 +506,7 @@ export default function MarketingCommandCenter({slug,initialData,canManage}){
         </select>
         <select value={sortKey} onChange={event=>setSortKey(event.target.value)} aria-label="ترتيب الحملات">
           <option value="spend">الأعلى إنفاقًا</option><option value="revenue">الأعلى إيرادًا</option>
-          <option value="roas">الأعلى ROAS</option><option value="leads">الأكثر عملاء</option>
+          <option value="roas">الأعلى ROAS</option><option value="leads">الأكثر نتائج</option>
         </select>
       </div>
       <CampaignTable rows={campaigns} currency={currency}/>
@@ -423,6 +527,112 @@ export default function MarketingCommandCenter({slug,initialData,canManage}){
       onClose={()=>!busy&&setModal('')}
     />}
   </section>;
+}
+
+
+function PlatformAnalytics({analyses,selectedKey,onSelect,currency,summary}){
+  const selected=analyses.find(item=>item.providerKey===selectedKey)||null;
+  return <section className={[styles.section,styles.analyticsSection].join(' ')} aria-labelledby="platform-analysis-title">
+    <SectionHead eyebrow="تحليل متعدد المنصات" title="تحليل مستقل لكل منصة وقراءة شاملة للجميع" note="كل رقم من بيانات المنصة الرسمية، والعملاء من CRM، والمبيعات الموثقة من المتجر."/>
+    <div className={styles.analysisTabs} role="tablist" aria-label="نطاق تحليل الحملات">
+      <button type="button" role="tab" aria-selected={selectedKey==='all'} className={selectedKey==='all'?styles.analysisTabActive:''} onClick={()=>onSelect('all')}>التحليل الشامل</button>
+      {analyses.map(item=>{const meta=providerMeta(item.providerKey);return <button type="button" role="tab" aria-selected={selectedKey===item.providerKey} className={selectedKey===item.providerKey?styles.analysisTabActive:''} onClick={()=>onSelect(item.providerKey)} key={item.providerKey}><span className={[styles.analysisTabMark,styles[meta.className]].join(' ')}>{meta.short}</span>{item.nameAr}<i className={item.hasData?styles.tabHasData:''}/></button>;})}
+    </div>
+    {selectedKey==='all'
+      ?<PortfolioAnalysis analyses={analyses} currency={currency} summary={summary}/>
+      :<SinglePlatformAnalysis analysis={selected} currency={currency}/>}
+  </section>;
+}
+
+function PortfolioAnalysis({analyses,currency,summary}){
+  const rows=analyses.filter(item=>item.hasData);
+  const totalSpend=Number(summary?.spendMinor)||sumMetric(rows,'spendMinor');
+  const totalPlatformRevenue=Number(summary?.platformRevenueMinor)
+    ||sumMetric(rows,'platformRevenueMinor');
+  const totalPlatformLeads=Number(summary?.platformLeads)
+    ||sumMetric(rows,'platformLeads');
+  const totalVerifiedRevenue=Number(summary?.revenueMinor)
+    ||sumMetric(rows,'revenueMinor');
+  const byPlatformRoas=rows.filter(item=>item.spendMinor>0).slice()
+    .sort((a,b)=>(Number(b.platformRoas)||0)-(Number(a.platformRoas)||0));
+  const byPlatformLeads=rows.slice()
+    .sort((a,b)=>b.platformLeads-a.platformLeads);
+  const byVerifiedRevenue=rows.slice()
+    .sort((a,b)=>b.revenueMinor-a.revenueMinor);
+  const risk=rows.find(item=>item.spendMinor>0
+    &&item.platformLeads===0&&item.platformConversions===0);
+  const headline=!rows.length
+    ?'اربط أول منصة وابدأ المزامنة'
+    :risk
+      ?'ابدأ بمراجعة '+risk.nameAr+' قبل زيادة الميزانية'
+      :'أفضل عائد معلن حاليًا من '+(byPlatformRoas[0]?.nameAr||'المنصات المتصلة');
+  const detail=!rows.length
+    ?'ستظهر هنا مقارنة عادلة بعد توحيد العملة ونموذج الإسناد.'
+    :number(rows.length,0)+' منصة بها بيانات فعلية، و'
+      +number(totalPlatformLeads,0)+' نتيجة أبلغت بها المنصات، مقابل '
+      +money(totalVerifiedRevenue,currency)+' إيراد موثق داخل ماركتون.';
+  return <div className={styles.analysisBody}>
+    <div className={styles.portfolioHeadline}><div><span>الخلاصة التنفيذية</span><h4>{headline}</h4><p>{detail}</p></div><strong>{ratio(summary?.platformRoas)}</strong></div>
+    <div className={styles.leaderGrid}>
+      <AnalysisLeader label="الأعلى ROAS حسب المنصة" analysis={byPlatformRoas[0]} value={ratio(byPlatformRoas[0]?.platformRoas)}/>
+      <AnalysisLeader label="الأكثر نتائج معلنة" analysis={byPlatformLeads[0]} value={byPlatformLeads[0]?number(byPlatformLeads[0].platformLeads,0):'—'}/>
+      <AnalysisLeader label="الأعلى إيرادًا موثقًا" analysis={byVerifiedRevenue[0]} value={byVerifiedRevenue[0]?money(byVerifiedRevenue[0].revenueMinor,currency):'—'}/>
+    </div>
+    <div className={styles.portfolioGrid}>
+      <article className={styles.sharePanel}><header><span>توزيع الميزانية وعائد المنصات</span><h4>منصة بمنصة</h4></header><div className={styles.shareList}>
+        {rows.map(item=>{const meta=providerMeta(item.providerKey);const spendShare=totalSpend>0?100*item.spendMinor/totalSpend:0;const revenueShare=totalPlatformRevenue>0?100*item.platformRevenueMinor/totalPlatformRevenue:0;return <div key={item.providerKey}><header><span className={[styles.sourceMark,styles[meta.className]].join(' ')}>{meta.short}</span><b>{item.nameAr}</b><small>{number(spendShare,1)}٪ من الميزانية</small></header><section><i style={{width:String(Math.max(2,spendShare))+'%'}}/><em style={{width:String(Math.max(2,revenueShare))+'%'}}/></section><footer><span>إنفاق {money(item.spendMinor,currency)}</span><span>عائد منصة {money(item.platformRevenueMinor,currency)}</span></footer></div>;})}
+        {!rows.length&&<Empty text="لا توجد بيانات منصات للمقارنة في الفترة الحالية."/>}
+      </div></article>
+      <article className={styles.portfolioTablePanel}><header><span>جدول القرار الموحّد</span><h4>المعلن من المنصة مقابل الموثق داخليًا</h4></header><div className={styles.analysisTableWrap}><table><thead><tr><th>المنصة</th><th>الإنفاق</th><th>نتائج المنصة</th><th>CRM موثق</th><th>مبيعات</th><th>ROAS المنصة</th><th>ROAS الموثق</th><th>القرار</th></tr></thead><tbody>
+        {rows.map(item=>{const verdict=analysisDecision(item);return <tr key={item.providerKey}><td><b>{item.nameAr}</b><small>{item.channel}</small></td><td>{money(item.spendMinor,currency)}</td><td>{number(item.platformLeads,0)}</td><td>{number(item.leads,0)}</td><td>{number(item.sales,0)}</td><td><strong>{ratio(item.platformRoas)}</strong></td><td>{ratio(item.roas)}</td><td><i className={styles['decision_'+verdict.tone]}>{verdict.label}</i></td></tr>;})}
+        {!rows.length&&<tr><td colSpan="8"><Empty text="ستظهر المقارنة بعد أول مزامنة ناجحة."/></td></tr>}
+      </tbody></table></div></article>
+    </div>
+  </div>;
+}
+
+function AnalysisLeader({label,analysis,value}){
+  const meta=analysis?providerMeta(analysis.providerKey):providerMeta('');
+  return <article className={styles.leaderCard}><span className={[styles.sourceMark,styles[meta.className]].join(' ')}>{analysis?meta.short:'—'}</span><div><small>{label}</small><b>{analysis?.nameAr||'لا توجد بيانات'}</b></div><strong>{value}</strong></article>;
+}
+
+function SinglePlatformAnalysis({analysis,currency}){
+  if(!analysis)return <Empty text="اختر منصة لعرض تحليلها."/>;
+  const meta=providerMeta(analysis.providerKey);
+  const decision=analysisDecision(analysis);
+  if(!analysis.hasData)return <div className={styles.platformEmpty}><span className={[styles.providerMark,styles[meta.className]].join(' ')}>{meta.short}</span><div><h4>{analysis.nameAr}</h4><p>{decision.text}</p><small>{analysis.connection?'الاتصال محفوظ؛ اختبره ثم شغّل المزامنة.':'المنصة غير مربوطة حتى الآن.'}</small></div></div>;
+  const cards=[
+    ['الإنفاق',money(analysis.spendMinor,currency)],
+    ['نتائج المنصة',number(analysis.platformLeads,0)],
+    ['تحويلات المنصة',number(analysis.platformConversions,0)],
+    ['ROAS حسب المنصة',ratio(analysis.platformRoas)],
+    ['عملاء CRM موثقون',number(analysis.leads,0)],
+    ['مبيعات موثقة',number(analysis.sales,0)],
+    ['إيراد موثق',money(analysis.revenueMinor,currency)],
+    ['ROAS موثق',ratio(analysis.roas)]
+  ];
+  return <div className={styles.analysisBody}>
+    <div className={styles.platformHeadline}><div className={styles.platformIdentity}><span className={[styles.providerMark,styles[meta.className]].join(' ')}>{meta.short}</span><div><small>تحليل منصة مستقل</small><h4>{analysis.nameAr}</h4><p>{analysis.channel}</p></div></div><div className={[styles.platformDecision,styles['decisionBox_'+decision.tone]].join(' ')}><span>{decision.label}</span><p>{decision.text}</p></div></div>
+    <div className={styles.platformMetrics}>{cards.map(([label,value])=><article key={label}><span>{label}</span><b>{value}</b></article>)}</div>
+    <div className={styles.efficiencyStrip}>
+      <div><span>مرات الظهور</span><b>{number(analysis.impressions,0)}</b></div><div><span>النقرات</span><b>{number(analysis.clicks,0)}</b></div>
+      <div><span>CTR</span><b>{percent(analysis.ctr)}</b></div><div><span>CPC</span><b>{analysis.cpcMinor==null?'—':money(analysis.cpcMinor,currency)}</b></div>
+      <div><span>CPL حسب المنصة</span><b>{analysis.platformCplMinor==null?'—':money(analysis.platformCplMinor,currency)}</b></div>
+      <div><span>تكلفة تحويل المنصة</span><b>{analysis.platformCostPerConversionMinor==null?'—':money(analysis.platformCostPerConversionMinor,currency)}</b></div>
+      <div><span>تأهيل CRM</span><b>{percent(analysis.qualificationRate)}</b></div><div><span>ثقة الإسناد</span><b>{percent(analysis.confidenceScore)}</b></div>
+    </div>
+    <div className={styles.campaignVerdicts}>
+      <CampaignVerdict title="أفضل حملة" campaign={analysis.topCampaign} currency={currency} tone="best"/>
+      <CampaignVerdict title="الحملة الأَولى بالمراجعة" campaign={analysis.weakCampaign} currency={currency} tone="review"/>
+      <article className={styles.platformInsights}><header><span>تنبيهات {analysis.nameAr}</span><b>{number(analysis.insights.length,0)}</b></header>{analysis.insights.slice(0,3).map(item=><div key={item.id}><b>{item.title}</b><p>{item.recommendedAction}</p></div>)}{!analysis.insights.length&&<p>لا توجد تنبيهات مفتوحة خاصة بهذه المنصة.</p>}</article>
+    </div>
+    <div className={styles.platformCampaigns}><header><span>تفصيل الحملات</span><h4>كل حملات {analysis.nameAr} في الفترة</h4></header><CampaignTable rows={analysis.campaigns} currency={currency}/></div>
+  </div>;
+}
+
+function CampaignVerdict({title,campaign,currency,tone}){
+  const value=campaign?.platformRoas??campaign?.roas;
+  return <article className={[styles.campaignVerdict,styles['verdict_'+tone]].join(' ')}><span>{title}</span>{campaign?<><h4>{campaign.name}</h4><div><b>{ratio(value)}</b><small>{money(campaign.spendMinor,currency)} إنفاق · {number(campaign.platformLeads,0)} نتائج منصة · {number(campaign.sales,0)} مبيعات موثقة</small></div></>:<p>لا توجد بيانات كافية للحكم.</p>}</article>;
 }
 
 function SectionHead({eyebrow,title,note}){
@@ -504,8 +714,8 @@ function DecisionPanel({insights,busy,canManage,onResolve}){
 
 const SourcePerformance=memo(function SourcePerformance({sources,currency}){
   const max=Math.max(1,...sources.map(item=>Number(item.spendMinor)||0));
-  return <article className={styles.smallPanel}><header><span>مقارنة القنوات</span><h3>الأداء حسب المنصة</h3></header><div className={styles.sourceList}>
-    {sources.map(source=>{const meta=providerMeta(source.providerKey);return <div key={source.providerKey}><span className={`${styles.sourceMark} ${styles[meta.className]}`}>{meta.short}</span><section><header><b>{meta.channel}</b><strong>{ratio(source.roas)}</strong></header><i><em style={{width:`${Math.max(3,(Number(source.spendMinor)||0)/max*100)}%`}}/></i><small>{money(source.spendMinor,currency)} إنفاق · {money(source.revenueMinor,currency)} إيراد</small></section></div>;})}
+  return <article className={styles.smallPanel}><header><span>مقارنة القنوات</span><h3>المعلن من المنصة مقابل الموثق</h3></header><div className={styles.sourceList}>
+    {sources.map(source=>{const meta=providerMeta(source.providerKey);return <div key={source.providerKey}><span className={`${styles.sourceMark} ${styles[meta.className]}`}>{meta.short}</span><section><header><b>{meta.channel}</b><strong>{ratio(source.platformRoas)}</strong></header><i><em style={{width:`${Math.max(3,(Number(source.spendMinor)||0)/max*100)}%`}}/></i><small>{money(source.spendMinor,currency)} إنفاق · {number(source.platformLeads,0)} نتائج منصة · {money(source.revenueMinor,currency)} إيراد موثق</small></section></div>;})}
     {!sources.length&&<Empty text="لا توجد قناة ذات إنفاق في الفترة."/>}
   </div></article>;
 });
@@ -526,15 +736,18 @@ const CommerceSources=memo(function CommerceSources({rows}){
 });
 
 function CampaignTable({rows,currency}){
-  return <div className={styles.tableWrap}><table><thead><tr><th>الحملة</th><th>الحالة</th><th>الإنفاق</th><th>العملاء</th><th>المبيعات</th><th>الإيراد</th><th>ROAS</th><th>CAC</th><th>الثقة</th></tr></thead><tbody>
+  return <div className={styles.tableWrap}><table><thead><tr><th>الحملة</th><th>الحالة</th><th>الإنفاق</th><th>نتائج المنصة</th><th>تحويلات المنصة</th><th>CRM موثق</th><th>مبيعات موثقة</th><th>ROAS المنصة</th><th>ROAS الموثق</th><th>الثقة</th></tr></thead><tbody>
     {rows.map(row=>{const meta=providerMeta(row.providerKey);return <tr key={row.id}>
       <td><div className={styles.campaignName}><span className={`${styles.sourceMark} ${styles[meta.className]}`}>{meta.short}</span><span><b>{row.name}</b><small>{row.accountName}</small></span></div></td>
       <td><i className={`${styles.campaignStatus} ${['active','enabled'].includes(row.status)?styles.campaignActive:''}`}>{row.status||'unknown'}</i></td>
-      <td>{money(row.spendMinor,row.currency||currency)}</td><td>{number(row.leads,0)}</td><td>{number(row.sales,0)}</td>
-      <td><b>{money(row.revenueMinor,row.currency||currency)}</b></td><td><strong className={(Number(row.roas)||0)>=2?styles.goodRoas:(Number(row.roas)||0)<1?styles.badRoas:''}>{ratio(row.roas)}</strong></td>
-      <td>{row.cacMinor==null?'—':money(row.cacMinor,row.currency||currency)}</td><td>{row.confidenceScore==null?'—':`${number(row.confidenceScore,0)}٪`}</td>
+      <td>{money(row.spendMinor,row.currency||currency)}</td>
+      <td>{number(row.platformLeads,0)}</td><td>{number(row.platformConversions,0)}</td>
+      <td>{number(row.leads,0)}</td><td>{number(row.sales,0)}</td>
+      <td><strong>{ratio(row.platformRoas)}</strong></td>
+      <td><strong className={(Number(row.roas)||0)>=2?styles.goodRoas:(Number(row.roas)||0)<1?styles.badRoas:''}>{ratio(row.roas)}</strong></td>
+      <td>{row.confidenceScore==null?'—':`${number(row.confidenceScore,0)}٪`}</td>
     </tr>;})}
-    {!rows.length&&<tr><td colSpan="9"><Empty text="لا توجد حملات مطابقة للفترة أو البحث الحالي."/></td></tr>}
+    {!rows.length&&<tr><td colSpan="10"><Empty text="لا توجد حملات مطابقة للفترة أو البحث الحالي."/></td></tr>}
   </tbody></table></div>;
 }
 

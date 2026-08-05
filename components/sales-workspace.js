@@ -322,7 +322,7 @@ export default function SalesWorkspace({
           <td>{contact.ownerName||'غير مسند'}</td>
           <td><b>{contact.nextActionType?ACTIONS[contact.nextActionType]||contact.nextActionType:'لا توجد متابعة'}</b><small>{when(contact.nextActionAt)}</small></td>
           <td><div className="mt-customer-row-actions">
-            <button className="mt-button" onClick={()=>setHistoryContact(contact)}>سجل العميل</button>
+            <button className="mt-button soft mt-followup-button" onClick={()=>setHistoryContact(contact)}>سجل العميل</button>
             {canWrite&&(
               ['payment_submitted','paid'].includes(contact.leadStatus)
                 ?<span className="mt-status warning">مع التسجيل والقبول</span>
@@ -456,7 +456,7 @@ function LeadCard({contact,canWrite,onFollowup,onHistory}){
       <div className="wide"><dt>الإجراء التالي</dt><dd>{contact.nextActionType?`${ACTIONS[contact.nextActionType]||contact.nextActionType} · ${when(contact.nextActionAt)}`:'تم إنهاء المتابعة البيعية'}</dd></div>
     </dl>
     <div className="mt-lead-card-actions">
-      <button className="mt-button" onClick={onHistory}>سجل العميل</button>
+      <button className="mt-button soft mt-followup-button" onClick={onHistory}>سجل العميل</button>
       {canWrite&&!['payment_submitted','paid'].includes(contact.leadStatus)&&<button className="mt-button primary mt-followup-button" onClick={onFollowup}>تسجيل نتيجة المتابعة</button>}
     </div>
   </article>;

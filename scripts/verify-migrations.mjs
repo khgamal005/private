@@ -76,7 +76,10 @@ const required=[
   '20260803163000_marktone_visual_builder_core_v1.sql',
   '20260803163100_marktone_visual_builder_api_v1.sql',
   '20260805161821_enable_customer_search_for_all_tenant_accounts.sql',
-  '20260805170000_customer_action_history_v1.sql'
+  '20260805170000_customer_action_history_v1.sql',
+  '20260806190000_customer_identity_integrity_v1.sql',
+  '20260806190100_customer_identity_entrypoint_guards_v1.sql',
+  '20260806190200_customer_identity_advisor_hardening_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();

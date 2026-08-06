@@ -371,10 +371,16 @@ export default function LeadIntakeWorkspace({slug,initialData}){
         deadlineAt:new Date(distribution.deadlineAt).toISOString(),
         staffIds:distribution.staffIds
       });
+      const distributedCount=Number(result.distributed)||0;
+      const duplicateCount=Number(result.duplicatesSkipped)||0;
       setMessage(
-        result.distributed
-          ?`تم توزيع ${number(result.distributed)} عميل على ${number(result.teamSize)} من فريق المبيعات.`
-          :'لم يتم توزيع صفوف؛ راجع الطاقة اليومية أو حالة الدفعة.'
+        distributedCount&&duplicateCount
+          ?`تم توزيع ${number(distributedCount)} عميل جديد على ${number(result.teamSize)} من فريق المبيعات، ومنع إنشاء سجل مكرر لـ ${number(duplicateCount)} عميل موجود مسبقًا.`
+          :distributedCount
+            ?`تم توزيع ${number(distributedCount)} عميل على ${number(result.teamSize)} من فريق المبيعات.`
+            :duplicateCount
+              ?`لم يُنشأ أي عميل جديد؛ وُجد ${number(duplicateCount)} عميل مسبقًا وأُبقي كل سجل على مسؤول المبيعات الحالي.`
+              :'لم يتم توزيع صفوف؛ راجع الطاقة اليومية أو حالة الدفعة.'
       );
       setSelectedRows([]);
       setModal(null);

@@ -1,4 +1,8 @@
-import {getTenant,getTenantRoleDashboard} from '../../../lib/api';
+import {
+  getTenant,
+  getTenantRoleDashboard,
+  getTenantYeastarAccess
+} from '../../../lib/api';
 import {requireTenant} from '../../../lib/server-auth';
 import {navigationPolicyRoleKey} from '../../../lib/tenant-role-policy';
 import WorkspaceShell from '../../../components/workspace-shell';
@@ -9,9 +13,16 @@ export const dynamic='force-dynamic';
 export default async function TenantLayout({children,params}){
   const {slug}=await params;
   const context=await requireTenant(slug);
-  const [data,dashboard]=await Promise.all([
+  const [data,dashboard,yeastarAccess]=await Promise.all([
     getTenant(slug),
-    getTenantRoleDashboard(slug).catch(()=>null)
+    getTenantRoleDashboard(slug).catch(()=>null),
+    getTenantYeastarAccess(slug).catch(()=>({
+      enabled:false,
+      visible:false,
+      configured:false,
+      canView:false,
+      canManage:false
+    }))
   ]);
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
   const roleKey=context.platformAccess
@@ -36,6 +47,7 @@ export default async function TenantLayout({children,params}){
     roleKey={navigationRoleKey}
     roleLabel={roleLabel}
     notificationSummary={headerSummary(dashboard)}
+    yeastarAccess={yeastarAccess}
   >
     {children}
     <MyRoleGuide

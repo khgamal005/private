@@ -23,7 +23,7 @@ const reports=await readFile(
   'utf8'
 );
 const reportPage=await readFile(
-  new URL('../app/tenant/[slug]/call-reports/page.js',import.meta.url),
+  new URL('../app/tenant/[slug]/yeastar/page.js',import.meta.url),
   'utf8'
 );
 

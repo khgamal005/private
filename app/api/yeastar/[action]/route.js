@@ -5,6 +5,7 @@ import {
   SUPABASE_KEY,
   SUPABASE_URL
 } from '../../../../lib/config';
+import {yeastarErrorMessage} from '../../../../lib/yeastar-errors';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -41,10 +42,11 @@ async function rpc(token,name,args){
 function translated(value){
   const raw=String(value||'');
   const code=raw.split(':')[0];
-  return ({
+  const known=({
     forbidden:'ليست لديك صلاحية لإدارة ربط Yeastar.',
     tenant_not_found:'المنشأة غير موجودة.',
     integration_addon_not_enabled:'إضافة الربط الخارجي غير مفعلة ضمن الباقة.',
+    yeastar_addon_not_enabled:'إضافة Yeastar المدفوعة غير مفعلة لهذه المنشأة.',
     integration_connection_not_found:'احفظ إعدادات Yeastar أولًا.',
     yeastar_public_https_required:'أدخل رابط HTTPS عامًا وصحيحًا لجهاز Yeastar.',
     yeastar_extension_required:'أدخل تحويلة واحدة على الأقل.',
@@ -58,10 +60,17 @@ function translated(value){
     yeastar_staff_not_found:'الموظف المحدد غير نشط أو لا يتبع هذه المنشأة.',
     yeastar_credentials_required:'أدخل Client ID وClient Secret من إعدادات API في Yeastar.',
     yeastar_extensions_not_found:`التحويلة غير موجودة على الجهاز: ${raw.split(':')[1]||''}`,
+    yeastar_ip_forbidden:'رفض Yeastar عنوان الاتصال الحالي. يلزم تمرير الربط عبر عنوان خروج ثابت وإضافته إلى Allowed IPs.',
+    yeastar_ip_blocked:'حظر Yeastar عنوان الاتصال بعد محاولات فاشلة. احذفه من Blocked IPs ثم أعد الاختبار عبر عنوان خروج ثابت.',
     yeastar_token_missing:'استجاب الجهاز دون رمز وصول.',
     authentication_required:'انتهت الجلسة. سجل الدخول مرة أخرى.',
     invalid_yeastar_action:'عملية Yeastar غير مدعومة.'
-  })[code]||'تعذر الاتصال بـYeastar. راجع الرابط وبيانات API والسماح بالوصول الخارجي.';
+  })[code];
+  if(known)return known;
+  const friendly=yeastarErrorMessage(raw,'');
+  return friendly&&friendly!==raw
+    ?friendly
+    :'تعذر الاتصال بـYeastar. راجع الرابط وبيانات API والسماح بالوصول الخارجي.';
 }
 
 export async function GET(request,{params}){
@@ -74,12 +83,12 @@ export async function GET(request,{params}){
     const [settings,staffOptions]=await Promise.all([
       rpc(
         token,
-        'v2_tenant_yeastar_settings_snapshot',
+        'v3_tenant_yeastar_settings_snapshot',
         {p_slug:slug}
       ),
       rpc(
         token,
-        'v2_tenant_yeastar_staff_options',
+        'v3_tenant_yeastar_staff_options',
         {p_slug:slug}
       ).catch(()=>[])
     ]);
@@ -101,8 +110,8 @@ export async function POST(request,{params}){
 
     if(['save','disable'].includes(action)){
       const procedure=action==='save'
-        ?'v2_tenant_yeastar_save_with_assignments'
-        :'v2_tenant_yeastar_action';
+        ?'v3_tenant_yeastar_save_with_assignments'
+        :'v3_tenant_yeastar_action';
       const data=await rpc(token,procedure,{
         p_tenant_slug:body.tenantSlug,
         ...(action==='disable'?{p_action:action}:{}),

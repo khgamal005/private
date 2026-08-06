@@ -2,6 +2,7 @@
 
 import {useEffect,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import {yeastarErrorMessage} from '../lib/yeastar-errors';
 
 const DEFAULT={
   displayName:'Yeastar P550',
@@ -155,7 +156,9 @@ export default function YeastarSettings({slug}){
 
     {notice&&<div className="mt-alert">{notice}</div>}
     {error&&<div className="mt-alert error">{error}</div>}
-    {data.lastError&&!error&&<div className="mt-alert error">{data.lastError}</div>}
+    {data.lastError&&!error&&<div className="mt-alert error">
+      {yeastarErrorMessage(data.lastError)}
+    </div>}
 
     <form className="mt-panel" onSubmit={save}>
       <div className="mt-toolbar">
@@ -296,11 +299,7 @@ async function fetchSettings(slug){
 }
 
 function errorMessage(value,fallback){
-  if(typeof value==='string'&&value.trim())return value;
-  if(value&&typeof value==='object'){
-    return value.message||value.error_description||value.code||fallback;
-  }
-  return fallback;
+  return yeastarErrorMessage(value,fallback);
 }
 
 function statusLabel(value){

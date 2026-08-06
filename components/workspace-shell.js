@@ -19,6 +19,7 @@ const ICON_PATHS={
   tasks:['M5 4h14v16H5z','m8 14 2 2 4-5'],
   sales:['M4 18 9 13l4 3 7-9','M15 7h5v5'],
   callReports:['M7.3 3.8 10 8.4 7.7 10c1.2 2.7 3.5 5 6.2 6.2l1.6-2.3 4.7 2.7-.7 3.2c-.2.9-1 1.5-1.9 1.5C10.4 19.5 4.5 13.6 4.5 6.3c0-.9.6-1.7 1.5-1.9z'],
+  yeastar:['M7.3 3.8 10 8.4 7.7 10c1.2 2.7 3.5 5 6.2 6.2l1.6-2.3 4.7 2.7-.7 3.2c-.2.9-1 1.5-1.9 1.5C10.4 19.5 4.5 13.6 4.5 6.3c0-.9.6-1.7 1.5-1.9z','M15 4h5v5'],
   reports:['M4 19V9M10 19V5M16 19v-7M22 19V3','M2 21h22'],
   campaignReports:['M4 11v2M7 8l10-4v16L7 16z','M7 16v4h4v-3'],
   leadQueue:['M4 8h13','m14 5 3 3-3 3','M20 16H7','m10 13-3 3 3 3'],
@@ -43,7 +44,13 @@ function ShellIcon({name}){
   </svg>;
 }
 
-function tenantItems(slug,permissions,platformAccess,roleKey){
+function tenantItems(
+  slug,
+  permissions,
+  platformAccess,
+  roleKey,
+  yeastarAccess
+){
   const base=`/tenant/${encodeURIComponent(slug)}`;
   const policy=tenantRolePolicy(roleKey,{platformAccess});
   const items=[
@@ -61,6 +68,12 @@ function tenantItems(slug,permissions,platformAccess,roleKey){
       {key:'incentives',label:'الأهداف والحوافز',href:`${base}/incentives`,permission:'tenant.incentives.read'}
     ]},
     {key:'admissions',label:'التسجيل والقبول',href:`${base}/admissions`,permission:'tenant.admissions.read'},
+    {key:'yeastar',label:'إضافة Yeastar',visible:Boolean(
+      yeastarAccess?.enabled&&yeastarAccess?.visible
+    ),children:[
+      {key:'callReports',label:'تقارير المكالمات',href:`${base}/yeastar`,permission:'tenant.crm.read',visible:Boolean(yeastarAccess?.canView)},
+      {key:'settings',label:'إعدادات الربط',href:`${base}/yeastar/settings`,permission:'tenant.settings.manage',visible:Boolean(yeastarAccess?.canManage)}
+    ]},
     {key:'marketing',label:'التسويق والأتمتة',visible:policy.showMarketingAutomation,children:[
       {key:'marketing',label:'مركز الحملات والتسويق',href:`${base}/marketing`,permission:'tenant.marketing.read'},
       {key:'automation',label:'الأتمتة',href:`${base}/settings?tab=automation`,permission:'tenant.users.manage'}
@@ -69,7 +82,6 @@ function tenantItems(slug,permissions,platformAccess,roleKey){
     {key:'people',label:'فريق العمل',href:`${base}/team`,permission:'tenant.people.read',visible:policy.showTeam},
     {key:'reports',label:'التقارير والتحليل',children:[
       {key:'overview',label:'لوحة التقارير',href:`${base}/reports`,permission:'tenant.workspace.read'},
-      {key:'callReports',label:'أداء المكالمات',href:`${base}/call-reports`,permission:'tenant.crm.read'},
       {key:'people',label:policy.personalReportsOnly?'أدائي':'أداء الموظفين',href:`${base}/reports/employees`,permission:'tenant.workspace.read'},
       {key:'sales',label:'تقارير المبيعات',href:`${base}/reports/sales`,permission:'tenant.crm.read'},
       {key:'campaignReports',label:'تقارير الحملات',href:`${base}/reports/campaigns`,permission:['tenant.crm.read','tenant.leads.read','tenant.leads.analytics'],visible:policy.showCampaignReports}
@@ -109,6 +121,7 @@ function platformItems(permissions){
 function isActive(pathname,href){
   if(href==='/control')return pathname===href;
   if(/^\/tenant\/[^/]+$/.test(href))return pathname===href;
+  if(/\/yeastar$/.test(href))return pathname===href;
   return pathname===href||pathname.startsWith(`${href}/`);
 }
 function count(value){return Math.max(0,Number(value)||0);}
@@ -123,18 +136,32 @@ function notificationItems(summary,slug){
   return items;
 }
 
-export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null}){
+export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,yeastarAccess=null}){
   const pathname=usePathname();
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
     courses:pathname.includes('/courses'),
     sales:['/customer-search','/sales','/lead-queue','/incentives'].some(path=>pathname.includes(path)),
+    yeastar:pathname.includes('/yeastar')||pathname.includes('/call-reports'),
     marketing:pathname.includes('/marketing')||pathname.includes('/settings'),
-    reports:pathname.includes('/reports')||pathname.includes('/call-reports')
+    reports:pathname.includes('/reports')
   }));
   const items=useMemo(()=>kind===WORKSPACE_KINDS.tenant
-    ?tenantItems(slug,permissions,platformAccess,roleKey)
-    :platformItems(permissions),[kind,slug,permissions,platformAccess,roleKey]);
+    ?tenantItems(
+      slug,
+      permissions,
+      platformAccess,
+      roleKey,
+      yeastarAccess
+    )
+    :platformItems(permissions),[
+      kind,
+      slug,
+      permissions,
+      platformAccess,
+      roleKey,
+      yeastarAccess
+    ]);
   const areaLabel=kind===WORKSPACE_KINDS.tenant?'لوحة المنشأة':'لوحة إدارة المنصة';
   const canCreateTask=platformAccess||permissions.includes('tenant.work.write');
   const canSearch=kind===WORKSPACE_KINDS.tenant;

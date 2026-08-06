@@ -45,7 +45,7 @@ test('Yeastar mappings validate the configured extension and tenant staff',async
   assert.match(reports,/function errorMessage\(value,fallback\)/);
   assert.match(reports,/response\.json\(\)\.catch\(\(\)=>\(\{\}\)\)/);
   assert.doesNotMatch(reports,/new Error\(payload\.error\|\|/);
-  assert.match(route,/v2_tenant_yeastar_save_with_assignments/);
+  assert.match(route,/v3_tenant_yeastar_save_with_assignments/);
   assert.match(route,/Promise\.all/);
 });
 

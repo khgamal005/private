@@ -1,6 +1,7 @@
 'use client';
 
 import {useState} from 'react';
+import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 
 const EMPTY=[];
@@ -100,7 +101,11 @@ export default function AddonCenter({slug,initialData}){
             <small>{limit==null?'لا يوجد حد مفروض في النسخة الحالية؛ ما زال الاستهلاك مسجلًا.':`${Math.max(limit-used-reserved,0)} متبقي`}</small>
           </div>
           <footer>
-            {enabled?<span className="mt-addon-active-note">✓ جاهزة للاستخدام</span>
+            {enabled&&product.key==='yeastar'?<Link
+              className="mt-button primary"
+              href={`/tenant/${encodeURIComponent(slug)}/yeastar`}
+            >فتح إضافة Yeastar</Link>
+            :enabled?<span className="mt-addon-active-note">✓ جاهزة للاستخدام</span>
             :pending?<button className="mt-link-button danger" onClick={()=>action('cancel_request',product)} disabled={Boolean(busy)}>إلغاء الطلب</button>
             :<button className="mt-button primary" onClick={()=>action('request_trial',product)} disabled={Boolean(busy)}>
               {busy===`request_trial-${product.key}`?'جارٍ الإرسال…':`طلب تجربة ${product.trialDays} يومًا`}

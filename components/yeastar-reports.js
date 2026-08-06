@@ -3,9 +3,14 @@
 import {useState} from 'react';
 import Link from 'next/link';
 import {useRouter,useSearchParams} from 'next/navigation';
+import {yeastarErrorMessage} from '../lib/yeastar-errors';
 import styles from './yeastar-reports.module.css';
 
-export default function YeastarReports({slug,initialData}){
+export default function YeastarReports({
+  slug,
+  initialData,
+  canManage=false
+}){
   const router=useRouter();
   const search=useSearchParams();
   const [busy,setBusy]=useState(false);
@@ -24,7 +29,10 @@ export default function YeastarReports({slug,initialData}){
     for(const [key,value] of Object.entries(values)){
       if(value)params.set(key,String(value));
     }
-    router.push(`/tenant/${encodeURIComponent(slug)}/call-reports?${params}`);
+    const query=params.toString();
+    router.push(
+      `/tenant/${encodeURIComponent(slug)}/yeastar${query?`?${query}`:''}`
+    );
   }
 
   async function sync(){
@@ -47,27 +55,41 @@ export default function YeastarReports({slug,initialData}){
   return <>
     <header className="mt-page-head">
       <div>
-        <small>YEASTAR CALL INTELLIGENCE</small>
-        <h2>تقارير المكالمات</h2>
+        <small>إضافة مدفوعة · YEASTAR CALL INTELLIGENCE</small>
+        <h2>Yeastar — تقارير المكالمات</h2>
         <p>أداء التحويلات، نسب الرد، المكالمات الفائتة، أوقات الذروة وتفاصيل CDR من Yeastar P550.</p>
       </div>
       <div className="mt-page-actions">
-        <Link className="mt-button" href={`/tenant/${encodeURIComponent(slug)}/settings`}>إعدادات Yeastar</Link>
-        <button className="mt-button primary" onClick={sync} disabled={!configured||busy||data.connection?.status==='disabled'}>
+        {canManage&&<Link
+          className="mt-button"
+          href={`/tenant/${encodeURIComponent(slug)}/yeastar/settings`}
+        >إعدادات الربط</Link>}
+        {canManage&&<button
+          className="mt-button primary"
+          onClick={sync}
+          disabled={!configured||busy||data.connection?.status==='disabled'}
+        >
           {busy?'جارٍ جلب المكالمات…':'مزامنة الآن'}
-        </button>
+        </button>}
       </div>
     </header>
 
     {!configured&&<section className="mt-panel">
       <div className="mt-empty">
-        لم يتم ربط Yeastar بعد.
-        <Link className="mt-button primary" href={`/tenant/${encodeURIComponent(slug)}/settings`}>فتح الإعدادات</Link>
+        {canManage
+          ?'لم يتم ربط Yeastar بعد.'
+          :'لم يُكمل مدير المنشأة ربط Yeastar بعد.'}
+        {canManage&&<Link
+          className="mt-button primary"
+          href={`/tenant/${encodeURIComponent(slug)}/yeastar/settings`}
+        >فتح إعدادات الربط</Link>}
       </div>
     </section>}
     {notice&&<div className="mt-alert">{notice}</div>}
     {error&&<div className="mt-alert error">{error}</div>}
-    {data.connection?.lastError&&!error&&<div className="mt-alert error">{data.connection.lastError}</div>}
+    {data.connection?.lastError&&!error&&<div className="mt-alert error">
+      {yeastarErrorMessage(data.connection.lastError)}
+    </div>}
 
     <form className={`${styles.filters} mt-panel`} onSubmit={apply}>
       <label>من<input type="date" name="from" defaultValue={search.get('from')||''}/></label>
@@ -195,11 +217,7 @@ function knownExtensions(data){
 }
 
 function errorMessage(value,fallback){
-  if(typeof value==='string'&&value.trim())return value;
-  if(value&&typeof value==='object'){
-    return value.message||value.error_description||value.code||fallback;
-  }
-  return fallback;
+  return yeastarErrorMessage(value,fallback);
 }
 
 function number(value){return new Intl.NumberFormat('ar-SA').format(Number(value)||0)}

@@ -32,6 +32,14 @@ function cleanError(value:unknown){
   const text=String(source||'yeastar_connection_failed')
     .replace(/access_token=[^&\s]+/gi,'access_token=[REDACTED]')
     .replace(/(client[_ -]?secret|password)["':=\s]+[^,\s"}]+/gi,'$1=[REDACTED]');
+  const normalized=text.toUpperCase();
+  if(
+    normalized.includes('IP FORBIDDEN')
+    ||normalized.includes('70087')
+  )return 'yeastar_ip_forbidden';
+  if(normalized.includes('ACCOUNT IP BLOCKED')){
+    return 'yeastar_ip_blocked';
+  }
   return text.slice(0,500);
 }
 
@@ -110,6 +118,9 @@ async function yeastarFetch(
     let payload:Json;
     try{payload=JSON.parse(text)}catch{throw new Error(`yeastar_invalid_response_${request.status}`)}
     if(!request.ok||Number(payload.errcode||0)!==0){
+      if(Number(payload.errcode||0)===70087){
+        throw new Error('yeastar_ip_forbidden');
+      }
       throw new Error(
         cleanError(payload.errmsg||payload.message||`yeastar_http_${request.status}`)
       );
@@ -559,7 +570,7 @@ Deno.serve(async(request:Request)=>{
       return response({error:'invalid_yeastar_action'},400);
     }
     const tenantSlug=String(body.tenantSlug||'');
-    const authorization=await rpc('v2_tenant_yeastar_authorize',{
+    const authorization=await rpc('v3_tenant_yeastar_authorize',{
       p_tenant_slug:tenantSlug,
       p_action:action
     },token);

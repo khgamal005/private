@@ -3,6 +3,8 @@ const SERVICE_KEY=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
 const PUBLISHABLE_KEY=Deno.env.get('SUPABASE_ANON_KEY')||'';
 const USER_AGENT='Marktone-Yeastar-P550/1.0';
 const JSON_HEADERS={'content-type':'application/json'};
+const YEASTAR_GATEWAY_URL=Deno.env.get('YEASTAR_EGRESS_GATEWAY_URL')
+  ||'https://marktone.org/api/integrations/yeastar/egress';
 
 type Json=Record<string,unknown>;
 
@@ -95,6 +97,54 @@ function safeBaseUrl(value:unknown){
   return url.toString().replace(/\/$/,'');
 }
 
+async function sha256Hex(value:string){
+  const digest=await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(value)
+  );
+  return [...new Uint8Array(digest)]
+    .map(byte=>byte.toString(16).padStart(2,'0'))
+    .join('');
+}
+
+async function gatewayFetch(
+  baseUrl:string,
+  path:string,
+  options:RequestInit,
+  signal:AbortSignal
+){
+  const gatewayUrl=safeBaseUrl(YEASTAR_GATEWAY_URL);
+  const payload=JSON.stringify({
+    baseUrl,
+    path,
+    method:String(options.method||'GET').toUpperCase(),
+    requestBody:typeof options.body==='string'?options.body:null
+  });
+  const requestHash=await sha256Hex(payload);
+  const issued=await rpc('v4_yeastar_gateway_issue',{
+    p_request_hash:requestHash
+  },SERVICE_KEY);
+  const grant=String((issued as Json)?.token||'');
+  if(!grant)throw new Error('yeastar_gateway_grant_failed');
+
+  try{
+    return await fetch(gatewayUrl,{
+      method:'POST',
+      redirect:'error',
+      signal,
+      headers:{
+        ...JSON_HEADERS,
+        'x-marktone-gateway-grant':grant,
+        'x-marktone-request-sha256':requestHash
+      },
+      body:payload
+    });
+  }catch(error){
+    if(error instanceof DOMException&&error.name==='AbortError')throw error;
+    throw new Error('yeastar_gateway_unavailable');
+  }
+}
+
 async function yeastarFetch(
   baseUrl:string,
   path:string,
@@ -104,16 +154,19 @@ async function yeastarFetch(
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
-    const request=await fetch(`${baseUrl}${path}`,{
-      ...options,
-      redirect:'error',
-      signal:controller.signal,
-      headers:{
-        'User-Agent':USER_AGENT,
-        ...(options.body?{'Content-Type':'application/json'}:{}),
-        ...(options.headers||{})
-      }
-    });
+    const request=await gatewayFetch(
+      baseUrl,
+      path,
+      {
+        ...options,
+        headers:{
+          'User-Agent':USER_AGENT,
+          ...(options.body?{'Content-Type':'application/json'}:{}),
+          ...(options.headers||{})
+        }
+      },
+      controller.signal
+    );
     const text=await request.text();
     let payload:Json;
     try{payload=JSON.parse(text)}catch{throw new Error(`yeastar_invalid_response_${request.status}`)}
@@ -203,29 +256,6 @@ function zonedIso(value:unknown,dateFormat:string,timeZone:string){
     observed.hour,observed.minute,observed.second
   );
   return new Date(wall-(observedWall-wall)).toISOString();
-}
-
-function pbxTime(date:Date,dateFormat:string,timeFormat:string,timeZone:string){
-  const parts=Object.fromEntries(
-    new Intl.DateTimeFormat('en-US',{
-      timeZone,year:'numeric',month:'2-digit',day:'2-digit',
-      hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'
-    }).formatToParts(date)
-      .filter(part=>part.type!=='literal')
-      .map(part=>[part.type,part.value])
-  );
-  const datePart=dateFormat.startsWith('DD')
-    ?`${parts.day}/${parts.month}/${parts.year}`
-    :dateFormat.startsWith('MM')
-      ?`${parts.month}/${parts.day}/${parts.year}`
-      :`${parts.year}/${parts.month}/${parts.day}`;
-  if(/12|hh/i.test(timeFormat)){
-    let hour=Number(parts.hour);
-    const suffix=hour>=12?'PM':'AM';
-    hour=hour%12||12;
-    return `${datePart} ${String(hour).padStart(2,'0')}:${parts.minute}:${parts.second} ${suffix}`;
-  }
-  return `${datePart} ${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
 function normalizedExtensions(config:Json){
@@ -356,47 +386,67 @@ async function fetchCalls(
   from:Date,
   to:Date
 ){
-  const requestedMode=String(config.apiMode||'auto');
-  const supportsV2Search=versionAtLeast(device.firmwareVersion,[37,23,0,123]);
-  const apiVersion=requestedMode==='v1.0'
-    ?'v1.0'
-    :requestedMode==='v2.0'&&supportsV2Search
-      ?'v2.0'
-      :supportsV2Search?'v2.0':'v1.0';
+  const apiVersion='v1.0';
   const monitored=normalizedExtensions(config);
+  if(monitored.length===0)throw new Error('yeastar_extension_required');
   const timeZone=String(config.timezone||'Asia/Riyadh');
   const dateFormat=String(device.dateFormat||'YYYY/MM/DD');
-  const timeFormat=String(device.timeFormat||'HH:mm:ss');
-  const all:Json[]=[];
-  const timeRange=apiVersion==='v1.0'
-    ?{
-      start_time:String(Math.floor(from.getTime()/1000)),
-      end_time:String(Math.floor(to.getTime()/1000))
+  const pageSize=1000;
+  const maxPages=100;
+
+  async function fetchDirection(
+    extension:string,
+    direction:'call_from'|'call_to'
+  ){
+    const rows:Json[]=[];
+    for(let page=1;page<=maxPages;page+=1){
+      const query=new URLSearchParams({
+        access_token:token,
+        page:String(page),
+        page_size:String(pageSize),
+        start_time:String(Math.floor(from.getTime()/1000)),
+        end_time:String(Math.floor(to.getTime()/1000)),
+        [direction]:extension
+      });
+      const payload=await yeastarFetch(
+        baseUrl,
+        `/openapi/v1.0/cdr/search?${query.toString()}`
+      );
+      const pageRows=Array.isArray(payload.data)?payload.data as Json[]:[];
+      rows.push(...pageRows);
+      const providerTotal=Number(payload.total_number||0);
+      if(
+        pageRows.length<pageSize
+        ||page*pageSize>=providerTotal
+      )break;
+      if(page===maxPages){
+        throw new Error(`yeastar_cdr_page_limit:${extension}:${direction}`);
+      }
     }
-    :{
-      order_by:'asc',
-      sort_by:'time',
-      time_begin:pbxTime(from,dateFormat,timeFormat,timeZone),
-      time_end:pbxTime(to,dateFormat,timeFormat,timeZone)
-    };
-  for(let page=1;page<=10;page+=1){
-    const query=new URLSearchParams({
-      access_token:token,
-      page:String(page),
-      page_size:'1000',
-      ...timeRange
-    });
-    const payload=await yeastarFetch(
-      baseUrl,
-      `/openapi/${apiVersion}/cdr/search?${query.toString()}`
-    );
-    const rows=Array.isArray(payload.data)?payload.data as Json[]:[];
-    all.push(...rows);
-    if(rows.length<1000||all.length>=Number(payload.total_number||0))break;
+    return rows;
   }
-  const calls=all.map(item=>normalizeCall(
-    item,apiVersion,dateFormat,timeZone,monitored
-  )).filter(call=>{
+
+  const callsById=new Map<string,Json>();
+  for(const extension of monitored){
+    const [outgoing,incoming]=await Promise.all([
+      fetchDirection(extension,'call_from'),
+      fetchDirection(extension,'call_to')
+    ]);
+    for(const item of [...outgoing,...incoming]){
+      const call=normalizeCall(
+        item,apiVersion,dateFormat,timeZone,monitored
+      );
+      if(!call)continue;
+      const key=String(
+        call.sourceRecordId
+        ||call.uid
+        ||`${call.startedAt}:${call.callerNumber}:${call.calleeNumber}`
+      );
+      callsById.set(key,call);
+    }
+  }
+
+  const calls=[...callsById.values()].filter(call=>{
     const startedAt=Date.parse(String(call?.startedAt||''));
     return Number.isFinite(startedAt)
       &&startedAt>=from.getTime()
@@ -437,8 +487,8 @@ async function handleTest(connectionId:string,tenantId:string){
       p_device:{
         modelName:device.modelName,
         firmwareVersion:device.firmwareVersion,
-        apiVersion:versionAtLeast(device.firmwareVersion,[37,23,0,123])
-          ?'v2.0':'v1.0'
+        apiVersion:'v1.0',
+        supportsV2:versionAtLeast(device.firmwareVersion,[37,23,0,123])
       },
       p_detail:`${device.modelName} · ${device.firmwareVersion}`
     },SERVICE_KEY);
@@ -446,9 +496,7 @@ async function handleTest(connectionId:string,tenantId:string){
       success:true,
       device,
       extensions:monitored,
-      recommendedApiVersion:versionAtLeast(
-        device.firmwareVersion,[37,23,0,123]
-      )?'v2.0':'v1.0',
+      recommendedApiVersion:'v1.0',
       result
     };
   }catch(error){

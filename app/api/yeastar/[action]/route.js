@@ -62,6 +62,13 @@ function translated(value){
     yeastar_extensions_not_found:`التحويلة غير موجودة على الجهاز: ${raw.split(':')[1]||''}`,
     yeastar_ip_forbidden:'رفض Yeastar عنوان الاتصال الحالي. يلزم تمرير الربط عبر عنوان خروج ثابت وإضافته إلى Allowed IPs.',
     yeastar_ip_blocked:'حظر Yeastar عنوان الاتصال بعد محاولات فاشلة. احذفه من Blocked IPs ثم أعد الاختبار عبر عنوان خروج ثابت.',
+    yeastar_gateway_grant_failed:'تعذر إصدار تصريح آمن لبوابة الاتصال عبر ماركتون CRM. أعد المحاولة بعد لحظات.',
+    yeastar_gateway_unavailable:'بوابة الاتصال الثابتة عبر ماركتون CRM غير متاحة الآن.',
+    gateway_claim_unavailable:'تعذر على بوابة الاتصال التحقق من تصريح Supabase.',
+    gateway_grant_rejected:'رفضت بوابة الاتصال تصريح الطلب أو انتهت صلاحيته. أعد المحاولة.',
+    gateway_target_forbidden:'رفضت بوابة الاتصال عنوان Yeastar لأنه غير موجود في قائمة الوجهات المسموحة.',
+    gateway_path_forbidden:'رفضت بوابة الاتصال مسار API غير معتمد.',
+    gateway_upstream_unavailable:'وصل الطلب إلى ماركتون CRM لكن الخادم لم يتمكن من الوصول إلى Yeastar.',
     yeastar_token_missing:'استجاب الجهاز دون رمز وصول.',
     authentication_required:'انتهت الجلسة. سجل الدخول مرة أخرى.',
     invalid_yeastar_action:'عملية Yeastar غير مدعومة.'

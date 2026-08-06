@@ -79,6 +79,7 @@ const EXECUTIVE_ROLES=new Set([
   'executive_manager'
 ]);
 const DATA_ROLES=new Set(['data_officer','data_analyst']);
+const OPEN_TASK_STATUSES=new Set(['todo','in_progress']);
 
 function number(value){
   return new Intl.NumberFormat('ar-EG').format(Number(value)||0);
@@ -137,9 +138,9 @@ function roleMetrics(role,dashboard){
   if(EXECUTIVE_ROLES.has(role)){
     return [
       metric(
-        'إيراد الشهر',
+        'إيراد محقق هذا الشهر',
         moneyMinor(executive.wonRevenueMinor),
-        'قيمة الفرص المحققة خلال الشهر الحالي',
+        'مدفوعات تم التحقق منها خلال الشهر الحالي',
         'green',
         true
       ),
@@ -159,8 +160,8 @@ function roleMetrics(role,dashboard){
   if(SALES_ROLES.has(role)){
     return [
       metric('عملاء قيد المتابعة',number(sales.activeLeads),'داخل مسارك الحالي','blue'),
-      metric('تم الدفع هذا الشهر',number(sales.paidThisMonth),`${percent(sales.conversionRate)} تحويل`,'green'),
-      metric('أنشطة اليوم',number(personal.activitiesToday),'مكالمة أو متابعة مسجلة','purple'),
+      metric('مدفوعات مؤكدة هذا الشهر',number(sales.paidThisMonth),`${percent(sales.conversionRate)} تحويل · ${number(sales.pendingPaymentVerification)} قيد التحقق`,'green'),
+      metric('أنشطة اليوم',number(sales.activitiesToday??personal.activitiesToday),'مكالمة أو متابعة مسجلة','purple'),
       metric('متابعات متأخرة',number(sales.overdueFollowUps),'تحتاج إجراء الآن','amber'),
       metric('مكالمات الشهر',number(calls.totalCalls),`${number(calls.answeredCalls)} مجاب عليها`,'cyan'),
       metric('الالتزام بأول رد',percent(sales.firstResponseSlaRate),`${number(sales.averageFirstResponseMinutes)} د متوسط`,'pink')
@@ -270,7 +271,7 @@ function Trend({daily=[]}){
 
 function TaskList({tasks=[],slug}){
   const open=tasks
-    .filter(task=>task.status!=='completed')
+    .filter(task=>OPEN_TASK_STATUSES.has(task.status))
     .sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt))
     .slice(0,6);
   return <article className={styles.panel}>
@@ -488,6 +489,23 @@ export default function RoleDashboard({
   const copy=ROLE_COPY[role]||ROLE_COPY.tenant_user;
   const viewer=dashboard?.viewer||{};
   const actions=quickActions(slug,permissions);
+
+  if(dashboard?.unavailable){
+    return <div className={styles.dashboard}>
+      <section className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <span>{copy.eyebrow}</span>
+          <h2>{copy.title}</h2>
+          <p>{copy.description}</p>
+        </div>
+      </section>
+      <div className={styles.fallbackNote} role="alert">
+        تعذر تحميل مؤشرات الأداء الموثوقة الآن. لم نعرض أرقامًا بديلة حتى لا تظهر بيانات غير دقيقة؛ أعد المحاولة بعد قليل.
+      </div>
+      <TaskList tasks={operations?.tasks||[]} slug={slug}/>
+    </div>;
+  }
+
   const metrics=roleMetrics(role,dashboard||{});
   const showCalls=SALES_ROLES.has(role)
     ||EXECUTIVE_ROLES.has(role)
@@ -568,8 +586,5 @@ export default function RoleDashboard({
       <Link href={`/tenant/${slug}/incentives`}>تفاصيل الحوافز</Link>
     </section>}
 
-    {dashboard?.fallback&&<div className={styles.fallbackNote}>
-      تعرض الشاشة البيانات التشغيلية الأساسية مؤقتًا حتى يكتمل تحديث قاعدة البيانات.
-    </div>}
   </div>;
 }

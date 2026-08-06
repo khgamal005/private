@@ -24,14 +24,21 @@ test('sales team assignments persist through a tenant-scoped RPC and live inside
 });
 
 test('achievement board is database-driven and ranks within the direct team',async()=>{
-  const [sql,board,page]=await Promise.all([
+  const [sql,metricFix,board,page,api]=await Promise.all([
     read('supabase/migrations/20260802234000_sales_teams_and_achievement_board_v1.sql'),
+    read('supabase/migrations/20260806213000_unify_employee_performance_metrics_v1.sql'),
     read('components/achievement-board.js'),
-    read('app/tenant/[slug]/page.js')
+    read('app/tenant/[slug]/page.js'),
+    read('lib/achievement.js')
   ]);
   assert.match(sql,/dense_rank\(\)/);
   assert.match(sql,/peer\.supervisor_staff_id = v_supervisor_id/);
   assert.match(sql,/incentives_core\.events/);
+  assert.match(metricFix,/v2_tenant_employee_achievement_snapshot_v2/);
+  assert.match(metricFix,/handoff\.payment_status = 'verified'/);
+  assert.match(metricFix,/peer\.supervisor_staff_id = v_supervisor_id/);
+  assert.match(api,/v2_tenant_employee_achievement_snapshot_v2/);
   assert.match(board,/ترتيبك في المبيعات/);
+  assert.match(board,/مبيعات مؤكدة هذا الشهر/);
   assert.match(page,/getTenantEmployeeAchievement/);
 });

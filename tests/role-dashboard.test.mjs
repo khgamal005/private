@@ -93,7 +93,7 @@ test('each operational role receives a dedicated dashboard presentation',async()
   assert.match(component,/نطاقي الشخصي فقط/);
 });
 
-test('tenant overview loads role metrics with a safe rollout fallback',async()=>{
+test('tenant overview never substitutes stale metrics when the canonical RPC fails',async()=>{
   const [page,api,shell,layout]=await Promise.all([
     read('app/tenant/[slug]/page.js'),
     read('lib/api.js'),
@@ -101,9 +101,15 @@ test('tenant overview loads role metrics with a safe rollout fallback',async()=>
     read('app/tenant/[slug]/layout.js')
   ]);
   assert.match(page,/getTenantRoleDashboard\(slug\)\.catch\(\(\)=>null\)/);
+  assert.match(page,/unavailable:true/);
+  assert.doesNotMatch(page,/task\.status!=='completed'/);
   assert.match(page,/Promise\.all/);
   assert.match(page,/RoleDashboard/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v2/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v3/);
+  assert.doesNotMatch(
+    api,
+    /v2_tenant_role_dashboard_snapshot_v3'[\s\S]*v2_tenant_role_dashboard_snapshot_v2/
+  );
   assert.match(shell,/لوحة القيادة/);
   assert.match(layout,/training_manager:'مدير التدريب'/);
 });

@@ -81,7 +81,8 @@ const required=[
   '20260806190000_customer_identity_integrity_v1.sql',
   '20260806190100_customer_identity_entrypoint_guards_v1.sql',
   '20260806190200_customer_identity_advisor_hardening_v1.sql',
-  '20260806190500_tenant_sales_contact_edit_v1.sql'
+  '20260806190500_tenant_sales_contact_edit_v1.sql',
+  '20260806213000_unify_employee_performance_metrics_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -118,6 +119,11 @@ for(const pattern of [
   /v2_tenant_integration_hub_snapshot/,
   /v2_tenant_incentives_snapshot/,
   /v2_tenant_reports_snapshot_v2/,
+  /v2_tenant_reports_snapshot_v3/,
+  /v2_tenant_role_dashboard_snapshot_v3/,
+  /v2_tenant_employee_achievement_snapshot_v2/,
+  /v2_metric_is_open_task/,
+  /v2_metric_is_active_contact/,
   /v2_tenant_commerce_hub_snapshot/,
   /v2_tenant_role_guide_snapshot/,
   /v2_tenant_role_management_snapshot/,

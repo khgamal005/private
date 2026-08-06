@@ -46,11 +46,11 @@ export default function AchievementBoard({achievement}){
   const isSales=SALES_ROLES.has(role);
 
   const items=isSales?[
-    metric('▥','العملاء',number(sales.customers),`${number(sales.activeCustomers)} قيد المتابعة`,'blue'),
+    metric('▥','العملاء الحاليون',number(sales.customers),`${number(sales.activeCustomers)} قيد المتابعة`,'blue'),
     metric('◎','الفرص المفتوحة',number(sales.openOpportunities),`قيمة مرجحة ${moneyMinor(sales.openOpportunityValueMinor)}`,'purple'),
     metric('◉','حوافزك المستحقة',money(sales.dueIncentive),'معلقة للمراجعة أو الاعتماد','green'),
     metric('↗','حوافزك المتوقعة',money(sales.expectedIncentive),'تقدير من النتائج الحالية','amber'),
-    metric('♜','مبيعات هذا الشهر',money(sales.salesThisMonth),`${number(sales.paidCustomers)} تسجيلًا مدفوعًا`,'pink')
+    metric('♜','مبيعات مؤكدة هذا الشهر',money(sales.salesThisMonth),`${number(sales.paidCustomers)} تسجيلًا مؤكدًا · ${number(sales.pendingPaymentVerification)} قيد التحقق`,'pink')
   ]:[
     metric('✓','مكتمل هذا الشهر',number(personal.completedThisMonth),'إنجازات مسجلة بالنظام','green'),
     metric('◷','مهام اليوم',number(personal.tasksToday),'المطلوب إنجازه اليوم','blue'),

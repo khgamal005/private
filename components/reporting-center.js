@@ -105,12 +105,12 @@ function metric(label,value,note,tone='blue'){
 }
 
 function metricsFor(view,summary){
-  const revenue=summary.realizedRevenueMinor||summary.wonRevenueMinor||0;
+  const revenue=summary.realizedRevenueMinor||0;
   if(view==='sales'){
     return [
       metric('العملاء الجدد',number(summary.leadsCreated),'دخلوا النظام خلال الفترة','blue'),
-      metric('المبيعات المحققة',number(summary.paidContacts),'عملاء وصلوا إلى الدفع','green'),
-      metric('قيمة المبيعات',moneyMinor(revenue),'من المدفوعات أو الفرص المحققة','green'),
+      metric('المدفوعات المؤكدة',number(summary.paidContacts),'عملاء تم التحقق من مدفوعاتهم','green'),
+      metric('الإيراد المحقق',moneyMinor(revenue),'من المدفوعات التي تم التحقق منها','green'),
       metric('نسبة التحويل',percent(summary.conversionRate),'من العملاء الجدد إلى الدفع','purple'),
       metric('قيمة المسار المفتوح',moneyMinor(summary.pipelineValueMinor),'فرص مفتوحة حاليًا','cyan'),
       metric('متوسط قيمة البيع',moneyMinor(summary.averageSaleMinor),'للحالة المحققة','amber')
@@ -120,7 +120,7 @@ function metricsFor(view,summary){
     return [
       metric('عملاء الحملات',number(summary.leadsCreated),'داخل الفترة المختارة','blue'),
       metric('حملات وإعلانات',number(summary.campaignCount),'مصادر قابلة للقياس','purple'),
-      metric('مبيعات محققة',number(summary.paidContacts),'من عملاء الفترة','green'),
+      metric('مدفوعات مؤكدة',number(summary.paidContacts),'من عملاء الفترة بعد التحقق','green'),
       metric('قيمة المبيعات',moneyMinor(revenue),'منسوبة للمصدر والحملة','green'),
       metric('التحويل العام',percent(summary.conversionRate),'من العميل إلى الدفع','cyan'),
       metric('اكتمال البيانات',percent(summary.dataCompletenessRate),'الحقول الأساسية للعملاء','amber')
@@ -128,7 +128,7 @@ function metricsFor(view,summary){
   }
   return [
     metric('العملاء المسندون',number(summary.leadsAssigned),'عملاء تم توزيعهم خلال الفترة','blue'),
-    metric('المبيعات المحققة',number(summary.paidContacts),'حالات وصلت إلى الدفع','green'),
+    metric('المدفوعات المؤكدة',number(summary.paidContacts),'حالات تم التحقق من دفعها','green'),
     metric('قيمة المبيعات',moneyMinor(revenue),'قيمة محققة خلال الفترة','green'),
     metric('أنشطة المتابعة',number(summary.activities),'مكالمات ومتابعات مسجلة','purple'),
     metric('إنجاز المهام',percent(summary.taskCompletionRate),`${number(summary.tasksCompleted)} من ${number(summary.tasksTotal)} مهمة`,'cyan'),
@@ -294,7 +294,7 @@ function EmployeeTable({employees=[],slug,range,compact=false}){
           <th>الموظف</th>
           <th>مؤشر الأداء</th>
           <th>العملاء</th>
-          <th>المبيعات</th>
+          <th>مدفوعات مؤكدة</th>
           <th>القيمة</th>
           <th>المهام</th>
           <th>المكالمات</th>
@@ -314,7 +314,7 @@ function EmployeeTable({employees=[],slug,range,compact=false}){
                 :<span className={styles.score}>{number(employeeScore)}٪</span>}</td>
               <td><b>{number(employee.leadsAssigned)}</b><small>{number(employee.activities)} متابعة</small></td>
               <td><b>{number(employee.paidContacts)}</b><small>{percent(employee.conversionRate)}</small></td>
-              <td>{moneyMinor(employee.realizedRevenueMinor||employee.wonRevenueMinor)}</td>
+              <td>{moneyMinor(employee.realizedRevenueMinor)}</td>
               <td><b>{percent(employee.taskCompletionRate)}</b><small>{number(employee.tasksCompleted)}/{number(employee.tasksTotal)}</small></td>
               <td><b>{number(employee.calls)}</b><small>{percent(employee.callAnswerRate)}</small></td>
               <td>{percent(employee.dataCompletenessRate)}</td>
@@ -343,7 +343,7 @@ function CampaignTable({campaigns=[],compact=false}){
           <th>الإعلان</th>
           <th>العملاء</th>
           <th>تمت متابعتهم</th>
-          <th>المبيعات</th>
+          <th>مدفوعات مؤكدة</th>
           <th>التحويل</th>
           <th>القيمة</th>
           <th>اكتمال البيانات</th>
@@ -375,7 +375,7 @@ function CourseTable({courses=[]}){
     <div className={styles.simpleRows}>
       {courses.slice(0,10).map(course=><div key={course.courseId||course.name}>
         <span><b>{course.name||'دورة غير محددة'}</b><small>{number(course.leads)} عميل</small></span>
-        <span><b>{number(course.paidContacts)} مبيعات</b><small>{moneyMinor(course.revenueMinor)}</small></span>
+        <span><b>{number(course.paidContacts)} مدفوعات مؤكدة</b><small>{moneyMinor(course.revenueMinor)}</small></span>
       </div>)}
       {!courses.length&&<div className={styles.empty}>لم تُربط مبيعات بدورات خلال الفترة.</div>}
     </div>
@@ -397,7 +397,7 @@ function ReportDirectory({slug,range,data}){
       personalOnly?'تقريري':`${number(data.employees?.length)} موظف`,
       null
     ],
-    ['تقارير المبيعات','اتجاه المبيعات والمسار والتحويل والدورات خلال أي فترة.',`/tenant/${slug}/reports/sales`,`${number(summary.paidContacts)} مبيعات`,'sales'],
+    ['تقارير المبيعات','اتجاه المبيعات والمسار والتحويل والدورات خلال أي فترة.',`/tenant/${slug}/reports/sales`,`${number(summary.paidContacts)} مدفوعات مؤكدة`,'sales'],
     ['تقارير الحملات','المصدر والحملة والإعلان والعملاء والمتابعة والتحويل والقيمة المحققة.',`/tenant/${slug}/reports/campaigns`,`${number(summary.campaignCount)} حملة`,'campaigns'],
     ['أداء المكالمات','المكالمات الواردة والصادرة والفائتة ونسبة الرد وأداء التحويلات.',`/tenant/${slug}/call-reports`,`${number(summary.calls)} مكالمة`,'sales']
   ];

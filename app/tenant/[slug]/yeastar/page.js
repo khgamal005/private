@@ -1,5 +1,8 @@
 import {authRpc,requireTenantPermission} from '../../../../lib/server-auth';
-import {getTenantYeastarAccess} from '../../../../lib/api';
+import {
+  getTenantRoleDashboard,
+  getTenantYeastarAccess
+} from '../../../../lib/api';
 import YeastarAddonUnavailable from '../../../../components/yeastar-addon-unavailable';
 import YeastarReports from '../../../../components/yeastar-reports';
 
@@ -42,6 +45,54 @@ export default async function YeastarReportsPage({params,searchParams}){
       p_limit:100,
       p_offset:Math.max(Number(filters.offset)||0,0)
     });
+
+    const [performance,dashboard,departments]=await Promise.all([
+      authRpc('v2_tenant_reports_snapshot_v3',{
+        p_slug:slug,
+        p_from:filters.from||null,
+        p_to:filters.to||null,
+        p_staff_id:null,
+        p_report:'employees',
+        p_limit:100,
+        p_offset:0
+      }).catch(error=>{
+        console.error('[yeastar-reports] performance context unavailable',{
+          slug,
+          code:'YEASTAR_PERFORMANCE_CONTEXT_UNAVAILABLE',
+          detail:error instanceof Error?error.message:String(error)
+        });
+        return null;
+      }),
+      getTenantRoleDashboard(slug).catch(error=>{
+        console.error('[yeastar-reports] dashboard context unavailable',{
+          slug,
+          code:'YEASTAR_DASHBOARD_CONTEXT_UNAVAILABLE',
+          detail:error instanceof Error?error.message:String(error)
+        });
+        return null;
+      }),
+      authRpc('v4_tenant_yeastar_department_snapshot',{
+        p_slug:slug,
+        p_from:isoStart(filters.from),
+        p_to:isoEnd(filters.to),
+        p_extension:filters.extension||null,
+        p_call_type:filters.callType||null,
+        p_status:filters.status||null
+      }).catch(error=>{
+        console.error('[yeastar-reports] department context unavailable',{
+          slug,
+          code:'YEASTAR_DEPARTMENT_CONTEXT_UNAVAILABLE',
+          detail:error instanceof Error?error.message:String(error)
+        });
+        return null;
+      })
+    ]);
+    data={
+      ...data,
+      performance:performance||{},
+      dashboard:dashboard||{},
+      departments:departments||[]
+    };
   }catch(error){
     const detail=error instanceof Error?error.message:String(error);
     if(detail.includes('yeastar_addon_not_enabled')){

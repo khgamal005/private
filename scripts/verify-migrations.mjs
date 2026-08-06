@@ -77,9 +77,11 @@ const required=[
   '20260803163100_marktone_visual_builder_api_v1.sql',
   '20260805161821_enable_customer_search_for_all_tenant_accounts.sql',
   '20260805170000_customer_action_history_v1.sql',
+  '20260806173000_inline_followup_contact_name_v1.sql',
   '20260806190000_customer_identity_integrity_v1.sql',
   '20260806190100_customer_identity_entrypoint_guards_v1.sql',
-  '20260806190200_customer_identity_advisor_hardening_v1.sql'
+  '20260806190200_customer_identity_advisor_hardening_v1.sql',
+  '20260806190500_tenant_sales_contact_edit_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -108,6 +110,9 @@ for(const pattern of [
   /v2_tenant_workspace_snapshot/,
   /v2_tenant_operations_snapshot/,
   /v2_tenant_sales_pipeline_snapshot/,
+  /v2_tenant_record_sales_followup_v3/,
+  /v2_tenant_update_sales_contact_v1/,
+  /v2_tenant_customer_history_snapshot_v2/,
   /v2_tenant_admissions_snapshot/,
   /v2_tenant_training_operations_snapshot/,
   /v2_tenant_integration_hub_snapshot/,

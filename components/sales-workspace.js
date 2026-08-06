@@ -3,6 +3,7 @@
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import CustomerHistoryDrawer from './customer-history-drawer';
+import CustomerEditModal from './customer-edit-modal';
 import SalesFollowupModal,{
   ACTIONS,
   ActionSelect,
@@ -305,6 +306,7 @@ export default function SalesWorkspace({
                 canWrite={canWrite}
                 onFollowup={()=>openModal('followup',contact)}
                 onHistory={()=>setHistoryContact(contact)}
+                onEdit={()=>openModal('edit',contact)}
               />)}
               {!items.length&&<div className="mt-column-empty">لا يوجد عملاء</div>}
             </div>
@@ -323,6 +325,7 @@ export default function SalesWorkspace({
           <td><b>{contact.nextActionType?ACTIONS[contact.nextActionType]||contact.nextActionType:'لا توجد متابعة'}</b><small>{when(contact.nextActionAt)}</small></td>
           <td><div className="mt-customer-row-actions">
             <button className="mt-button soft mt-followup-button" onClick={()=>setHistoryContact(contact)}>سجل العميل</button>
+            {canWrite&&<button className="mt-button soft mt-followup-button" onClick={()=>openModal('edit',contact)}>تعديل البيانات</button>}
             {canWrite&&(
               ['payment_submitted','paid'].includes(contact.leadStatus)
                 ?<span className="mt-status warning">مع التسجيل والقبول</span>
@@ -418,6 +421,24 @@ export default function SalesWorkspace({
       </form>
     </div>}
 
+    {modal?.type==='edit'&&<CustomerEditModal
+      slug={slug}
+      contact={modal.record}
+      courses={courses}
+      onClose={closeModal}
+      onSaved={(editMessage,updatedContact)=>{
+        setData(current=>({
+          ...current,
+          contacts:(current.contacts||EMPTY).map(item=>
+            item.id===updatedContact.id?{...item,...updatedContact}:item
+          )
+        }));
+        setMessage(editMessage);
+        setModal(null);
+        router.refresh();
+      }}
+    />}
+
     {modal?.type==='followup'&&<SalesFollowupModal
       slug={slug}
       contact={modal.record}
@@ -434,12 +455,18 @@ export default function SalesWorkspace({
     {historyContact&&<CustomerHistoryDrawer
       slug={slug}
       contact={historyContact}
+      canEdit={canWrite}
+      onEdit={()=>{
+        const selected=historyContact;
+        setHistoryContact(null);
+        openModal('edit',selected);
+      }}
       onClose={()=>setHistoryContact(null)}
     />}
   </>;
 }
 
-function LeadCard({contact,canWrite,onFollowup,onHistory}){
+function LeadCard({contact,canWrite,onFollowup,onHistory,onEdit}){
   return <article className="mt-lead-card">
     <header>
       <div><h3>{contact.name}</h3><small>{contact.interestCourseName||'الدورة غير محددة'}</small></div>
@@ -457,6 +484,7 @@ function LeadCard({contact,canWrite,onFollowup,onHistory}){
     </dl>
     <div className="mt-lead-card-actions">
       <button className="mt-button soft mt-followup-button" onClick={onHistory}>سجل العميل</button>
+      {canWrite&&<button className="mt-button soft mt-followup-button" onClick={onEdit}>تعديل البيانات</button>}
       {canWrite&&!['payment_submitted','paid'].includes(contact.leadStatus)&&<button className="mt-button primary mt-followup-button" onClick={onFollowup}>تسجيل نتيجة المتابعة</button>}
     </div>
   </article>;

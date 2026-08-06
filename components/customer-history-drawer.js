@@ -91,7 +91,13 @@ function matchesFilter(event,filter){
   return true;
 }
 
-export default function CustomerHistoryDrawer({slug,contact,onClose}){
+export default function CustomerHistoryDrawer({
+  slug,
+  contact,
+  canEdit=false,
+  onEdit,
+  onClose
+}){
   const [data,setData]=useState(EMPTY_HISTORY);
   const [busy,setBusy]=useState(true);
   const [error,setError]=useState('');
@@ -165,7 +171,10 @@ export default function CustomerHistoryDrawer({slug,contact,onClose}){
             <p>{resolvedContact.phone||resolvedContact.email||'لا توجد وسيلة تواصل'}</p>
           </div>
         </div>
-        <button onClick={onClose} aria-label="إغلاق">×</button>
+        <div className="mt-customer-history-head-actions">
+          {canEdit&&<button className="mt-button soft" onClick={onEdit}>تعديل البيانات</button>}
+          <button onClick={onClose} aria-label="إغلاق">×</button>
+        </div>
       </header>
 
       {!busy&&!error&&<>
@@ -185,6 +194,13 @@ export default function CustomerHistoryDrawer({slug,contact,onClose}){
             <b>{ACTIONS[resolvedContact.nextActionType]||resolvedContact.nextActionType} · {dateTime(resolvedContact.nextActionAt)}</b>
           </div>}
         </section>
+
+        {resolvedContact.notes&&<section className="mt-customer-history-context">
+          <div className="wide">
+            <span>ملاحظات العميل</span>
+            <b>{resolvedContact.notes}</b>
+          </div>
+        </section>}
 
         <section className="mt-customer-history-summary">
           <article><span>كل الإجراءات</span><b>{summary.totalEvents||0}</b><small>من جميع الأقسام</small></article>
@@ -244,7 +260,7 @@ function HistoryEvent({event}){
         <span className={`mt-customer-timing ${timing.tone}`}>{timing.label}</span>
       </header>
 
-      {event.description&&<p>{event.description}</p>}
+      {event.description&&<p><b>الملاحظات: </b>{event.description}</p>}
       {fromStatus&&toStatus&&<div className="mt-customer-status-change">
         <SalesStatusBadge value={fromStatus}/><span>←</span><SalesStatusBadge value={toStatus}/>
       </div>}

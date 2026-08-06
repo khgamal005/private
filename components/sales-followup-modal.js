@@ -104,6 +104,7 @@ export default function SalesFollowupModal({
     OPEN_STATUSES.has(contact?.leadStatus)?contact.leadStatus:'follow_up'
   );
   const [selectedCourseId,setSelectedCourseId]=useState(contact?.interestCourseId||'');
+  const [contactName,setContactName]=useState(contact?.name||'');
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
 
@@ -130,6 +131,7 @@ export default function SalesFollowupModal({
         body:JSON.stringify({
           p_tenant_slug:slug,
           p_contact_id:contact.id,
+          p_contact_name:values.contact_name,
           p_activity_type:values.activity_type,
           p_summary:values.summary,
           p_lead_status:values.lead_status,
@@ -165,7 +167,7 @@ export default function SalesFollowupModal({
     <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={close}/>
     <form className="mt-modal" onSubmit={submit}>
       <header>
-        <h3>نتيجة المتابعة · {contact.name}</h3>
+        <h3>نتيجة المتابعة · {contactName||contact.name}</h3>
         <button type="button" onClick={close}>×</button>
       </header>
       <div className="mt-customer-summary">
@@ -175,6 +177,15 @@ export default function SalesFollowupModal({
         <div><span>الدورة</span><b>{contact.interestCourseName||'لم تحدد'}</b></div>
       </div>
       <div className="mt-form">
+        <label className="mt-field wide">اسم العميل<input
+          name="contact_name"
+          value={contactName}
+          onChange={event=>setContactName(event.target.value)}
+          required
+          minLength="2"
+          maxLength="150"
+          autoComplete="name"
+        /></label>
         <label className="mt-field">وسيلة التواصل<select name="activity_type"><option value="call">مكالمة</option><option value="whatsapp">واتساب</option><option value="meeting">اجتماع</option><option value="email">بريد إلكتروني</option><option value="note">ملاحظة</option></select></label>
         <label className="mt-field">حالة العميل<StatusSelect name="lead_status" value={followupStatus} onChange={event=>setFollowupStatus(event.target.value)}/></label>
         <label className="mt-field">الدورة المهتم بها<select

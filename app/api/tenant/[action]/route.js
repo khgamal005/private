@@ -29,7 +29,8 @@ const RPC={
   'move-opportunity':'v2_tenant_move_opportunity',
   'log-activity':'v2_tenant_log_activity',
   'create-task':'v2_tenant_create_task',
-  'update-task-status':'v2_tenant_update_task_status'
+  'update-task-status':'v2_tenant_update_task_status',
+  'calendar-day':'v5_tenant_calendar_day_snapshot'
 };
 
 export async function POST(request,{params}){
@@ -128,6 +129,8 @@ function translate(value){
     ,invalid_assignee:'الموظف المسند إليه غير صالح'
     ,invalid_priority:'أولوية المهمة غير صالحة'
     ,invalid_task_status:'حالة المهمة غير صالحة'
+    ,invalid_calendar_day:'تاريخ اليوم المطلوب غير صالح'
+    ,too_many_calendar_tasks:'عدد المهام المطلوب عرضه يتجاوز الحد المسموح'
     ,invalid_lead_status:'حالة العميل غير صالحة'
     ,invalid_lead_quality:'تقييم جودة الليد غير صالح'
     ,invalid_next_action:'نوع الإجراء التالي غير صالح'

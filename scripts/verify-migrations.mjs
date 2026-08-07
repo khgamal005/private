@@ -83,7 +83,8 @@ const required=[
   '20260806190200_customer_identity_advisor_hardening_v1.sql',
   '20260806190500_tenant_sales_contact_edit_v1.sql',
   '20260806213000_unify_employee_performance_metrics_v1.sql',
-  '20260806220000_separate_yeastar_paid_addon.sql'
+  '20260806220000_separate_yeastar_paid_addon.sql',
+  '20260807014000_calendar_day_task_insights_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -125,6 +126,7 @@ for(const pattern of [
   /v2_tenant_employee_achievement_snapshot_v2/,
   /v3_tenant_yeastar_access_snapshot/,
   /v3_tenant_yeastar_reports_snapshot/,
+  /v5_tenant_calendar_day_snapshot/,
   /tenant_yeastar_addon_enabled/,
   /v2_metric_is_open_task/,
   /v2_metric_is_active_contact/,

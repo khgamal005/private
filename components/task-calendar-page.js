@@ -1,8 +1,9 @@
 'use client';
 
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import SalesFollowupModal from './sales-followup-modal';
+import dayStyles from './task-calendar-day.module.css';
 
 const DAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -82,6 +83,30 @@ function formatTime(value){
     minute:'2-digit'
   });
 }
+function inputDate(value){
+  const date=new Date(value);
+  const year=date.getFullYear();
+  const month=String(date.getMonth()+1).padStart(2,'0');
+  const day=String(date.getDate()).padStart(2,'0');
+  return `${year}-${month}-${day}`;
+}
+function number(value){
+  return new Intl.NumberFormat('ar-SA').format(Number(value)||0);
+}
+function percent(value){return `${number(Number(value)||0)}٪`}
+function clamp(value){return Math.min(Math.max(Number(value)||0,0),100)}
+function duration(value){
+  const seconds=Math.round(Math.max(Number(value)||0,0));
+  if(seconds<60)return `${number(seconds)} ث`;
+  const minutes=Math.floor(seconds/60);
+  const remainingSeconds=seconds%60;
+  if(minutes<60){
+    return `${number(minutes)} د${remainingSeconds?` ${number(remainingSeconds)} ث`:''}`;
+  }
+  const hours=Math.floor(minutes/60);
+  const remainingMinutes=minutes%60;
+  return `${number(hours)} س${remainingMinutes?` ${number(remainingMinutes)} د`:''}`;
+}
 
 export default function TaskCalendarPage({slug,initialData,embedded=false}){
   const router=useRouter();
@@ -96,8 +121,22 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
   const [showForm,setShowForm]=useState(false);
   const [selected,setSelected]=useState(null);
   const [followupContact,setFollowupContact]=useState(null);
+  const [dayPanel,setDayPanel]=useState(null);
 
   useEffect(()=>setData(initialData),[initialData]);
+  useEffect(()=>{
+    if(!dayPanel)return undefined;
+    const previousOverflow=document.body.style.overflow;
+    document.body.style.overflow='hidden';
+    const closeOnEscape=event=>{
+      if(event.key==='Escape')setDayPanel(null);
+    };
+    window.addEventListener('keydown',closeOnEscape);
+    return ()=>{
+      document.body.style.overflow=previousOverflow;
+      window.removeEventListener('keydown',closeOnEscape);
+    };
+  },[dayPanel]);
 
   const tasks=data.tasks||EMPTY;
   const staff=data.staff||EMPTY;
@@ -213,6 +252,42 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
     setSelected(task);
   }
 
+  async function openDay(day){
+    const key=inputDate(day);
+    const dayTasks=tasks.filter(task=>
+      sameDay(task.dueAt,day)
+      &&(assignee==='all'||task.assignedStaffId===assignee)
+    );
+    setDayPanel({
+      key,
+      day:new Date(day),
+      tasks:dayTasks,
+      insight:null,
+      loading:true,
+      error:''
+    });
+    try{
+      const insight=await call('calendar-day',{
+        p_tenant_slug:slug,
+        p_day:key,
+        p_task_ids:dayTasks.map(task=>task.id)
+      });
+      setDayPanel(current=>current?.key===key?{
+        ...current,
+        tasks:Array.isArray(insight?.tasks)?insight.tasks:current.tasks,
+        insight,
+        loading:false,
+        error:''
+      }:current);
+    }catch(err){
+      setDayPanel(current=>current?.key===key?{
+        ...current,
+        loading:false,
+        error:err instanceof Error?err.message:'تعذر تحميل تفاصيل اليوم'
+      }:current);
+    }
+  }
+
   return <main className={`role-calendar-page ${embedded?'is-embedded':''}`} dir="rtl">
     <header className="mt-page-head">
       <div>
@@ -286,7 +361,12 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
               <strong>{task.title}</strong>
               <small>{formatTime(task.dueAt)} · {task.contactName||task.assigneeName||'مهمة تشغيلية'}</small>
             </button>)}
-            {dayTasks.length>4&&<button className="more-tasks">+ {dayTasks.length-4} أخرى</button>}
+            {dayTasks.length>4&&<button
+              type="button"
+              className={`more-tasks ${dayStyles.moreButton}`}
+              onClick={()=>openDay(day)}
+              aria-label={`عرض كل مهام يوم ${formatDate(day)}`}
+            >+ {dayTasks.length-4} أخرى</button>}
           </div>
         </article>)}
       </section>
@@ -371,6 +451,18 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
       </section>
     </div>}
 
+    {dayPanel&&<CalendarDayDetails
+      key={dayPanel.key}
+      panel={dayPanel}
+      canWriteCrm={canWriteCrm}
+      onClose={()=>setDayPanel(null)}
+      onRetry={()=>openDay(dayPanel.day)}
+      onOpenTask={task=>{
+        setDayPanel(null);
+        openTask(task);
+      }}
+    />}
+
     {followupContact&&<SalesFollowupModal
       slug={slug}
       contact={followupContact}
@@ -384,4 +476,238 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
       }}
     />}
   </main>;
+}
+
+function CalendarDayDetails({
+  panel,
+  canWriteCrm,
+  onClose,
+  onRetry,
+  onOpenTask
+}){
+  const [taskFilter,setTaskFilter]=useState('all');
+  const [query,setQuery]=useState('');
+  const closeButtonRef=useRef(null);
+  useEffect(()=>closeButtonRef.current?.focus(),[]);
+  const summary=panel.insight?.summary;
+  const yeastar=panel.insight?.yeastar;
+  const tasks=panel.tasks||EMPTY;
+  const visibleTasks=useMemo(()=>{
+    const needle=query.trim().toLocaleLowerCase('ar');
+    return tasks.filter(task=>{
+      const taskState=state(task);
+      const matchesFilter=taskFilter==='all'
+        ||(taskFilter==='completed'&&task.status==='completed')
+        ||(taskFilter==='open'&&['todo','in_progress'].includes(task.status))
+        ||(taskFilter==='overdue'&&taskState==='overdue');
+      if(!matchesFilter)return false;
+      if(!needle)return true;
+      return [
+        task.title,
+        task.contactName,
+        task.contactPhone,
+        task.assigneeName,
+        task.contactCourseName
+      ].some(value=>String(value||'').toLocaleLowerCase('ar').includes(needle));
+    });
+  },[tasks,taskFilter,query]);
+  const metric=value=>panel.loading||!summary?'—':number(value);
+  const customerRate=summary?.customerCompletionRate;
+  const yeastarValue=panel.loading||!yeastar
+    ?'—'
+    :yeastar.available?duration(yeastar.talkSeconds):'غير متاح';
+
+  return <div className={dayStyles.layer}>
+    <button
+      type="button"
+      className={dayStyles.backdrop}
+      onClick={onClose}
+      aria-label="إغلاق تفاصيل اليوم"
+    />
+    <section
+      className={dayStyles.dialog}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="calendar-day-details-title"
+      aria-busy={panel.loading}
+    >
+      <header className={dayStyles.header}>
+        <div>
+          <small>DAILY TASK INTELLIGENCE</small>
+          <h2 id="calendar-day-details-title">تفاصيل مهام {formatDate(panel.day)}</h2>
+          <p>كل المهام ضمن نطاقك مع حالة الإنجاز ومكالمات العملاء الموثقة.</p>
+        </div>
+        <button
+          type="button"
+          ref={closeButtonRef}
+          onClick={onClose}
+          aria-label="إغلاق"
+        >×</button>
+      </header>
+
+      <div className={dayStyles.body}>
+        {panel.error&&<div className={dayStyles.error}>
+          <div>
+            <b>تعذر تحميل مؤشرات الأداء الموثوقة</b>
+            <span>المهام ظاهرة، لكن لن نعرض أرقامًا تقريبية بدل بيانات قاعدة النظام وYeastar.</span>
+          </div>
+          <button type="button" onClick={onRetry}>إعادة المحاولة</button>
+        </div>}
+
+        <section className={dayStyles.metrics} aria-label="ملخص مهام اليوم">
+          <DayMetric
+            label="إجمالي المهام"
+            value={metric(summary?.totalTasks)}
+            note="بعد استبعاد الملغي"
+            tone="navy"
+          />
+          <DayMetric
+            label="تم إنجازه"
+            value={metric(summary?.completedTasks)}
+            note={!summary
+              ?panel.loading?'جارٍ التحقق…':'غير متاح'
+              :`${number(summary.onTimeTasks)} في الموعد`}
+            tone="green"
+          />
+          <DayMetric
+            label="المهام المتبقية"
+            value={metric(summary?.openTasks)}
+            note={!summary
+              ?panel.loading?'جارٍ التحقق…':'غير متاح'
+              :`${number(summary.overdueTasks)} متأخرة`}
+            tone="amber"
+          />
+          <article className={`${dayStyles.metric} ${dayStyles.rateMetric}`}>
+            <div
+              className={dayStyles.rateRing}
+              style={{'--task-rate':`${clamp(customerRate)}%`}}
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow={!summary?undefined:clamp(customerRate)}
+            ><b>{panel.loading||!summary?'—':percent(customerRate)}</b></div>
+            <div>
+              <span>إغلاق مهام العملاء</span>
+              <small>{!summary
+                ?panel.loading?'جارٍ التحقق…':'غير متاح'
+                :`${number(summary.completedCustomerTasks)} من ${number(summary.customerTasks)} مهمة عميل`}</small>
+            </div>
+          </article>
+          <article className={`${dayStyles.metric} ${dayStyles.callMetric}`}>
+            <span className={dayStyles.callIcon}>☎</span>
+            <div>
+              <span>دقائق Yeastar للمهام المنجزة</span>
+              <b>{yeastarValue}</b>
+              <small>{yeastarNote(yeastar,panel.loading)}</small>
+            </div>
+            {yeastar?.available&&<em>{number(yeastar.matchedCalls)} مكالمة مجابة</em>}
+          </article>
+        </section>
+
+        <section className={dayStyles.listPanel}>
+          <header className={dayStyles.listHeader}>
+            <div>
+              <small>مهام اليوم</small>
+              <h3>{number(visibleTasks.length)} مهمة ظاهرة</h3>
+            </div>
+            <label className={dayStyles.search}>
+              <span>⌕</span>
+              <input
+                value={query}
+                onChange={event=>setQuery(event.target.value)}
+                placeholder="ابحث باسم العميل أو المهمة أو الجوال"
+                aria-label="البحث في مهام اليوم"
+              />
+            </label>
+          </header>
+          <nav className={dayStyles.filters} aria-label="تصفية مهام اليوم">
+            {[
+              ['all','الكل'],
+              ['completed','تم إنجازه'],
+              ['open','لم يكتمل'],
+              ['overdue','متأخر']
+            ].map(([key,label])=><button
+              type="button"
+              key={key}
+              className={taskFilter===key?dayStyles.active:''}
+              onClick={()=>setTaskFilter(key)}
+            >{label}</button>)}
+          </nav>
+          <div className={dayStyles.taskList}>
+            {visibleTasks.map(task=><DayTaskRow
+              key={task.id}
+              task={task}
+              canWriteCrm={canWriteCrm}
+              onOpen={()=>onOpenTask(task)}
+            />)}
+            {!visibleTasks.length&&<div className={dayStyles.empty}>
+              <span>✓</span>
+              <b>لا توجد مهام مطابقة</b>
+              <p>غيّر التصفية أو عبارة البحث لعرض مهام أخرى في هذا اليوم.</p>
+            </div>}
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>;
+}
+
+function DayMetric({label,value,note,tone}){
+  return <article className={`${dayStyles.metric} ${dayStyles[tone]}`}>
+    <span>{label}</span><b>{value}</b><small>{note}</small>
+  </article>;
+}
+
+function DayTaskRow({task,canWriteCrm,onOpen}){
+  const taskState=state(task);
+  const talkSeconds=Number(task.yeastarTalkSeconds)||0;
+  return <article className={`${dayStyles.taskRow} ${dayStyles[`task_${taskState}`]}`}>
+    <span className={dayStyles.statusIcon}>{task.status==='completed'?'✓':taskState==='overdue'?'!':'•'}</span>
+    <div className={dayStyles.taskMain}>
+      <div>
+        <strong>{task.title}</strong>
+        <span className={dayStyles.status}>{dayTaskStatusText(task)}</span>
+      </div>
+      <p>{task.contactName||task.description||'مهمة تشغيلية غير مرتبطة بعميل'}</p>
+      <small>
+        {formatTime(task.dueAt)}
+        {task.assigneeName?` · ${task.assigneeName}`:''}
+        {task.contactPhone?` · ${task.contactPhone}`:''}
+      </small>
+      {task.contactStatus&&<div className={dayStyles.context}>
+        <span>{LEAD_STATUS[task.contactStatus]||task.contactStatus}</span>
+        <span>{LEAD_QUALITY[task.contactQuality]||'غير مقيم'}</span>
+        {task.contactCourseName&&<span>{task.contactCourseName}</span>}
+      </div>}
+    </div>
+    <div className={dayStyles.taskCall}>
+      <span>وقت الحديث</span>
+      <b>{talkSeconds?duration(talkSeconds):'—'}</b>
+      {talkSeconds>0&&<small>{number(task.yeastarAnsweredCalls)} مكالمات</small>}
+    </div>
+    <button type="button" className={dayStyles.openTask} onClick={onOpen}>
+      {task.status==='completed'?'عرض التفاصيل':task.contactId&&canWriteCrm?'تسجيل متابعة':'فتح المهمة'}
+    </button>
+  </article>;
+}
+
+function dayTaskStatusText(task){
+  if(task.status==='cancelled')return 'ملغاة';
+  if(task.status==='completed')return timingText(task);
+  if(state(task)==='overdue')return 'لم تكتمل · متأخرة';
+  if(task.status==='in_progress')return 'قيد التنفيذ';
+  return 'لم تكتمل';
+}
+
+function yeastarNote(yeastar,loading){
+  if(loading)return 'جارٍ مطابقة سجلات المكالمات…';
+  if(!yeastar)return 'تعذر التحقق من بيانات Yeastar';
+  if(yeastar.status==='addon_not_enabled')return 'إضافة Yeastar غير مفعلة للمنشأة';
+  if(yeastar.status==='not_configured')return 'أكمل ربط الجهاز والتحويلات أولًا';
+  if(yeastar.status==='sync_unavailable')return 'ربط Yeastar غير نشط أو يحتاج مراجعة';
+  if(yeastar.status==='crm_permission_required')return 'لا توجد صلاحية لعرض بيانات العملاء والمكالمات';
+  if(yeastar.status==='degraded'){
+    return `${number(yeastar.matchedCompletedTasks)} من المهام لها مكالمة · الربط يحتاج مراجعة`;
+  }
+  return `${number(yeastar.matchedCompletedTasks)} من المهام المنجزة لها مكالمة فعلية`;
 }

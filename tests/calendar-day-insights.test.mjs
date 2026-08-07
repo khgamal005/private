@@ -44,6 +44,23 @@ test('the daily dialog loads verified server metrics without guessed fallbacks',
   assert.match(api,/too_many_calendar_tasks/);
 });
 
+test('large calendar days render a bounded page instead of every task at once',async()=>{
+  const [calendar,styles]=await Promise.all([
+    read('components/task-calendar-page.js'),
+    read('components/task-calendar-day.module.css')
+  ]);
+
+  assert.match(calendar,/const DAY_TASK_PAGE_SIZE=30/);
+  assert.match(calendar,/visibleTasks\.slice\(pageStart,pageStart\+DAY_TASK_PAGE_SIZE\)/);
+  assert.match(calendar,/pageTasks\.map\(task=>/);
+  assert.doesNotMatch(calendar,/visibleTasks\.map\(task=>/);
+  assert.match(calendar,/صفحة \{number\(currentPage\)\} من \{number\(pageCount\)\}/);
+  assert.match(calendar,/عرض \{number\(pageStart\+1\)\}–/);
+  assert.match(styles,/\.pagination\{/);
+  assert.match(styles,/\.taskList\{max-height:min\(50dvh,430px\)\}/);
+  assert.doesNotMatch(styles,/\.taskList\{max-height:none\}/);
+});
+
 test('calendar metrics use canonical role scope and tenant-local day bounds',async()=>{
   const sql=await read(migrationPath);
 

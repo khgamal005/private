@@ -263,7 +263,13 @@
   cursor:pointer;
 }
 .filters button.active{border-color:#123f65;background:#123f65;color:#fff}
-.taskList{display:grid;max-height:430px;overflow:auto}
+.taskList{
+  display:grid;
+  max-height:430px;
+  overflow:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
 .taskRow{
   position:relative;
   display:grid;
@@ -325,6 +331,37 @@
   cursor:pointer;
 }
 .openTask:hover,.openTask:focus-visible{border-color:#0d507d;background:#0d507d;color:#fff;outline:none}
+.pagination{
+  display:grid;
+  grid-template-columns:minmax(88px,auto) minmax(0,1fr) minmax(88px,auto);
+  align-items:center;
+  gap:12px;
+  padding:12px 16px;
+  border-top:1px solid #e6edf1;
+  background:#f8fbfc;
+}
+.pagination>div{text-align:center}
+.pagination b,.pagination small{display:block}
+.pagination b{color:#244b67;font-size:10px}
+.pagination small{margin-top:3px;color:#7890a2;font-size:8px}
+.pagination button{
+  min-height:34px;
+  border:1px solid #cbdbe6;
+  border-radius:10px;
+  background:#fff;
+  color:#174d73;
+  padding:7px 12px;
+  font-size:9px;
+  font-weight:700;
+  cursor:pointer;
+}
+.pagination button:hover:not(:disabled),.pagination button:focus-visible:not(:disabled){
+  border-color:#0d507d;
+  background:#0d507d;
+  color:#fff;
+  outline:none;
+}
+.pagination button:disabled{opacity:.42;cursor:not-allowed}
 .empty{min-height:220px;display:grid;place-content:center;justify-items:center;text-align:center;color:#64798c}
 .empty>span{width:45px;height:45px;display:grid;place-items:center;border-radius:14px;background:#e7f5ed;color:#168154;font-size:18px}
 .empty b{margin-top:10px;color:#31516a;font-size:12px}.empty p{max-width:360px;margin:6px 0 0;font-size:10px;line-height:1.6}
@@ -348,9 +385,11 @@
   .callMetric{grid-template-columns:auto minmax(0,1fr);padding:13px}.callMetric em{grid-column:2;justify-self:start}.callIcon{width:47px;height:47px}
   .listHeader{align-items:stretch;flex-direction:column;padding:14px 13px 10px}.search{width:100%}
   .filters{padding-inline:13px}
-  .taskList{max-height:none}
+  .taskList{max-height:min(50dvh,430px)}
   .taskRow{grid-template-columns:auto minmax(0,1fr);gap:9px;padding:12px}
   .taskCall{grid-column:2;display:flex;align-items:center;gap:7px;text-align:right}.taskCall span,.taskCall b,.taskCall small{display:inline;margin:0}
   .openTask{grid-column:2;grid-row:auto;width:100%}
+  .pagination{grid-template-columns:76px minmax(0,1fr) 76px;gap:7px;padding:10px}
+  .pagination button{min-width:0;padding-inline:7px}
 }
 @media(prefers-reduced-motion:reduce){.dialog{animation:none}.moreButton{transition:none}}

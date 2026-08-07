@@ -17,6 +17,7 @@ const FILTERS=[
   ['overdue','متأخرة']
 ];
 const EMPTY=[];
+const DAY_TASK_PAGE_SIZE=30;
 const LEAD_STATUS={
   new:'جديد',
   no_answer:'لم يرد',
@@ -487,7 +488,9 @@ function CalendarDayDetails({
 }){
   const [taskFilter,setTaskFilter]=useState('all');
   const [query,setQuery]=useState('');
+  const [taskPage,setTaskPage]=useState(1);
   const closeButtonRef=useRef(null);
+  const taskListRef=useRef(null);
   useEffect(()=>closeButtonRef.current?.focus(),[]);
   const summary=panel.insight?.summary;
   const yeastar=panel.insight?.yeastar;
@@ -511,11 +514,22 @@ function CalendarDayDetails({
       ].some(value=>String(value||'').toLocaleLowerCase('ar').includes(needle));
     });
   },[tasks,taskFilter,query]);
+  const pageCount=Math.max(1,Math.ceil(visibleTasks.length/DAY_TASK_PAGE_SIZE));
+  const currentPage=Math.min(taskPage,pageCount);
+  const pageStart=(currentPage-1)*DAY_TASK_PAGE_SIZE;
+  const pageTasks=useMemo(
+    ()=>visibleTasks.slice(pageStart,pageStart+DAY_TASK_PAGE_SIZE),
+    [visibleTasks,pageStart]
+  );
   const metric=value=>panel.loading||!summary?'—':number(value);
   const customerRate=summary?.customerCompletionRate;
   const yeastarValue=panel.loading||!yeastar
     ?'—'
     :yeastar.available?duration(yeastar.talkSeconds):'غير متاح';
+  function selectTaskPage(nextPage){
+    setTaskPage(Math.min(Math.max(nextPage,1),pageCount));
+    taskListRef.current?.scrollTo({top:0,behavior:'smooth'});
+  }
 
   return <div className={dayStyles.layer}>
     <button
@@ -608,13 +622,16 @@ function CalendarDayDetails({
           <header className={dayStyles.listHeader}>
             <div>
               <small>مهام اليوم</small>
-              <h3>{number(visibleTasks.length)} مهمة ظاهرة</h3>
+              <h3>{number(visibleTasks.length)} مهمة مطابقة</h3>
             </div>
             <label className={dayStyles.search}>
               <span>⌕</span>
               <input
                 value={query}
-                onChange={event=>setQuery(event.target.value)}
+                onChange={event=>{
+                  setQuery(event.target.value);
+                  setTaskPage(1);
+                }}
                 placeholder="ابحث باسم العميل أو المهمة أو الجوال"
                 aria-label="البحث في مهام اليوم"
               />
@@ -630,11 +647,14 @@ function CalendarDayDetails({
               type="button"
               key={key}
               className={taskFilter===key?dayStyles.active:''}
-              onClick={()=>setTaskFilter(key)}
+              onClick={()=>{
+                setTaskFilter(key);
+                setTaskPage(1);
+              }}
             >{label}</button>)}
           </nav>
-          <div className={dayStyles.taskList}>
-            {visibleTasks.map(task=><DayTaskRow
+          <div className={dayStyles.taskList} ref={taskListRef}>
+            {pageTasks.map(task=><DayTaskRow
               key={task.id}
               task={task}
               canWriteCrm={canWriteCrm}
@@ -646,6 +666,27 @@ function CalendarDayDetails({
               <p>غيّر التصفية أو عبارة البحث لعرض مهام أخرى في هذا اليوم.</p>
             </div>}
           </div>
+          {visibleTasks.length>DAY_TASK_PAGE_SIZE&&<footer
+            className={dayStyles.pagination}
+            aria-label="صفحات مهام اليوم"
+          >
+            <button
+              type="button"
+              onClick={()=>selectTaskPage(currentPage-1)}
+              disabled={currentPage===1}
+            >السابق</button>
+            <div aria-live="polite">
+              <b>صفحة {number(currentPage)} من {number(pageCount)}</b>
+              <small>
+                عرض {number(pageStart+1)}–{number(pageStart+pageTasks.length)} من {number(visibleTasks.length)}
+              </small>
+            </div>
+            <button
+              type="button"
+              onClick={()=>selectTaskPage(currentPage+1)}
+              disabled={currentPage===pageCount}
+            >التالي</button>
+          </footer>}
         </section>
       </div>
     </section>

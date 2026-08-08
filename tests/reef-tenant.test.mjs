@@ -123,7 +123,7 @@ test('employee tenant routes do not eagerly load administrator-only settings',as
   assert.match(getSettingsBody,/v2_tenant_addon_center_snapshot/);
   assert.match(settings,/getTenantSettings/);
   assert.match(data,/includeSales=true/);
-  assert.match(data,/includeSales\s*\?authRpc\('v2_tenant_sales_pipeline_snapshot'/);
+  assert.match(data,/includeSales\s*\?authRpc\('v3_tenant_sales_pipeline_snapshot'/);
   assert.match(overview,/includeSales:canReadCrm/);
   assert.match(tasks,/getTenantOperations\(slug,\{includeSales\}\)/);
 });
@@ -168,7 +168,7 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(api,/v2_tenant_create_task/);
   assert.match(api,/v2_tenant_update_task_status/);
   assert.match(data,/v2_tenant_operations_snapshot/);
-  assert.match(data,/v2_tenant_sales_pipeline_snapshot/);
+  assert.match(data,/v3_tenant_sales_pipeline_snapshot/);
   assert.match(api,/v2_tenant_create_sales_lead/);
   assert.match(api,/v2_tenant_record_sales_followup_v3/);
   assert.match(leadPipeline,/academy\.registration_handoffs/);

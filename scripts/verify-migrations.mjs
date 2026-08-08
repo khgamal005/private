@@ -86,7 +86,8 @@ const required=[
   '20260806220000_separate_yeastar_paid_addon.sql',
   '20260807014000_calendar_day_task_insights_v1.sql',
   '20260808000722_marktone_marketplace_v1.sql',
-  '20260808000940_marktone_marketplace_fk_indexes_v1.sql'
+  '20260808000940_marktone_marketplace_fk_indexes_v1.sql',
+  '20260808161625_move_sales_followup_task_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -115,6 +116,7 @@ for(const pattern of [
   /v2_tenant_workspace_snapshot/,
   /v2_tenant_operations_snapshot/,
   /v2_tenant_sales_pipeline_snapshot/,
+  /v3_tenant_sales_pipeline_snapshot/,
   /v2_tenant_record_sales_followup_v3/,
   /v2_tenant_update_sales_contact_v1/,
   /v2_tenant_customer_history_snapshot_v2/,

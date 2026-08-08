@@ -59,6 +59,16 @@ export function dateOnly(value){
   }):'لم يحدد';
 }
 
+function dateTime(value){
+  return value?new Date(value).toLocaleString('ar-SA',{
+    day:'numeric',
+    month:'short',
+    year:'numeric',
+    hour:'2-digit',
+    minute:'2-digit'
+  }):'';
+}
+
 export function SalesStatusBadge({value}){
   const meta=STATUS[value]||{label:value||'غير محدد',tone:'muted'};
   return <span className={`mt-lead-badge ${meta.tone}`}>{meta.label}</span>;
@@ -154,7 +164,9 @@ export default function SalesFollowupModal({
       if(!response.ok)throw new Error(payload.error||'تعذر حفظ نتيجة المتابعة');
       const message=payload.data?.paymentReviewNotified
         ?'تم إرسال بلاغ الدفع إلى التسجيل والقبول للتحقق قبل التأكيد'
-        :'تم حفظ النتيجة وإنشاء مهمة الإجراء التالي تلقائيًا';
+        :payload.data?.taskUpdated
+          ?'تم حفظ النتيجة ونقل مهمة المتابعة نفسها إلى الموعد الجديد'
+          :'تم حفظ النتيجة وإنشاء مهمة الإجراء التالي الأولى';
       onSaved(message,payload.data);
     }catch(err){
       setError(err.message);
@@ -175,6 +187,11 @@ export default function SalesFollowupModal({
         <div><span>الحالة الحالية</span><SalesStatusBadge value={contact.leadStatus}/></div>
         <div><span>الجودة الحالية</span><SalesQualityBadge value={contact.leadQuality}/></div>
         <div><span>الدورة</span><b>{contact.interestCourseName||'لم تحدد'}</b></div>
+        {(contact.latestNote||contact.notes)&&<div className="mt-customer-latest-note">
+          <span>آخر ملاحظة مسجلة</span>
+          <b>{contact.latestNote||contact.notes}</b>
+          {contact.latestNoteAt&&<small>{dateTime(contact.latestNoteAt)}</small>}
+        </div>}
       </div>
       <div className="mt-form">
         <label className="mt-field wide">اسم العميل<input

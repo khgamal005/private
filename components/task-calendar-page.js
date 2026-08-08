@@ -273,9 +273,16 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
         p_day:key,
         p_task_ids:dayTasks.map(task=>task.id)
       });
+      const dayTasksById=new Map(dayTasks.map(task=>[task.id,task]));
+      const verifiedTasks=Array.isArray(insight?.tasks)
+        ?insight.tasks.map(task=>({
+          ...(dayTasksById.get(task.id)||{}),
+          ...task
+        }))
+        :dayTasks;
       setDayPanel(current=>current?.key===key?{
         ...current,
-        tasks:Array.isArray(insight?.tasks)?insight.tasks:current.tasks,
+        tasks:verifiedTasks,
         insight,
         loading:false,
         error:''
@@ -443,6 +450,13 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
             {' · '}
             {selected.contactQuality?LEAD_QUALITY[selected.contactQuality]||selected.contactQuality:'غير مقيم'}
           </small>
+          {selected.contactLatestNote&&<div className="calendar-customer-latest-note">
+            <strong>آخر ملاحظة</strong>
+            <p>{selected.contactLatestNote}</p>
+            {selected.contactLatestNoteAt&&<time>
+              {formatDate(selected.contactLatestNoteAt)} · {formatTime(selected.contactLatestNoteAt)}
+            </time>}
+          </div>}
         </aside>}
         <footer>
           <button onClick={()=>setSelected(null)}>إغلاق</button>

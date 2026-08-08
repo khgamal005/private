@@ -88,7 +88,8 @@ const required=[
   '20260808000722_marktone_marketplace_v1.sql',
   '20260808000940_marktone_marketplace_fk_indexes_v1.sql',
   '20260808161625_move_sales_followup_task_v1.sql',
-  '20260808165235_normalize_customer_phone_display.sql'
+  '20260808165235_normalize_customer_phone_display.sql',
+  '20260808171237_add_phone_off_lead_status.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();

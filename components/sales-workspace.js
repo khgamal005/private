@@ -2,6 +2,11 @@
 
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import {
+  formatCustomerPhone,
+  toCustomerDialNumber,
+  toWhatsAppNumber
+} from '../lib/customer-phone.mjs';
 import CustomerHistoryDrawer from './customer-history-drawer';
 import CustomerEditModal from './customer-edit-modal';
 import SalesFollowupModal,{
@@ -55,7 +60,6 @@ const money=value=>new Intl.NumberFormat('ar-SA',{
   maximumFractionDigits:0
 }).format((Number(value)||0)/100);
 
-function digits(value){return String(value||'').replace(/\D/g,'')}
 function isClosed(value){
   return !OPEN_STATUSES.has(value)
     &&!['payment_submitted','paid'].includes(value);
@@ -473,8 +477,8 @@ function LeadCard({contact,canWrite,onFollowup,onHistory,onEdit}){
       {contact.demo&&<em>تجريبي</em>}
     </header>
     <div className="mt-lead-contact">
-      {contact.phone?<a href={`tel:${digits(contact.phone)}`}>{contact.phone}</a>:<span>لا يوجد جوال</span>}
-      {(contact.whatsapp||contact.phone)&&<a target="_blank" rel="noreferrer" href={`https://wa.me/${digits(contact.whatsapp||contact.phone)}`}>واتساب</a>}
+      {contact.phone?<a href={`tel:${toCustomerDialNumber(contact.phone)}`}>{formatCustomerPhone(contact.phone)}</a>:<span>لا يوجد جوال</span>}
+      {(contact.whatsapp||contact.phone)&&<a target="_blank" rel="noreferrer" href={`https://wa.me/${toWhatsAppNumber(contact.whatsapp||contact.phone)}`}>واتساب</a>}
     </div>
     <LeadBadges contact={contact}/>
     <dl>

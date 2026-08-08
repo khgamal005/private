@@ -2,6 +2,10 @@
 
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import {
+  formatCustomerPhone,
+  toCustomerDialNumber
+} from '../lib/customer-phone.mjs';
 import SalesFollowupModal from './sales-followup-modal';
 import dayStyles from './task-calendar-day.module.css';
 
@@ -443,7 +447,7 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
         {selected.description&&<p>{selected.description}</p>}
         {selected.contactName&&<aside className="calendar-customer-card">
           <b>{selected.contactName}</b>
-          {selected.contactPhone&&<a href={`tel:${String(selected.contactPhone).replace(/\D/g,'')}`}>{selected.contactPhone}</a>}
+          {selected.contactPhone&&<a href={`tel:${toCustomerDialNumber(selected.contactPhone)}`}>{formatCustomerPhone(selected.contactPhone)}</a>}
           <span>{selected.contactCourseName||'الدورة غير محددة'}</span>
           <small>
             {selected.contactStatus?LEAD_STATUS[selected.contactStatus]||selected.contactStatus:'الحالة غير محددة'}

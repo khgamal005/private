@@ -7,7 +7,7 @@ const read=path=>readFile(new URL(path,root),'utf8');
 
 test('all admissions documents are optional in storage and UI',async()=>{
   const [migration,workspace]=await Promise.all([
-    read('supabase/migrations/20260808150000_make_admission_documents_optional.sql'),
+    read('supabase/migrations/20260808145149_make_admission_documents_optional.sql'),
     read('components/admissions-workspace.js')
   ]);
 

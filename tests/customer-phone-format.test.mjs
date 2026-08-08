@@ -11,7 +11,7 @@ import {
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 const migrationPath=
-  'supabase/migrations/20260808164232_normalize_customer_phone_display.sql';
+  'supabase/migrations/20260808165235_normalize_customer_phone_display.sql';
 
 test('Saudi mobile variants display and dial as a local 05 number',()=>{
   for(const value of [

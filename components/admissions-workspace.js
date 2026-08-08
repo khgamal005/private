@@ -97,6 +97,12 @@ export default function AdmissionsWorkspace({slug,initialData}){
   const courseRuns=data.courseRuns||EMPTY;
   const summary=data.summary||{};
   const canManage=Boolean(data.viewer?.canManage);
+  const optionalDocumentsPending=useMemo(()=>cases.reduce(
+    (total,item)=>total+(item.documents||EMPTY).filter(
+      document=>!['approved','not_required'].includes(document.status)
+    ).length,
+    0
+  ),[cases]);
 
   const shownCases=useMemo(()=>cases.filter(item=>{
     const haystack=`${item.contactName||''} ${item.phone||''} ${item.courseName||''} ${item.paymentReference||''}`.toLowerCase();
@@ -182,7 +188,7 @@ export default function AdmissionsWorkspace({slug,initialData}){
         p_document_type:document.type,
         p_status:status,
         p_notes:reason||null,
-        p_is_required:Boolean(document.required)
+        p_is_required:false
       });
       setNotice(`تم تحديث ${DOCUMENTS[document.type]||document.type}`);
       setSelected(null);
@@ -251,9 +257,9 @@ export default function AdmissionsWorkspace({slug,initialData}){
         <small>أُنشئ ملف متدرب وتسجيل</small>
       </button>
       <button className="mt-kpi">
-        <span>مستندات معلقة</span>
-        <b>{summary.documentsPending||0}</b>
-        <small>عناصر مطلوبة لم تعتمد</small>
+        <span>مستندات اختيارية</span>
+        <b>{optionalDocumentsPending}</b>
+        <small>بانتظار المراجعة ولا تمنع التسجيل</small>
       </button>
     </section>
 
@@ -347,16 +353,16 @@ export default function AdmissionsWorkspace({slug,initialData}){
           </section>
 
           <section className="mt-document-checklist">
-            <header><div><h4>قائمة المستندات</h4><small>يجب اعتماد المطلوب قبل الإتمام</small></div></header>
+            <header><div><h4>قائمة المستندات</h4><small>كل المستندات اختيارية ويمكن إتمام التسجيل بدونها</small></div></header>
             {(selected.documents||EMPTY).map(document=><article key={document.id}>
               <div>
                 <b>{DOCUMENTS[document.type]||document.type}</b>
-                <small>{document.required?'مطلوب':'اختياري'} · {DOCUMENT_STATUS[document.status]||document.status}</small>
+                <small>اختياري · {DOCUMENT_STATUS[document.status]||document.status}</small>
               </div>
               {canManage&&<div>
                 <button disabled={busy} onClick={()=>updateDocument(document,'received')}>استلم</button>
                 <button disabled={busy} onClick={()=>updateDocument(document,'approved')}>اعتمد</button>
-                {!document.required&&<button disabled={busy} onClick={()=>updateDocument(document,'not_required')}>غير مطلوب</button>}
+                <button disabled={busy} onClick={()=>updateDocument(document,'not_required')}>غير مطلوب</button>
                 <button className="danger" disabled={busy} onClick={()=>updateDocument(document,'rejected')}>رفض</button>
               </div>}
             </article>)}
@@ -390,12 +396,9 @@ export default function AdmissionsWorkspace({slug,initialData}){
 }
 
 function AdmissionCard({item,canManage,onOpen}){
-  const approved=(item.documents||EMPTY).filter(
+  const documents=item.documents||EMPTY;
+  const reviewed=documents.filter(
     document=>['approved','not_required'].includes(document.status)
-  ).length;
-  const required=(item.documents||EMPTY).filter(document=>document.required).length;
-  const approvedRequired=(item.documents||EMPTY).filter(
-    document=>document.required&&['approved','not_required'].includes(document.status)
   ).length;
 
   return <article className="mt-admission-card">
@@ -415,9 +418,9 @@ function AdmissionCard({item,canManage,onOpen}){
       <div><dt>البلاغ</dt><dd>{when(item.paymentReportedAt)}</dd></div>
     </dl>
     <div className="mt-admission-progress">
-      <div><b>المستندات المطلوبة</b><span>{approvedRequired}/{required}</span></div>
-      <progress value={approvedRequired} max={Math.max(required,1)}/>
-      <small>{approved} عنصر معتمد إجمالًا · {CASE_STATUS[item.status]||item.status}</small>
+      <div><b>المستندات الاختيارية</b><span>{reviewed}/{documents.length}</span></div>
+      <progress value={reviewed} max={Math.max(documents.length,1)}/>
+      <small>{reviewed} مستند تمت مراجعته · لا تمنع التسجيل · {CASE_STATUS[item.status]||item.status}</small>
     </div>
     {item.enrollment&&<div className="mt-student-number">رقم المتدرب: {item.enrollment.studentNumber}</div>}
     <button className="mt-button primary" onClick={onOpen}>

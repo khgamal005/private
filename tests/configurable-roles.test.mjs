@@ -48,7 +48,7 @@ test('navigation and operational reports are permission-driven',async()=>{
     read('supabase/migrations/20260802233000_operational_role_visibility_and_personal_reports.sql'),
     read('lib/tenant-role-policy.js'),
     read('app/tenant/[slug]/layout.js'),
-    read('app/tenant/[slug]/call-reports/page.js')
+    read('app/tenant/[slug]/yeastar/page.js')
   ]);
   assert.match(scopes,/v_personal_only boolean/);
   assert.match(scopes,/p_report = 'campaigns' and not v_campaign_allowed/);
@@ -58,5 +58,5 @@ test('navigation and operational reports are permission-driven',async()=>{
   assert.match(policy,/tenant\.reports\.team/);
   assert.match(policy,/tenant\.reports\.campaigns/);
   assert.match(layout,/roleKey=\{navigationRoleKey\}/);
-  assert.match(callReports,/v2_tenant_yeastar_reports_snapshot_v2/);
+  assert.match(callReports,/v3_tenant_yeastar_reports_snapshot/);
 });

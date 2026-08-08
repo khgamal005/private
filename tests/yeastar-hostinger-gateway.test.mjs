@@ -7,7 +7,7 @@ const read=path=>readFile(new URL(path,root),'utf8');
 
 test('CRM egress gateway grants are short-lived, hash-bound, and single-use',async()=>{
   const migration=await read(
-    'supabase/migrations/20260806200440_secure_yeastar_hostinger_gateway_v4.sql'
+    'supabase/migrations/20260806204019_secure_yeastar_crm_gateway_v4.sql'
   );
 
   assert.match(migration,/private_app\.yeastar_gateway_requests/);

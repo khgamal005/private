@@ -47,8 +47,11 @@ test('connector follows Yeastar token lifecycle and firmware compatibility',()=>
   assert.match(edge,/\/openapi\/v1\.0\/del_token/);
   assert.match(edge,/User-Agent/);
   assert.match(edge,/37,23,0,123/);
-  assert.match(edge,/supportsV2Search\?'v2\.0':'v1\.0'/);
-  assert.match(edge,/time_begin/);
+  assert.match(edge,/supportsV2:versionAtLeast\(device\.firmwareVersion,\[37,23,0,123\]\)/);
+  assert.match(edge,/recommendedApiVersion:'v1\.0'/);
+  assert.doesNotMatch(edge,/supportsV2Search/);
+  assert.match(edge,/start_time/);
+  assert.match(edge,/end_time/);
   assert.match(edge,/access_token=\[REDACTED\]/);
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "marktone-platform-control",
-  "version": "2.0.0-beta.22",
+  "version": "2.0.0-beta.23",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -13,17 +13,17 @@
     "check": "npm run lint && npm run typecheck && npm test && npm run migration:verify && npm run build"
   },
   "dependencies": {
-    "next": "16.2.12",
+    "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "xlsx": "0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@types/node": "26.1.1",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.2.12",
+    "eslint-config-next": "16.3.0",
     "typescript": "6.0.3"
   }
 }

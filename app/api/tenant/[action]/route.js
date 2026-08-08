@@ -24,6 +24,7 @@ const RPC={
   'automation-studio':'v2_tenant_automation_studio_action_v2',
   'delivery-analytics':'v2_tenant_delivery_analytics_action_v2',
   'addon-center':'v2_tenant_addon_center_action',
+  'marketplace':'v1_tenant_marketplace_action',
   'integration-hub':'v2_tenant_integration_hub_action',
   'create-opportunity':'v2_tenant_create_opportunity',
   'move-opportunity':'v2_tenant_move_opportunity',
@@ -229,6 +230,14 @@ function translate(value){
     ,addon_request_not_found:'طلب الإضافة غير موجود'
     ,invalid_addon_action:'إجراء الإضافة غير صالح'
     ,addon_usage_limit_reached:'وصلت الإضافة إلى حد الاستخدام الحالي'
+    ,marketplace_product_invalid:'بيانات المنتج غير صالحة'
+    ,marketplace_product_not_found:'المنتج غير متاح للشراء حاليًا'
+    ,marketplace_idempotency_required:'تعذر تأمين طلب الشراء؛ أعد المحاولة'
+    ,marketplace_quantity_invalid:'الكمية المختارة غير صالحة'
+    ,marketplace_order_invalid:'رقم الطلب غير صالح'
+    ,marketplace_order_not_found:'طلب الشراء غير موجود'
+    ,marketplace_order_not_cancellable:'لا يمكن إلغاء الطلب بعد تأكيد الدفع'
+    ,marketplace_action_invalid:'إجراء المتجر غير مدعوم'
     ,integration_configuration_missing:'إعدادات المزود غير مكتملة'
     ,whatsapp_credentials_missing:'بيانات Meta WhatsApp غير مكتملة'
     ,resend_configuration_missing:'بيانات Resend غير مكتملة'

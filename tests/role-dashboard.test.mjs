@@ -55,7 +55,7 @@ test('Yeastar v1 sync uses its documented range and ignores connection tests',as
     read('supabase/migrations/20260730185254_fix_yeastar_v1_sync_window_context.sql'),
     read('components/yeastar-settings.js')
   ]);
-  assert.match(edge,/apiVersion==='v1\.0'[\s\S]*start_time:[\s\S]*end_time:/);
+  assert.match(edge,/const apiVersion='v1\.0'[\s\S]*start_time:[\s\S]*end_time:/);
   assert.match(edge,/start_time:String\(Math\.floor\(from\.getTime\(\)\/1000\)\)/);
   assert.match(edge,/end_time:String\(Math\.floor\(to\.getTime\(\)\/1000\)\)/);
   assert.match(edge,/source\.new_id/);

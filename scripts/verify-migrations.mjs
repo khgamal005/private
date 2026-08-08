@@ -84,7 +84,9 @@ const required=[
   '20260806190500_tenant_sales_contact_edit_v1.sql',
   '20260806213000_unify_employee_performance_metrics_v1.sql',
   '20260806220000_separate_yeastar_paid_addon.sql',
-  '20260807014000_calendar_day_task_insights_v1.sql'
+  '20260807014000_calendar_day_task_insights_v1.sql',
+  '20260808000722_marktone_marketplace_v1.sql',
+  '20260808000940_marktone_marketplace_fk_indexes_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();

@@ -14,6 +14,7 @@ const RPC={
   'create-support':'v2_support_create_request',
   'update-support':'v2_support_update_request'
   ,'addon-decision':'v2_platform_addon_center_action'
+  ,'marketplace':'v1_platform_marketplace_action'
 };
 
 export async function POST(req,{params}){
@@ -59,4 +60,14 @@ function translate(x){const m={
   ,invalid_addon_decision:'قرار الإضافة غير صالح'
   ,invalid_addon_limit:'حد الاستخدام غير صالح'
   ,invalid_addon_action:'إجراء الإضافة غير صالح'
+  ,marketplace_order_invalid:'رقم الطلب غير صالح'
+  ,marketplace_order_not_found:'طلب المتجر غير موجود'
+  ,marketplace_order_not_payable:'هذا الطلب غير قابل لتأكيد الدفع'
+  ,marketplace_payment_amount_mismatch:'قيمة الدفع لا تطابق إجمالي الطلب'
+  ,marketplace_service_order_invalid:'طلب الخدمة غير صالح لهذا الإجراء'
+  ,marketplace_status_invalid:'حالة تنفيذ الخدمة غير صالحة'
+  ,marketplace_status_transition_invalid:'لا يمكن نقل الخدمة مباشرة إلى هذه الحالة'
+  ,marketplace_order_closed:'الطلب مكتمل ولا يمكن تعديله'
+  ,marketplace_webhook_not_found:'إعداد Webhook الدفع غير موجود'
+  ,marketplace_action_invalid:'إجراء المتجر غير مدعوم'
 };return m[x]||String(x)}

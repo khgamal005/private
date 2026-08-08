@@ -12,6 +12,9 @@ const ICON_PATHS={
   overview:['M3 10.8 12 3l9 7.8','M5.5 9.4V21h13V9.4','M9 21v-6h6v6'],
   tenants:['M4 21V8l8-5 8 5v13','M9 21v-5h6v5','M8 10h.01M12 10h.01M16 10h.01'],
   subscriptions:['M4 6h16v12H4z','M4 10h16','M8 15h3'],
+  marketplace:['M4 8h16l-1 13H5L4 8Z','M7 8V6a5 5 0 0 1 10 0v2','M8 12h.01M16 12h.01'],
+  servicesStore:['M4 7h16v13H4z','M8 7V4h8v3','M8 12h8M8 16h5'],
+  addonsStore:['M12 3v4M12 17v4M3 12h4M17 12h4','M8.5 8.5h7v7h-7z'],
   content:['M5 4h14v16H5z','M8 8h8M8 12h8M8 16h5'],
   website:['M3 5h18v14H3z','M3 9h18','M7 7h.01M10 7h.01','M7 13h4M7 16h8'],
   settings:['M4 7h10M18 7h2M4 17h2M10 17h10','M14 4v6M6 14v6'],
@@ -61,6 +64,10 @@ function tenantItems(
       {key:'courses',label:'متجر البرامج والدورات',href:`${base}/courses`,permission:'tenant.academy.read'},
       {key:'interactive',label:'منصة التدريب التفاعلي (قريبًا)',permission:'tenant.academy.read',visible:policy.showInteractiveTraining,disabled:true}
     ]},
+    {key:'marketplace',label:'متجر مُدار',children:[
+      {key:'servicesStore',label:'متجر الخدمات',href:`${base}/services-store`,permission:'tenant.users.manage'},
+      {key:'addonsStore',label:'متجر الإضافات',href:`${base}/addons-store`,permission:'tenant.users.manage'}
+    ]},
     {key:'sales',label:'المبيعات والعملاء',children:[
       {key:'search',label:'البحث عن عميل',href:`${base}/customer-search`,always:true},
       {key:'sales',label:'إدارة المبيعات والعملاء',href:`${base}/sales`,permission:'tenant.crm.read'},
@@ -107,6 +114,7 @@ function platformItems(permissions){
     {key:'overview',label:'لوحة المنصة',href:'/control',permission:'platform.control.read'},
     {key:'tenants',label:'المنشآت',href:'/control/tenants',permission:'platform.tenants.manage'},
     {key:'subscriptions',label:'الباقات والاشتراكات',href:'/control/subscriptions',permission:'platform.billing.manage'},
+    {key:'marketplace',label:'متجر الخدمات والإضافات',href:'/control/marketplace',permission:'platform.billing.manage'},
     {key:'content',label:'المحتوى والمعارف',href:'/control/content',permission:'platform.content.manage'},
     {key:'website',label:'إدارة الموقع',href:'/control/website',permission:'platform.website.manage'},
     {key:'people',label:'فريق المنصة والصلاحيات',href:'/control/team',permission:'platform.access.manage'},
@@ -141,6 +149,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
     courses:pathname.includes('/courses'),
+    marketplace:pathname.includes('/services-store')||pathname.includes('/addons-store'),
     sales:['/customer-search','/sales','/lead-queue','/incentives'].some(path=>pathname.includes(path)),
     yeastar:pathname.includes('/yeastar')||pathname.includes('/call-reports'),
     marketing:pathname.includes('/marketing')||pathname.includes('/settings'),

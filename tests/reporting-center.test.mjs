@@ -45,7 +45,7 @@ test('tenant navigation exposes one expandable reporting center',async()=>{
   ]);
   assert.match(shell,/label:'التقارير والتحليل'/);
   assert.match(shell,/label:'لوحة التقارير'/);
-  assert.match(shell,/label:'أداء المكالمات'/);
+  assert.match(shell,/label:'تقارير المكالمات'/);
   assert.match(shell,/أداء الموظفين/);
   assert.match(shell,/label:'تقارير المبيعات'/);
   assert.match(shell,/label:'تقارير الحملات'/);

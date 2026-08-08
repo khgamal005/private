@@ -1,7 +1,12 @@
 {
-  "version": "2.0.0-beta.22",
-  "releasedAt": "2026-07-29T15:35:00.000Z",
+  "version": "2.0.0-beta.23",
+  "releasedAt": "2026-08-08T00:13:08.625Z",
   "highlights": [
+    "Added a managed services marketplace with 7 categories and 15 explicitly priced offerings",
+    "Added a priced add-on marketplace with tenant-scoped automatic installation after verified payment",
+    "Added signed and idempotent payment webhooks with automatic entitlement and CMS module activation",
+    "Added platform order fulfillment, a manual beta payment fallback, and an auditable order event trail",
+    "Preserved existing tenant, employee, customer, task, URL, and integration records through an additive rollout",
     "One Vercel application with platform control and tenant workspaces",
     "Removed the unintended Marktone internal CRM workspace",
     "Tenant CRM remains a module inside each tenant workspace",

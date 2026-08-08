@@ -60,7 +60,7 @@ test('reports render personal performance and hide unavailable report links',asy
     read('app/tenant/[slug]/reports/employees/page.js'),
     read('components/reporting-center.js'),
     read('lib/api.js'),
-    read('app/tenant/[slug]/call-reports/page.js')
+    read('app/tenant/[slug]/yeastar/page.js')
   ]);
 
   assert.match(employees,/data\?\.viewer\?\.scope==='employee'/);
@@ -68,8 +68,8 @@ test('reports render personal performance and hide unavailable report links',asy
   assert.match(center,/availability\[capability\]!==false/);
   assert.match(center,/personalOnly\?'أدائي':'أداء الموظفين'/);
   assert.match(center,/availability\.campaigns!==false/);
-  assert.match(api,/v2_tenant_reports_snapshot_v2/);
-  assert.match(calls,/v2_tenant_yeastar_reports_snapshot_v2/);
+  assert.match(api,/v2_tenant_reports_snapshot_v3/);
+  assert.match(calls,/v3_tenant_yeastar_reports_snapshot/);
 });
 
 test('Supabase boundary forces own staff and mapped call extensions',async()=>{

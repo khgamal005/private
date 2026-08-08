@@ -80,7 +80,7 @@ test('tenant API uses the user session and unifies WooCommerce with the provider
   assert.match(route,/ACCESS_COOKIE/);
   assert.match(route,/authorization:`Bearer \$\{token\}`/);
   assert.match(route,/v2_tenant_commerce_hub_action/);
-  assert.match(route,/v2_tenant_woocommerce_action/);
+  assert.match(route,/v3_tenant_woocommerce_action/);
   assert.match(route,/\/functions\/v1\/commerce-sync/);
   assert.match(route,/\/functions\/v1\/woocommerce-sync/);
   assert.match(route,/PROVIDERS=new Set\(\['woocommerce','salla','zid','shopify','custom'\]\)/);

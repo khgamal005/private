@@ -169,7 +169,7 @@ test('tenant command center exposes decision metrics, connections, and protected
   assert.match(component,/every_6_hours/);
   assert.match(component,/ar-SA-u-ca-gregory/);
   assert.match(route,/ACCESS_COOKIE/);
-  assert.match(route,/v2_tenant_marketing_hub_action/);
+  assert.match(route,/v3_tenant_marketing_hub_action/);
   assert.match(route,/\/functions\/v1\/ads-sync/);
   assert.match(route,/\[result\?\.error,result\?\.detail\]/);
   assert.match(component,/const canSync=\['active','degraded'\]\.includes\(status\)/);

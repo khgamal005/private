@@ -83,6 +83,8 @@ function translated(value){
     oauth_refresh_failed:'تعذر تجديد OAuth. راجع Refresh Token وبيانات التطبيق.',
     marketing_currency_invalid:'اختر عملة أساس صحيحة من ثلاثة أحرف.',
     marketing_timezone_invalid:'المنطقة الزمنية غير صحيحة.',
+    sync_time_invalid:'موعد المزامنة غير صالح.',
+    sync_timezone_invalid:'المنطقة الزمنية للمزامنة غير صالحة.',
     marketing_attribution_model_invalid:'نموذج الإسناد غير مدعوم.',
     marketing_snapshot_range_invalid:'فترة التقرير غير صالحة.',
     marketing_sync_failed:'تعذر إكمال مزامنة الحملات.'
@@ -116,7 +118,7 @@ export async function POST(request,{params}){
       :action==='insight-status'
         ?'insight_status'
         :action;
-    const data=await rpc(accessToken,'v2_tenant_marketing_hub_action',{
+    const data=await rpc(accessToken,'v3_tenant_marketing_hub_action',{
       p_tenant_slug:tenantSlug,
       p_provider:provider==='system'?null:provider,
       p_action:actionName,

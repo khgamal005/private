@@ -106,7 +106,7 @@ test('standalone integrations UI keeps secrets server-side and routes WooCommerc
   assert.match(legacyApi,/authorization:`Bearer \$\{token\}`/);
   assert.doesNotMatch(legacyApi,/SERVICE_ROLE|service_role/);
   assert.match(commerceApi,/provider==='woocommerce'/);
-  assert.match(commerceApi,/v2_tenant_woocommerce_action/);
+  assert.match(commerceApi,/v3_tenant_woocommerce_action/);
   assert.match(commerceApi,/\/functions\/v1\/woocommerce-sync/);
   assert.match(proxy,/\/api\/woocommerce/);
   assert.match(proxy,/\/api\/commerce/);

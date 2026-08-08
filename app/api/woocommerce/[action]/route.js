@@ -53,6 +53,8 @@ function translated(value){
     woocommerce_credentials_required:'أدخل Consumer Key وConsumer Secret من WooCommerce.',
     woocommerce_store_https_required:'أدخل رابط HTTPS عامًا وصحيحًا لمتجر WordPress.',
     woocommerce_invalid_frequency:'جدول المزامنة غير صالح.',
+    sync_time_invalid:'موعد المزامنة غير صالح.',
+    sync_timezone_invalid:'المنطقة الزمنية للمزامنة غير صالحة.',
     woocommerce_invalid_scope:'اختيارات المزامنة غير صالحة.',
     woocommerce_sync_in_progress:'توجد مزامنة تعمل الآن. انتظر اكتمالها ثم حاول مجددًا.',
     woocommerce_previous_sync_failed:'فشلت المحاولة السابقة. أعد تشغيل المزامنة.',
@@ -91,7 +93,7 @@ export async function POST(request,{params}){
     if(action==='save'||action==='disable'){
       const data=await rpc(
         token,
-        'v2_tenant_woocommerce_action',
+        'v3_tenant_woocommerce_action',
         {
           p_tenant_slug:tenantSlug,
           p_action:action,

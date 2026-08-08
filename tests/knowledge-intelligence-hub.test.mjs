@@ -64,12 +64,14 @@ test('knowledge migration provides isolated automation data plane',async()=>{
 
 test('ingestion worker authenticates, deduplicates, and requires HTTPS',async()=>{
   const source=await read('supabase/functions/knowledge-ingest/index.ts');
+  const review=await read('supabase/functions/knowledge-ingest/review.ts');
   assert.match(source,/knowledge_ingestion_validate_secret/);
-  assert.match(source,/platformAccess\|\|context\?\.platform_access/);
+  assert.match(source,/platformAccess\s*\|\|\s*context\?\.platform_access/);
   assert.match(source,/knowledge_private_url_rejected/);
   assert.match(source,/SHA-256/);
   assert.match(source,/knowledge_raw_items/);
   assert.match(source,/source_fingerprint/);
-  assert.match(source,/requires_review/);
+  assert.match(source,/reviewForAutoPublish/);
+  assert.match(review,/source\.requires_review/);
   assert.match(source,/duplicate_count/);
 });

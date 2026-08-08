@@ -77,8 +77,7 @@ function configuredKeys() {
     service:
       env('SUPABASE_SERVICE_ROLE_KEY')
       || env('SUPABASE_SECRET_KEY')
-      || dictionaryKey('SUPABASE_SECRET_KEYS'),
-    scheduleSecret: env('MARKETING_SYNC_SECRET')
+      || dictionaryKey('SUPABASE_SECRET_KEYS')
   };
 }
 
@@ -148,21 +147,6 @@ function rpcService(
 function bearer(request: Request) {
   const value = request.headers.get('authorization') || '';
   return value.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || '';
-}
-
-async function secureEqual(left: string, right: string) {
-  const encoder = new TextEncoder();
-  const [leftHash, rightHash] = await Promise.all([
-    crypto.subtle.digest('SHA-256', encoder.encode(left)),
-    crypto.subtle.digest('SHA-256', encoder.encode(right))
-  ]);
-  const leftBytes = new Uint8Array(leftHash);
-  const rightBytes = new Uint8Array(rightHash);
-  let difference = 0;
-  for (let index = 0; index < leftBytes.length; index += 1) {
-    difference |= leftBytes[index] ^ rightBytes[index];
-  }
-  return difference === 0;
 }
 
 async function requestBody(request: Request): Promise<JsonRecord> {
@@ -422,7 +406,7 @@ async function dispatchDue(
         account,
         range,
         'scheduled',
-        `scheduled:${connectionId}:${range.dateFrom}:${range.dateTo}`
+        `scheduled:${connectionId}:${range.dateFrom}:${range.dateTo}:${crypto.randomUUID()}`
       ) as unknown as Json);
     } catch (error) {
       results.push({connectionId, ...errorInfo(error)});
@@ -444,11 +428,15 @@ Deno.serve(async request => {
     const action = text(payload.action).toLowerCase();
     if (action === 'dispatch_due') {
       const supplied = text(request.headers.get('x-marktone-marketing-secret'));
-      if (
-        !config.scheduleSecret
-        || !supplied
-        || !(await secureEqual(supplied, config.scheduleSecret))
-      ) {
+      if (!supplied || supplied.length > 4096) {
+        throw new AdsSyncError('marketing_schedule_not_authorized', 401);
+      }
+      const authorized = await rpcService(
+        config,
+        'v2_marketing_schedule_authorize',
+        {p_secret: supplied}
+      );
+      if (authorized !== true) {
         throw new AdsSyncError('marketing_schedule_not_authorized', 401);
       }
       return json(await dispatchDue(config, payload) as unknown as JsonRecord);

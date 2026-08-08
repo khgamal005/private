@@ -84,6 +84,19 @@ function dateTime(value){
   return DATE_TIME_FORMATTER.format(new Date(value));
 }
 
+function scheduleLabel(connection){
+  if(!connection||connection.frequency==='manual')return 'يدوي';
+  const frequency=connection.frequency==='every_6_hours'?'كل 6 ساعات':'يومي';
+  const value=/^\d{2}:\d{2}$/.test(String(connection.syncTime||''))
+    ?connection.syncTime
+    :'03:00';
+  const [hour,minute]=value.split(':').map(Number);
+  const time=new Intl.DateTimeFormat('ar-SA',{
+    hour:'numeric',minute:'2-digit',timeZone:'UTC'
+  }).format(new Date(Date.UTC(2020,0,1,hour,minute)));
+  return `${frequency} · ${time} بتوقيت السعودية`;
+}
+
 function shortDate(value){
   if(!value)return '—';
   return SHORT_DATE_FORMATTER.format(
@@ -327,6 +340,8 @@ export default function MarketingCommandCenter({slug,initialData,canManage}){
       await call(selected.providerKey,'save',{
         displayName:String(values.displayName||selected.nameAr).trim(),
         frequency:String(values.frequency||'daily'),
+        syncTime:String(values.syncTime||'03:00'),
+        syncTimezone:'Asia/Riyadh',
         syncLookbackDays:Number(values.syncLookbackDays)||14,
         apiVersion:String(values.apiVersion||selected.apiVersion||''),
         configuration,secrets
@@ -668,8 +683,9 @@ function ProviderCard({provider,canManage,busy,onOpen,onTest,onSync,onToggle}){
     <dl>
       <div><dt>الحساب</dt><dd>{connection?.accounts?.[0]?.name||connection?.displayName||'—'}</dd></div>
       <div><dt>آخر مزامنة</dt><dd>{dateTime(connection?.lastSyncedAt)}</dd></div>
-      <div><dt>الجدولة</dt><dd>{connection?.frequency==='daily'?'يومي':connection?.frequency==='every_6_hours'?'كل 6 ساعات':'يدوي'}</dd></div>
+      <div><dt>الجدولة</dt><dd>{scheduleLabel(connection)}</dd></div>
       <div><dt>آخر تشغيل</dt><dd>{RUN_LABELS[recentRun?.status]||'—'}</dd></div>
+      <div><dt>المزامنة القادمة</dt><dd>{dateTime(connection?.nextSyncAt)}</dd></div>
     </dl>
     <footer>
       {!connection&&<button disabled={!canManage||running} onClick={onOpen}>ربط الحساب</button>}
@@ -772,6 +788,7 @@ function ProviderModal({provider,busy,error,onSave,onClose}){
           {fields.map(key=><label key={key}><span>{FIELD_LABELS[key]||key}{(provider.requiredConfigKeys||[]).includes(key)?' *':''}</span><input name={key} defaultValue={config[key]||''} required={(provider.requiredConfigKeys||[]).includes(key)}/></label>)}
           {secrets.map(key=><label key={key}><span>{FIELD_LABELS[key]||key}{(provider.requiredSecretKeys||[]).includes(key)?' *':''}</span><input name={key} type={SECRET_FIELDS.has(key)?'password':'text'} placeholder={configured.has(key)?'محفوظ مشفّرًا — اتركه فارغًا للإبقاء عليه':''} required={(provider.requiredSecretKeys||[]).includes(key)&&!configured.has(key)} autoComplete="new-password"/></label>)}
           <label><span>جدول المزامنة</span><select name="frequency" defaultValue={connection.frequency||'daily'}><option value="manual">يدوي</option><option value="every_6_hours">كل 6 ساعات</option><option value="daily">يومي</option></select></label>
+          <label><span>موعد المزامنة بتوقيت السعودية</span><input name="syncTime" type="time" step="300" defaultValue={connection.syncTime||'03:00'} required/></label>
           <label><span>إعادة قراءة الأيام الأخيرة</span><input type="number" name="syncLookbackDays" min="1" max="90" defaultValue={connection.syncLookbackDays||14}/></label>
         </div>
         {provider.providerKey==='google_ads'&&<p className={styles.providerHint}>Google يحتاج Developer Token، ومعه Access Token مباشر أو المجموعة الكاملة: Refresh Token + Client ID + Client Secret.</p>}

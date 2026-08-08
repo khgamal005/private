@@ -89,7 +89,8 @@ const required=[
   '20260808000940_marktone_marketplace_fk_indexes_v1.sql',
   '20260808161625_move_sales_followup_task_v1.sql',
   '20260808165235_normalize_customer_phone_display.sql',
-  '20260808171237_add_phone_off_lead_status.sql'
+  '20260808171237_add_phone_off_lead_status.sql',
+  '20260808182149_configurable_daily_integration_sync.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -141,6 +142,9 @@ for(const pattern of [
   /v2_tenant_role_management_snapshot/,
   /v2_tenant_customer_search/,
   /v2_tenant_marketing_hub_snapshot/,
+  /v2_tenant_sync_schedule_snapshot/,
+  /v3_tenant_woocommerce_action/,
+  /v3_tenant_marketing_hub_action/,
   /v2_public_site_snapshot/,
   /v2_platform_site_snapshot/,
   /v2_platform_page_builder_snapshot/,

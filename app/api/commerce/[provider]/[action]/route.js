@@ -85,6 +85,8 @@ function translated(value){
     integration_connection_not_found:'احفظ إعدادات المتجر أولًا.',
     commerce_provider_not_supported:'منصة المتجر غير مدعومة.',
     commerce_invalid_frequency:'جدول المزامنة غير صالح.',
+    sync_time_invalid:'موعد المزامنة غير صالح.',
+    sync_timezone_invalid:'المنطقة الزمنية للمزامنة غير صالحة.',
     commerce_invalid_scope:'اختيارات المزامنة غير صالحة.',
     commerce_scope_not_supported_by_provider:'اختر فقط البيانات التي تدعمها منصة المتجر.',
     commerce_shopify_domain_invalid:'استخدم نطاق Shopify بصيغة your-store.myshopify.com.',
@@ -131,7 +133,7 @@ async function handleWooCommerce({token,action,tenantSlug,payload}){
   if(action==='test'||action==='sync'){
     return invokeWooCommerceSync(token,action,tenantSlug);
   }
-  return rpc(token,'v2_tenant_woocommerce_action',{
+  return rpc(token,'v3_tenant_woocommerce_action',{
     p_tenant_slug:tenantSlug,
     p_action:action,
     p_payload:payload

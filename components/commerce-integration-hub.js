@@ -179,7 +179,8 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
       if(selected.providerKey==='custom'){
         configuration.authType=String(values.authType||'none');
       }
-      const frequency=String(values.frequency||'weekly');
+      const frequency=String(values.frequency||'daily');
+      const syncTime=String(values.syncTime||'03:00');
       const scope=(selected.capabilities||[]).filter(key=>
         key==='products'||values[`scope_${key}`]==='on'
       );
@@ -188,6 +189,8 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
         ?{
             storeUrl:configuration.storeUrl,
             frequency,
+            syncTime,
+            syncTimezone:'Asia/Riyadh',
             matchBySku,
             syncScope:scope,
             secrets
@@ -197,6 +200,8 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
               values.displayName||selected.nameAr||''
             ).trim(),
             frequency,
+            syncTime,
+            syncTimezone:'Asia/Riyadh',
             direction:'inbound',
             sourceOfTruth:'remote',
             conflictPolicy:'remote_wins',
@@ -399,6 +404,18 @@ function ProviderCard({
           <dt>آخر مزامنة</dt>
           <dd>{dateLabel(connection.lastSyncedAt)}</dd>
         </div>
+        <div>
+          <dt>موعد التشغيل</dt>
+          <dd>
+            {connection.frequency==='manual'
+              ?'يدوي فقط'
+              :`${syncTimeLabel(connection.syncTime||'03:00')} · السعودية`}
+          </dd>
+        </div>
+        <div>
+          <dt>المزامنة القادمة</dt>
+          <dd>{dateTimeLabel(connection.nextSyncAt)}</dd>
+        </div>
       </dl>}
     </div>
     <footer className={styles.cardFooter}>
@@ -534,7 +551,7 @@ function ProviderModal({provider,busy,error,onClose,onGuide,onSave}){
   );
   const frequency=connection.frequency
     ||connection.syncFrequency
-    ||'weekly';
+    ||'daily';
   return <div className={styles.modalLayer}>
     <button className={styles.backdrop} aria-label="إغلاق" onClick={onClose}/>
     <form
@@ -584,6 +601,16 @@ function ProviderModal({provider,busy,error,onClose,onGuide,onSave}){
                 key={value}
               >{label}</option>)}
             </select>
+          </label>
+          <label className={styles.field}>
+            موعد المزامنة بتوقيت السعودية
+            <input
+              name="syncTime"
+              type="time"
+              step="300"
+              defaultValue={connection.syncTime||'03:00'}
+              required
+            />
           </label>
 
           {(provider.requiredConfigKeys||[])
@@ -718,7 +745,26 @@ function dateLabel(value){
   if(!value)return 'لم تتم بعد';
   const date=new Date(value);
   if(Number.isNaN(date.getTime()))return 'غير محدد';
-  return new Intl.DateTimeFormat('ar-SA',{dateStyle:'medium'}).format(date);
+  return new Intl.DateTimeFormat('ar-SA',{
+    dateStyle:'medium',timeZone:'Asia/Riyadh'
+  }).format(date);
+}
+
+function dateTimeLabel(value){
+  if(!value)return 'بعد اختبار الاتصال';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return 'غير محدد';
+  return new Intl.DateTimeFormat('ar-SA',{
+    dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Riyadh'
+  }).format(date);
+}
+
+function syncTimeLabel(value){
+  if(!/^\d{2}:\d{2}$/.test(String(value||'')))return '٣:٠٠ ص';
+  const [hour,minute]=String(value).split(':').map(Number);
+  return new Intl.DateTimeFormat('ar-SA',{
+    hour:'numeric',minute:'2-digit',timeZone:'UTC'
+  }).format(new Date(Date.UTC(2020,0,1,hour,minute)));
 }
 
 function fieldPlaceholder(key){

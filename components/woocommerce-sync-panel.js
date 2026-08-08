@@ -54,12 +54,13 @@ export default function WooCommerceSyncPanel({
   const featureEnabled=data.featureEnabled!==false;
   const connectionFrequency=connection?.syncFrequency
     ||connection?.frequency
-    ||'weekly';
+    ||'daily';
   const [modal,setModal]=useState(false);
   const [busy,setBusy]=useState('');
   const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
   const [frequency,setFrequency]=useState(connectionFrequency);
+  const [syncTime,setSyncTime]=useState(connection?.syncTime||'03:00');
   const [scope,setScope]=useState(
     initialScope(connection?.syncScope,connection?.matchBySku)
   );
@@ -92,6 +93,8 @@ export default function WooCommerceSyncPanel({
         payload:{
           storeUrl:String(values.store_url||'').trim(),
           frequency,
+          syncTime,
+          syncTimezone:'Asia/Riyadh',
           matchBySku:Boolean(scope.matchBySku),
           syncScope:scopeList(scope),
           secrets:{
@@ -241,7 +244,12 @@ export default function WooCommerceSyncPanel({
         </div>
         <div>
           <dt>الجدول</dt>
-          <dd>{FREQUENCIES[connectionFrequency]||'أسبوعي'}</dd>
+          <dd>
+            {FREQUENCIES[connectionFrequency]||'يومي'}
+            {connectionFrequency!=='manual'
+              ?` · ${syncTimeLabel(connection?.syncTime||syncTime)}`
+              :''}
+          </dd>
         </div>
       </dl>
       {lastRun&&<div className={`mt-woocommerce-last-run ${lastRun.status}`}>
@@ -376,6 +384,18 @@ export default function WooCommerceSyncPanel({
                 )}
               </select>
             </label>
+            <label className="mt-field">
+              موعد المزامنة بتوقيت السعودية
+              <input
+                name="sync_time"
+                type="time"
+                step="300"
+                value={syncTime}
+                onChange={event=>setSyncTime(event.target.value)}
+                disabled={frequency==='manual'}
+                required={frequency!=='manual'}
+              />
+            </label>
             <div className="mt-field wide mt-woocommerce-scope">
               <b>ما الذي تريد مزامنته؟</b>
               <label className="mt-checkbox-card">
@@ -452,7 +472,17 @@ function dateLabel(value){
   if(Number.isNaN(date.getTime()))return 'غير محدد';
   return new Intl.DateTimeFormat('ar-SA',{
     dateStyle:'medium',
-    timeStyle:'short'
+    timeStyle:'short',
+    timeZone:'Asia/Riyadh'
+  }).format(date);
+}
+
+function syncTimeLabel(value){
+  if(!/^\d{2}:\d{2}$/.test(String(value||'')))return '٣:٠٠ ص';
+  const [hour,minute]=String(value).split(':').map(Number);
+  const date=new Date(Date.UTC(2020,0,1,hour,minute));
+  return new Intl.DateTimeFormat('ar-SA',{
+    hour:'numeric',minute:'2-digit',timeZone:'UTC'
   }).format(date);
 }
 

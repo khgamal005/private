@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {deflateRawSync} from 'node:zlib';
 import {parseTemplateArchive,prepareTemplateIndex} from '../lib/cms-template-archive.js';
+import {buildNativeTemplateBundle,nativeTemplateUrlFromEntry,normalizeNativeTemplateSource,serializeNativeTemplateBundle} from '../lib/cms-native-template.js';
 
 test('accepts a rooted website archive and injects an isolated CSP',()=>{
   const archive=zip([
@@ -19,6 +20,29 @@ test('accepts a rooted website archive and injects an isolated CSP',()=>{
   assert.doesNotMatch(html,/https:\/\/evil\.test/);
   assert.match(html,/data-marktone-bridge/);
   assert.match(html,/marktone:template-height/);
+});
+
+test('builds a native HTML and CSS bundle without shipping template JavaScript',()=>{
+  const archive=zip([
+    {name:'site/index.html',data:'<!doctype html><html><head><link rel="stylesheet" href="assets/app.css"></head><body><main><section><h1>Native</h1></section><section><p>Second</p></section></main><script src="assets/app.js"></script></body></html>'},
+    {name:'site/assets/app.css',data:'body{margin:0}.hero{background:url("../image.png")}'},
+    {name:'site/assets/app.js',data:'window.__template_secret="must-not-ship"'},
+    {name:'site/image.png',data:Buffer.from([0x89,0x50,0x4e,0x47])}
+  ]);
+  const parsed=parseTemplateArchive(archive);
+  const base='https://project.supabase.co/storage/v1/object/public/cms-template-assets/68759926-48d2-4fa8-8bbf-4311b6752d44/52e5531f-b1a6-412f-bc0b-9bb350160eea/r1/';
+  const bundle=buildNativeTemplateBundle(parsed,{baseUrl:base,checksum:'a'.repeat(64)});
+  assert.equal(bundle.format,'marktone-native-template');
+  assert.equal(bundle.stylesheets.length,1);
+  assert.equal(bundle.scriptCount,1);
+  assert.equal(bundle.scripts[0].path,'assets/app.js');
+  const serialized=serializeNativeTemplateBundle(bundle).toString('utf8');
+  assert.doesNotMatch(serialized,/must-not-ship/);
+  assert.match(serialized,/"javascript":"disabled"/);
+  const entry=`${base}index.html`;
+  assert.equal(nativeTemplateUrlFromEntry(entry),`${base}marktone-native-v1.json`);
+  const resolved=normalizeNativeTemplateSource(entry,'https://project.supabase.co');
+  assert.equal(resolved.nativeUrl.href,`${base}marktone-native-v1.json`);
 });
 
 test('rejects path traversal and Windows paths',()=>{

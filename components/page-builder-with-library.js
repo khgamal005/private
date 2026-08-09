@@ -2,6 +2,7 @@
 
 import {useEffect,useMemo,useState} from 'react';
 import PageBuilder from './page-builder';
+import {TemplateImportModeProvider} from './template-import-mode-provider';
 
 const TOOLBAR_LAYOUT_FIX=`
 @media (min-width:931px){
@@ -87,5 +88,10 @@ export default function PageBuilderWithLibrary({initialData}){
   },[storageKey,systemItems]);
 
   if(!ready)return <div dir="rtl" style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#f5f8fb',color:'#0b2949',fontFamily:'Tahoma,Arial,sans-serif'}}><div style={{textAlign:'center'}}><strong>Marktone Builder Pro</strong><p style={{margin:'8px 0 0',fontSize:12,color:'#74879a'}}>جارٍ تجهيز مكتبة البلوكات المحفوظة…</p></div></div>;
-  return <div className="marktone-builder-host"><PageBuilder initialData={initialData}/><style jsx global>{TOOLBAR_LAYOUT_FIX}</style></div>;
+  return <TemplateImportModeProvider>
+    <div className="marktone-builder-host">
+      <PageBuilder initialData={initialData}/>
+      <style jsx global>{TOOLBAR_LAYOUT_FIX}</style>
+    </div>
+  </TemplateImportModeProvider>;
 }

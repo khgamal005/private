@@ -3,6 +3,7 @@ import {cookies} from 'next/headers';
 import {NextResponse} from 'next/server';
 import {ACCESS_COOKIE,SUPABASE_KEY,SUPABASE_URL} from '../../../../../lib/config';
 import {parseTemplateArchive,prepareTemplateIndex,TEMPLATE_ARCHIVE_LIMITS} from '../../../../../lib/cms-template-archive';
+import {NATIVE_TEMPLATE_FILENAME,buildNativeTemplateBundle,serializeNativeTemplateBundle} from '../../../../../lib/cms-native-template';
 
 export const runtime='nodejs';
 export const maxDuration=60;
@@ -36,6 +37,9 @@ export async function POST(request){
     if(declaredSize>TEMPLATE_ARCHIVE_LIMITS.compressedBytes)throw new TemplateImportError('حجم ملف ZIP يتجاوز 20 ميجابايت.','archive_too_large');
     const archive=Buffer.from(await archiveResponse.arrayBuffer());
     const parsed=parseTemplateArchive(archive);
+    if(parsed.files.some(file=>file.path.toLowerCase()===NATIVE_TEMPLATE_FILENAME)){
+      throw new TemplateImportError(`اسم الملف ${NATIVE_TEMPLATE_FILENAME} محجوز لمحرك ماركتون.`,'archive_reserved_file');
+    }
     const prefix=`${start.siteId}/${templateId}/r1`;
     const publicBase=`${SUPABASE_URL}/storage/v1/object/public/${encodePath(assetBucket)}/${encodePath(prefix)}`;
     const indexFile=parsed.files.find(file=>file.path==='index.html');
@@ -68,6 +72,9 @@ export async function POST(request){
 
     const manifest=parsed.files.map(file=>({path:file.path,mimeType:contentType(file.mimeType),size:file.size,sha256:file.sha256}));
     const checksum=createHash('sha256').update(manifest.map(file=>`${file.path}:${file.sha256}`).join('\n')).digest('hex');
+    const nativeBundle=buildNativeTemplateBundle(parsed,{baseUrl:`${publicBase}/`,checksum});
+    const nativeFile=serializeNativeTemplateBundle(nativeBundle);
+    await uploadFile({path:NATIVE_TEMPLATE_FILENAME,mimeType:'application/json',data:nativeFile});
     const entryPath=`${prefix}/index.html`;
     const complete=await rpcJson('v3_cms_template_import_action',token,{
       p_template_id:templateId,p_action:'complete',
@@ -78,9 +85,10 @@ export async function POST(request){
       success:true,
       template:{
         id:complete.templateId,name:complete.name,status:'ready',entryUrl:`${SUPABASE_URL}/storage/v1/object/public/${encodePath(complete.assetBucket)}/${encodePath(complete.entryPath)}`,
+        nativeUrl:`${SUPABASE_URL}/storage/v1/object/public/${encodePath(complete.assetBucket)}/${encodePath(complete.entryPath.replace(/index\.html$/i,NATIVE_TEMPLATE_FILENAME))}`,
         fileCount:complete.fileCount,totalBytes:complete.totalBytes,checksum:complete.checksum
       },
-      warnings:['يعمل JavaScript داخل إطار معزول بلا وصول إلى جلسة ماركتون أو نماذج الإرسال.','تمت إضافة القالب إلى المسودة فقط ولن يظهر للعامة قبل الحفظ والنشر.']
+      warnings:['تم تحويل HTML وCSS إلى أقسام أصلية بعرض الصفحة دون iframe.','تم تعطيل JavaScript داخل القالب لحماية جلسة ماركتون، ولن يظهر المحتوى للعامة قبل الحفظ والنشر.']
     });
   }catch(error){
     if(token&&uploaded.length)await removeObjects(assetBucket,uploaded,token);

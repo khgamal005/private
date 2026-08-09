@@ -95,7 +95,7 @@ export default function PageBuilder({initialData}){
       }catch{setNotice({type:'error',text:'ملف Builder JSON غير صالح.'})}
       return;
     }
-    if(!window.confirm('سيتم رفع القالب وفحصه ثم تشغيل JavaScript داخل إطار معزول. سيضاف إلى المسودة فقط ولن يُنشر تلقائيًا. متابعة؟')){
+    if(!window.confirm('سيتم رفع القالب وفحصه ثم تحويل HTML وCSS إلى أقسام أصلية بعرض الصفحة. سيتم تعطيل JavaScript لحماية جلسة ماركتون، ولن يُنشر القالب تلقائيًا. متابعة؟')){
       return;
     }
     setImporting(true);setNotice(null);
@@ -122,9 +122,8 @@ export default function PageBuilder({initialData}){
       });
       const result=await processResponse.json().catch(()=>({}));
       if(!processResponse.ok)throw new Error(result.error||'تعذر فحص القالب.');
-      insertImportedTemplate(result.template);
+      await insertImportedTemplate(result.template);
       setTemplates(current=>[result.template,...current.filter(item=>item.id!==result.template.id)]);
-      setNotice({type:'success',text:`تم استيراد ${result.template.fileCount} ملفًا داخل قالب معزول. راجع المعاينة ثم احفظ المسودة وانشر يدويًا.`});
     }catch(error){
       setNotice({type:'error',text:error instanceof Error?error.message:'تعذر استيراد قالب ZIP.'});
     }finally{
@@ -215,7 +214,7 @@ export default function PageBuilder({initialData}){
             {filteredPresets.map(([key,item])=><button type="button" className={styles.presetCard} key={key} draggable onDragStart={event=>{event.dataTransfer.effectAllowed='copy';event.dataTransfer.setData('application/x-marktone-preset',key);}} onClick={()=>insertPreset(key)}><span>{item.icon}</span><div><b>{item.label}</b><small>{item.description}</small></div><em>＋</em></button>)}
           </div>}
           {libraryTab==='templates'&&<div className={styles.templatesLibrary}>
-            <div className={`${styles.templateImportPanel} ${zipDragActive?styles.templateImportDragging:''}`} onDragEnter={event=>{event.preventDefault();setZipDragActive(true);}} onDragOver={event=>event.preventDefault()} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setZipDragActive(false);}} onDrop={handleZipDrop}><span>ZIP</span><h2>استيراد قالب كامل</h2><p>اسحب ملف ZIP هنا، أو اختره من جهازك. يجب أن يحتوي index.html وملفات CSS وJavaScript والصور أو الفيديو.</p><button type="button" disabled={importing} onClick={()=>importRef.current?.click()}>{importing?'جارٍ الرفع والفحص…':'اختيار ملف ZIP'}</button><small>حتى 20MB مضغوط · 64MB بعد الفك · 250 ملفًا · يُضاف إلى المسودة ولا يُنشر تلقائيًا</small></div>
+            <div className={`${styles.templateImportPanel} ${zipDragActive?styles.templateImportDragging:''}`} onDragEnter={event=>{event.preventDefault();setZipDragActive(true);}} onDragOver={event=>event.preventDefault()} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setZipDragActive(false);}} onDrop={handleZipDrop}><span>ZIP</span><h2>استيراد قالب كامل</h2><p>اسحب ملف ZIP هنا، أو اختره من جهازك. سيحوّل ماركتون index.html وCSS إلى أقسام أصلية بعرض الصفحة، ويعطّل JavaScript غير الآمن.</p><button type="button" disabled={importing} onClick={()=>importRef.current?.click()}>{importing?'جارٍ الرفع والفحص…':'اختيار ملف ZIP'}</button><small>حتى 20MB مضغوط · 64MB بعد الفك · 250 ملفًا · يُضاف إلى المسودة ولا يُنشر تلقائيًا</small></div>
             <section className={styles.templateCatalog}><header><b>مكتبة القوالب</b><small>{templates.length} قالب محفوظ</small></header>
               {templatesState==='loading'&&<p>جارٍ تحميل القوالب…</p>}
               {templatesState==='error'&&<div className={styles.catalogError}><span>تعذر تحميل المكتبة.</span><button type="button" onClick={()=>setCatalogReload(value=>value+1)}>إعادة المحاولة</button></div>}

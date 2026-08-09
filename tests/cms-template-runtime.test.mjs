@@ -52,17 +52,20 @@ test('error document reports the failure to the parent safely',()=>{
   assert.doesNotMatch(output,/<script>alert\(1\)<\/script>/);
 });
 
-test('builder renderer routes imported ZIP templates through the v2 runtime',async()=>{
-  const [renderer,wrapper,client,route]=await Promise.all([
+test('builder renders imported ZIP templates natively without an iframe',async()=>{
+  const [renderer,wrapper,compatibility,nativeComponent,nativeRoute]=await Promise.all([
     readFile(new URL('components/page-document-renderer.js',root),'utf8'),
     readFile(new URL('components/page-builder-module-view-runtime.js',root),'utf8'),
     readFile(new URL('components/imported-template-runtime.js',root),'utf8'),
-    readFile(new URL('app/api/cms/templates/runtime/route.js',root),'utf8')
+    readFile(new URL('components/native-template-section.js',root),'utf8'),
+    readFile(new URL('app/api/cms/templates/native/route.js',root),'utf8')
   ]);
   assert.match(renderer,/page-builder-module-view-runtime/);
-  assert.match(wrapper,/ImportedTemplateRuntime/);
-  assert.match(client,/srcDoc=\{srcDoc\}/);
-  assert.match(client,/props\.textOverrides/);
-  assert.match(client,/allow-scripts allow-modals/);
-  assert.match(route,/rewriteTemplateDocument/);
+  assert.match(wrapper,/native-template-section/);
+  assert.match(wrapper,/data-template-renderer="native-shadow-dom"/);
+  assert.match(compatibility,/NativeTemplateSection/);
+  assert.doesNotMatch(compatibility,/<iframe\b/i);
+  assert.match(nativeComponent,/attachShadow/);
+  assert.match(nativeComponent,/props\.textOverrides/);
+  assert.match(nativeRoute,/normalizeNativeTemplateSource/);
 });

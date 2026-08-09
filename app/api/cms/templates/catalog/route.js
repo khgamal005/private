@@ -23,12 +23,15 @@ export async function GET(request){
       console.error('cms_template_catalog_upstream_failed',{status:response.status,detail:text.slice(0,500)});
       return NextResponse.json({error:'تعذر تحميل مكتبة القوالب'},{status:response.status>=400&&response.status<500?response.status:502});
     }
-    const templates=(Array.isArray(data?.templates)?data.templates:[]).map(template=>({
-      id:template.id,name:template.name,status:template.status,
-      entryUrl:`${SUPABASE_URL}/storage/v1/object/public/${encodePath(template.assetBucket)}/${encodePath(template.entryPath)}`,
-      fileCount:Number(template.fileCount)||0,totalBytes:Number(template.totalBytes)||0,
-      checksum:template.checksum||'',createdAt:template.createdAt||null
-    }));
+const templates=(Array.isArray(data?.templates)?data.templates:[]).map(template=>{
+  const entryUrl=`${SUPABASE_URL}/storage/v1/object/public/${encodePath(template.assetBucket)}/${encodePath(template.entryPath)}`;
+  return {
+    id:template.id,name:template.name,status:template.status,entryUrl,
+    nativeUrl:entryUrl.replace(/index\.html$/i,'marktone-native-v1.json'),
+    fileCount:Number(template.fileCount)||0,totalBytes:Number(template.totalBytes)||0,
+    checksum:template.checksum||'',createdAt:template.createdAt||null
+  };
+});
     return NextResponse.json({templates});
   }catch(error){
     console.error('cms_template_catalog_failed',error);

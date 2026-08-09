@@ -7,9 +7,12 @@ import {
   createLayoutRow,createSectionPreset,normalizeBuilderDocument
 } from '../lib/website-builder';
 import {applyCmsAssistantOperations} from '../lib/cms-assistant-operations.mjs';
+import {NATIVE_TEMPLATE_WIDGET_KEY,loadNativeTemplatePackage,nativeTemplatePackageId} from '../lib/cms-native-template-client';
+import {useTemplateImportMode} from './template-import-mode-provider';
 
 export function usePageBuilder(initialData){
   const router=useRouter();
+  const chooseTemplateImportMode=useTemplateImportMode();
   const entity=useMemo(()=>initialData?.entity||initialData?.page||{},[initialData]);
   const context=useMemo(()=>initialData?.context||{},[initialData]);
   const initialDocument=useMemo(()=>normalizeBuilderDocument(
@@ -328,41 +331,75 @@ export function usePageBuilder(initialData){
     commit(next,{selection:firstSelection(next),noticeMessage:'تم استيراد التصميم إلى المسودة.'});
   }
 
-  function insertImportedTemplate(template={}){
+  async function insertImportedTemplate(template={}){
     const entryUrl=String(template.entryUrl||'').trim();
     if(!entryUrl){setNotice({type:'error',text:'رابط القالب المستورد غير صالح.'});return}
-    const importedModule=createBuilderBlock('widget',{
-      props:{
-        title:String(template.name||'قالب ZIP مستورد').slice(0,120),
-        body:'قالب تفاعلي يعمل داخل إطار أمني معزول.',
-        widgetKey:'imported-template',
-        templateId:String(template.id||''),
-        entryUrl,
-        height:720,
-        fileCount:Number(template.fileCount)||0,
-        totalBytes:Number(template.totalBytes)||0,
-        checksum:String(template.checksum||'')
-      },
-      style:{paddingY:0,maxWidth:'full',background:'transparent'}
-    });
-    const target=currentModuleTarget();
-    if(target){
-      insertModule(target.rowId,target.columnId,importedModule,target.index);
-      setNotice({type:'success',text:'تمت إضافة قالب ZIP إلى المسودة. احفظ المسودة ثم انشر عندما تكون المعاينة جاهزة.'});
-      return;
+    if(busy)return;
+    setBusy('compile-template');
+    setNotice({type:'success',text:'جارٍ تحليل القالب وتقسيمه إلى أقسام أصلية…'});
+    try{
+      const compiled=await loadNativeTemplatePackage(template);
+      const mode=await chooseTemplateImportMode({
+        title:compiled.title,
+        sectionCount:compiled.sectionCount,
+        fileCount:compiled.fileCount,
+        scriptCount:compiled.scriptCount
+      });
+      if(!mode){
+        setNotice({type:'success',text:'تم إلغاء إدراج القالب ولم تتغير المسودة.'});
+        return;
+      }
+
+      const packageId=nativeTemplatePackageId(template);
+      const importedBlocks=compiled.sections.map((section,index)=>createBuilderBlock('widget',{
+        props:{
+          title:section.title||`قسم ${index+1}`,
+          body:'قسم أصلي مستورد من قالب ZIP.',
+          widgetKey:NATIVE_TEMPLATE_WIDGET_KEY,
+          templateId:String(template.id||template.templateId||''),
+          templatePackageId:packageId,
+          entryUrl,
+          nativeUrl:String(template.nativeUrl||compiled.nativeUrl||''),
+          checksum:String(template.checksum||compiled.checksum||''),
+          fileCount:Number(template.fileCount||compiled.fileCount)||0,
+          totalBytes:Number(template.totalBytes||compiled.totalBytes)||0,
+          scriptCount:Number(compiled.scriptCount)||0,
+          sectionKey:section.key,
+          sectionIndex:index,
+          sectionCount:compiled.sectionCount,
+          textOverrides:{}
+        },
+        style:{
+          paddingY:0,maxWidth:'full',background:'transparent',borderWidth:0,
+          borderRadius:0,shadow:'none',variant:'light',align:'right'
+        }
+      }));
+      if(!importedBlocks.length)throw new Error('لم نجد أقسامًا قابلة للإدراج داخل القالب.');
+
+      let blocks;
+      if(mode==='replace'){
+        blocks=importedBlocks;
+      }else{
+        if(document.blocks.length+importedBlocks.length>80){
+          throw new Error(`القالب يحتوي ${importedBlocks.length} قسمًا، ولا يمكن إضافته لأن الصفحة ستتجاوز الحد الأقصى البالغ 80 قسمًا. استخدم خيار الاستبدال أو احذف بعض الأقسام.`);
+        }
+        blocks=[...document.blocks];
+        blocks.splice(clampIndex(defaultTopIndex(true),blocks.length),0,...importedBlocks);
+      }
+
+      const first=importedBlocks[0];
+      const scriptNotice=compiled.scriptCount>0
+        ?` تم تعطيل ${compiled.scriptCount} ملف JavaScript لحماية جلسة ماركتون.`
+        :'';
+      commit({...document,blocks},{
+        selection:{kind:'block',blockId:first.id},
+        noticeMessage:`${mode==='replace'?'تم استبدال التصميم':'تمت إضافة القالب'} بـ ${importedBlocks.length} قسمًا أصليًا بعرض الصفحة، بدون iframe وبدون عمود وسيط.${scriptNotice}`
+      });
+    }catch(error){
+      setNotice({type:'error',text:error instanceof Error?error.message:'تعذر تحويل القالب إلى أقسام أصلية.'});
+    }finally{
+      setBusy('');
     }
-    const row=createLayoutRow('1');
-    row.props.gap=0;
-    row.props.fullWidth=true;
-    row.style={...row.style,paddingY:0,maxWidth:'full',background:'transparent'};
-    row.props.items[0].style={...row.props.items[0].style,padding:0,gap:0,background:'transparent'};
-    row.props.items[0].modules=[importedModule];
-    const blocks=[...document.blocks];
-    blocks.splice(defaultTopIndex(true),0,row);
-    commit({...document,blocks},{
-      selection:{kind:'module',rowId:row.id,columnId:row.props.items[0].id,moduleId:importedModule.id},
-      noticeMessage:'تمت إضافة قالب ZIP إلى المسودة. احفظ المسودة ثم انشر عندما تكون المعاينة جاهزة.'
-    });
   }
 
   function previewAssistantPlan(operations){

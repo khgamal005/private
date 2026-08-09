@@ -88,6 +88,7 @@ const required=[
   '20260808000722_marktone_marketplace_v1.sql',
   '20260808000940_marktone_marketplace_fk_indexes_v1.sql',
   '20260808161625_move_sales_followup_task_v1.sql',
+  '20260809163000_followup_task_single_calendar_record_v2.sql',
   '20260808165235_normalize_customer_phone_display.sql',
   '20260808171237_add_phone_off_lead_status.sql',
   '20260808182149_configurable_daily_integration_sync.sql'
@@ -121,6 +122,7 @@ for(const pattern of [
   /v2_tenant_sales_pipeline_snapshot/,
   /v3_tenant_sales_pipeline_snapshot/,
   /v2_tenant_record_sales_followup_v3/,
+  /v2_tenant_record_sales_followup_v4/,
   /v2_tenant_update_sales_contact_v1/,
   /v2_tenant_customer_history_snapshot_v2/,
   /v2_tenant_admissions_snapshot/,

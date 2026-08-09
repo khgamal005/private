@@ -37,6 +37,7 @@ export default function PageDocumentRenderer({
       onSelect={onSelect} onDropAt={onDropAt} onDragStart={onDragStart} onDuplicate={onDuplicate}
       onDelete={onDelete} onColumnDrop={onColumnDrop} onModuleDragStart={onModuleDragStart}
       onDuplicateModule={onDuplicateModule} onDeleteModule={onDeleteModule} onInlineEdit={onInlineEdit}
+      pageCss={normalized.settings.customCss}
     />)}
     {editor&&!normalized.blocks.length&&<div className={styles.emptyCanvas}><strong>ابدأ بإضافة أول صف</strong><span>اسحب توزيع أعمدة أو موديول من المكتبة.</span></div>}
   </div>;
@@ -46,10 +47,10 @@ function TopBlock(props){
   const {block,index,editor,device,selection,onSelect,onDropAt,onDragStart,onDuplicate,onDelete}=props;
   const row=isRow(block);const hidden=hiddenFor(block.responsive,device);
   const selected=row?selection?.kind==='row'&&selection.rowId===block.id:selection?.kind==='block'&&selection.blockId===block.id;
-  if(!editor)return <Responsive responsive={block.responsive}><BlockView block={block} device={device}/></Responsive>;
+  if(!editor)return <Responsive responsive={block.responsive}><BlockView block={block} device={device} pageCss={props.pageCss}/></Responsive>;
   return <div className={styles.editorBlockWrap}>
-    <article className={`${styles.editorBlock} ${row?styles.editorRow:''} ${selected?styles.selected:''} ${hidden?styles.hiddenInDevice:''}`} draggable onDragStart={event=>onDragStart?.(event,block.id)} onClick={event=>{event.stopPropagation();onSelect?.(row?{kind:'row',rowId:block.id}:{kind:'block',blockId:block.id});}}>
-      <Toolbar label={row?'صف':blockLabel(block.type)} detail={row?ROW_LAYOUTS[block.props.layoutKey]?.label:''} hidden={hidden} onDuplicate={()=>onDuplicate?.(block.id)} onDelete={()=>onDelete?.(block.id)}/>
+    <article className={`${styles.editorBlock} ${row?styles.editorRow:''} ${selected?styles.selected:''} ${hidden?styles.hiddenInDevice:''}`} onClick={event=>{event.stopPropagation();onSelect?.(row?{kind:'row',rowId:block.id}:{kind:'block',blockId:block.id});}}>
+      <Toolbar label={row?'صف':blockLabel(block.type)} detail={row?ROW_LAYOUTS[block.props.layoutKey]?.label:''} hidden={hidden} onDragStart={event=>onDragStart?.(event,block.id)} onDuplicate={()=>onDuplicate?.(block.id)} onDelete={()=>onDelete?.(block.id)}/>
       <BlockView {...props}/>
     </article>
     <TopDrop index={index+1} onDropAt={onDropAt}/>
@@ -58,43 +59,46 @@ function TopBlock(props){
 
 export function BlockView({
   block,editor=false,device='desktop',selection=null,onSelect,onColumnDrop,onModuleDragStart,
-  onDuplicateModule,onDeleteModule,onInlineEdit
+  onDuplicateModule,onDeleteModule,onInlineEdit,pageCss=''
 }){
-  if(!isRow(block))return <ModuleView block={block} editor={editor} target={{kind:'block',blockId:block.id}} onInlineEdit={onInlineEdit}/>;
+  if(!isRow(block)){
+    const target={kind:'block',blockId:block.id};
+    return <ModuleView block={block} editor={editor} target={target} onActivate={()=>onSelect?.(target)} onInlineEdit={onInlineEdit} pageCss={pageCss}/>;
+  }
   const p=block.props||{};const s=block.style||{};const layout=ROW_LAYOUTS[p.layoutKey]||ROW_LAYOUTS['1'];
   const className=[styles.block,styles.layoutSection,styles[`variant_${s.variant||'light'}`]||'',styles[`align_${s.align||'right'}`]||'',styles[`width_${s.maxWidth||'wide'}`]||'',s.cssClass||''].filter(Boolean).join(' ');
   return <section id={p.anchor||undefined} className={className} style={blockStyle(s)} data-builder-type="columns" data-animation={s.animation&&s.animation!=='none'?s.animation:undefined}>
     <div className={`${styles.layoutRow} ${p.fullWidth?styles.fullWidthRow:''}`} style={{gridTemplateColumns:layout.template,gap:clamp(p.gap,0,64,18),minHeight:clamp(p.minHeight,0,1200,0),alignItems:p.verticalAlign||'stretch'}}>
-      {p.items.map((column,columnIndex)=><Column key={column.id} row={block} column={column} columnIndex={columnIndex} editor={editor} device={device} selection={selection} onSelect={onSelect} onColumnDrop={onColumnDrop} onModuleDragStart={onModuleDragStart} onDuplicateModule={onDuplicateModule} onDeleteModule={onDeleteModule} onInlineEdit={onInlineEdit}/>) }
+      {p.items.map((column,columnIndex)=><Column key={column.id} row={block} column={column} columnIndex={columnIndex} editor={editor} device={device} selection={selection} onSelect={onSelect} onColumnDrop={onColumnDrop} onModuleDragStart={onModuleDragStart} onDuplicateModule={onDuplicateModule} onDeleteModule={onDeleteModule} onInlineEdit={onInlineEdit} pageCss={pageCss}/>) }
     </div>
   </section>;
 }
 
-function Column({row,column,columnIndex,editor,device,selection,onSelect,onColumnDrop,onModuleDragStart,onDuplicateModule,onDeleteModule,onInlineEdit}){
+function Column({row,column,columnIndex,editor,device,selection,onSelect,onColumnDrop,onModuleDragStart,onDuplicateModule,onDeleteModule,onInlineEdit,pageCss}){
   const hidden=hiddenFor(column.responsive,device);const selected=selection?.kind==='column'&&selection.rowId===row.id&&selection.columnId===column.id;
   const style=columnStyle(column.style);
-  if(!editor)return <Responsive responsive={column.responsive}><div className={styles.publicColumn} style={style}>{column.modules.map(module=><Responsive key={module.id} responsive={module.responsive}><ModuleView block={module} nested/></Responsive>)}</div></Responsive>;
+  if(!editor)return <Responsive responsive={column.responsive}><div className={styles.publicColumn} style={style}>{column.modules.map(module=><Responsive key={module.id} responsive={module.responsive}><ModuleView block={module} nested pageCss={pageCss}/></Responsive>)}</div></Responsive>;
   return <div className={`${styles.builderColumn} ${selected?styles.selectedColumn:''} ${hidden?styles.hiddenColumn:''}`} style={style} onClick={event=>{event.stopPropagation();onSelect?.({kind:'column',rowId:row.id,columnId:column.id});}}>
     <div className={styles.columnToolbar}><span>عمود {columnIndex+1}</span><small>{column.modules.length} عنصر</small></div>
     <ColumnDrop rowId={row.id} columnId={column.id} index={0} onColumnDrop={onColumnDrop}/>
-    {column.modules.map((module,moduleIndex)=><NestedModule key={module.id} row={row} column={column} module={module} moduleIndex={moduleIndex} device={device} selection={selection} onSelect={onSelect} onColumnDrop={onColumnDrop} onModuleDragStart={onModuleDragStart} onDuplicateModule={onDuplicateModule} onDeleteModule={onDeleteModule} onInlineEdit={onInlineEdit}/>) }
+    {column.modules.map((module,moduleIndex)=><NestedModule key={module.id} row={row} column={column} module={module} moduleIndex={moduleIndex} device={device} selection={selection} onSelect={onSelect} onColumnDrop={onColumnDrop} onModuleDragStart={onModuleDragStart} onDuplicateModule={onDuplicateModule} onDeleteModule={onDeleteModule} onInlineEdit={onInlineEdit} pageCss={pageCss}/>) }
     {!column.modules.length&&<div className={styles.emptyColumn}><span>＋</span><b>اسحب موديول هنا</b></div>}
   </div>;
 }
 
-function NestedModule({row,column,module,moduleIndex,device,selection,onSelect,onColumnDrop,onModuleDragStart,onDuplicateModule,onDeleteModule,onInlineEdit}){
+function NestedModule({row,column,module,moduleIndex,device,selection,onSelect,onColumnDrop,onModuleDragStart,onDuplicateModule,onDeleteModule,onInlineEdit,pageCss}){
   const target={kind:'module',rowId:row.id,columnId:column.id,moduleId:module.id};
   const selected=selection?.kind==='module'&&selection.rowId===row.id&&selection.columnId===column.id&&selection.moduleId===module.id;
   return <div className={styles.nestedEditorWrap}>
-    <article className={`${styles.nestedEditor} ${selected?styles.selectedModule:''} ${hiddenFor(module.responsive,device)?styles.hiddenInDevice:''}`} draggable onDragStart={event=>{event.stopPropagation();onModuleDragStart?.(event,row.id,column.id,module.id);}} onClick={event=>{event.stopPropagation();onSelect?.(target);}}>
-      <div className={styles.moduleToolbar}><span className={styles.dragHandle}>⋮⋮</span><b>{blockLabel(module.type)}</b><button type="button" onClick={event=>{event.stopPropagation();onDuplicateModule?.(row.id,column.id,module.id);}}>نسخ</button><button type="button" onClick={event=>{event.stopPropagation();onDeleteModule?.(row.id,column.id,module.id);}}>حذف</button></div>
-      <ModuleView block={module} editor nested target={target} onInlineEdit={onInlineEdit}/>
+    <article className={`${styles.nestedEditor} ${selected?styles.selectedModule:''} ${hiddenFor(module.responsive,device)?styles.hiddenInDevice:''}`} onClick={event=>{event.stopPropagation();onSelect?.(target);}}>
+      <div className={styles.moduleToolbar}><span className={styles.dragHandle} draggable onDragStart={event=>{event.stopPropagation();onModuleDragStart?.(event,row.id,column.id,module.id);}} title="اسحب العنصر">⋮⋮</span><b>{blockLabel(module.type)}</b><button type="button" onClick={event=>{event.stopPropagation();onDuplicateModule?.(row.id,column.id,module.id);}}>نسخ</button><button type="button" onClick={event=>{event.stopPropagation();onDeleteModule?.(row.id,column.id,module.id);}}>حذف</button></div>
+      <ModuleView block={module} editor nested target={target} onActivate={()=>onSelect?.(target)} onInlineEdit={onInlineEdit} pageCss={pageCss}/>
     </article>
     <ColumnDrop rowId={row.id} columnId={column.id} index={moduleIndex+1} onColumnDrop={onColumnDrop}/>
   </div>;
 }
 
-function Toolbar({label,detail,hidden,onDuplicate,onDelete}){return <div className={styles.editorToolbar}><span className={styles.dragHandle} title="اسحب لإعادة الترتيب">⋮⋮</span><b>{label}</b>{detail&&<small>{detail}</small>}{hidden&&<small>مخفي</small>}<button type="button" onClick={event=>{event.stopPropagation();onDuplicate();}}>نسخ</button><button type="button" onClick={event=>{event.stopPropagation();onDelete();}}>حذف</button></div>}
+function Toolbar({label,detail,hidden,onDragStart,onDuplicate,onDelete}){return <div className={styles.editorToolbar}><span className={styles.dragHandle} draggable onDragStart={event=>{event.stopPropagation();onDragStart?.(event);}} title="اسحب لإعادة الترتيب">⋮⋮</span><b>{label}</b>{detail&&<small>{detail}</small>}{hidden&&<small>مخفي</small>}<button type="button" onClick={event=>{event.stopPropagation();onDuplicate();}}>نسخ</button><button type="button" onClick={event=>{event.stopPropagation();onDelete();}}>حذف</button></div>}
 function TopDrop({index,onDropAt}){return <div className={styles.dropZone} onDragEnter={event=>allowDrop(event,true)} onDragOver={event=>allowDrop(event,true)} onDrop={event=>{event.preventDefault();event.stopPropagation();onDropAt?.(index,event);}}><span>ضع الصف أو العنصر هنا</span></div>}
 function ColumnDrop({rowId,columnId,index,onColumnDrop}){return <div className={styles.columnDropZone} onDragEnter={event=>allowDrop(event,true)} onDragOver={event=>allowDrop(event,true)} onDrop={event=>{event.preventDefault();event.stopPropagation();onColumnDrop?.(rowId,columnId,index,event);}}><span>إفلات هنا</span></div>}
 function Responsive({responsive,children}){return <div className={styles.responsiveBlock} data-hide-desktop={responsive?.hideDesktop||undefined} data-hide-tablet={responsive?.hideTablet||undefined} data-hide-mobile={responsive?.hideMobile||undefined}>{children}</div>}

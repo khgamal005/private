@@ -351,6 +351,10 @@ export function usePageBuilder(initialData){
       return;
     }
     const row=createLayoutRow('1');
+    row.props.gap=0;
+    row.props.fullWidth=true;
+    row.style={...row.style,paddingY:0,maxWidth:'full',background:'transparent'};
+    row.props.items[0].style={...row.props.items[0].style,padding:0,gap:0,background:'transparent'};
     row.props.items[0].modules=[importedModule];
     const blocks=[...document.blocks];
     blocks.splice(defaultTopIndex(true),0,row);
@@ -427,8 +431,8 @@ function firstSelection(document){
 function validSelection(document,selection){return Boolean(locateSelection(document,selection));}
 function setPath(source,path,value){
   const keys=String(path||'').split('.').filter(Boolean);if(!keys.length)return source;
-  const clone={...source};let cursor=clone;
-  for(let index=0;index<keys.length-1;index+=1){const key=keys[index];cursor[key]={...(cursor[key]||{})};cursor=cursor[key];}
+  const clone=Array.isArray(source)?[...source]:{...source};let cursor=clone;
+  for(let index=0;index<keys.length-1;index+=1){const key=keys[index];const current=cursor[key];cursor[key]=Array.isArray(current)?[...current]:{...(current||{})};cursor=cursor[key];}
   cursor[keys.at(-1)]=value;return clone;
 }
 function cloneRowWithFreshIds(source){

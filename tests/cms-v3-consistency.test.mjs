@@ -24,9 +24,11 @@ test('legacy public fallback is explicit and free-trial is CMS-first',async()=>{
 test('custom HTML and imported templates use separate sandbox policies',async()=>{
   const renderer=await read('components/page-builder-module-view.js');
   assert.doesNotMatch(renderer,/dangerouslySetInnerHTML/);
-  assert.match(renderer,/className=\{styles\.htmlSandbox\} sandbox=""/);
+  assert.match(renderer,/sandbox="allow-same-origin"/);
   assert.match(renderer,/sandbox="allow-scripts"/);
-  assert.doesNotMatch(renderer,/allow-same-origin/);
+  assert.doesNotMatch(renderer,/sandbox="allow-scripts allow-same-origin"/);
+  assert.match(renderer,/script-src 'none'/);
+  assert.match(renderer,/safeCss\(pageCss\)/);
   assert.match(renderer,/referrerPolicy="no-referrer"/);
 });
 

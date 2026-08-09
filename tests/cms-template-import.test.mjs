@@ -17,6 +17,8 @@ test('accepts a rooted website archive and injects an isolated CSP',()=>{
   assert.match(html,/form-action 'none'/);
   assert.match(html,/script-src https:\/\/project\.supabase\.co 'unsafe-inline'/);
   assert.doesNotMatch(html,/https:\/\/evil\.test/);
+  assert.match(html,/data-marktone-bridge/);
+  assert.match(html,/marktone:template-height/);
 });
 
 test('rejects path traversal and Windows paths',()=>{

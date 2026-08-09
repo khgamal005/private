@@ -2,3 +2,14 @@
 .device_tablet .layoutRow{grid-template-columns:repeat(2,minmax(0,1fr))!important}.device_mobile .layoutRow{grid-template-columns:1fr!important}.device_mobile .layoutSection>*{width:min(100% - 22px,100%)}.device_mobile .mosaicGrid,.device_mobile .galleryGrid,.device_mobile .testimonialGrid,.device_mobile .optinBlock{grid-template-columns:1fr!important}.device_mobile .menuBlock{display:grid}.device_mobile .menuBlock>div{display:grid}.device_mobile .slide{padding:30px 20px}.device_mobile .boxBlock,.device_mobile .infoLink{grid-template-columns:1fr}.device_mobile .columnToolbar{display:flex}.device_tablet .testimonialGrid{grid-template-columns:repeat(2,1fr)!important}
 @media(max-width:1100px) and (min-width:701px){.layoutRow{grid-template-columns:repeat(2,minmax(0,1fr))!important}.testimonialGrid,.galleryGrid{grid-template-columns:repeat(2,1fr)!important}}
 @media(max-width:700px){.layoutSection>*{width:min(100% - 24px,100%)}.layoutRow,.galleryGrid,.mosaicGrid,.testimonialGrid,.optinBlock{grid-template-columns:1fr!important}.mosaicGrid figure:first-child{grid-row:auto;min-height:240px}.menuBlock{display:grid}.menuBlock>div{display:grid}.boxBlock,.infoLink{grid-template-columns:1fr}.slide{padding:30px 20px}.timeline article{grid-template-columns:46px 1fr}.timeline strong{width:44px;height:44px}.timeline article:not(:last-child):before{right:21px;top:43px}}
+
+.htmlSandboxWrap{position:relative;width:100%;line-height:0}
+.htmlSandbox{display:block;width:100%;min-height:120px;border:0;border-radius:0;background:transparent;transition:height .18s ease}
+.htmlSandboxEditor{border:1px dashed rgba(243,107,33,.6);border-radius:8px}
+.htmlEditHint{position:absolute;z-index:5;top:8px;left:8px;border-radius:999px;background:rgba(6,24,46,.9);color:#fff;padding:7px 11px;font-size:10px;font-weight:800;line-height:1.2;pointer-events:none;opacity:.78}
+.dragHandle{cursor:grab;user-select:none;touch-action:none}
+.dragHandle:active{cursor:grabbing}
+.moduleToolbar{min-height:32px;gap:7px;padding:5px 7px}
+.moduleToolbar b{font-size:11px}
+.moduleToolbar button{padding:5px 8px;font-size:10px}
+.columnToolbar{font-size:10px;padding:5px 8px}

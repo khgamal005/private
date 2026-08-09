@@ -22,9 +22,10 @@ test('builder exposes HTML source and custom HTML insertion',async()=>{
   assert.match(modal,/إضافة كود HTML للصفحة/);
   assert.match(catalog,/html:def\('HTML \/ Text \/ Shortcode'/);
   assert.match(inspector,/type==='html'/);
-  assert.match(renderer,/safeHtmlDocument\(p\.content\)/);
-  assert.match(renderer,/sandbox=""/);
-  assert.match(renderer,/srcDoc=\{safeHtmlDocument\(p\.content\)\}/);
+  assert.match(renderer,/HtmlSandbox content=\{p\.content\} pageCss=\{pageCss\}/);
+  assert.match(renderer,/sandbox="allow-same-origin"/);
+  assert.match(renderer,/safeHtmlDocument\(content,pageCss,editor\)/);
+  assert.match(renderer,/data-marktone-editable/);
 });
 
 test('source serializer escapes metadata and keeps custom HTML isolated',async()=>{
@@ -33,4 +34,22 @@ test('source serializer escapes metadata and keeps custom HTML isolated',async()
   assert.match(modal,/<!-- Custom HTML -->/);
   assert.match(modal,/safeCssValue/);
   assert.match(modal,/ملاحظة أمان/);
+});
+
+test('builder keeps ZIP import visible and editing gestures do not hijack text',async()=>{
+  const [builder,cmsPages,documentRenderer,moduleRenderer]=await Promise.all([
+    read('components/page-builder.js'),
+    read('components/cms-studio-pages.js'),
+    read('components/page-document-renderer.js'),
+    read('components/page-builder-module-view.js')
+  ]);
+  assert.match(builder,/استيراد ZIP/);
+  assert.match(builder,/\['templates','القوالب'\]/);
+  assert.match(builder,/onDrop=\{handleZipDrop\}/);
+  assert.match(builder,/get\('panel'\)==='templates'/);
+  assert.match(cmsPages,/استيراد قالب ZIP/);
+  assert.doesNotMatch(documentRenderer,/<article[^>]*\sdraggable(?:\s|>)/);
+  assert.match(documentRenderer,/className=\{styles\.dragHandle\} draggable/);
+  assert.match(documentRenderer,/pageCss=\{normalized\.settings\.customCss\}/);
+  assert.match(moduleRenderer,/انقر على النص واكتب مباشرة/);
 });

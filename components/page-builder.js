@@ -31,6 +31,7 @@ export default function PageBuilder({initialData}){
   const [sourceOpen,setSourceOpen]=useState(false);
   const [savedItems,setSavedItems]=useState([]);
   const [importing,setImporting]=useState(false);
+  const [zipDragActive,setZipDragActive]=useState(false);
   const [templates,setTemplates]=useState([]);
   const [templatesState,setTemplatesState]=useState('idle');
   const [catalogReload,setCatalogReload]=useState(0);
@@ -41,6 +42,7 @@ export default function PageBuilder({initialData}){
   const storageKey=`marktone-builder-saved:${context.siteKey||'marktone-main'}:${context.tenantSlug||'platform'}`;
 
   useEffect(()=>{try{const stored=JSON.parse(localStorage.getItem(storageKey)||'[]');setSavedItems(Array.isArray(stored)?stored:[]);}catch{setSavedItems([]);}},[storageKey]);
+  useEffect(()=>{if(new URLSearchParams(window.location.search).get('panel')==='templates'){setLibraryTab('templates');setLibraryOpen(true);}},[]);
   useEffect(()=>{function closeSource(event){if(event.key==='Escape')setSourceOpen(false);}window.addEventListener('keydown',closeSource);return()=>window.removeEventListener('keydown',closeSource);},[]);
   useEffect(()=>{
     if(libraryTab!=='templates')return;
@@ -76,6 +78,9 @@ export default function PageBuilder({initialData}){
   }
   async function importDesign(event){
     const file=event.target.files?.[0];if(!file)return;
+    try{await importFile(file)}finally{event.target.value=''}
+  }
+  async function importFile(file){
     const isZip=/\.zip$/i.test(file.name)||['application/zip','application/x-zip-compressed'].includes(file.type);
     if(!isZip){
       try{
@@ -83,11 +88,10 @@ export default function PageBuilder({initialData}){
         if(!window.confirm('سيتم استيراد التصميم داخل المسودة الحالية. متابعة؟'))return;
         importDocument(parsed);
       }catch{setNotice({type:'error',text:'ملف Builder JSON غير صالح.'})}
-      finally{event.target.value=''}
       return;
     }
     if(!window.confirm('سيتم رفع القالب وفحصه ثم تشغيل JavaScript داخل إطار معزول. سيضاف إلى المسودة فقط ولن يُنشر تلقائيًا. متابعة؟')){
-      event.target.value='';return;
+      return;
     }
     setImporting(true);setNotice(null);
     try{
@@ -119,8 +123,14 @@ export default function PageBuilder({initialData}){
     }catch(error){
       setNotice({type:'error',text:error instanceof Error?error.message:'تعذر استيراد قالب ZIP.'});
     }finally{
-      setImporting(false);event.target.value='';
+      setImporting(false);
     }
+  }
+  function openZipImport(){setLibraryOpen(true);setLibraryTab('templates');importRef.current?.click();}
+  function handleZipDrop(event){
+    event.preventDefault();setZipDragActive(false);
+    const file=event.dataTransfer?.files?.[0];
+    if(file)importFile(file);
   }
 
   return <div className={styles.builder} dir="rtl">
@@ -139,7 +149,7 @@ export default function PageBuilder({initialData}){
         <button type="button" title="CSS وإعدادات الصفحة" className={inspectorMode==='page'?styles.activeUtility:''} onClick={()=>{setInspectorMode('page');setInspectorOpen(true);}}>CSS</button>
         <button type="button" title="مشاهدة سورس HTML وBuilder JSON" className={sourceOpen?styles.activeUtility:''} onClick={()=>setSourceOpen(true)}>&lt;/&gt;</button>
         <button type="button" title="إضافة كود HTML إلى الصفحة" onClick={addHtmlModule}>HTML＋</button>
-        <button type="button" title="استيراد Builder JSON أو قالب ZIP" disabled={importing} onClick={()=>importRef.current?.click()}>{importing?'…':'⇧'}</button>
+        <button type="button" className={styles.zipImportButton} title="استيراد قالب ZIP" disabled={importing} onClick={openZipImport}>{importing?'جارٍ الفحص…':'استيراد ZIP'}</button>
         <input ref={importRef} type="file" accept="application/json,.json,application/zip,application/x-zip-compressed,.zip" hidden onChange={importDesign}/>
         <button type="button" title="تصدير التصميم" onClick={exportDesign}>⇩</button>
         <button type="button" onClick={undo} disabled={!history.past.length} title="تراجع">↶</button>
@@ -161,7 +171,7 @@ export default function PageBuilder({initialData}){
 
     <div className={`${styles.body} ${!libraryOpen?styles.libraryClosed:''} ${!inspectorOpen?styles.inspectorClosed:''}`}>
       <aside className={styles.library}>
-        <div className={styles.libraryTabs}>{[['templates','Templates'],['saved','Saved'],['blocks','Blocks'],['modules','Modules']].map(([key,label])=><button type="button" key={key} className={libraryTab===key?styles.activeTab:''} onClick={()=>setLibraryTab(key)}>{label}{key==='saved'&&savedItems.length>0&&<b>{savedItems.length}</b>}</button>)}</div>
+        <div className={styles.libraryTabs}>{[['templates','القوالب'],['saved','المحفوظات'],['blocks','الأقسام'],['modules','العناصر']].map(([key,label])=><button type="button" key={key} className={libraryTab===key?styles.activeTab:''} onClick={()=>setLibraryTab(key)}>{label}{key==='saved'&&savedItems.length>0&&<b>{savedItems.length}</b>}</button>)}</div>
         <div className={styles.searchBox}><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="ابحث عن عنصر…"/><span>⌕</span></div>
         <div className={styles.libraryScroll}>
           {libraryTab==='modules'&&<>
@@ -173,7 +183,7 @@ export default function PageBuilder({initialData}){
             {filteredPresets.map(([key,item])=><button type="button" className={styles.presetCard} key={key} draggable onDragStart={event=>{event.dataTransfer.effectAllowed='copy';event.dataTransfer.setData('application/x-marktone-preset',key);}} onClick={()=>insertPreset(key)}><span>{item.icon}</span><div><b>{item.label}</b><small>{item.description}</small></div><em>＋</em></button>)}
           </div>}
           {libraryTab==='templates'&&<div className={styles.templatesLibrary}>
-            <div className={styles.templateImportPanel}><span>ZIP</span><h2>استيراد قالب كامل</h2><p>ارفع ملفًا يحتوي index.html وملفات CSS وJavaScript والصور والفيديو. يفحص النظام المسارات والضغط ثم يشغّل القالب داخل iframe معزول.</p><button type="button" disabled={importing} onClick={()=>importRef.current?.click()}>{importing?'جارٍ الرفع والفحص…':'اختيار ملف ZIP'}</button><small>حتى 20MB مضغوط · 64MB بعد الفك · 250 ملفًا · لا يتم النشر تلقائيًا</small></div>
+            <div className={`${styles.templateImportPanel} ${zipDragActive?styles.templateImportDragging:''}`} onDragEnter={event=>{event.preventDefault();setZipDragActive(true);}} onDragOver={event=>event.preventDefault()} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setZipDragActive(false);}} onDrop={handleZipDrop}><span>ZIP</span><h2>استيراد قالب كامل</h2><p>اسحب ملف ZIP هنا، أو اختره من جهازك. يجب أن يحتوي index.html وملفات CSS وJavaScript والصور أو الفيديو.</p><button type="button" disabled={importing} onClick={()=>importRef.current?.click()}>{importing?'جارٍ الرفع والفحص…':'اختيار ملف ZIP'}</button><small>حتى 20MB مضغوط · 64MB بعد الفك · 250 ملفًا · يُضاف إلى المسودة ولا يُنشر تلقائيًا</small></div>
             <section className={styles.templateCatalog}><header><b>مكتبة القوالب</b><small>{templates.length} قالب محفوظ</small></header>
               {templatesState==='loading'&&<p>جارٍ تحميل القوالب…</p>}
               {templatesState==='error'&&<div className={styles.catalogError}><span>تعذر تحميل المكتبة.</span><button type="button" onClick={()=>setCatalogReload(value=>value+1)}>إعادة المحاولة</button></div>}

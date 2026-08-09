@@ -25,7 +25,7 @@ export function Overview({data,context,pages,articles,home,setSection,setEditor}
     </section>
     <section className={`${styles.panel} ${styles.homeCard}`}>
       <div className={styles.homeVisual}><span>HOME</span><i/><i/><i/></div>
-      <div><p>الصفحة الأهم</p><h2>{home?.title||'الصفحة الرئيسية'}</h2><span>{home?.excerpt||'واجهة الموقع الأولى، قابلة للتعديل بالكامل بالبيلدر.'}</span><div className={styles.actionRow}>{home&&<Link href={cmsBuilderPath(context,'page',home.id)}>فتح المصمم</Link>}<button type="button" onClick={()=>setSection('pages')}>إدارة الصفحات</button></div></div>
+      <div><p>الصفحة الأهم</p><h2>{home?.title||'الصفحة الرئيسية'}</h2><span>{home?.excerpt||'واجهة الموقع الأولى، قابلة للتعديل بالكامل بالبيلدر.'}</span><div className={styles.actionRow}>{home&&<Link href={cmsBuilderPath(context,'page',home.id)}>فتح المصمم</Link>}{home&&<Link href={`${cmsBuilderPath(context,'page',home.id)}?panel=templates`}>استيراد قالب ZIP</Link>}<button type="button" onClick={()=>setSection('pages')}>إدارة الصفحات</button></div></div>
     </section>
     <section className={styles.panel}>
       <PanelHeading title="جاهزية الموقع" description="خطوات أساسية قبل إطلاق الموقع."/>

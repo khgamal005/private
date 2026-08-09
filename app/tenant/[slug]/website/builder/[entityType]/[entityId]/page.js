@@ -3,6 +3,8 @@ import PageBuilderWithLibrary from '../../../../../../../components/page-builder
 import {authRpc,requireTenantPermission} from '../../../../../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
+export const revalidate=0;
+export const fetchCache='force-no-store';
 
 export default async function TenantCmsBuilderPage({params}){
   const {slug,entityType,entityId}=await params;

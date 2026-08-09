@@ -33,6 +33,7 @@ export function usePageBuilder(initialData){
   const [templateKey,setTemplateKey]=useState(entity.type==='article'?'service':'landing');
   const groups=useMemo(()=>blockCatalogGroups(),[]);
   const selected=useMemo(()=>locateSelection(document,selection),[document,selection]);
+  const legacyTemplateCount=useMemo(()=>countUpgradeableLegacyTemplates(document),[document]);
   const recoveryKey=useMemo(()=>`marktone-builder-recovery:${context.siteKey||'marktone-main'}:${entity.type||'page'}:${entity.id||'unknown'}`,[context.siteKey,entity.id,entity.type]);
   const recoveryChecked=useRef(false);
 
@@ -350,31 +351,7 @@ export function usePageBuilder(initialData){
         return;
       }
 
-      const packageId=nativeTemplatePackageId(template);
-      const importedBlocks=compiled.sections.map((section,index)=>createBuilderBlock('widget',{
-        props:{
-          title:section.title||`قسم ${index+1}`,
-          body:'قسم أصلي مستورد من قالب ZIP.',
-          widgetKey:NATIVE_TEMPLATE_WIDGET_KEY,
-          templateId:String(template.id||template.templateId||''),
-          templatePackageId:packageId,
-          entryUrl,
-          nativeUrl:String(template.nativeUrl||compiled.nativeUrl||''),
-          checksum:String(template.checksum||compiled.checksum||''),
-          fileCount:Number(template.fileCount||compiled.fileCount)||0,
-          totalBytes:Number(template.totalBytes||compiled.totalBytes)||0,
-          scriptCount:Number(compiled.scriptCount)||0,
-          templateOwnsPageShell:true,
-          sectionKey:section.key,
-          sectionIndex:index,
-          sectionCount:compiled.sectionCount,
-          textOverrides:{}
-        },
-        style:{
-          paddingY:0,maxWidth:'full',background:'transparent',borderWidth:0,
-          borderRadius:0,shadow:'none',variant:'light',align:'right'
-        }
-      }));
+      const importedBlocks=createNativeTemplateBlocks(template,compiled,{});
       if(!importedBlocks.length)throw new Error('لم نجد أقسامًا قابلة للإدراج داخل القالب.');
 
       const rawInsertionIndex=defaultTopIndex(true);
@@ -401,6 +378,49 @@ export function usePageBuilder(initialData){
       });
     }catch(error){
       setNotice({type:'error',text:error instanceof Error?error.message:'تعذر تحويل القالب إلى أقسام أصلية.'});
+    }finally{
+      setBusy('');
+    }
+  }
+
+  async function upgradeLegacyTemplates(){
+    if(!legacyTemplateCount||busy)return;
+    if(!window.confirm(`سيتم تحويل ${legacyTemplateCount} قالب ZIP قديم إلى أقسام أصلية مستقلة بعرض الصفحة، مع إزالة العمود والحاوية القديمة. متابعة؟`))return;
+    setBusy('upgrade-legacy-templates');
+    setNotice({type:'success',text:'جارٍ ترقية القالب القديم إلى أقسام أصلية بدون iframe…'});
+    try{
+      const blocks=[];
+      let upgraded=0;
+      for(const sourceBlock of document.blocks){
+        const legacy=extractUpgradeableLegacyTemplate(sourceBlock);
+        if(!legacy){
+          if(!isEmptyLayoutRow(sourceBlock))blocks.push(sourceBlock);
+          continue;
+        }
+        const p=legacy.props||{};
+        const descriptor={
+          id:String(p.templateId||''),templateId:String(p.templateId||''),
+          name:String(p.title||'قالب ZIP قديم'),title:String(p.title||'قالب ZIP قديم'),
+          entryUrl:String(p.entryUrl||''),nativeUrl:String(p.nativeUrl||''),
+          checksum:String(p.checksum||''),fileCount:Number(p.fileCount)||0,
+          totalBytes:Number(p.totalBytes)||0
+        };
+        if(!descriptor.entryUrl)throw new Error('أحد القوالب القديمة لا يحتوي رابط ملف صالحًا. أعد رفع ملف ZIP.');
+        const compiled=await loadNativeTemplatePackage(descriptor);
+        const nativeBlocks=createNativeTemplateBlocks(descriptor,compiled,p.textOverrides||{});
+        if(!nativeBlocks.length)throw new Error('تعذر استخراج أقسام من أحد القوالب القديمة.');
+        if(blocks.length+nativeBlocks.length>80)throw new Error('لا يمكن ترقية القالب لأن الصفحة ستتجاوز 80 قسمًا.');
+        blocks.push(...nativeBlocks);
+        upgraded+=1;
+      }
+      if(!upgraded)throw new Error('لم نجد قالبًا قديمًا قابلًا للترقية داخل المسودة.');
+      const first=blocks.find(isNativeTemplateBlock);
+      commit({...document,blocks},{
+        selection:first?{kind:'block',blockId:first.id}:firstSelection({blocks}),
+        noticeMessage:`تم تحويل ${upgraded} قالب قديم إلى أقسام أصلية مستقلة بعرض الصفحة. احفظ المسودة بعد المراجعة.`
+      });
+    }catch(error){
+      setNotice({type:'error',text:error instanceof Error?error.message:'تعذر ترقية القالب القديم.'});
     }finally{
       setBusy('');
     }
@@ -463,8 +483,51 @@ export function usePageBuilder(initialData){
     duplicateBlock,deleteBlock,duplicateModule,deleteModule,duplicateSelected,deleteSelected,
     handleDragStart,handleModuleDragStart,handleDrop,handleColumnDrop,
     updateSelected,updateInline,updatePageSetting,importDocument,insertImportedTemplate,
+    legacyTemplateCount,upgradeLegacyTemplates,
     previewAssistantPlan,applyAssistantDocument,saveDraft,publish,restore,applyTemplate
   };
+}
+
+function createNativeTemplateBlocks(template,compiled,textOverrides={}){
+  const entryUrl=String(template.entryUrl||'').trim();
+  const packageId=nativeTemplatePackageId(template);
+  return (Array.isArray(compiled?.sections)?compiled.sections:[]).map((section,index)=>createBuilderBlock('widget',{
+    props:{
+      title:section.title||`قسم ${index+1}`,
+      body:'قسم أصلي مستورد من قالب ZIP.',
+      widgetKey:NATIVE_TEMPLATE_WIDGET_KEY,
+      templateId:String(template.id||template.templateId||''),
+      templatePackageId:packageId,
+      entryUrl,
+      nativeUrl:String(template.nativeUrl||compiled.nativeUrl||''),
+      checksum:String(template.checksum||compiled.checksum||''),
+      fileCount:Number(template.fileCount||compiled.fileCount)||0,
+      totalBytes:Number(template.totalBytes||compiled.totalBytes)||0,
+      scriptCount:Number(compiled.scriptCount)||0,
+      templateOwnsPageShell:true,
+      sectionKey:section.key,
+      sectionIndex:index,
+      sectionCount:Number(compiled.sectionCount)||1,
+      textOverrides:textOverrides&&typeof textOverrides==='object'&&!Array.isArray(textOverrides)?{...textOverrides}:{}
+    },
+    style:{
+      paddingY:0,maxWidth:'full',background:'transparent',borderWidth:0,
+      borderRadius:0,shadow:'none',variant:'light',align:'right'
+    }
+  }));
+}
+function extractUpgradeableLegacyTemplate(block){
+  if(isLegacyTemplateBlock(block))return block;
+  if(block?.type!=='columns'||block.props?.row!==true)return null;
+  const modules=(Array.isArray(block.props?.items)?block.props.items:[])
+    .flatMap(column=>Array.isArray(column?.modules)?column.modules:[]);
+  return modules.length===1&&isLegacyTemplateBlock(modules[0])?modules[0]:null;
+}
+function countUpgradeableLegacyTemplates(value){
+  return (Array.isArray(value?.blocks)?value.blocks:[]).reduce((count,block)=>count+(extractUpgradeableLegacyTemplate(block)?1:0),0);
+}
+function isLegacyTemplateBlock(block){
+  return block?.type==='widget'&&block.props?.widgetKey==='imported-template';
 }
 
 function normalizeEditorDocument(value){

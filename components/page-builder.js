@@ -22,8 +22,8 @@ export default function PageBuilder({initialData}){
     versions,showVersions,setShowVersions,templateKey,setTemplateKey,groups,undo,redo,
     addRow,addBlock,insertPreset,insertSaved,duplicateBlock,deleteBlock,duplicateModule,deleteModule,
     handleDragStart,handleModuleDragStart,handleDrop,handleColumnDrop,updateSelected,updateInline,
-    updatePageSetting,importDocument,insertImportedTemplate,previewAssistantPlan,applyAssistantDocument,
-    saveDraft,publish,restore,applyTemplate
+    updatePageSetting,importDocument,insertImportedTemplate,legacyTemplateCount,upgradeLegacyTemplates,
+    previewAssistantPlan,applyAssistantDocument,saveDraft,publish,restore,applyTemplate
   }=builder;
   const [libraryTab,setLibraryTab]=useState('modules');
   const [query,setQuery]=useState('');
@@ -227,6 +227,7 @@ export default function PageBuilder({initialData}){
     </header>
 
     {notice&&!assistantPreview&&<div className={`${styles.notice} ${notice.type==='error'?styles.noticeError:styles.noticeSuccess}`}><span>{notice.text}</span><button type="button" onClick={()=>setNotice(null)}>×</button></div>}
+    {legacyTemplateCount>0&&!assistantPreview&&<div className={styles.legacyUpgradeBar}><div><b>تم اكتشاف قالب ZIP قديم داخل عمود</b><span>حوّله إلى أقسام أصلية مستقلة حتى يختفي ارتفاع 720 وشريط التمرير والحاوية القديمة.</span></div><button type="button" disabled={Boolean(busy)} onClick={upgradeLegacyTemplates}>{busy==='upgrade-legacy-templates'?'جارٍ الترقية…':'ترقية القالب الآن'}</button></div>}
     {assistantPreview&&<div className={styles.aiPreviewBar}><div><b>✦ معاينة المساعد</b><span>{assistantPreview.proposal.summary}</span></div><div><button type="button" onClick={applyAssistantPreview}>تطبيق</button><button type="button" onClick={discardAssistantPreview}>إلغاء</button></div></div>}
 
     <div className={`${styles.body} ${!libraryOpen?styles.libraryClosed:''} ${!inspectorOpen?styles.inspectorClosed:''}`}>

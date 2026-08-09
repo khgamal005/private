@@ -4,7 +4,7 @@ import {useEffect,useMemo,useState} from 'react';
 import PageBuilder from './page-builder';
 import {TemplateImportModeProvider} from './template-import-mode-provider';
 
-const BUILDER_RUNTIME_VERSION='2.0.0-beta.26';
+const BUILDER_RUNTIME_VERSION='2.0.0-beta.27';
 const BUILDER_RUNTIME_QUERY='_builder';
 
 const TOOLBAR_LAYOUT_FIX=`

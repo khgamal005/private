@@ -60,7 +60,7 @@ export function TemplateImportModeProvider({children}){
 
         <div className={styles.summary} id={descriptionId}>
           <strong>{request.title}</strong>
-          <span>{request.sectionCount} قسمًا أصليًا · {request.fileCount} ملفًا</span>
+          <span>{request.pendingAnalysis?'سيتم تحليل أقسام القالب بعد اختيار طريقة الإدراج':`${request.sectionCount} قسمًا أصليًا · ${request.fileCount} ملفًا`}</span>
           <p>سيُعرض HTML وCSS بعرض الصفحة داخل Shadow DOM، من دون iframe أو عمود وسيط.</p>
           {request.scriptCount>0&&<em>سيتم تعطيل {request.scriptCount} ملف JavaScript لحماية جلسة ماركتون.</em>}
         </div>
@@ -106,7 +106,8 @@ function normalizeDetails(value={}){
     title:String(value.title||'قالب ZIP مستورد').slice(0,140),
     sectionCount:clamp(value.sectionCount,1,60,1),
     fileCount:clamp(value.fileCount,0,250,0),
-    scriptCount:clamp(value.scriptCount,0,250,0)
+    scriptCount:clamp(value.scriptCount,0,250,0),
+    pendingAnalysis:Boolean(value.pendingAnalysis)
   };
 }
 

@@ -166,6 +166,8 @@ export default function SalesFollowupModal({
       if(!response.ok)throw new Error(payload.error||'تعذر حفظ نتيجة المتابعة');
       const message=payload.data?.paymentReviewNotified
         ?'تم إرسال بلاغ الدفع إلى التسجيل والقبول للتحقق قبل التأكيد'
+        :!open
+          ?'تم حفظ النتيجة وإغلاق مهمة المتابعة الحالية دون إنشاء مهمة مكررة'
         :payload.data?.taskUpdated
           ?'تم حفظ النتيجة ونقل مهمة المتابعة نفسها إلى الموعد الجديد'
           :'تم حفظ النتيجة وإنشاء مهمة الإجراء التالي الأولى';

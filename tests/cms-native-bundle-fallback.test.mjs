@@ -8,8 +8,8 @@ async function source(path){return readFile(new URL(path,root),'utf8')}
 test('missing legacy native bundle falls back to index html and css',async()=>{
   const route=await source('app/api/cms/templates/native/route.js');
   assert.match(route,/isMissingStorageObject/);
-  assert.match(route,/status===400/);
-  assert.match(route,/object[ _-]*not/);
+  assert.match(route,/status!==400/);
+  assert.match(route,/object\[ _-\]\*not/);
   assert.match(route,/buildLegacyBundle/);
   assert.match(route,/cache:'no-store'/);
 });

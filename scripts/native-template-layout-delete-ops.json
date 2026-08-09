@@ -1,0 +1,142 @@
+[
+  {
+    "type":"replace",
+    "path":"lib/cms-native-template-client.js",
+    "label":"mark imported page shells",
+    "from":"  for(let cursor=candidate.ancestors.length-1;cursor>=0;cursor-=1){\n    const shell=candidate.ancestors[cursor].cloneNode(false);\n    shell.append(content);\n    content=shell;\n  }",
+    "to":"  if(content?.nodeType===1)content.setAttribute('data-marktone-native-content','true');\n  for(let cursor=candidate.ancestors.length-1;cursor>=0;cursor-=1){\n    const shell=candidate.ancestors[cursor].cloneNode(false);\n    shell.setAttribute('data-marktone-native-shell','true');\n    stripShellConstraints(shell);\n    shell.append(content);\n    content=shell;\n  }"
+  },
+  {
+    "type":"insertBefore",
+    "path":"lib/cms-native-template-client.js",
+    "label":"strip page shell scroll constraints",
+    "marker":"function findSectionTitle(wrapper,index){",
+    "content":"function stripShellConstraints(element){\n  const style=element?.style;\n  if(style){\n    for(const property of [\n      'height','min-height','max-height','overflow','overflow-x','overflow-y',\n      'position','inset','top','right','bottom','left','transform','contain',\n      'scroll-snap-type','overscroll-behavior','overscroll-behavior-y'\n    ])style.removeProperty(property);\n  }\n  for(const attribute of ['data-scroll-container','data-scroll','data-lenis-prevent','data-lenis-prevent-wheel']){\n    element?.removeAttribute?.(attribute);\n  }\n}\n\n"
+  },
+  {
+    "type":"replace",
+    "path":"lib/cms-native-template-client.js",
+    "label":"native full-width shell CSS",
+    "from":".native-root{display:block;width:100%;min-width:0;margin:0;padding:0;overflow:visible;background:transparent}\n.native-root img,.native-root video,.native-root canvas,.native-root svg{max-width:100%}",
+    "to":".native-root{display:block;width:100%;min-width:0;margin:0;padding:0;overflow:visible!important;background:transparent}\n.native-root>[data-marktone-native-section]{display:block;width:100%;min-width:0;max-width:none;overflow:visible!important}\n.native-root [data-marktone-native-shell=\"true\"]{position:relative!important;inset:auto!important;display:block!important;width:100%!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;overflow-x:visible!important;overflow-y:visible!important;transform:none!important;contain:none!important;scroll-snap-type:none!important;overscroll-behavior:auto!important}\n.native-root img,.native-root video,.native-root canvas,.native-root svg{max-width:100%}"
+  },
+  {
+    "type":"replace",
+    "path":"components/native-template-section.js",
+    "label":"normalize native section layout after render",
+    "from":"    shadow.append(style,root);\n\n    const activate=()=>callbacksRef.current.onActivate?.(callbacksRef.current.target);",
+    "to":"    shadow.append(style,root);\n    const releaseLayout=normalizeNativeLayout(root);\n\n    const activate=()=>callbacksRef.current.onActivate?.(callbacksRef.current.target);"
+  },
+  {
+    "type":"replace",
+    "path":"components/native-template-section.js",
+    "label":"release native layout observers",
+    "from":"      shadow.removeEventListener('keydown',keydown,true);\n      shadow.removeEventListener('paste',paste,true);\n    };",
+    "to":"      shadow.removeEventListener('keydown',keydown,true);\n      shadow.removeEventListener('paste',paste,true);\n      releaseLayout();\n    };"
+  },
+  {
+    "type":"insertBefore",
+    "path":"components/native-template-section.js",
+    "label":"remove nested imported scroll containers",
+    "marker":"function selectSections(template,key,index,renderAll){",
+    "content":"function normalizeNativeLayout(root){\n  let frame=0;\n  const listeners=[];\n  const schedule=()=>{\n    if(frame)return;\n    frame=window.requestAnimationFrame(apply);\n  };\n  const apply=()=>{\n    frame=0;\n    for(const element of collectLayoutCandidates(root))relaxLayoutElement(element,root);\n  };\n  const observer=typeof ResizeObserver==='function'?new ResizeObserver(schedule):null;\n  observer?.observe(root);\n  for(const asset of root.querySelectorAll('img,video')){\n    asset.addEventListener('load',schedule);\n    asset.addEventListener('loadedmetadata',schedule);\n    listeners.push(()=>{\n      asset.removeEventListener('load',schedule);\n      asset.removeEventListener('loadedmetadata',schedule);\n    });\n  }\n  schedule();\n  return()=>{\n    if(frame)window.cancelAnimationFrame(frame);\n    observer?.disconnect();\n    listeners.forEach(release=>release());\n  };\n}\n\nfunction collectLayoutCandidates(root){\n  const candidates=new Set([root]);\n  for(const shell of root.querySelectorAll('[data-marktone-native-shell=\"true\"]'))candidates.add(shell);\n  for(const section of root.children){\n    candidates.add(section);\n    let current=section.firstElementChild;\n    for(let depth=0;current&&depth<6;depth+=1){\n      if(isPageShell(current)||current.hasAttribute('data-marktone-native-shell'))candidates.add(current);\n      if(current.children.length!==1)break;\n      current=current.firstElementChild;\n    }\n  }\n  return [...candidates].slice(0,160);\n}\n\nfunction relaxLayoutElement(element,root){\n  let computed;\n  try{computed=window.getComputedStyle(element);}catch{return}\n  const forced=element===root||element.hasAttribute('data-marktone-native-shell');\n  const pageLike=forced||element.hasAttribute('data-marktone-native-section')||isPageShell(element);\n  const overflowValue=`${computed.overflow} ${computed.overflowX} ${computed.overflowY}`;\n  const scrollMode=/(auto|scroll|clip)/.test(overflowValue);\n  const clipped=/(hidden|clip)/.test(overflowValue);\n  const overflowing=element.clientHeight>0&&element.scrollHeight>element.clientHeight+6;\n  const viewportHeight=Math.max(window.innerHeight||0,320);\n  const height=Number.parseFloat(computed.height);\n  const maxHeight=Number.parseFloat(computed.maxHeight);\n  const viewportLocked=Number.isFinite(height)&&Math.abs(height-viewportHeight)<12||\n    Number.isFinite(maxHeight)&&Math.abs(maxHeight-viewportHeight)<12;\n  if(!forced&&!viewportLocked&&!(pageLike&&overflowing&&(scrollMode||clipped)))return;\n\n  element.style.setProperty('overflow','visible','important');\n  element.style.setProperty('overflow-x','visible','important');\n  element.style.setProperty('overflow-y','visible','important');\n  element.style.setProperty('max-height','none','important');\n  element.style.setProperty('scroll-snap-type','none','important');\n  element.style.setProperty('overscroll-behavior','auto','important');\n  if(element!==root){\n    element.style.setProperty('height','auto','important');\n    element.style.setProperty('min-height','0','important');\n  }\n  if(pageLike){\n    element.style.setProperty('contain','none','important');\n    if(computed.position==='fixed'||computed.position==='sticky')element.style.setProperty('position','relative','important');\n    if(element.hasAttribute('data-marktone-native-shell'))element.style.setProperty('transform','none','important');\n  }\n}\n\nfunction isPageShell(element){\n  const identity=`${element?.id||''} ${element?.className||''}`.toLowerCase();\n  return /\\b(app|root|page|site|website|wrapper|shell|layout|viewport|smooth|scroll|main-content)\\b/.test(identity);\n}\n\n"
+  },
+  {
+    "type":"replaceAll",
+    "path":"components/use-page-builder.js",
+    "label":"normalize native documents without empty scaffold rows",
+    "from":"normalizeBuilderDocument(",
+    "to":"normalizeEditorDocument("
+  },
+  {
+    "type":"replace",
+    "path":"components/use-page-builder.js",
+    "label":"mark native template as owning page shell",
+    "from":"          scriptCount:Number(compiled.scriptCount)||0,\n          sectionKey:section.key,",
+    "to":"          scriptCount:Number(compiled.scriptCount)||0,\n          templateOwnsPageShell:true,\n          sectionKey:section.key,"
+  },
+  {
+    "type":"replace",
+    "path":"components/use-page-builder.js",
+    "label":"append templates after removing empty rows",
+    "from":"      let blocks;\n      if(mode==='replace'){\n        blocks=importedBlocks;\n      }else{\n        if(document.blocks.length+importedBlocks.length>80){\n          throw new Error(`القالب يحتوي ${importedBlocks.length} قسمًا، ولا يمكن إضافته لأن الصفحة ستتجاوز الحد الأقصى البالغ 80 قسمًا. استخدم خيار الاستبدال أو احذف بعض الأقسام.`);\n        }\n        blocks=[...document.blocks];\n        blocks.splice(clampIndex(defaultTopIndex(true),blocks.length),0,...importedBlocks);\n      }",
+    "to":"      const rawInsertionIndex=defaultTopIndex(true);\n      const existingBlocks=document.blocks.filter(block=>!isEmptyLayoutRow(block));\n      let blocks;\n      if(mode==='replace'){\n        blocks=importedBlocks;\n      }else{\n        if(existingBlocks.length+importedBlocks.length>80){\n          throw new Error(`القالب يحتوي ${importedBlocks.length} قسمًا، ولا يمكن إضافته لأن الصفحة ستتجاوز الحد الأقصى البالغ 80 قسمًا. استخدم خيار الاستبدال أو احذف بعض الأقسام.`);\n        }\n        const insertionIndex=document.blocks.slice(0,rawInsertionIndex).filter(block=>!isEmptyLayoutRow(block)).length;\n        blocks=[...existingBlocks];\n        blocks.splice(clampIndex(insertionIndex,blocks.length),0,...importedBlocks);\n      }"
+  },
+  {
+    "type":"insertBefore",
+    "path":"components/use-page-builder.js",
+    "label":"native document compaction helpers",
+    "marker":"function locateSelection(document,selection){",
+    "content":"function normalizeEditorDocument(value){\n  const normalized=normalizeBuilderDocument(value);\n  if(!normalized.blocks.some(isNativeTemplateBlock))return normalized;\n  const blocks=normalized.blocks.filter(block=>!isEmptyLayoutRow(block));\n  return blocks.length===normalized.blocks.length?normalized:{...normalized,blocks};\n}\nfunction isNativeTemplateBlock(block){\n  return block?.type==='widget'&&['native-template-section','imported-template'].includes(block.props?.widgetKey);\n}\nfunction isEmptyLayoutRow(block){\n  if(block?.type!=='columns'||block.props?.row!==true)return false;\n  const columns=Array.isArray(block.props?.items)?block.props.items:[];\n  return columns.length>0&&columns.every(column=>!Array.isArray(column?.modules)||column.modules.length===0);\n}\n\n"
+  },
+  {
+    "type":"replace",
+    "path":"components/page-builder.js",
+    "label":"template deletion state",
+    "from":"  const [catalogReload,setCatalogReload]=useState(0);",
+    "to":"  const [catalogReload,setCatalogReload]=useState(0);\n  const [templateDeleting,setTemplateDeleting]=useState('');"
+  },
+  {
+    "type":"insertAfter",
+    "path":"components/page-builder.js",
+    "label":"detect native canvas shell",
+    "marker":"  const renderedDocument=assistantPreview?.document||document;",
+    "content":"\n  const nativeTemplateCanvas=useMemo(()=>hasNativeTemplate(renderedDocument),[renderedDocument]);"
+  },
+  {
+    "type":"insertBefore",
+    "path":"components/page-builder.js",
+    "label":"delete uploaded template from library",
+    "marker":"  function handleAssistantPlan(proposal){",
+    "content":"  async function deleteTemplate(template){\n    if(!template?.id||templateDeleting)return;\n    const used=documentUsesTemplate(document,template);\n    const warning=used\n      ?'هذا القالب مستخدم داخل المسودة الحالية. ستبقى الأقسام الحالية وملفاتها سليمة، لكن القالب لن يظهر بعد ذلك في المكتبة لإضافته مرة أخرى.'\n      :'سيتم حذف القالب من مكتبة القوالب. ستبقى ملفاته محفوظة حتى لا تتعطل أي صفحة سبق أن استخدمته.';\n    if(!window.confirm(`${warning}\\n\\nمتابعة؟`))return;\n    setTemplateDeleting(String(template.id));\n    setNotice(null);\n    try{\n      const response=await fetch('/api/cms/templates/delete',{\n        method:'POST',headers:{'Content-Type':'application/json'},\n        body:JSON.stringify({templateId:template.id})\n      });\n      const result=await response.json().catch(()=>({}));\n      if(!response.ok)throw new Error(result.error||'تعذر حذف القالب من المكتبة.');\n      setTemplates(current=>current.filter(item=>item.id!==template.id));\n      setNotice({type:'success',text:used\n        ?'تم حذف القالب من المكتبة مع إبقاء الأقسام المستخدمة داخل المسودة سليمة.'\n        :'تم حذف القالب من المكتبة بأمان، مع الاحتفاظ بملفاته لحماية الصفحات السابقة.'});\n    }catch(error){\n      setNotice({type:'error',text:error instanceof Error?error.message:'تعذر حذف القالب من المكتبة.'});\n    }finally{\n      setTemplateDeleting('');\n    }\n  }\n\n"
+  },
+  {
+    "type":"replace",
+    "path":"components/page-builder.js",
+    "label":"template catalog actions",
+    "from":"              {templatesState==='ready'&&filteredTemplates.map(template=><article key={template.id}><div><b>{template.name}</b><small>{template.fileCount} ملف · {Math.max(1,Math.round((template.totalBytes||0)/1024))} KB</small></div><button type=\"button\" onClick={()=>insertImportedTemplate(template)}>إضافة للمسودة</button></article>)}",
+    "to":"              {templatesState==='ready'&&filteredTemplates.map(template=><article key={template.id}><div><b>{template.name}</b><small>{template.fileCount} ملف · {Math.max(1,Math.round((template.totalBytes||0)/1024))} KB</small></div><div className={styles.templateCatalogActions}><button type=\"button\" disabled={templateDeleting===template.id} onClick={()=>insertImportedTemplate(template)}>إضافة للمسودة</button><button type=\"button\" className={styles.templateDeleteButton} disabled={Boolean(templateDeleting)} onClick={()=>deleteTemplate(template)}>{templateDeleting===template.id?'جارٍ الحذف…':'حذف'}</button></div></article>)}"
+  },
+  {
+    "type":"replace",
+    "path":"components/page-builder.js",
+    "label":"hide synthetic header for full imported templates",
+    "from":"            <div className={styles.liveHeader}><strong>{initialData?.site?.nameAr||'الموقع'}</strong><nav><span>الرئيسية</span><span>البرامج</span><span>من نحن</span><span>تواصل معنا</span></nav><b>سجل الآن</b>{!previewMode&&<small>هيدر الموقع</small>}</div>",
+    "to":"            {!nativeTemplateCanvas&&<div className={styles.liveHeader}><strong>{initialData?.site?.nameAr||'الموقع'}</strong><nav><span>الرئيسية</span><span>البرامج</span><span>من نحن</span><span>تواصل معنا</span></nav><b>سجل الآن</b>{!previewMode&&<small>هيدر الموقع</small>}</div>}"
+  },
+  {
+    "type":"replace",
+    "path":"components/page-builder.js",
+    "label":"hide synthetic footer for full imported templates",
+    "from":"            <div className={styles.liveFooter}><div><strong>{initialData?.site?.nameAr||'الموقع'}</strong><p>تجربة رقمية متكاملة مبنية بواسطة Marktone Builder.</p></div><span>© {new Date().getFullYear()}</span>{!previewMode&&<small>فوتر الموقع</small>}</div>",
+    "to":"            {!nativeTemplateCanvas&&<div className={styles.liveFooter}><div><strong>{initialData?.site?.nameAr||'الموقع'}</strong><p>تجربة رقمية متكاملة مبنية بواسطة Marktone Builder.</p></div><span>© {new Date().getFullYear()}</span>{!previewMode&&<small>فوتر الموقع</small>}</div>}"
+  },
+  {
+    "type":"insertBefore",
+    "path":"components/page-builder.js",
+    "label":"native template and usage helpers",
+    "marker":"function EmptyLibrary({text})",
+    "content":"function hasNativeTemplate(value){\n  return (Array.isArray(value?.blocks)?value.blocks:[]).some(block=>\n    block?.type==='widget'&&['native-template-section','imported-template'].includes(block.props?.widgetKey)&&block.props?.templateOwnsPageShell!==false\n  );\n}\nfunction documentUsesTemplate(value,template){\n  const id=String(template?.id||'');\n  const entryUrl=String(template?.entryUrl||'');\n  const nativeUrl=String(template?.nativeUrl||'');\n  const matches=block=>{\n    const props=block?.props||{};\n    if(id&&String(props.templateId||'')===id)return true;\n    if(entryUrl&&String(props.entryUrl||'')===entryUrl)return true;\n    if(nativeUrl&&String(props.nativeUrl||'')===nativeUrl)return true;\n    if(block?.type==='columns'&&props.row===true){\n      return (Array.isArray(props.items)?props.items:[]).some(column=>(Array.isArray(column?.modules)?column.modules:[]).some(matches));\n    }\n    return false;\n  };\n  return (Array.isArray(value?.blocks)?value.blocks:[]).some(matches);\n}\n\n"
+  },
+  {
+    "type":"insertAfter",
+    "path":"components/page-builder.module.css",
+    "label":"template delete action styling",
+    "marker":".catalogError{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;border-radius:8px;background:#fff1ef;color:#94453d;font-size:8px}",
+    "content":".templateCatalogActions{display:flex;align-items:center;justify-content:flex-end;gap:5px}.templateCatalogActions button{white-space:nowrap}.templateCatalogActions .templateDeleteButton{background:#fff1ef;color:#a53d38;border:1px solid #efc9c4}.templateCatalogActions .templateDeleteButton:hover{background:#ffe2df}.templateCatalogActions button:disabled{opacity:.52;cursor:wait}"
+  },
+  {
+    "type":"replaceAll",
+    "path":"package.json",
+    "label":"package version beta 25",
+    "from":"2.0.0-beta.24",
+    "to":"2.0.0-beta.25"
+  },
+  {
+    "type":"replaceAll",
+    "path":"package-lock.json",
+    "label":"lockfile version beta 25",
+    "from":"2.0.0-beta.24",
+    "to":"2.0.0-beta.25"
+  }
+]

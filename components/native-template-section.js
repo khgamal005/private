@@ -186,7 +186,7 @@ function collectLayoutCandidates(root){
     candidates.add(section);
     let current=section.firstElementChild;
     for(let depth=0;current&&depth<6;depth+=1){
-      if(isPageShell(current)||current.hasAttribute('data-marktone-native-shell'))candidates.add(current);
+      if(depth===0||current.hasAttribute('data-marktone-native-content')||isPageShell(current)||current.hasAttribute('data-marktone-native-shell'))candidates.add(current);
       if(current.children.length!==1)break;
       current=current.firstElementChild;
     }
@@ -198,7 +198,7 @@ function relaxLayoutElement(element,root){
   let computed;
   try{computed=window.getComputedStyle(element);}catch{return}
   const forced=element===root||element.hasAttribute('data-marktone-native-shell');
-  const pageLike=forced||element.hasAttribute('data-marktone-native-section')||isPageShell(element);
+  const pageLike=forced||element.hasAttribute('data-marktone-native-section')||element.hasAttribute('data-marktone-native-content')||isPageShell(element);
   const overflowValue=`${computed.overflow} ${computed.overflowX} ${computed.overflowY}`;
   const scrollMode=/(auto|scroll|clip)/.test(overflowValue);
   const clipped=/(hidden|clip)/.test(overflowValue);

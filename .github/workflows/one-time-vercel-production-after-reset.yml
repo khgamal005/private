@@ -1,0 +1,59 @@
+name: One-time Vercel production deploy after quota reset
+
+on:
+  schedule:
+    - cron: '15,45 17-23 10 8 *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-time-vercel-production-after-reset
+  cancel-in-progress: false
+
+jobs:
+  trigger-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout latest production branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Guard reset time and one-time execution
+        id: guard
+        shell: bash
+        run: |
+          RESET_EPOCH=1786381399
+          NOW_EPOCH="$(date -u +%s)"
+          if [ "$NOW_EPOCH" -lt "$RESET_EPOCH" ]; then
+            echo "Vercel quota has not reset yet."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -f public/vercel-production-trigger-20260810.txt ]; then
+            echo "Production trigger already committed."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create a fresh production deployment commit
+        if: steps.guard.outputs.ready == 'true'
+        shell: bash
+        run: |
+          git config user.name "Marktone Production Bot"
+          git config user.email "actions@users.noreply.github.com"
+          printf '%s\n' \
+            'Marktone Builder production deployment trigger' \
+            'Vercel quota reset: 2026-08-10T17:03:18Z' \
+            "Triggered at: $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            "Source commit before trigger: $(git rev-parse HEAD)" \
+            > public/vercel-production-trigger-20260810.txt
+          rm -f .github/workflows/one-time-vercel-production-after-reset.yml
+          git add public/vercel-production-trigger-20260810.txt .github/workflows/one-time-vercel-production-after-reset.yml
+          git commit -m "Trigger production deploy after Vercel quota reset"
+          git push origin HEAD:main

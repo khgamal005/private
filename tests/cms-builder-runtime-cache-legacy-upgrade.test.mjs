@@ -12,7 +12,7 @@ test('builder runtime is versioned and authenticated builder routes are never ca
     source('app/tenant/[slug]/website/builder/[entityType]/[entityId]/page.js'),
     source('package.json')
   ]);
-  assert.match(wrapper,/BUILDER_RUNTIME_VERSION='2\.0\.0-beta\.27'/);
+  assert.match(wrapper,/BUILDER_RUNTIME_VERSION='2\.0\.0-beta\.28'/);
   assert.match(wrapper,/marktone-builder-runtime-badge/);
   assert.match(wrapper,/window\.location\.replace/);
   assert.match(config,/private, no-store, no-cache/);
@@ -20,7 +20,7 @@ test('builder runtime is versioned and authenticated builder routes are never ca
   assert.match(config,/\/tenant\/:slug\/website\/builder/);
   assert.match(platformRoute,/fetchCache='force-no-store'/);
   assert.match(tenantRoute,/fetchCache='force-no-store'/);
-  assert.equal(JSON.parse(pkg).version,'2.0.0-beta.27');
+  assert.equal(JSON.parse(pkg).version,'2.0.0-beta.28');
 });
 
 test('legacy one-column ZIP widgets can be upgraded into native sections',async()=>{

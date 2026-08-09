@@ -336,20 +336,21 @@ export function usePageBuilder(initialData){
     const entryUrl=String(template.entryUrl||'').trim();
     if(!entryUrl){setNotice({type:'error',text:'رابط القالب المستورد غير صالح.'});return}
     if(busy)return;
+    const mode=await chooseTemplateImportMode({
+      title:String(template.name||template.title||'قالب ZIP مستورد'),
+      sectionCount:Number(template.sectionCount)||1,
+      fileCount:Number(template.fileCount)||0,
+      scriptCount:Number(template.scriptCount)||0,
+      pendingAnalysis:true
+    });
+    if(!mode){
+      setNotice({type:'success',text:'تم إلغاء إدراج القالب ولم تتغير المسودة.'});
+      return;
+    }
     setBusy('compile-template');
     setNotice({type:'success',text:'جارٍ تحليل القالب وتقسيمه إلى أقسام أصلية…'});
     try{
       const compiled=await loadNativeTemplatePackage(template);
-      const mode=await chooseTemplateImportMode({
-        title:compiled.title,
-        sectionCount:compiled.sectionCount,
-        fileCount:compiled.fileCount,
-        scriptCount:compiled.scriptCount
-      });
-      if(!mode){
-        setNotice({type:'success',text:'تم إلغاء إدراج القالب ولم تتغير المسودة.'});
-        return;
-      }
 
       const importedBlocks=createNativeTemplateBlocks(template,compiled,{});
       if(!importedBlocks.length)throw new Error('لم نجد أقسامًا قابلة للإدراج داخل القالب.');

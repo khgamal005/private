@@ -1,0 +1,40 @@
+name: Apply builder runtime cache and legacy upgrade
+
+on:
+  push:
+    branches:
+      - agent/builder-runtime-cache-legacy-upgrade
+    paths:
+      - scripts/patch-builder-runtime-cache-legacy-upgrade.mjs
+      - .github/workflows/apply-builder-runtime-cache-legacy-upgrade.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/builder-runtime-cache-legacy-upgrade
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply runtime hardening
+        run: node scripts/patch-builder-runtime-cache-legacy-upgrade.mjs
+      - name: Commit integrated implementation
+        run: |
+          git config user.name "Marktone Builder Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add next.config.mjs package.json package-lock.json components app tests
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+          else
+            git commit -m "Harden builder runtime cache and upgrade legacy templates"
+            git push origin HEAD:agent/builder-runtime-cache-legacy-upgrade
+          fi

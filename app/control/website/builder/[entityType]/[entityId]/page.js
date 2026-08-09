@@ -1,5 +1,5 @@
 import {notFound} from 'next/navigation';
-import PageBuilder from '../../../../../../components/page-builder';
+import PageBuilderWithLibrary from '../../../../../../components/page-builder-with-library';
 import {authRpc,requirePlatform} from '../../../../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
@@ -15,5 +15,5 @@ export default async function CmsBuilderPage({params}){
     }),
     authRpc('v3_cms_workspace_snapshot',{p_site_key:'marktone-main',p_tenant_slug:null})
   ]);
-  return <PageBuilder initialData={{...data,site:workspace.site}}/>;
+  return <PageBuilderWithLibrary initialData={{...data,site:workspace.site}}/>;
 }

@@ -3,7 +3,7 @@
 import {normalizeBuilderDocument,ROW_LAYOUTS} from '../lib/website-builder';
 import baseStyles from './page-document-renderer.module.css';
 import proStyles from './page-document-renderer-pro.module.css';
-import {ModuleView,blockLabel,blockStyle,hiddenFor,safeCss} from './page-builder-module-view';
+import {ModuleView,blockLabel,blockStyle,hiddenFor,safeCss} from './page-builder-module-view-runtime';
 
 const styles={...baseStyles,...proStyles};
 const COPY_DRAG_TYPES=new Set([

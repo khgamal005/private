@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import {cmsBuilderPath,cmsPreviewPath,formatCmsDate} from '../lib/cms';
+import {cmsBuilderPath,cmsPreviewPath,cmsPublicPath,formatCmsDate} from '../lib/cms';
 import {
   Status,Empty,PanelHeading,Toolbar,Stat,MenuActions,
   matches,newArticle,newPage
@@ -47,23 +47,46 @@ export function Overview({data,context,pages,articles,home,setSection,setEditor}
 
 export function PagesPanel({context,pages,query,setQuery,setEditor,call,archive}){
   const rows=pages.filter(page=>matches(query,page.title,page.slug,page.excerpt));
-  return <section className={styles.panel}>
-    <PanelHeading title="صفحات الموقع" description="كل صفحة لها بيانات تعريف ومسودة مستقلة ومصمم بصري وسجل إصدارات." action="صفحة جديدة" onAction={()=>setEditor({type:'page',value:newPage()})}/>
-    <Toolbar query={query} setQuery={setQuery} placeholder="ابحث باسم الصفحة أو الرابط..."/>
-    <div className={styles.pageGrid}>{rows.map(page=><article key={page.id} className={`${styles.pageCard} ${page.isHome?styles.homePageCard:''}`}>
-      <div className={styles.pageCardTop}><span>{page.isHome?'⌂':page.pageKind==='landing'?'↗':'P'}</span><div><Status value={page.status}/>{page.isHome&&<b>الرئيسية</b>}</div></div>
-      <small dir="ltr">{page.isHome?'/':`/p/${page.slug}`}</small><h2>{page.title}</h2><p>{page.excerpt||'أضف وصفًا مختصرًا يساعد فريقك ومحركات البحث.'}</p>
-      <div className={styles.builderState}><span>{page.builder?.blockCount||0} عنصر</span><span>{page.builder?.hasUnpublishedChanges?'تعديلات غير منشورة':page.builder?.hasPublished?'متزامنة مع الموقع':'مسودة جديدة'}</span></div>
-      <footer>
-        <Link href={cmsBuilderPath(context,'page',page.id)} className={styles.designButton}>تصميم الصفحة</Link>
-        <button type="button" onClick={()=>setEditor({type:'page',value:page})}>البيانات</button>
-        <Link href={cmsPreviewPath(context,'page',page.id)} target="_blank">معاينة</Link>
-        <MenuActions items={[
-          !page.isHome&&{label:'تعيين كرئيسية',onClick:()=>window.confirm('تعيين هذه الصفحة كرئيسية ونشرها؟')&&call('set-home-page',{id:page.id},{message:'تم تعيين الصفحة الرئيسية'})},
-          {label:'إنشاء نسخة',onClick:()=>call('duplicate-page',{id:page.id},{message:'تم إنشاء نسخة كمسودة'})},
-          !page.isHome&&{label:'أرشفة',danger:true,onClick:()=>archive('archive-page',page.id,'الصفحة')}
-        ]}/>
-      </footer>
-    </article>)}{!rows.length&&<Empty text="لا توجد صفحات مطابقة."/>}</div>
-  </section>;
+  const isTenant=context.scope==='tenant';
+  const missingCore=isTenant?[]:[
+    !pages.some(page=>page.isHome)&&'الصفحة الرئيسية',
+    !pages.some(page=>page.slug==='free-trial')&&'صفحة جرّب الآن'
+  ].filter(Boolean);
+  return <>
+    <div className={`${styles.scopeNotice} ${missingCore.length?styles.scopeNoticeWarning:''}`}>
+      <span>{missingCore.length?'!':isTenant?'T':'M'}</span>
+      <div>
+        <b>{missingCore.length?'بيانات CMS غير مكتملة':isTenant?'موقع المنشأة مستقل':'موقع ماركتون الرئيسي'}</b>
+        <p>{missingCore.length
+          ?`لم تصل من قاعدة البيانات: ${missingCore.join('، ')}. راجع حالة migrations وCMS v3 قبل النشر.`
+          :isTenant
+            ?'هذه اللوحة تعرض صفحات المنشأة فقط. صفحات ماركتون مثل «جرّب الآن» تُدار من /control/website.'
+            :'أنت تدير marktone-main؛ الصفحة الرئيسية و«جرّب الآن» تظهران هنا بمسوداتهما وحالة التعديلات غير المنشورة.'}</p>
+      </div>
+    </div>
+    <section className={styles.panel}>
+      <PanelHeading title="صفحات الموقع" description="كل صفحة لها بيانات تعريف ومسودة مستقلة ومصمم بصري وسجل إصدارات." action="صفحة جديدة" onAction={()=>setEditor({type:'page',value:newPage()})}/>
+      <Toolbar query={query} setQuery={setQuery} placeholder="ابحث باسم الصفحة أو الرابط..."/>
+      <div className={styles.pageGrid}>{rows.map(page=>{
+        const isFreeTrial=page.slug==='free-trial';
+        const pagePath=cmsPublicPath(context,'page',page);
+        return <article key={page.id} className={`${styles.pageCard} ${page.isHome?styles.homePageCard:isFreeTrial?styles.corePageCard:''}`}>
+          <div className={styles.pageCardTop}><span>{page.isHome?'⌂':isFreeTrial?'↗':page.pageKind==='landing'?'↗':'P'}</span><div><Status value={page.status}/>{page.isHome&&<b>الرئيسية</b>}{isFreeTrial&&<b>جرّب الآن</b>}</div></div>
+          <small dir="ltr">{pagePath}</small><h2>{page.title}</h2><p>{page.excerpt||'أضف وصفًا مختصرًا يساعد فريقك ومحركات البحث.'}</p>
+          <div className={styles.builderState}><span>{page.builder?.blockCount||0} عنصر</span><span>{page.builder?.hasUnpublishedChanges?'تعديلات غير منشورة':page.builder?.hasPublished?'متزامنة مع الموقع':'مسودة جديدة'}</span></div>
+          <footer>
+            <Link href={cmsBuilderPath(context,'page',page.id)} className={styles.designButton}>تصميم الصفحة</Link>
+            <button type="button" onClick={()=>setEditor({type:'page',value:page})}>البيانات</button>
+            <Link href={cmsPreviewPath(context,'page',page.id)} target="_blank">معاينة المسودة</Link>
+            <Link href={pagePath} target="_blank">فتح المنشور</Link>
+            <MenuActions items={[
+              !page.isHome&&{label:'تعيين كرئيسية',onClick:()=>window.confirm('تعيين هذه الصفحة كرئيسية ونشرها؟')&&call('set-home-page',{id:page.id},{message:'تم تعيين الصفحة الرئيسية'})},
+              {label:'إنشاء نسخة',onClick:()=>call('duplicate-page',{id:page.id},{message:'تم إنشاء نسخة كمسودة'})},
+              !page.isHome&&!isFreeTrial&&{label:'أرشفة',danger:true,onClick:()=>archive('archive-page',page.id,'الصفحة')}
+            ]}/>
+          </footer>
+        </article>
+      })}{!rows.length&&<Empty text="لا توجد صفحات مطابقة."/>}</div>
+    </section>
+  </>;
 }

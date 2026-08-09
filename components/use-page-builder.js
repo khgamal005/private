@@ -1,6 +1,6 @@
 'use client';
 
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {
   blockCatalogGroups,changeLayoutRow,createBuilderBlock,createBuilderDocument,
@@ -29,6 +29,31 @@ export function usePageBuilder(initialData){
   const [templateKey,setTemplateKey]=useState(entity.type==='article'?'service':'landing');
   const groups=useMemo(()=>blockCatalogGroups(),[]);
   const selected=useMemo(()=>locateSelection(document,selection),[document,selection]);
+  const recoveryKey=useMemo(()=>`marktone-builder-recovery:${context.siteKey||'marktone-main'}:${entity.type||'page'}:${entity.id||'unknown'}`,[context.siteKey,entity.id,entity.type]);
+  const recoveryChecked=useRef(false);
+
+  useEffect(()=>{
+    if(recoveryChecked.current)return;
+    recoveryChecked.current=true;
+    try{
+      const recovered=JSON.parse(localStorage.getItem(recoveryKey)||'null');
+      const serverTime=new Date(initialData?.document?.draftUpdatedAt||0).getTime();
+      if(!recovered?.document||recovered.entityId!==entity.id||Number(recovered.savedAt)<=serverTime)return;
+      if(window.confirm('وجدنا نسخة محلية أحدث من المسودة المحفوظة. هل تريد استعادتها؟')){
+        const next=normalizeBuilderDocument(recovered.document);
+        setDocument(next);setSelection(firstSelection(next));setDirty(true);
+        setNotice({type:'success',text:'تمت استعادة النسخة المحلية. اضغط حفظ المسودة لتثبيتها على الخادم.'});
+      }else localStorage.removeItem(recoveryKey);
+    }catch{localStorage.removeItem(recoveryKey)}
+  },[entity.id,initialData,recoveryKey]);
+
+  useEffect(()=>{
+    if(!dirty||!recoveryChecked.current)return;
+    const timer=window.setTimeout(()=>{
+      try{localStorage.setItem(recoveryKey,JSON.stringify({entityId:entity.id,savedAt:Date.now(),document}))}catch{}
+    },1200);
+    return()=>window.clearTimeout(timer);
+  },[dirty,document,entity.id,recoveryKey]);
 
   useEffect(()=>{
     function beforeUnload(event){if(!dirty)return;event.preventDefault();event.returnValue='';}
@@ -302,6 +327,39 @@ export function usePageBuilder(initialData){
     commit(next,{selection:firstSelection(next),noticeMessage:'تم استيراد التصميم إلى المسودة.'});
   }
 
+  function insertImportedTemplate(template={}){
+    const entryUrl=String(template.entryUrl||'').trim();
+    if(!entryUrl){setNotice({type:'error',text:'رابط القالب المستورد غير صالح.'});return}
+    const importedModule=createBuilderBlock('widget',{
+      props:{
+        title:String(template.name||'قالب ZIP مستورد').slice(0,120),
+        body:'قالب تفاعلي يعمل داخل إطار أمني معزول.',
+        widgetKey:'imported-template',
+        templateId:String(template.id||''),
+        entryUrl,
+        height:720,
+        fileCount:Number(template.fileCount)||0,
+        totalBytes:Number(template.totalBytes)||0,
+        checksum:String(template.checksum||'')
+      },
+      style:{paddingY:0,maxWidth:'full',background:'transparent'}
+    });
+    const target=currentModuleTarget();
+    if(target){
+      insertModule(target.rowId,target.columnId,importedModule,target.index);
+      setNotice({type:'success',text:'تمت إضافة قالب ZIP إلى المسودة. احفظ المسودة ثم انشر عندما تكون المعاينة جاهزة.'});
+      return;
+    }
+    const row=createLayoutRow('1');
+    row.props.items[0].modules=[importedModule];
+    const blocks=[...document.blocks];
+    blocks.splice(defaultTopIndex(true),0,row);
+    commit({...document,blocks},{
+      selection:{kind:'module',rowId:row.id,columnId:row.props.items[0].id,moduleId:importedModule.id},
+      noticeMessage:'تمت إضافة قالب ZIP إلى المسودة. احفظ المسودة ثم انشر عندما تكون المعاينة جاهزة.'
+    });
+  }
+
   async function request(action,payload={}){
     setBusy(action);setNotice(null);
     try{
@@ -318,8 +376,9 @@ export function usePageBuilder(initialData){
     finally{setBusy('');}
   }
 
-  async function saveDraft(){if(busy)return;try{await request('save-draft',{document});setDirty(false);setNotice({type:'success',text:'تم حفظ المسودة دون تغيير النسخة المنشورة.'});}catch{}}
-  async function publish(){if(busy)return;if(!window.confirm('سيتم استبدال النسخة المنشورة بهذه المسودة. هل تريد النشر؟'))return;try{await request('publish',{document});setDirty(false);setNotice({type:'success',text:'تم نشر المحتوى بنجاح.'});router.refresh();}catch{}}
+  function clearRecovery(){try{localStorage.removeItem(recoveryKey)}catch{}}
+  async function saveDraft(){if(busy)return;try{await request('save-draft',{document});setDirty(false);clearRecovery();setNotice({type:'success',text:'تم حفظ المسودة دون تغيير النسخة المنشورة.'});}catch{}}
+  async function publish(){if(busy)return;if(!window.confirm('سيتم استبدال النسخة المنشورة بهذه المسودة. هل تريد النشر؟'))return;try{await request('publish',{document});setDirty(false);clearRecovery();setNotice({type:'success',text:'تم نشر المحتوى بنجاح.'});router.refresh();}catch{}}
   async function restore(versionId){if(!window.confirm('سيتم استعادة هذا الإصدار داخل المسودة الحالية فقط.'))return;try{const data=await request('restore-version',{versionId});const restored=normalizeBuilderDocument(data.draftDocument);setHistory(current=>({past:[...current.past,document].slice(-40),future:[]}));setDocument(restored);setSelection(firstSelection(restored));setDirty(true);setNotice({type:'success',text:'تمت استعادة الإصدار إلى المسودة. اضغط نشر لتحديث الموقع.'});}catch{}}
   function applyTemplate(){if(document.blocks.length&&!window.confirm('سيستبدل القالب محتوى المسودة الحالي.'))return;const next=createBuilderDocument(templateKey);commit(next,{selection:firstSelection(next)});}
 
@@ -341,7 +400,7 @@ export function usePageBuilder(initialData){
     templateKey,setTemplateKey,groups,undo,redo,addRow,addBlock,insertPreset,insertSaved,
     duplicateBlock,deleteBlock,duplicateModule,deleteModule,duplicateSelected,deleteSelected,
     handleDragStart,handleModuleDragStart,handleDrop,handleColumnDrop,
-    updateSelected,updateInline,updatePageSetting,importDocument,saveDraft,publish,restore,applyTemplate
+    updateSelected,updateInline,updatePageSetting,importDocument,insertImportedTemplate,saveDraft,publish,restore,applyTemplate
   };
 }
 

@@ -1,5 +1,7 @@
+import {notFound} from 'next/navigation';
 import BuiltPublicPage from '../../components/built-public-page';
 import LifetimeFreeApplication from '../../components/lifetime-free-application';
+import {PublicContentPage} from '../../components/public-site';
 import {getCmsPublicSnapshot} from '../../lib/cms-public';
 import {isBuilderDocument} from '../../lib/website-builder';
 
@@ -23,5 +25,7 @@ export default async function FreeTrialPage(){
   if(snapshot?.page&&isBuilderDocument(snapshot.page.content)){
     return <BuiltPublicPage snapshot={snapshot} content={snapshot.page}/>;
   }
-  return <LifetimeFreeApplication/>;
+  if(snapshot?.page)return <PublicContentPage snapshot={snapshot} content={snapshot.page}/>;
+  if(process.env.CMS_V3_LEGACY_FALLBACK==='true')return <LifetimeFreeApplication/>;
+  notFound();
 }

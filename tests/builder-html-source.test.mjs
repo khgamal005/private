@@ -22,7 +22,9 @@ test('builder exposes HTML source and custom HTML insertion',async()=>{
   assert.match(modal,/إضافة كود HTML للصفحة/);
   assert.match(catalog,/html:def\('HTML \/ Text \/ Shortcode'/);
   assert.match(inspector,/type==='html'/);
-  assert.match(renderer,/safeHtml\(p\.content\)/);
+  assert.match(renderer,/safeHtmlDocument\(p\.content\)/);
+  assert.match(renderer,/sandbox=""/);
+  assert.match(renderer,/srcDoc=\{safeHtmlDocument\(p\.content\)\}/);
 });
 
 test('source serializer escapes metadata and keeps custom HTML isolated',async()=>{

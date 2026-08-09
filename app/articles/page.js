@@ -1,5 +1,5 @@
 import {ArticlesIndex} from '../../components/public-site';
-import {getPublicSiteSnapshot} from '../../lib/public-site';
+import {getCmsPublicSnapshot} from '../../lib/cms-public';
 
 export const dynamic='force-dynamic';
 export const metadata={
@@ -9,6 +9,6 @@ export const metadata={
 };
 
 export default async function ArticlesPage(){
-  const snapshot=await getPublicSiteSnapshot();
+  const snapshot=await getCmsPublicSnapshot({siteKey:'marktone-main'});
   return <ArticlesIndex snapshot={snapshot}/>;
 }

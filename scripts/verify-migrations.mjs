@@ -75,6 +75,12 @@ const required=[
   '20260803143208_marktone_public_site_cms_hardening_v1.sql',
   '20260803163000_marktone_visual_builder_core_v1.sql',
   '20260803163100_marktone_visual_builder_api_v1.sql',
+  '20260803220000_cms_pro_schema_and_access_v1.sql',
+  '20260803220100_cms_pro_documents_and_workspace_v1.sql',
+  '20260804183000_marktone_builder_pro_v2.sql',
+  '20260805001500_company_home_and_lifetime_free.sql',
+  '20260808182900_cms_v3_runtime_reconciliation.sql',
+  '20260808183000_cms_template_import_v1.sql',
   '20260805161821_enable_customer_search_for_all_tenant_accounts.sql',
   '20260805170000_customer_action_history_v1.sql',
   '20260806173000_inline_followup_contact_name_v1.sql',
@@ -151,6 +157,17 @@ for(const pattern of [
   /v2_platform_site_snapshot/,
   /v2_platform_page_builder_snapshot/,
   /v2_platform_page_builder_action/,
+  /v3_cms_workspace_snapshot/,
+  /v3_cms_public_snapshot/,
+  /v3_cms_action/,
+  /v3_cms_builder_snapshot/,
+  /v3_cms_builder_action/,
+  /v3_cms_media_upload_ticket/,
+  /v3_cms_template_upload_ticket/,
+  /v3_cms_template_import_action/,
+  /website\.template_packages/,
+  /cms-template-staging/,
+  /cms-template-assets/,
   /website_builder_validate_document/,
   /tenant\.integrations\.manage/,
   /tenant\.marketing\.manage/,
@@ -176,5 +193,35 @@ for(const pattern of [
   /grant execute on function public\.v2_platform_page_builder_action/
 ])assert.match(builder,pattern);
 
+const cmsPro=[
+  sqlByFile.get('20260803220000_cms_pro_schema_and_access_v1.sql'),
+  sqlByFile.get('20260803220100_cms_pro_documents_and_workspace_v1.sql'),
+  sqlByFile.get('20260804183000_marktone_builder_pro_v2.sql'),
+  sqlByFile.get('20260805001500_company_home_and_lifetime_free.sql'),
+  sqlByFile.get('20260808182900_cms_v3_runtime_reconciliation.sql'),
+  sqlByFile.get('20260808183000_cms_template_import_v1.sql')
+].join('\n');
+for(const pattern of [
+  /website\.content_documents/,
+  /v3_cms_workspace_snapshot/,
+  /v3_cms_public_snapshot/,
+  /v3_cms_action/,
+  /v3_cms_builder_snapshot/,
+  /v3_cms_builder_action/,
+  /v3_cms_media_upload_ticket/,
+  /private_app\.cms_page_action/,
+  /private_app\.cms_public_menu_items/,
+  /slug='free-trial'/,
+  /website\.template_packages/,
+  /v3_cms_template_upload_ticket/,
+  /v3_cms_template_import_action/,
+  /v3_cms_template_catalog/,
+  /v3_cms_storage_can_write/,
+  /cms_assets_insert/,
+  /cms_template_assets_insert/,
+  /revoke all on function public\.v3_cms_template_upload_ticket/,
+  /enable row level security/
+])assert.match(cmsPro,pattern);
+
 assert.doesNotMatch(allSql,/grant\s+all[\s\S]+to\s+anon/i);
-console.log(`Verified ${sqlFiles.length} forward migrations, including the isolated Marktone Visual Builder draft/publish data plane.`);
+console.log(`Verified ${sqlFiles.length} forward migrations, including CMS v3, core public pages, Visual Builder, and isolated ZIP template imports.`);

@@ -5,7 +5,7 @@ import {useEffect,useMemo,useRef,useState} from 'react';
 import PageDocumentRenderer from './page-document-renderer';
 import PageSourceModal from './page-source-modal';
 import {BLOCK_CATALOG,BUILDER_TEMPLATES,ROW_LAYOUTS,SECTION_PRESETS} from '../lib/website-builder';
-import {cmsBasePath,cmsPreviewPath} from '../lib/cms';
+import {cmsBasePath,cmsPreviewPath,cmsPublicPath} from '../lib/cms';
 import {usePageBuilder} from './use-page-builder';
 import {PageInspector,SelectionInspector,Status,VersionHistory} from './page-builder-inspector';
 import styles from './page-builder.module.css';
@@ -21,7 +21,7 @@ export default function PageBuilder({initialData}){
     versions,showVersions,setShowVersions,templateKey,setTemplateKey,groups,undo,redo,
     addRow,addBlock,insertPreset,insertSaved,duplicateBlock,deleteBlock,duplicateModule,deleteModule,
     handleDragStart,handleModuleDragStart,handleDrop,handleColumnDrop,updateSelected,updateInline,
-    updatePageSetting,importDocument,saveDraft,publish,restore,applyTemplate
+    updatePageSetting,importDocument,insertImportedTemplate,saveDraft,publish,restore,applyTemplate
   }=builder;
   const [libraryTab,setLibraryTab]=useState('modules');
   const [query,setQuery]=useState('');
@@ -30,14 +30,30 @@ export default function PageBuilder({initialData}){
   const [inspectorOpen,setInspectorOpen]=useState(true);
   const [sourceOpen,setSourceOpen]=useState(false);
   const [savedItems,setSavedItems]=useState([]);
+  const [importing,setImporting]=useState(false);
+  const [templates,setTemplates]=useState([]);
+  const [templatesState,setTemplatesState]=useState('idle');
+  const [catalogReload,setCatalogReload]=useState(0);
   const importRef=useRef(null);
   const isArticle=entity.type==='article';
   const backHref=`${cmsBasePath(context)}?section=${isArticle?'articles':'pages'}`;
-  const publicPath=isArticle?`/articles/${entity.slug}`:entity.isHome?'/':`/p/${entity.slug}`;
+  const publicPath=cmsPublicPath(context,isArticle?'article':'page',entity);
   const storageKey=`marktone-builder-saved:${context.siteKey||'marktone-main'}:${context.tenantSlug||'platform'}`;
 
   useEffect(()=>{try{const stored=JSON.parse(localStorage.getItem(storageKey)||'[]');setSavedItems(Array.isArray(stored)?stored:[]);}catch{setSavedItems([]);}},[storageKey]);
   useEffect(()=>{function closeSource(event){if(event.key==='Escape')setSourceOpen(false);}window.addEventListener('keydown',closeSource);return()=>window.removeEventListener('keydown',closeSource);},[]);
+  useEffect(()=>{
+    if(libraryTab!=='templates')return;
+    const controller=new AbortController();
+    const params=new URLSearchParams({siteKey:context.siteKey||'marktone-main'});
+    if(context.tenantSlug)params.set('tenantSlug',context.tenantSlug);
+    setTemplatesState('loading');
+    fetch(`/api/cms/templates/catalog?${params}`,{signal:controller.signal})
+      .then(async response=>{const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'تعذر تحميل القوالب');return result})
+      .then(result=>{setTemplates(Array.isArray(result.templates)?result.templates:[]);setTemplatesState('ready')})
+      .catch(error=>{if(error.name!=='AbortError')setTemplatesState('error')});
+    return()=>controller.abort();
+  },[catalogReload,context.siteKey,context.tenantSlug,libraryTab]);
 
   const filteredGroups=useMemo(()=>{
     const term=query.trim().toLowerCase();
@@ -46,6 +62,7 @@ export default function PageBuilder({initialData}){
   },[groups,query]);
   const filteredPresets=useMemo(()=>Object.entries(SECTION_PRESETS).filter(([,item])=>!query||`${item.label} ${item.description}`.includes(query)),[query]);
   const filteredSaved=useMemo(()=>savedItems.filter(item=>!query||`${item.name} ${item.type}`.toLowerCase().includes(query.toLowerCase())),[savedItems,query]);
+  const filteredTemplates=useMemo(()=>templates.filter(item=>!query||String(item.name||'').toLowerCase().includes(query.toLowerCase())),[query,templates]);
 
   function selectTarget(target){setSelection(target);setInspectorMode('selection');if(!inspectorOpen)setInspectorOpen(true);}
   function addHtmlModule(){addBlock('html');setLibraryOpen(true);setLibraryTab('modules');setInspectorMode('selection');setInspectorOpen(true);setNotice({type:'success',text:'تمت إضافة عنصر HTML. حدده داخل الصفحة ثم أضف الكود من لوحة الخصائص.'});}
@@ -59,14 +76,58 @@ export default function PageBuilder({initialData}){
   }
   async function importDesign(event){
     const file=event.target.files?.[0];if(!file)return;
-    try{const parsed=JSON.parse(await file.text());if(!window.confirm('سيتم استيراد التصميم داخل المسودة الحالية. متابعة؟'))return;importDocument(parsed);}catch{setNotice({type:'error',text:'ملف التصميم غير صالح.'});}finally{event.target.value='';}
+    const isZip=/\.zip$/i.test(file.name)||['application/zip','application/x-zip-compressed'].includes(file.type);
+    if(!isZip){
+      try{
+        const parsed=JSON.parse(await file.text());
+        if(!window.confirm('سيتم استيراد التصميم داخل المسودة الحالية. متابعة؟'))return;
+        importDocument(parsed);
+      }catch{setNotice({type:'error',text:'ملف Builder JSON غير صالح.'})}
+      finally{event.target.value=''}
+      return;
+    }
+    if(!window.confirm('سيتم رفع القالب وفحصه ثم تشغيل JavaScript داخل إطار معزول. سيضاف إلى المسودة فقط ولن يُنشر تلقائيًا. متابعة؟')){
+      event.target.value='';return;
+    }
+    setImporting(true);setNotice(null);
+    try{
+      const ticketResponse=await fetch('/api/cms/templates/ticket',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          siteKey:context.siteKey||'marktone-main',tenantSlug:context.tenantSlug||null,
+          name:file.name,mimeType:file.type||'application/zip',sizeBytes:file.size
+        })
+      });
+      const ticket=await ticketResponse.json().catch(()=>({}));
+      if(!ticketResponse.ok)throw new Error(ticket.error||'تعذر تجهيز رفع القالب.');
+      const uploadBody=new FormData();
+      const uploadFile=['application/zip','application/x-zip-compressed'].includes(file.type)
+        ?file:new File([file],file.name,{type:'application/zip'});
+      uploadBody.append('cacheControl','3600');
+      uploadBody.append('',uploadFile);
+      const uploadResponse=await fetch(ticket.uploadUrl,{method:'PUT',headers:{'x-upsert':'false'},body:uploadBody});
+      if(!uploadResponse.ok)throw new Error('تعذر رفع ملف ZIP إلى مساحة الفحص.');
+      const processResponse=await fetch('/api/cms/templates/process',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({templateId:ticket.templateId})
+      });
+      const result=await processResponse.json().catch(()=>({}));
+      if(!processResponse.ok)throw new Error(result.error||'تعذر فحص القالب.');
+      insertImportedTemplate(result.template);
+      setTemplates(current=>[result.template,...current.filter(item=>item.id!==result.template.id)]);
+      setNotice({type:'success',text:`تم استيراد ${result.template.fileCount} ملفًا داخل قالب معزول. راجع المعاينة ثم احفظ المسودة وانشر يدويًا.`});
+    }catch(error){
+      setNotice({type:'error',text:error instanceof Error?error.message:'تعذر استيراد قالب ZIP.'});
+    }finally{
+      setImporting(false);event.target.value='';
+    }
   }
 
   return <div className={styles.builder} dir="rtl">
     <header className={styles.topbar}>
       <div className={styles.primaryActions}>
         <Link href={backHref} className={styles.backButton} title="العودة إلى إدارة الموقع">⌄</Link>
-        <button type="button" className={styles.saveButton} onClick={saveDraft} disabled={Boolean(busy)}>{busy==='save-draft'?'جارٍ الحفظ…':'SAVE'}</button>
+        <button type="button" className={styles.saveButton} onClick={saveDraft} disabled={Boolean(busy)}>{busy==='save-draft'?'جارٍ الحفظ…':'حفظ المسودة'}</button>
         <Link href={backHref} className={styles.closeButton} title="إغلاق المصمم">×</Link>
         <div className={styles.pageIdentity}><small>Marktone Builder Pro</small><strong>{entity.title||'تصميم المحتوى'}</strong><span dir="ltr">{publicPath}</span></div>
         <Status value={entity.status}/>{dirty&&<b className={styles.unsaved}>غير محفوظ</b>}
@@ -78,8 +139,8 @@ export default function PageBuilder({initialData}){
         <button type="button" title="CSS وإعدادات الصفحة" className={inspectorMode==='page'?styles.activeUtility:''} onClick={()=>{setInspectorMode('page');setInspectorOpen(true);}}>CSS</button>
         <button type="button" title="مشاهدة سورس HTML وBuilder JSON" className={sourceOpen?styles.activeUtility:''} onClick={()=>setSourceOpen(true)}>&lt;/&gt;</button>
         <button type="button" title="إضافة كود HTML إلى الصفحة" onClick={addHtmlModule}>HTML＋</button>
-        <button type="button" title="استيراد التصميم" onClick={()=>importRef.current?.click()}>⇧</button>
-        <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={importDesign}/>
+        <button type="button" title="استيراد Builder JSON أو قالب ZIP" disabled={importing} onClick={()=>importRef.current?.click()}>{importing?'…':'⇧'}</button>
+        <input ref={importRef} type="file" accept="application/json,.json,application/zip,application/x-zip-compressed,.zip" hidden onChange={importDesign}/>
         <button type="button" title="تصدير التصميم" onClick={exportDesign}>⇩</button>
         <button type="button" onClick={undo} disabled={!history.past.length} title="تراجع">↶</button>
         <button type="button" onClick={redo} disabled={!history.future.length} title="إعادة">↷</button>
@@ -100,7 +161,7 @@ export default function PageBuilder({initialData}){
 
     <div className={`${styles.body} ${!libraryOpen?styles.libraryClosed:''} ${!inspectorOpen?styles.inspectorClosed:''}`}>
       <aside className={styles.library}>
-        <div className={styles.libraryTabs}>{[['saved','Saved'],['blocks','Blocks'],['modules','Modules']].map(([key,label])=><button type="button" key={key} className={libraryTab===key?styles.activeTab:''} onClick={()=>setLibraryTab(key)}>{label}{key==='saved'&&savedItems.length>0&&<b>{savedItems.length}</b>}</button>)}</div>
+        <div className={styles.libraryTabs}>{[['templates','Templates'],['saved','Saved'],['blocks','Blocks'],['modules','Modules']].map(([key,label])=><button type="button" key={key} className={libraryTab===key?styles.activeTab:''} onClick={()=>setLibraryTab(key)}>{label}{key==='saved'&&savedItems.length>0&&<b>{savedItems.length}</b>}</button>)}</div>
         <div className={styles.searchBox}><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="ابحث عن عنصر…"/><span>⌕</span></div>
         <div className={styles.libraryScroll}>
           {libraryTab==='modules'&&<>
@@ -110,6 +171,15 @@ export default function PageBuilder({initialData}){
           {libraryTab==='blocks'&&<div className={styles.presetLibrary}>
             <div className={styles.templateBox}><label><span>ابدأ من قالب كامل</span><select value={templateKey} onChange={event=>setTemplateKey(event.target.value)}>{Object.entries(BUILDER_TEMPLATES).map(([key,item])=><option key={key} value={key}>{item.label}</option>)}</select></label><button type="button" onClick={applyTemplate}>تطبيق القالب</button></div>
             {filteredPresets.map(([key,item])=><button type="button" className={styles.presetCard} key={key} draggable onDragStart={event=>{event.dataTransfer.effectAllowed='copy';event.dataTransfer.setData('application/x-marktone-preset',key);}} onClick={()=>insertPreset(key)}><span>{item.icon}</span><div><b>{item.label}</b><small>{item.description}</small></div><em>＋</em></button>)}
+          </div>}
+          {libraryTab==='templates'&&<div className={styles.templatesLibrary}>
+            <div className={styles.templateImportPanel}><span>ZIP</span><h2>استيراد قالب كامل</h2><p>ارفع ملفًا يحتوي index.html وملفات CSS وJavaScript والصور والفيديو. يفحص النظام المسارات والضغط ثم يشغّل القالب داخل iframe معزول.</p><button type="button" disabled={importing} onClick={()=>importRef.current?.click()}>{importing?'جارٍ الرفع والفحص…':'اختيار ملف ZIP'}</button><small>حتى 20MB مضغوط · 64MB بعد الفك · 250 ملفًا · لا يتم النشر تلقائيًا</small></div>
+            <section className={styles.templateCatalog}><header><b>مكتبة القوالب</b><small>{templates.length} قالب محفوظ</small></header>
+              {templatesState==='loading'&&<p>جارٍ تحميل القوالب…</p>}
+              {templatesState==='error'&&<div className={styles.catalogError}><span>تعذر تحميل المكتبة.</span><button type="button" onClick={()=>setCatalogReload(value=>value+1)}>إعادة المحاولة</button></div>}
+              {templatesState==='ready'&&filteredTemplates.map(template=><article key={template.id}><div><b>{template.name}</b><small>{template.fileCount} ملف · {Math.max(1,Math.round((template.totalBytes||0)/1024))} KB</small></div><button type="button" onClick={()=>insertImportedTemplate(template)}>إضافة للمسودة</button></article>)}
+              {templatesState==='ready'&&!filteredTemplates.length&&<p>لا توجد قوالب محفوظة مطابقة.</p>}
+            </section>
           </div>}
           {libraryTab==='saved'&&<div className={styles.savedLibrary}>{filteredSaved.map(item=><div key={item.id} className={styles.savedCard} draggable onDragStart={event=>{event.dataTransfer.effectAllowed='copy';event.dataTransfer.setData('application/x-marktone-saved',JSON.stringify({kind:item.kind,data:item.data}));}}><button type="button" onClick={()=>insertSaved(item)}><span>{item.kind==='block'?'▥':'◇'}</span><div><b>{item.name}</b><small>{new Intl.DateTimeFormat('ar-SA',{dateStyle:'medium'}).format(new Date(item.createdAt))}</small></div></button><button type="button" onClick={()=>removeSaved(item.id)} title="حذف من المكتبة">×</button></div>)}{!filteredSaved.length&&<EmptyLibrary text="حدد صفًا أو موديولًا ثم اضغط حفظ في Saved من لوحة الخصائص."/>}</div>}
         </div>

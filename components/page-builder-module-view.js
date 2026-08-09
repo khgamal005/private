@@ -30,7 +30,7 @@ export function ModuleView({block,editor=false,target,onInlineEdit,nested=false}
 
   if(['box','alert','callout','feature','linkBlock','icon'].includes(block.type))return <section {...common}><InfoCard type={block.type} p={p} editor={editor} edit={edit}/></section>;
   if(block.type==='code')return <section {...common}><div className={styles.codeBlock}><header><b>{p.title}</b><small>{p.language}</small></header><pre><code>{p.code}</code></pre></div></section>;
-  if(block.type==='html')return <section {...common}><div className={styles.htmlBlock} dangerouslySetInnerHTML={{__html:safeHtml(p.content)}}/></section>;
+  if(block.type==='html')return <section {...common}><iframe className={styles.htmlSandbox} sandbox="" srcDoc={safeHtmlDocument(p.content)} title={p.title||'محتوى HTML معزول'} loading="lazy" referrerPolicy="no-referrer"/></section>;
   if(block.type==='copyright')return <section {...common}><p className={styles.copyright}>{String(p.text||'© {year} جميع الحقوق محفوظة.').replace('{year}',String(new Date().getFullYear()))} {p.company}</p></section>;
 
   if(['gallery','mosaic'].includes(block.type))return <section {...common}><div className={block.type==='mosaic'?styles.mosaicGrid:styles.galleryGrid} style={{'--columns':clamp(p.columns,2,6,3)}}>{array(p.items).map((item,index)=><figure key={index} style={{backgroundImage:item.url?`url(${safeImage(item.url)})`:undefined}}><span>{item.url?'':`صورة ${index+1}`}</span></figure>)}</div></section>;
@@ -52,6 +52,10 @@ export function ModuleView({block,editor=false,target,onInlineEdit,nested=false}
   if(block.type==='table')return <section {...common}><Table p={p}/></section>;
   if(block.type==='tabs')return <section {...common}><Tabs items={p.items}/></section>;
   if(block.type==='rating')return <section {...common}><Rating p={p}/></section>;
+  if(block.type==='widget'&&p.widgetKey==='imported-template'){
+    const src=safeTemplateUrl(p.entryUrl);
+    return <section {...common} className={`${className} ${styles.templateEmbed}`}><div style={{height:`${clamp(p.height,320,2000,720)}px`}}>{src?<iframe src={src} title={p.title||'قالب مستورد'} sandbox="allow-scripts" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen loading="lazy" referrerPolicy="no-referrer" tabIndex={editor?-1:0} style={editor?{pointerEvents:'none'}:undefined}/>:<Placeholder p={{title:'رابط القالب غير صالح',body:'أعد استيراد ملف ZIP من شريط أدوات المصمم.'}} type="widget"/>}{editor&&<span>قالب ZIP معزول · انقر لتعديل الارتفاع</span>}</div></section>;
+  }
   if(['widget','widgetArea','layoutPart'].includes(block.type))return <section {...common}><Placeholder p={p} type={block.type}/></section>;
 
   return <section {...common}><Placeholder p={p} type={block.type}/></section>;
@@ -92,6 +96,7 @@ function clamp(value,min,max,fallback){const n=Number(value);return Number.isFin
 function safeClass(value){return String(value||'').replace(/[^a-zA-Z0-9_\- ]/g,'').slice(0,160)}
 function safeHref(value){const href=String(value||'').trim();return !href||/^(javascript|data|vbscript):/i.test(href)?'':href}
 function safeImage(value){return safeHref(value).replace(/["'()]/g,encodeURIComponent)}
-function safeHtml(value){return String(value||'').replace(/<script[\s\S]*?<\/script>/gi,'').replace(/\son\w+\s*=\s*(["']).*?\1/gi,'').replace(/javascript:/gi,'')}
+function safeHtmlDocument(value){const policy="default-src 'none'; img-src https: data: blob:; media-src https: data: blob:; font-src https: data:; style-src 'unsafe-inline'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";return `<!doctype html><html dir=\"rtl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"${policy}\"><style>html,body{margin:0;min-height:100%;font-family:Arial,sans-serif}*,*:before,*:after{box-sizing:border-box}img,video{max-width:100%}</style></head><body>${String(value||'')}</body></html>`}
+function safeTemplateUrl(value){try{const url=new URL(String(value||''));return url.protocol==='https:'&&/\/storage\/v1\/object\/public\/cms-template-assets\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/r1\/index\.html$/i.test(url.pathname)?url.href:''}catch{return ''}}
 function shadow(value){return ({none:'none',soft:'0 12px 35px rgba(10,31,53,.09)',medium:'0 20px 55px rgba(10,31,53,.14)',strong:'0 28px 80px rgba(10,31,53,.22)'})[value]||'none'}
 function videoEmbed(value){const url=safeHref(value);const yt=url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/i);if(yt)return `https://www.youtube.com/embed/${yt[1]}`;const vm=url.match(/vimeo\.com\/(\d+)/i);return vm?`https://player.vimeo.com/video/${vm[1]}`:''}

@@ -21,6 +21,9 @@ export async function generateMetadata(){
 
 export default async function HomePage(){
   const snapshot=await getCmsPublicSnapshot({siteKey:'marktone-main'});
+  if(!snapshot?.available&&process.env.CMS_V3_LEGACY_FALLBACK!=='true'){
+    throw new Error('CMS v3 public snapshot is unavailable for marktone-main');
+  }
   const home=snapshot?.homePage;
   if(home&&isBuilderDocument(home.content)){
     return <BuiltPublicPage snapshot={snapshot} content={home}/>;

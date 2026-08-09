@@ -15,7 +15,7 @@ export function usePageBuilder(initialData){
   const chooseTemplateImportMode=useTemplateImportMode();
   const entity=useMemo(()=>initialData?.entity||initialData?.page||{},[initialData]);
   const context=useMemo(()=>initialData?.context||{},[initialData]);
-  const initialDocument=useMemo(()=>normalizeBuilderDocument(
+  const initialDocument=useMemo(()=>normalizeEditorDocument(
     initialData?.document?.draftDocument||entity?.content||createBuilderDocument(entity.type==='article'?'service':'landing')
   ),[initialData,entity]);
   const [document,setDocument]=useState(initialDocument);
@@ -44,7 +44,7 @@ export function usePageBuilder(initialData){
       const serverTime=new Date(initialData?.document?.draftUpdatedAt||0).getTime();
       if(!recovered?.document||recovered.entityId!==entity.id||Number(recovered.savedAt)<=serverTime)return;
       if(window.confirm('وجدنا نسخة محلية أحدث من المسودة المحفوظة. هل تريد استعادتها؟')){
-        const next=normalizeBuilderDocument(recovered.document);
+        const next=normalizeEditorDocument(recovered.document);
         setDocument(next);setSelection(firstSelection(next));setDirty(true);
         setNotice({type:'success',text:'تمت استعادة النسخة المحلية. اضغط حفظ المسودة لتثبيتها على الخادم.'});
       }else localStorage.removeItem(recoveryKey);
@@ -77,7 +77,7 @@ export function usePageBuilder(initialData){
   });
 
   function commit(next,{selection:nextSelection=selection,noticeMessage=null}={}){
-    const normalized=normalizeBuilderDocument(next);
+    const normalized=normalizeEditorDocument(next);
     setHistory(current=>({past:[...current.past.slice(-39),document],future:[]}));
     setDocument(normalized);
     setSelection(validSelection(normalized,nextSelection)?nextSelection:firstSelection(normalized));
@@ -327,7 +327,7 @@ export function usePageBuilder(initialData){
 
   function updatePageSetting(key,value){commit({...document,settings:{...document.settings,[key]:value}},{selection});}
   function importDocument(value){
-    const next=normalizeBuilderDocument(value);
+    const next=normalizeEditorDocument(value);
     commit(next,{selection:firstSelection(next),noticeMessage:'تم استيراد التصميم إلى المسودة.'});
   }
 
@@ -364,6 +364,7 @@ export function usePageBuilder(initialData){
           fileCount:Number(template.fileCount||compiled.fileCount)||0,
           totalBytes:Number(template.totalBytes||compiled.totalBytes)||0,
           scriptCount:Number(compiled.scriptCount)||0,
+          templateOwnsPageShell:true,
           sectionKey:section.key,
           sectionIndex:index,
           sectionCount:compiled.sectionCount,
@@ -376,15 +377,18 @@ export function usePageBuilder(initialData){
       }));
       if(!importedBlocks.length)throw new Error('لم نجد أقسامًا قابلة للإدراج داخل القالب.');
 
+      const rawInsertionIndex=defaultTopIndex(true);
+      const existingBlocks=document.blocks.filter(block=>!isEmptyLayoutRow(block));
       let blocks;
       if(mode==='replace'){
         blocks=importedBlocks;
       }else{
-        if(document.blocks.length+importedBlocks.length>80){
+        if(existingBlocks.length+importedBlocks.length>80){
           throw new Error(`القالب يحتوي ${importedBlocks.length} قسمًا، ولا يمكن إضافته لأن الصفحة ستتجاوز الحد الأقصى البالغ 80 قسمًا. استخدم خيار الاستبدال أو احذف بعض الأقسام.`);
         }
-        blocks=[...document.blocks];
-        blocks.splice(clampIndex(defaultTopIndex(true),blocks.length),0,...importedBlocks);
+        const insertionIndex=document.blocks.slice(0,rawInsertionIndex).filter(block=>!isEmptyLayoutRow(block)).length;
+        blocks=[...existingBlocks];
+        blocks.splice(clampIndex(insertionIndex,blocks.length),0,...importedBlocks);
       }
 
       const first=importedBlocks[0];
@@ -407,11 +411,11 @@ export function usePageBuilder(initialData){
       createModule:(type,definition)=>createBuilderBlock(type,definition),
       createRow:(layoutKey)=>createLayoutRow(layoutKey)
     });
-    return {...result,document:normalizeBuilderDocument(result.document)};
+    return {...result,document:normalizeEditorDocument(result.document)};
   }
 
   function applyAssistantDocument(value,summary='تم تطبيق تعديلات المساعد'){
-    const next=normalizeBuilderDocument(value);
+    const next=normalizeEditorDocument(value);
     commit(next,{
       selection:firstSelection(next),
       noticeMessage:`${String(summary).slice(0,180)}. يمكنك التراجع قبل الحفظ أو النشر.`
@@ -428,7 +432,7 @@ export function usePageBuilder(initialData){
       const result=await response.json();
       if(!response.ok)throw new Error(result?.error||'تعذر تنفيذ العملية');
       if(result.data?.versions)setVersions(result.data.versions);
-      if(result.data?.draftDocument)setDocument(normalizeBuilderDocument(result.data.draftDocument));
+      if(result.data?.draftDocument)setDocument(normalizeEditorDocument(result.data.draftDocument));
       return result.data||{};
     }catch(error){setNotice({type:'error',text:error instanceof Error?error.message:String(error)});throw error;}
     finally{setBusy('');}
@@ -437,7 +441,7 @@ export function usePageBuilder(initialData){
   function clearRecovery(){try{localStorage.removeItem(recoveryKey)}catch{}}
   async function saveDraft(){if(busy)return;try{await request('save-draft',{document});setDirty(false);clearRecovery();setNotice({type:'success',text:'تم حفظ المسودة دون تغيير النسخة المنشورة.'});}catch{}}
   async function publish(){if(busy)return;if(!window.confirm('سيتم استبدال النسخة المنشورة بهذه المسودة. هل تريد النشر؟'))return;try{await request('publish',{document});setDirty(false);clearRecovery();setNotice({type:'success',text:'تم نشر المحتوى بنجاح.'});router.refresh();}catch{}}
-  async function restore(versionId){if(!window.confirm('سيتم استعادة هذا الإصدار داخل المسودة الحالية فقط.'))return;try{const data=await request('restore-version',{versionId});const restored=normalizeBuilderDocument(data.draftDocument);setHistory(current=>({past:[...current.past,document].slice(-40),future:[]}));setDocument(restored);setSelection(firstSelection(restored));setDirty(true);setNotice({type:'success',text:'تمت استعادة الإصدار إلى المسودة. اضغط نشر لتحديث الموقع.'});}catch{}}
+  async function restore(versionId){if(!window.confirm('سيتم استعادة هذا الإصدار داخل المسودة الحالية فقط.'))return;try{const data=await request('restore-version',{versionId});const restored=normalizeEditorDocument(data.draftDocument);setHistory(current=>({past:[...current.past,document].slice(-40),future:[]}));setDocument(restored);setSelection(firstSelection(restored));setDirty(true);setNotice({type:'success',text:'تمت استعادة الإصدار إلى المسودة. اضغط نشر لتحديث الموقع.'});}catch{}}
   function applyTemplate(){if(document.blocks.length&&!window.confirm('سيستبدل القالب محتوى المسودة الحالي.'))return;const next=createBuilderDocument(templateKey);commit(next,{selection:firstSelection(next)});}
 
   function currentModuleTarget(){
@@ -461,6 +465,21 @@ export function usePageBuilder(initialData){
     updateSelected,updateInline,updatePageSetting,importDocument,insertImportedTemplate,
     previewAssistantPlan,applyAssistantDocument,saveDraft,publish,restore,applyTemplate
   };
+}
+
+function normalizeEditorDocument(value){
+  const normalized=normalizeBuilderDocument(value);
+  if(!normalized.blocks.some(isNativeTemplateBlock))return normalized;
+  const blocks=normalized.blocks.filter(block=>!isEmptyLayoutRow(block));
+  return blocks.length===normalized.blocks.length?normalized:{...normalized,blocks};
+}
+function isNativeTemplateBlock(block){
+  return block?.type==='widget'&&['native-template-section','imported-template'].includes(block.props?.widgetKey);
+}
+function isEmptyLayoutRow(block){
+  if(block?.type!=='columns'||block.props?.row!==true)return false;
+  const columns=Array.isArray(block.props?.items)?block.props.items:[];
+  return columns.length>0&&columns.every(column=>!Array.isArray(column?.modules)||column.modules.length===0);
 }
 
 function locateSelection(document,selection){

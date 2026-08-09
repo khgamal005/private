@@ -39,12 +39,14 @@ export default function PageBuilder({initialData}){
   const [templates,setTemplates]=useState([]);
   const [templatesState,setTemplatesState]=useState('idle');
   const [catalogReload,setCatalogReload]=useState(0);
+  const [templateDeleting,setTemplateDeleting]=useState('');
   const importRef=useRef(null);
   const isArticle=entity.type==='article';
   const backHref=`${cmsBasePath(context)}?section=${isArticle?'articles':'pages'}`;
   const publicPath=cmsPublicPath(context,isArticle?'article':'page',entity);
   const storageKey=`marktone-builder-saved:${context.siteKey||'marktone-main'}:${context.tenantSlug||'platform'}`;
   const renderedDocument=assistantPreview?.document||document;
+  const nativeTemplateCanvas=useMemo(()=>hasNativeTemplate(renderedDocument),[renderedDocument]);
 
   useEffect(()=>{try{const stored=JSON.parse(localStorage.getItem(storageKey)||'[]');setSavedItems(Array.isArray(stored)?stored:[]);}catch{setSavedItems([]);}},[storageKey]);
   useEffect(()=>{if(new URLSearchParams(window.location.search).get('panel')==='templates'){setLibraryTab('templates');setLibraryOpen(true);}},[]);
@@ -136,6 +138,33 @@ export default function PageBuilder({initialData}){
     const file=event.dataTransfer?.files?.[0];
     if(file)importFile(file);
   }
+  async function deleteTemplate(template){
+    if(!template?.id||templateDeleting)return;
+    const used=documentUsesTemplate(document,template);
+    const warning=used
+      ?'هذا القالب مستخدم داخل المسودة الحالية. ستبقى الأقسام الحالية وملفاتها سليمة، لكن القالب لن يظهر بعد ذلك في المكتبة لإضافته مرة أخرى.'
+      :'سيتم حذف القالب من مكتبة القوالب. ستبقى ملفاته محفوظة حتى لا تتعطل أي صفحة سبق أن استخدمته.';
+    if(!window.confirm(`${warning}\n\nمتابعة؟`))return;
+    setTemplateDeleting(String(template.id));
+    setNotice(null);
+    try{
+      const response=await fetch('/api/cms/templates/delete',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({templateId:template.id})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||'تعذر حذف القالب من المكتبة.');
+      setTemplates(current=>current.filter(item=>item.id!==template.id));
+      setNotice({type:'success',text:used
+        ?'تم حذف القالب من المكتبة مع إبقاء الأقسام المستخدمة داخل المسودة سليمة.'
+        :'تم حذف القالب من المكتبة بأمان، مع الاحتفاظ بملفاته لحماية الصفحات السابقة.'});
+    }catch(error){
+      setNotice({type:'error',text:error instanceof Error?error.message:'تعذر حذف القالب من المكتبة.'});
+    }finally{
+      setTemplateDeleting('');
+    }
+  }
+
   function handleAssistantPlan(proposal){
     try{
       const preview=previewAssistantPlan(proposal.operations);
@@ -218,7 +247,7 @@ export default function PageBuilder({initialData}){
             <section className={styles.templateCatalog}><header><b>مكتبة القوالب</b><small>{templates.length} قالب محفوظ</small></header>
               {templatesState==='loading'&&<p>جارٍ تحميل القوالب…</p>}
               {templatesState==='error'&&<div className={styles.catalogError}><span>تعذر تحميل المكتبة.</span><button type="button" onClick={()=>setCatalogReload(value=>value+1)}>إعادة المحاولة</button></div>}
-              {templatesState==='ready'&&filteredTemplates.map(template=><article key={template.id}><div><b>{template.name}</b><small>{template.fileCount} ملف · {Math.max(1,Math.round((template.totalBytes||0)/1024))} KB</small></div><button type="button" onClick={()=>insertImportedTemplate(template)}>إضافة للمسودة</button></article>)}
+              {templatesState==='ready'&&filteredTemplates.map(template=><article key={template.id}><div><b>{template.name}</b><small>{template.fileCount} ملف · {Math.max(1,Math.round((template.totalBytes||0)/1024))} KB</small></div><div className={styles.templateCatalogActions}><button type="button" disabled={templateDeleting===template.id} onClick={()=>insertImportedTemplate(template)}>إضافة للمسودة</button><button type="button" className={styles.templateDeleteButton} disabled={Boolean(templateDeleting)} onClick={()=>deleteTemplate(template)}>{templateDeleting===template.id?'جارٍ الحذف…':'حذف'}</button></div></article>)}
               {templatesState==='ready'&&!filteredTemplates.length&&<p>لا توجد قوالب محفوظة مطابقة.</p>}
             </section>
           </div>}
@@ -233,7 +262,7 @@ export default function PageBuilder({initialData}){
         <div className={styles.stageMeta}><span>{DEVICE_LABELS[device]}</span><small>{device==='desktop'?'عرض مرن كامل':device==='tablet'?'820px':'390px'}</small>{previewMode&&<b>معاينة حية</b>}</div>
         <div className={styles.zoomStage} style={{transform:`scale(${zoom/100})`,width:`${10000/zoom}%`}}>
           <div className={`${styles.canvas} ${styles[`canvas_${device}`]}`}>
-            <div className={styles.liveHeader}><strong>{initialData?.site?.nameAr||'الموقع'}</strong><nav><span>الرئيسية</span><span>البرامج</span><span>من نحن</span><span>تواصل معنا</span></nav><b>سجل الآن</b>{!previewMode&&<small>هيدر الموقع</small>}</div>
+            {!nativeTemplateCanvas&&<div className={styles.liveHeader}><strong>{initialData?.site?.nameAr||'الموقع'}</strong><nav><span>الرئيسية</span><span>البرامج</span><span>من نحن</span><span>تواصل معنا</span></nav><b>سجل الآن</b>{!previewMode&&<small>هيدر الموقع</small>}</div>}
             <PageDocumentRenderer
               document={renderedDocument} editor={!previewMode&&!assistantPreview} device={device} selection={selection}
               onSelect={selectTarget} onDropAt={handleDrop} onDragStart={handleDragStart}
@@ -241,7 +270,7 @@ export default function PageBuilder({initialData}){
               onModuleDragStart={handleModuleDragStart} onDuplicateModule={duplicateModule}
               onDeleteModule={deleteModule} onInlineEdit={assistantPreview?undefined:updateInline} showOutlines={showOutlines}
             />
-            <div className={styles.liveFooter}><div><strong>{initialData?.site?.nameAr||'الموقع'}</strong><p>تجربة رقمية متكاملة مبنية بواسطة Marktone Builder.</p></div><span>© {new Date().getFullYear()}</span>{!previewMode&&<small>فوتر الموقع</small>}</div>
+            {!nativeTemplateCanvas&&<div className={styles.liveFooter}><div><strong>{initialData?.site?.nameAr||'الموقع'}</strong><p>تجربة رقمية متكاملة مبنية بواسطة Marktone Builder.</p></div><span>© {new Date().getFullYear()}</span>{!previewMode&&<small>فوتر الموقع</small>}</div>}
           </div>
         </div>
       </main>
@@ -260,6 +289,28 @@ export default function PageBuilder({initialData}){
       onPlan={handleAssistantPlan} onApply={applyAssistantPreview} onDiscard={discardAssistantPreview}
     />
   </div>;
+}
+
+function hasNativeTemplate(value){
+  return (Array.isArray(value?.blocks)?value.blocks:[]).some(block=>
+    block?.type==='widget'&&['native-template-section','imported-template'].includes(block.props?.widgetKey)&&block.props?.templateOwnsPageShell!==false
+  );
+}
+function documentUsesTemplate(value,template){
+  const id=String(template?.id||'');
+  const entryUrl=String(template?.entryUrl||'');
+  const nativeUrl=String(template?.nativeUrl||'');
+  const matches=block=>{
+    const props=block?.props||{};
+    if(id&&String(props.templateId||'')===id)return true;
+    if(entryUrl&&String(props.entryUrl||'')===entryUrl)return true;
+    if(nativeUrl&&String(props.nativeUrl||'')===nativeUrl)return true;
+    if(block?.type==='columns'&&props.row===true){
+      return (Array.isArray(props.items)?props.items:[]).some(column=>(Array.isArray(column?.modules)?column.modules:[]).some(matches));
+    }
+    return false;
+  };
+  return (Array.isArray(value?.blocks)?value.blocks:[]).some(matches);
 }
 
 function EmptyLibrary({text}){return <div className={styles.emptyLibrary}><span>◇</span><p>{text}</p></div>}

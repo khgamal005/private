@@ -57,9 +57,10 @@ export default function NativeTemplateSection({
     const style=document.createElement('style');
     style.textContent=template.css;
     const root=document.createElement('div');
-    root.className='native-root';
+    root.className=['native-root',template.bodyClass||''].filter(Boolean).join(' ');
     root.dir=template.direction||'auto';
     if(template.language)root.lang=template.language;
+    if(template.bodyStyle)root.setAttribute('style',template.bodyStyle);
 
     const selected=selectSections(template,sectionKey,sectionIndex,renderAll);
     if(!selected.length){

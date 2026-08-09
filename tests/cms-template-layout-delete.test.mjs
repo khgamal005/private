@@ -14,6 +14,7 @@ test('native template sections remove page-shell scroll containers and synthetic
     source('components/use-page-builder.js')
   ]);
   assert.match(compiler,/data-marktone-native-shell/);
+  assert.match(compiler,/data-marktone-native-content/);
   assert.match(compiler,/overflow:visible!important/);
   assert.match(runtime,/normalizeNativeLayout/);
   assert.match(runtime,/scrollHeight>element\.clientHeight/);

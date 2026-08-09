@@ -6,6 +6,8 @@ const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 const migrationPath=
   'supabase/migrations/20260808161625_move_sales_followup_task_v1.sql';
+const lifecycleMigrationPath=
+  'supabase/migrations/20260809163000_followup_task_single_calendar_record_v2.sql';
 
 test('an open customer follow-up moves the same task instead of inserting a duplicate',async()=>{
   const migration=await read(migrationPath);
@@ -80,4 +82,25 @@ test('calendar and follow-up dialogs show the exact latest customer note',async(
   assert.match(followup,/payload\.data\?\.taskUpdated/);
   assert.match(followup,/نقل مهمة المتابعة نفسها إلى الموعد الجديد/);
   assert.match(css,/\.mt-customer-summary>\.mt-customer-latest-note/);
+});
+
+
+test('the distributed lead task and sales follow-up are one calendar lifecycle',async()=>{
+  const [migration,api,followup]=await Promise.all([
+    read(lifecycleMigrationPath),
+    read('app/api/tenant/[action]/route.js'),
+    read('components/sales-followup-modal.js')
+  ]);
+
+  assert.match(migration,/'lead_assignment'/);
+  assert.match(migration,/followup_task_merge_plan_v2/);
+  assert.match(migration,/lead_assignment_followup_duplicate_v2/);
+  assert.match(migration,/delete from work_core\.tasks task/);
+  assert.match(migration,/work_tasks_one_open_sales_followup_idx/);
+  assert.match(migration,/create or replace function public\.v2_tenant_record_sales_followup_v4/);
+  assert.match(migration,/status = 'todo'[\s\S]+source', 'sales_followup'/);
+  assert.match(migration,/due_at = p_next_action_at/);
+  assert.match(migration,/status = 'completed'[\s\S]+resolvedByActivityId/);
+  assert.match(api,/record-sales-followup':'v2_tenant_record_sales_followup_v4/);
+  assert.match(followup,/دون إنشاء مهمة مكررة/);
 });

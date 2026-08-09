@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import {useEffect,useMemo,useRef,useState} from 'react';
+import CmsBuilderAssistant from './cms-builder-assistant';
 import PageDocumentRenderer from './page-document-renderer';
 import PageSourceModal from './page-source-modal';
 import {BLOCK_CATALOG,BUILDER_TEMPLATES,ROW_LAYOUTS,SECTION_PRESETS} from '../lib/website-builder';
@@ -21,7 +22,8 @@ export default function PageBuilder({initialData}){
     versions,showVersions,setShowVersions,templateKey,setTemplateKey,groups,undo,redo,
     addRow,addBlock,insertPreset,insertSaved,duplicateBlock,deleteBlock,duplicateModule,deleteModule,
     handleDragStart,handleModuleDragStart,handleDrop,handleColumnDrop,updateSelected,updateInline,
-    updatePageSetting,importDocument,insertImportedTemplate,saveDraft,publish,restore,applyTemplate
+    updatePageSetting,importDocument,insertImportedTemplate,previewAssistantPlan,applyAssistantDocument,
+    saveDraft,publish,restore,applyTemplate
   }=builder;
   const [libraryTab,setLibraryTab]=useState('modules');
   const [query,setQuery]=useState('');
@@ -29,6 +31,8 @@ export default function PageBuilder({initialData}){
   const [libraryOpen,setLibraryOpen]=useState(true);
   const [inspectorOpen,setInspectorOpen]=useState(true);
   const [sourceOpen,setSourceOpen]=useState(false);
+  const [assistantOpen,setAssistantOpen]=useState(false);
+  const [assistantPreview,setAssistantPreview]=useState(null);
   const [savedItems,setSavedItems]=useState([]);
   const [importing,setImporting]=useState(false);
   const [zipDragActive,setZipDragActive]=useState(false);
@@ -40,6 +44,7 @@ export default function PageBuilder({initialData}){
   const backHref=`${cmsBasePath(context)}?section=${isArticle?'articles':'pages'}`;
   const publicPath=cmsPublicPath(context,isArticle?'article':'page',entity);
   const storageKey=`marktone-builder-saved:${context.siteKey||'marktone-main'}:${context.tenantSlug||'platform'}`;
+  const renderedDocument=assistantPreview?.document||document;
 
   useEffect(()=>{try{const stored=JSON.parse(localStorage.getItem(storageKey)||'[]');setSavedItems(Array.isArray(stored)?stored:[]);}catch{setSavedItems([]);}},[storageKey]);
   useEffect(()=>{if(new URLSearchParams(window.location.search).get('panel')==='templates'){setLibraryTab('templates');setLibraryOpen(true);}},[]);
@@ -132,6 +137,31 @@ export default function PageBuilder({initialData}){
     const file=event.dataTransfer?.files?.[0];
     if(file)importFile(file);
   }
+  function handleAssistantPlan(proposal){
+    try{
+      const preview=previewAssistantPlan(proposal.operations);
+      const warnings=[...(proposal.warnings||[])];
+      if(preview.rejected.length)warnings.push(`تم تجاهل ${preview.rejected.length} تعديل غير متوافق مع بنية الصفحة.`);
+      setAssistantPreview({proposal:{...proposal,warnings},document:preview.document,base:JSON.stringify(document)});
+      setNotice({type:'success',text:'معاينة المساعد ظاهرة الآن على الصفحة. لم يتم تطبيقها أو نشرها بعد.'});
+    }catch(error){
+      setAssistantPreview(null);
+      setNotice({type:'error',text:error instanceof Error?error.message:'تعذر إنشاء المعاينة.'});
+      throw error;
+    }
+  }
+  function applyAssistantPreview(){
+    if(!assistantPreview)return;
+    if(assistantPreview.base!==JSON.stringify(document)){
+      setAssistantPreview(null);
+      setNotice({type:'error',text:'تغيرت الصفحة بعد إنشاء المعاينة. أرسل الطلب مرة أخرى حتى لا نفقد التعديلات الجديدة.'});
+      return;
+    }
+    applyAssistantDocument(assistantPreview.document,assistantPreview.proposal.summary);
+    setAssistantPreview(null);
+  }
+  function discardAssistantPreview(){setAssistantPreview(null);setNotice({type:'success',text:'تم إلغاء معاينة المساعد دون تغيير الصفحة.'});}
+  function closeAssistant(){setAssistantPreview(null);setAssistantOpen(false);}
 
   return <div className={styles.builder} dir="rtl">
     <header className={styles.topbar}>
@@ -144,6 +174,7 @@ export default function PageBuilder({initialData}){
       </div>
 
       <div className={styles.utilityActions}>
+        <button type="button" className={`${styles.aiToggleButton} ${assistantOpen?styles.aiToggleActive:''}`} title="مساعد Marktone CMS" onClick={()=>setAssistantOpen(value=>!value)}>✦ AI</button>
         <button type="button" title="مساعدة">?</button>
         <button type="button" title="إظهار حدود العناصر" className={showOutlines?styles.activeUtility:''} onClick={()=>setShowOutlines(value=>!value)}>⌗</button>
         <button type="button" title="CSS وإعدادات الصفحة" className={inspectorMode==='page'?styles.activeUtility:''} onClick={()=>{setInspectorMode('page');setInspectorOpen(true);}}>CSS</button>
@@ -167,7 +198,8 @@ export default function PageBuilder({initialData}){
       </div>
     </header>
 
-    {notice&&<div className={`${styles.notice} ${notice.type==='error'?styles.noticeError:styles.noticeSuccess}`}><span>{notice.text}</span><button type="button" onClick={()=>setNotice(null)}>×</button></div>}
+    {notice&&!assistantPreview&&<div className={`${styles.notice} ${notice.type==='error'?styles.noticeError:styles.noticeSuccess}`}><span>{notice.text}</span><button type="button" onClick={()=>setNotice(null)}>×</button></div>}
+    {assistantPreview&&<div className={styles.aiPreviewBar}><div><b>✦ معاينة المساعد</b><span>{assistantPreview.proposal.summary}</span></div><div><button type="button" onClick={applyAssistantPreview}>تطبيق</button><button type="button" onClick={discardAssistantPreview}>إلغاء</button></div></div>}
 
     <div className={`${styles.body} ${!libraryOpen?styles.libraryClosed:''} ${!inspectorOpen?styles.inspectorClosed:''}`}>
       <aside className={styles.library}>
@@ -204,11 +236,11 @@ export default function PageBuilder({initialData}){
           <div className={`${styles.canvas} ${styles[`canvas_${device}`]}`}>
             <div className={styles.liveHeader}><strong>{initialData?.site?.nameAr||'الموقع'}</strong><nav><span>الرئيسية</span><span>البرامج</span><span>من نحن</span><span>تواصل معنا</span></nav><b>سجل الآن</b>{!previewMode&&<small>هيدر الموقع</small>}</div>
             <PageDocumentRenderer
-              document={document} editor={!previewMode} device={device} selection={selection}
+              document={renderedDocument} editor={!previewMode&&!assistantPreview} device={device} selection={selection}
               onSelect={selectTarget} onDropAt={handleDrop} onDragStart={handleDragStart}
               onDuplicate={duplicateBlock} onDelete={deleteBlock} onColumnDrop={handleColumnDrop}
               onModuleDragStart={handleModuleDragStart} onDuplicateModule={duplicateModule}
-              onDeleteModule={deleteModule} onInlineEdit={updateInline} showOutlines={showOutlines}
+              onDeleteModule={deleteModule} onInlineEdit={assistantPreview?undefined:updateInline} showOutlines={showOutlines}
             />
             <div className={styles.liveFooter}><div><strong>{initialData?.site?.nameAr||'الموقع'}</strong><p>تجربة رقمية متكاملة مبنية بواسطة Marktone Builder.</p></div><span>© {new Date().getFullYear()}</span>{!previewMode&&<small>فوتر الموقع</small>}</div>
           </div>
@@ -223,6 +255,11 @@ export default function PageBuilder({initialData}){
       {!inspectorOpen&&<button type="button" className={styles.openInspector} onClick={()=>setInspectorOpen(true)}>⚙</button>}
     </div>
     {sourceOpen&&<PageSourceModal document={document} page={entity} onClose={()=>setSourceOpen(false)} onAddHtml={addHtmlModule}/>} 
+    <CmsBuilderAssistant
+      open={assistantOpen} onClose={closeAssistant} document={document} entity={entity} context={context}
+      selection={selection} device={device} proposal={assistantPreview?.proposal||null}
+      onPlan={handleAssistantPlan} onApply={applyAssistantPreview} onDiscard={discardAssistantPreview}
+    />
   </div>;
 }
 

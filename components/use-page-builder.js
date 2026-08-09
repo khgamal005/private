@@ -6,6 +6,7 @@ import {
   blockCatalogGroups,changeLayoutRow,createBuilderBlock,createBuilderDocument,
   createLayoutRow,createSectionPreset,normalizeBuilderDocument
 } from '../lib/website-builder';
+import {applyCmsAssistantOperations} from '../lib/cms-assistant-operations.mjs';
 
 export function usePageBuilder(initialData){
   const router=useRouter();
@@ -364,6 +365,22 @@ export function usePageBuilder(initialData){
     });
   }
 
+  function previewAssistantPlan(operations){
+    const result=applyCmsAssistantOperations(document,operations,{
+      createModule:(type,definition)=>createBuilderBlock(type,definition),
+      createRow:(layoutKey)=>createLayoutRow(layoutKey)
+    });
+    return {...result,document:normalizeBuilderDocument(result.document)};
+  }
+
+  function applyAssistantDocument(value,summary='تم تطبيق تعديلات المساعد'){
+    const next=normalizeBuilderDocument(value);
+    commit(next,{
+      selection:firstSelection(next),
+      noticeMessage:`${String(summary).slice(0,180)}. يمكنك التراجع قبل الحفظ أو النشر.`
+    });
+  }
+
   async function request(action,payload={}){
     setBusy(action);setNotice(null);
     try{
@@ -404,7 +421,8 @@ export function usePageBuilder(initialData){
     templateKey,setTemplateKey,groups,undo,redo,addRow,addBlock,insertPreset,insertSaved,
     duplicateBlock,deleteBlock,duplicateModule,deleteModule,duplicateSelected,deleteSelected,
     handleDragStart,handleModuleDragStart,handleDrop,handleColumnDrop,
-    updateSelected,updateInline,updatePageSetting,importDocument,insertImportedTemplate,saveDraft,publish,restore,applyTemplate
+    updateSelected,updateInline,updatePageSetting,importDocument,insertImportedTemplate,
+    previewAssistantPlan,applyAssistantDocument,saveDraft,publish,restore,applyTemplate
   };
 }
 

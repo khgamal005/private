@@ -80,6 +80,7 @@ export default function NativeTemplateSection({
     const editable=configureEditable(root,Boolean(editor));
     setEditableCount(editable.length);
     shadow.append(style,root);
+    const releaseLayout=normalizeNativeLayout(root);
 
     const activate=()=>callbacksRef.current.onActivate?.(callbacksRef.current.target);
     const click=event=>handleClick(event,host,Boolean(editor));
@@ -127,6 +128,7 @@ export default function NativeTemplateSection({
       shadow.removeEventListener('focusout',focusout,true);
       shadow.removeEventListener('keydown',keydown,true);
       shadow.removeEventListener('paste',paste,true);
+      releaseLayout();
     };
   },[editor,overrides,renderAll,sectionIndex,sectionKey,status,template]);
 
@@ -146,6 +148,88 @@ export default function NativeTemplateSection({
       <span>{editableCount} نص قابل للتعديل مباشرة · بدون iframe</span>
     </div>}
   </div>;
+}
+
+function normalizeNativeLayout(root){
+  let frame=0;
+  const listeners=[];
+  const schedule=()=>{
+    if(frame)return;
+    frame=window.requestAnimationFrame(apply);
+  };
+  const apply=()=>{
+    frame=0;
+    for(const element of collectLayoutCandidates(root))relaxLayoutElement(element,root);
+  };
+  const observer=typeof ResizeObserver==='function'?new ResizeObserver(schedule):null;
+  observer?.observe(root);
+  for(const asset of root.querySelectorAll('img,video')){
+    asset.addEventListener('load',schedule);
+    asset.addEventListener('loadedmetadata',schedule);
+    listeners.push(()=>{
+      asset.removeEventListener('load',schedule);
+      asset.removeEventListener('loadedmetadata',schedule);
+    });
+  }
+  schedule();
+  return()=>{
+    if(frame)window.cancelAnimationFrame(frame);
+    observer?.disconnect();
+    listeners.forEach(release=>release());
+  };
+}
+
+function collectLayoutCandidates(root){
+  const candidates=new Set([root]);
+  for(const shell of root.querySelectorAll('[data-marktone-native-shell="true"]'))candidates.add(shell);
+  for(const section of root.children){
+    candidates.add(section);
+    let current=section.firstElementChild;
+    for(let depth=0;current&&depth<6;depth+=1){
+      if(isPageShell(current)||current.hasAttribute('data-marktone-native-shell'))candidates.add(current);
+      if(current.children.length!==1)break;
+      current=current.firstElementChild;
+    }
+  }
+  return [...candidates].slice(0,160);
+}
+
+function relaxLayoutElement(element,root){
+  let computed;
+  try{computed=window.getComputedStyle(element);}catch{return}
+  const forced=element===root||element.hasAttribute('data-marktone-native-shell');
+  const pageLike=forced||element.hasAttribute('data-marktone-native-section')||isPageShell(element);
+  const overflowValue=`${computed.overflow} ${computed.overflowX} ${computed.overflowY}`;
+  const scrollMode=/(auto|scroll|clip)/.test(overflowValue);
+  const clipped=/(hidden|clip)/.test(overflowValue);
+  const overflowing=element.clientHeight>0&&element.scrollHeight>element.clientHeight+6;
+  const viewportHeight=Math.max(window.innerHeight||0,320);
+  const height=Number.parseFloat(computed.height);
+  const maxHeight=Number.parseFloat(computed.maxHeight);
+  const viewportLocked=Number.isFinite(height)&&Math.abs(height-viewportHeight)<12||
+    Number.isFinite(maxHeight)&&Math.abs(maxHeight-viewportHeight)<12;
+  if(!forced&&!viewportLocked&&!(pageLike&&overflowing&&(scrollMode||clipped)))return;
+
+  element.style.setProperty('overflow','visible','important');
+  element.style.setProperty('overflow-x','visible','important');
+  element.style.setProperty('overflow-y','visible','important');
+  element.style.setProperty('max-height','none','important');
+  element.style.setProperty('scroll-snap-type','none','important');
+  element.style.setProperty('overscroll-behavior','auto','important');
+  if(element!==root){
+    element.style.setProperty('height','auto','important');
+    element.style.setProperty('min-height','0','important');
+  }
+  if(pageLike){
+    element.style.setProperty('contain','none','important');
+    if(computed.position==='fixed'||computed.position==='sticky')element.style.setProperty('position','relative','important');
+    if(element.hasAttribute('data-marktone-native-shell'))element.style.setProperty('transform','none','important');
+  }
+}
+
+function isPageShell(element){
+  const identity=`${element?.id||''} ${element?.className||''}`.toLowerCase();
+  return /\b(app|root|page|site|website|wrapper|shell|layout|viewport|smooth|scroll|main-content)\b/.test(identity);
 }
 
 function selectSections(template,key,index,renderAll){

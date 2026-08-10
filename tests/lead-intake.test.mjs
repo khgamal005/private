@@ -101,3 +101,48 @@ test('campaign analytics use CRM outcomes and first-response evidence',async()=>
   assert.match(migration,/lead_status = 'paid'/);
   assert.match(migration,/activities_capture_lead_first_action/);
 });
+
+
+test('lead distribution tabs share separated filters and complete XLSX exports',async()=>{
+  const [component,route,css,migration]=await Promise.all([
+    source('components/lead-intake-workspace.js'),
+    source('app/api/tenant/report-export/route.js'),
+    source('app/rebuild.css'),
+    source('supabase/migrations/20260810213000_lead_intake_filters_export_v1.sql')
+  ]);
+
+  assert.match(component,/ReportExcelButton/);
+  assert.match(component,/mt-lead-report-filters/);
+  assert.match(component,/من تاريخ/);
+  assert.match(component,/إلى تاريخ/);
+  assert.match(component,/جودة الصف/);
+  assert.match(component,/>المصدر</);
+  assert.match(component,/الحملة التسويقية/);
+  assert.match(component,/wrong_number/);
+  assert.match(component,/unqualified/);
+  assert.match(component,/no_answer/);
+  assert.match(component,/report:'lead-intake'/);
+  assert.match(component,/section:tab/);
+  assert.match(component,/<th>المصدر<\/th>[\s\S]*<th>الحملة<\/th>/);
+  assert.doesNotMatch(component,/<th>المصدر والحملة<\/th>/);
+  assert.doesNotMatch(component,/<th>المصدر \/ الحملة<\/th>/);
+
+  for(const tab of ['queue','batches','assignments','analytics','team']){
+    assert.match(route,new RegExp(tab+":\\['"+tab+"'\\]"));
+  }
+  assert.match(route,/v2_tenant_lead_intake_export_v1/);
+  assert.match(route,/isLeadIntake/);
+  assert.match(css,/\.mt-lead-report-filter-grid/);
+  assert.match(migration,/p_quality text/);
+  assert.match(migration,/p_source text/);
+  assert.match(migration,/p_campaign text/);
+  assert.match(migration,/p_batch_id uuid/);
+  assert.match(migration,/p_validation text/);
+  assert.match(migration,/p_query text/);
+  assert.match(migration,/assignment\.assigned_at/);
+  assert.match(migration,/assignment\.first_action_at/);
+  assert.match(migration,/'رقم الجوال'/);
+  assert.match(migration,/'زمن الاستجابة بالدقائق'/);
+  assert.match(migration,/tenant\.leads\.analytics/);
+  assert.match(migration,/tenant\.leads\.distribute/);
+});

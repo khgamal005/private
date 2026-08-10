@@ -5,6 +5,7 @@ export const runtime='nodejs';
 export const dynamic='force-dynamic';
 
 const GENERAL_REPORTS=new Set(['overview','employees','employee','sales','campaigns']);
+const LEAD_INTAKE_REPORT='lead-intake';
 const GENERAL_PAGE_SIZE=100;
 const DETAIL_EXPORT_LIMIT=100000;
 const DETAIL_COLLECTIONS=['tasks','activities','calls','leads'];
@@ -17,6 +18,11 @@ const SECTION_KEYS={
   calls:['calls'],
   extensions:['extensions'],
   callEmployees:['extensions','performance','dashboard'],
+  queue:['queue'],
+  batches:['batches'],
+  assignments:['assignments'],
+  analytics:['analytics'],
+  team:['team'],
   all:null
 };
 
@@ -149,6 +155,22 @@ async function loadCallReport(payload){
   return data;
 }
 
+async function loadLeadIntakeReport(payload){
+  const optional=value=>value&&value!=='all'?value:null;
+  return authRpc('v2_tenant_lead_intake_export_v1',{
+    p_slug:payload.slug,
+    p_section:payload.section||'assignments',
+    p_from:payload.from||null,
+    p_to:payload.to||null,
+    p_quality:optional(payload.quality),
+    p_source:optional(payload.source),
+    p_campaign:optional(payload.campaign),
+    p_batch_id:optional(payload.batchId),
+    p_validation:optional(payload.validation),
+    p_query:optional(payload.query)
+  });
+}
+
 async function loadGeneralReport(payload){
   const params={
     p_slug:payload.slug,
@@ -201,17 +223,28 @@ export async function POST(request){
   try{
     const payload=await request.json();
     if(!payload?.slug||!payload?.report)return Response.json({error:'بيانات التقرير غير مكتملة'},{status:400});
-    if(payload.report!=='calls'&&!GENERAL_REPORTS.has(payload.report))return Response.json({error:'نوع التقرير غير مدعوم'},{status:400});
+    const isLeadIntake=payload.report===LEAD_INTAKE_REPORT;
+    if(
+      payload.report!=='calls'
+      &&!GENERAL_REPORTS.has(payload.report)
+      &&!isLeadIntake
+    )return Response.json({error:'نوع التقرير غير مدعوم'},{status:400});
 
-    const access=await authRpc('v2_tenant_report_filter_options',{p_slug:payload.slug});
-    if(!access?.canUseAnalytics)return Response.json({error:'لا تملك صلاحية تحليل وتصدير التقارير'},{status:403});
+    if(!isLeadIntake){
+      const access=await authRpc('v2_tenant_report_filter_options',{p_slug:payload.slug});
+      if(!access?.canUseAnalytics)return Response.json({error:'لا تملك صلاحية تحليل وتصدير التقارير'},{status:403});
 
-    const allowedStaff=new Set((access.staff||[]).map(item=>item.staffId));
-    if(payload.staffId&&!allowedStaff.has(payload.staffId))return Response.json({error:'الموظف المحدد خارج نطاق الصلاحية'},{status:403});
-    const allowedExtensions=new Set((access.extensions||[]).map(item=>String(item.extension)));
-    if(payload.extension&&!allowedExtensions.has(String(payload.extension)))return Response.json({error:'التحويلة المحددة خارج نطاق الصلاحية'},{status:403});
+      const allowedStaff=new Set((access.staff||[]).map(item=>item.staffId));
+      if(payload.staffId&&!allowedStaff.has(payload.staffId))return Response.json({error:'الموظف المحدد خارج نطاق الصلاحية'},{status:403});
+      const allowedExtensions=new Set((access.extensions||[]).map(item=>String(item.extension)));
+      if(payload.extension&&!allowedExtensions.has(String(payload.extension)))return Response.json({error:'التحويلة المحددة خارج نطاق الصلاحية'},{status:403});
+    }
 
-    const data=payload.report==='calls'?await loadCallReport(payload):await loadGeneralReport(payload);
+    const data=isLeadIntake
+      ?await loadLeadIntakeReport(payload)
+      :payload.report==='calls'
+        ?await loadCallReport(payload)
+        :await loadGeneralReport(payload);
     const workbook=XLSX.utils.book_new();
     appendRows(workbook,'filters',[{
       report:payload.report,
@@ -222,6 +255,12 @@ export async function POST(request){
       extension:payload.extension||'',
       callType:payload.callType||'',
       status:payload.status||'',
+      quality:payload.quality||'',
+      source:payload.source||'',
+      campaign:payload.campaign||'',
+      batchId:payload.batchId||'',
+      validation:payload.validation||'',
+      query:payload.query||'',
       exportedAt:new Date().toISOString()
     }]);
     for(const key of reportDataKeys(data,payload.section||'all'))appendValue(workbook,key,data[key]);

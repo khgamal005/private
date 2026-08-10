@@ -2,6 +2,7 @@
 
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import ReportExcelButton from './report-excel-button';
 
 const EMPTY=[];
 
@@ -18,6 +19,47 @@ const VALIDATION_LABELS={
   duplicate:'مكرر',
   invalid:'غير صالح'
 };
+
+const LEAD_QUALITY_LABELS={
+  wrong_number:'رقم خاطئ',
+  unqualified:'غير مؤهل',
+  new:'جديد',
+  unrated:'غير مقيّم',
+  no_answer:'لا يرد',
+  qualified:'مؤهل',
+  interested:'مهتم',
+  very_interested:'مهتم جدًا',
+  awaiting_payment:'بانتظار الدفع',
+  payment_submitted:'تم إرسال الدفع',
+  paid:'مدفوع',
+  lost:'غير مكتمل',
+  closed_lost:'مغلق دون بيع'
+};
+
+const DEFAULT_FILTERS={
+  from:'',
+  to:'',
+  quality:'all',
+  source:'all',
+  campaign:'all'
+};
+
+const BASE_QUALITIES=[
+  'wrong_number',
+  'unqualified',
+  'new',
+  'unrated',
+  'no_answer'
+];
+
+const QUALIFIED_STATUSES=new Set([
+  'qualified',
+  'interested',
+  'very_interested',
+  'awaiting_payment',
+  'payment_submitted',
+  'paid'
+]);
 
 const BATCH_STATUS={
   ready:'جاهزة للتوزيع',
@@ -163,6 +205,107 @@ function batchClass(value){
   return value==='cancelled'?'muted':'danger';
 }
 
+function uniqueValues(values){
+  return [...new Set(values.map(value=>String(value||'').trim()).filter(Boolean))]
+    .sort((left,right)=>left.localeCompare(right,'ar'));
+}
+
+function assignmentQualities(assignment){
+  if(!assignment)return ['unrated'];
+  return uniqueValues([
+    assignment.leadQuality||'unrated',
+    assignment.leadStatus||'new'
+  ]);
+}
+
+function dateMatches(values,filters){
+  if(!filters.from&&!filters.to)return true;
+  const from=filters.from?new Date(filters.from+'T00:00:00'):null;
+  const to=filters.to?new Date(filters.to+'T23:59:59.999'):null;
+  return values.some(value=>{
+    if(!value)return false;
+    const current=new Date(value);
+    if(Number.isNaN(current.getTime()))return false;
+    if(from&&current<from)return false;
+    if(to&&current>to)return false;
+    return true;
+  });
+}
+
+function matchesUniversal(item,dateValues,filters,qualities=['unrated']){
+  if(!dateMatches(dateValues,filters))return false;
+  if(filters.source!=='all'&&item.source!==filters.source)return false;
+  if(filters.campaign!=='all'&&item.campaignName!==filters.campaign)return false;
+  if(filters.quality!=='all'&&!qualities.includes(filters.quality))return false;
+  return true;
+}
+
+function aggregateCampaignRows(rows,assignmentsByRow){
+  const grouped=new Map();
+  for(const row of rows){
+    const assignment=assignmentsByRow.get(row.id);
+    const key=JSON.stringify([
+      row.source||'غير محدد',
+      row.campaignName||'بدون حملة',
+      row.adSetName||'بدون مجموعة',
+      row.adName||'بدون إعلان'
+    ]);
+    const current=grouped.get(key)||{
+      source:row.source||'غير محدد',
+      campaignName:row.campaignName||'بدون حملة',
+      adSetName:row.adSetName||'بدون مجموعة',
+      adName:row.adName||'بدون إعلان',
+      totalRows:0,
+      validRows:0,
+      duplicateRows:0,
+      invalidRows:0,
+      distributedRows:0,
+      contactedRows:0,
+      qualifiedRows:0,
+      paidRows:0,
+      wrongNumberRows:0,
+      responseTotal:0,
+      responseCount:0
+    };
+    current.totalRows+=1;
+    if(row.validationStatus==='valid')current.validRows+=1;
+    if(row.validationStatus==='duplicate')current.duplicateRows+=1;
+    if(row.validationStatus==='invalid')current.invalidRows+=1;
+    if(assignment){
+      current.distributedRows+=1;
+      if(assignment.firstActionAt)current.contactedRows+=1;
+      if(QUALIFIED_STATUSES.has(assignment.leadStatus))current.qualifiedRows+=1;
+      if(assignment.leadStatus==='paid')current.paidRows+=1;
+      if(
+        assignment.leadStatus==='wrong_number'
+        ||assignment.leadQuality==='wrong_number'
+      )current.wrongNumberRows+=1;
+      if(assignment.responseMinutes!==null
+        &&assignment.responseMinutes!==undefined){
+        current.responseTotal+=Number(assignment.responseMinutes)||0;
+        current.responseCount+=1;
+      }
+    }
+    grouped.set(key,current);
+  }
+  return [...grouped.values()].map(campaign=>({
+    ...campaign,
+    badDataRate:campaign.totalRows
+      ?((campaign.duplicateRows+campaign.invalidRows
+        +campaign.wrongNumberRows)/campaign.totalRows)*100
+      :0,
+    qualificationRate:campaign.distributedRows
+      ?(campaign.qualifiedRows/campaign.distributedRows)*100
+      :0,
+    conversionRate:campaign.distributedRows
+      ?(campaign.paidRows/campaign.distributedRows)*100
+      :0,
+    averageFirstResponseMinutes:campaign.responseCount
+      ?campaign.responseTotal/campaign.responseCount
+      :null
+  })).sort((left,right)=>right.totalRows-left.totalRows);
+}
+
 async function readWorkbook(file){
   const imported=await import('xlsx');
   const XLSX=imported.default||imported;
@@ -185,6 +328,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   const [tab,setTab]=useState('queue');
   const [batchFilter,setBatchFilter]=useState('all');
   const [validationFilter,setValidationFilter]=useState('all');
+  const [filters,setFilters]=useState(DEFAULT_FILTERS);
   const [query,setQuery]=useState('');
   const [selectedRows,setSelectedRows]=useState([]);
   const [modal,setModal]=useState(null);
@@ -238,6 +382,42 @@ export default function LeadIntakeWorkspace({slug,initialData}){
     [rows]
   );
 
+  const assignmentsByRow=useMemo(
+    ()=>new Map(assignments.map(assignment=>[
+      assignment.rowId,
+      assignment
+    ])),
+    [assignments]
+  );
+
+  const sourceOptions=useMemo(()=>uniqueValues([
+    ...rows.map(row=>row.source),
+    ...assignments.map(assignment=>assignment.source),
+    ...batches.map(batch=>batch.source),
+    ...campaigns.map(campaign=>campaign.source)
+  ]),[rows,assignments,batches,campaigns]);
+
+  const campaignOptions=useMemo(()=>uniqueValues([
+    ...rows.map(row=>row.campaignName),
+    ...assignments.map(assignment=>assignment.campaignName),
+    ...batches.map(batch=>batch.campaignName),
+    ...campaigns.map(campaign=>campaign.campaignName)
+  ]),[rows,assignments,batches,campaigns]);
+
+  const qualityOptions=useMemo(()=>uniqueValues([
+    ...BASE_QUALITIES,
+    ...assignments.flatMap(assignment=>assignmentQualities(assignment))
+  ]),[assignments]);
+
+  const filteredAssignments=useMemo(()=>assignments.filter(assignment=>
+    matchesUniversal(
+      assignment,
+      [assignment.assignedAt,assignment.firstActionAt],
+      filters,
+      assignmentQualities(assignment)
+    )
+  ),[assignments,filters]);
+
   const shownRows=useMemo(()=>rows.filter(row=>{
     if(batchFilter!=='all'&&row.batchId!==batchFilter)return false;
     if(validationFilter==='awaiting'){
@@ -246,12 +426,93 @@ export default function LeadIntakeWorkspace({slug,initialData}){
       &&row.validationStatus!==validationFilter){
       return false;
     }
+    const assignment=assignmentsByRow.get(row.id);
+    if(!matchesUniversal(
+      row,
+      [row.createdAt,assignment?.assignedAt,assignment?.firstActionAt],
+      filters,
+      assignmentQualities(assignment)
+    ))return false;
     const haystack=[
       row.name,row.phone,row.whatsapp,row.email,row.programName,
       row.source,row.campaignName,row.adName,row.batchFileName
     ].join(' ').toLowerCase();
     return haystack.includes(query.trim().toLowerCase());
-  }),[rows,batchFilter,validationFilter,query]);
+  }),[
+    rows,
+    batchFilter,
+    validationFilter,
+    query,
+    assignmentsByRow,
+    filters
+  ]);
+
+  const shownBatches=useMemo(()=>batches.filter(batch=>{
+    if(!matchesUniversal(
+      batch,
+      [batch.createdAt,batch.distributedAt],
+      {...filters,quality:'all'}
+    ))return false;
+    if(filters.quality==='all')return true;
+    return rows.some(row=>{
+      if(row.batchId!==batch.id)return false;
+      return assignmentQualities(assignmentsByRow.get(row.id))
+        .includes(filters.quality);
+    });
+  }),[batches,rows,assignmentsByRow,filters]);
+
+  const shownCampaigns=useMemo(()=>{
+    const needsRowLevel=Boolean(filters.from||filters.to)
+      ||filters.quality!=='all';
+    if(!needsRowLevel){
+      return campaigns.filter(campaign=>matchesUniversal(
+        campaign,
+        [],
+        {...filters,from:'',to:'',quality:'all'}
+      ));
+    }
+    const matchingRows=rows.filter(row=>{
+      const assignment=assignmentsByRow.get(row.id);
+      return matchesUniversal(
+        row,
+        [row.createdAt,assignment?.assignedAt,assignment?.firstActionAt],
+        filters,
+        assignmentQualities(assignment)
+      );
+    });
+    return aggregateCampaignRows(matchingRows,assignmentsByRow);
+  },[campaigns,rows,assignmentsByRow,filters]);
+
+  const filtersActive=Boolean(
+    filters.from
+    ||filters.to
+    ||filters.quality!=='all'
+    ||filters.source!=='all'
+    ||filters.campaign!=='all'
+  );
+
+  const shownStaff=useMemo(()=>staff.map(member=>{
+    if(!filtersActive)return {
+      ...member,
+      filteredAssignments:null,
+      filteredActiveAssignments:member.activeAssignments,
+      filteredOverdueAssignments:member.overdueAssignments
+    };
+    const memberAssignments=filteredAssignments.filter(
+      assignment=>assignment.assignedStaffId===member.id
+    );
+    return {
+      ...member,
+      filteredAssignments:memberAssignments.length,
+      filteredActiveAssignments:memberAssignments.filter(
+        assignment=>assignment.status==='active'
+          &&!assignment.firstActionAt
+      ).length,
+      filteredOverdueAssignments:memberAssignments.filter(
+        assignment=>assignment.overdue
+      ).length
+    };
+  }),[staff,filteredAssignments,filtersActive]);
 
   const selectableRows=shownRows.filter(
     row=>row.validationStatus==='valid'
@@ -522,6 +783,101 @@ export default function LeadIntakeWorkspace({slug,initialData}){
         >{label}</button>)}
     </nav>
 
+    <section className="mt-panel mt-lead-report-filters">
+      <div className="mt-lead-report-filter-head">
+        <div>
+          <h3>فلترة وتحليل بيانات التوزيع</h3>
+          <p>المصدر هو قناة جلب العميل، والحملة هي حملة التسويق المحددة؛ كلاهما مستقل.</p>
+        </div>
+        <div className="mt-page-actions">
+          {filtersActive&&<button
+            type="button"
+            className="mt-button"
+            onClick={()=>setFilters(DEFAULT_FILTERS)}
+          >مسح الفلاتر</button>}
+          <ReportExcelButton
+            payload={{
+              slug,
+              report:'lead-intake',
+              section:tab,
+              from:filters.from||null,
+              to:filters.to||null,
+              quality:filters.quality==='all'?null:filters.quality,
+              source:filters.source==='all'?null:filters.source,
+              campaign:filters.campaign==='all'?null:filters.campaign,
+              batchId:tab==='queue'&&batchFilter!=='all'?batchFilter:null,
+              validation:tab==='queue'&&validationFilter!=='all'
+                ?validationFilter
+                :null,
+              query:tab==='queue'?query.trim()||null:null
+            }}
+            label="تصدير النتائج إلى إكسيل"
+          />
+        </div>
+      </div>
+      <div className="mt-lead-report-filter-grid">
+        <label className="mt-field">من تاريخ
+          <input
+            type="date"
+            value={filters.from}
+            max={filters.to||undefined}
+            onChange={event=>setFilters(current=>({
+              ...current,from:event.target.value
+            }))}
+          />
+        </label>
+        <label className="mt-field">إلى تاريخ
+          <input
+            type="date"
+            value={filters.to}
+            min={filters.from||undefined}
+            onChange={event=>setFilters(current=>({
+              ...current,to:event.target.value
+            }))}
+          />
+        </label>
+        <label className="mt-field">جودة الصف
+          <select
+            value={filters.quality}
+            onChange={event=>setFilters(current=>({
+              ...current,quality:event.target.value
+            }))}
+          >
+            <option value="all">كل مستويات الجودة والنتائج</option>
+            {qualityOptions.map(value=><option key={value} value={value}>
+              {LEAD_QUALITY_LABELS[value]||value}
+            </option>)}
+          </select>
+        </label>
+        <label className="mt-field">المصدر
+          <select
+            value={filters.source}
+            onChange={event=>setFilters(current=>({
+              ...current,source:event.target.value
+            }))}
+          >
+            <option value="all">كل المصادر</option>
+            {sourceOptions.map(value=><option key={value} value={value}>
+              {value}
+            </option>)}
+          </select>
+        </label>
+        <label className="mt-field">الحملة التسويقية
+          <select
+            value={filters.campaign}
+            onChange={event=>setFilters(current=>({
+              ...current,campaign:event.target.value
+            }))}
+          >
+            <option value="all">كل الحملات</option>
+            {campaignOptions.map(value=><option key={value} value={value}>
+              {value}
+            </option>)}
+          </select>
+        </label>
+      </div>
+    </section>
+
     {tab==='queue'&&<section className="mt-panel">
       <div className="mt-toolbar mt-lead-queue-toolbar">
         <input
@@ -570,7 +926,8 @@ export default function LeadIntakeWorkspace({slug,initialData}){
             </th>
             <th>العميل</th>
             <th>التواصل</th>
-            <th>المصدر والحملة</th>
+            <th>المصدر</th>
+            <th>الحملة</th>
             <th>البرنامج</th>
             <th>جودة الصف</th>
             <th>الحالة</th>
@@ -598,7 +955,11 @@ export default function LeadIntakeWorkspace({slug,initialData}){
                 <small>{row.email||'لا يوجد بريد'}</small>
               </td>
               <td>
-                <b>{row.campaignName||row.source||'غير محدد'}</b>
+                <b>{row.source||'غير محدد'}</b>
+                <small>قناة جلب العميل</small>
+              </td>
+              <td>
+                <b>{row.campaignName||'بدون حملة'}</b>
                 <small>{row.adSetName||row.adName||'بدون إعلان محدد'}</small>
               </td>
               <td>{row.programName||'—'}</td>
@@ -623,7 +984,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
     </section>}
 
     {tab==='batches'&&<section className="mt-lead-batch-grid">
-      {batches.map(batch=><article key={batch.id} className="mt-lead-batch-card">
+      {shownBatches.map(batch=><article key={batch.id} className="mt-lead-batch-card">
         <header>
           <div>
             <small>{batch.source}</small>
@@ -670,7 +1031,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
           </div>
         </footer>
       </article>)}
-      {!batches.length&&<div className="mt-empty">لم يتم رفع أي ملفات عملاء بعد.</div>}
+      {!shownBatches.length&&<div className="mt-empty">لا توجد دفعات مطابقة للفلاتر الحالية.</div>}
     </section>}
 
     {tab==='assignments'&&<section className="mt-panel">
@@ -681,17 +1042,19 @@ export default function LeadIntakeWorkspace({slug,initialData}){
         </div>
       </div>
       <div className="mt-table-wrap">
-        <table className="mt-table">
+        <table className="mt-table mt-lead-assignment-table">
           <thead><tr>
             <th>العميل</th>
             <th>المسؤول</th>
+            <th>المصدر</th>
+            <th>الحملة</th>
             <th>طريقة التوزيع</th>
             <th>موعد أول متابعة</th>
             <th>أول استجابة</th>
             <th>نتيجة العميل</th>
           </tr></thead>
           <tbody>
-            {assignments.map(assignment=><tr key={assignment.id}>
+            {filteredAssignments.map(assignment=><tr key={assignment.id}>
               <td>
                 <b>{assignment.contactName}</b>
                 <small dir="ltr">{assignment.phone||'—'}</small>
@@ -699,6 +1062,11 @@ export default function LeadIntakeWorkspace({slug,initialData}){
               <td>
                 <b>{assignment.assignedStaffName}</b>
                 <small>بواسطة {assignment.assignedByName||'إدارة المنشأة'}</small>
+              </td>
+              <td>{assignment.source||'غير محدد'}</td>
+              <td>
+                <b>{assignment.campaignName||'بدون حملة'}</b>
+                <small>{assignment.adName||'بدون إعلان محدد'}</small>
               </td>
               <td>{STRATEGIES[assignment.strategy]||assignment.strategy}</td>
               <td>
@@ -720,7 +1088,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
             </tr>)}
           </tbody>
         </table>
-        {!assignments.length&&<div className="mt-empty">لا يوجد توزيع مسجل بعد.</div>}
+        {!filteredAssignments.length&&<div className="mt-empty">لا توجد عمليات توزيع مطابقة للفلاتر الحالية.</div>}
       </div>
     </section>}
 
@@ -734,7 +1102,8 @@ export default function LeadIntakeWorkspace({slug,initialData}){
       <div className="mt-table-wrap">
         <table className="mt-table mt-campaign-table">
           <thead><tr>
-            <th>المصدر / الحملة</th>
+            <th>المصدر</th>
+            <th>الحملة</th>
             <th>الإعلان</th>
             <th>الإجمالي</th>
             <th>مكرر / غير صالح</th>
@@ -746,11 +1115,9 @@ export default function LeadIntakeWorkspace({slug,initialData}){
             <th>سرعة الاستجابة</th>
           </tr></thead>
           <tbody>
-            {campaigns.map((campaign,index)=><tr key={`${campaign.source}-${campaign.campaignName}-${campaign.adName}-${index}`}>
-              <td>
-                <b>{campaign.campaignName}</b>
-                <small>{campaign.source}</small>
-              </td>
+            {shownCampaigns.map((campaign,index)=><tr key={`${campaign.source}-${campaign.campaignName}-${campaign.adName}-${index}`}>
+              <td>{campaign.source}</td>
+              <td>{campaign.campaignName}</td>
               <td>
                 <b>{campaign.adName}</b>
                 <small>{campaign.adSetName}</small>
@@ -776,12 +1143,12 @@ export default function LeadIntakeWorkspace({slug,initialData}){
             </tr>)}
           </tbody>
         </table>
-        {!campaigns.length&&<div className="mt-empty">ستظهر التحليلات بعد أول دفعة رفع.</div>}
+        {!shownCampaigns.length&&<div className="mt-empty">لا توجد نتائج تحليلية مطابقة للفلاتر الحالية.</div>}
       </div>
     </section>}
 
     {tab==='team'&&viewer.canDistribute&&<section className="mt-distribution-team-grid">
-      {staff.map(member=>{
+      {shownStaff.map(member=>{
         const draft=teamDrafts[member.id]||{};
         return <article key={member.id}>
           <header>
@@ -794,8 +1161,8 @@ export default function LeadIntakeWorkspace({slug,initialData}){
             </span>
           </header>
           <div className="mt-team-load">
-            <div><span>بانتظار أول تواصل</span><b>{number(member.activeAssignments)}</b></div>
-            <div><span>متأخر</span><b>{number(member.overdueAssignments)}</b></div>
+            <div><span>بانتظار أول تواصل</span><b>{number(member.filteredActiveAssignments)}</b></div>
+            <div><span>متأخر</span><b>{number(member.filteredOverdueAssignments)}</b></div>
           </div>
           <label className="mt-check">
             <input
@@ -856,7 +1223,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
           >حفظ إعدادات الموظف</button>
         </article>;
       })}
-      {!staff.length&&<div className="mt-empty">أضف مسؤولي المبيعات إلى فريق المنشأة أولًا.</div>}
+      {!shownStaff.length&&<div className="mt-empty">أضف مسؤولي المبيعات إلى فريق المنشأة أولًا.</div>}
     </section>}
 
     {modal==='upload'&&<div className="mt-modal-layer">

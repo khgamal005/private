@@ -733,3 +733,22 @@ button,input,select,textarea{font:inherit}
   .mt-woocommerce-scope>b{grid-column:auto}
   .mt-woocommerce-modal .mt-integration-modal-body{padding:13px}
 }
+
+
+/* Unified filtering and export for lead distribution tabs */
+.mt-lead-report-filters{display:grid;gap:14px;margin:0 0 16px;padding:16px}
+.mt-lead-report-filter-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.mt-lead-report-filter-head h3{margin:0 0 5px;color:var(--mt-navy-900);font-size:13px}
+.mt-lead-report-filter-head p{margin:0;color:var(--mt-muted);font-size:9px;line-height:1.7}
+.mt-lead-report-filter-grid{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:10px}
+.mt-lead-report-filter-grid .mt-field{min-width:0}
+.mt-lead-report-filter-grid input,.mt-lead-report-filter-grid select{width:100%}
+.mt-lead-queue-table{min-width:1180px}
+.mt-lead-assignment-table{min-width:1380px}
+@media(max-width:1100px){
+  .mt-lead-report-filter-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}
+}
+@media(max-width:760px){
+  .mt-lead-report-filter-head{align-items:stretch;flex-direction:column}
+  .mt-lead-report-filter-grid{grid-template-columns:1fr}
+}

@@ -14,3 +14,7 @@
 .activeDropZone{height:44px!important;background:linear-gradient(90deg,transparent,rgba(243,107,33,.08),transparent)}
 .activeDropZone:before{inset:20px 18px auto!important;border-top:4px solid #f36b21!important;filter:drop-shadow(0 2px 5px rgba(243,107,33,.35))}
 .activeDropZone span{display:block!important;background:#f36b21!important;padding:5px 12px!important;font-weight:900;white-space:nowrap}
+
+/* builder-toolbar-save-v1 */
+.saveToolbarButton{background:rgba(230,179,78,.2)!important;color:#ffe7a6!important;border:1px solid rgba(230,179,78,.45)!important;font-weight:900!important}
+.saveToolbarButton:hover{background:#e6b34e!important;color:#06182e!important;border-color:#e6b34e!important}

@@ -25,8 +25,8 @@ const BUILDER_DRAG_TYPES=new Set([
 
 export default function PageDocumentRenderer({
   document,editor=false,device='desktop',selection=null,onSelect,onDropAt,onDragStart,
-  onDuplicate,onDelete,onMoveBlock,onColumnDrop,onModuleDragStart,onDuplicateModule,onDeleteModule,
-  onInlineEdit,showOutlines=true
+  onDuplicate,onDelete,onSaveToLibrary,onMoveBlock,onColumnDrop,onModuleDragStart,
+  onDuplicateModule,onDeleteModule,onInlineEdit,showOutlines=true
 }){
   const normalized=normalizeBuilderDocument(document);
   const rootRef=useRef(null);
@@ -103,7 +103,8 @@ export default function PageDocumentRenderer({
       activeTopDrop={activeTopDrop} onPreview={previewTopDrop} onClear={clearDragPreview}
       editor={editor} device={device} selection={selection}
       onSelect={onSelect} onDropAt={onDropAt} onDragStart={onDragStart} onDuplicate={onDuplicate}
-      onDelete={onDelete} onMoveBlock={onMoveBlock} onColumnDrop={onColumnDrop}
+      onDelete={onDelete} onSaveToLibrary={onSaveToLibrary}
+      onMoveBlock={onMoveBlock} onColumnDrop={onColumnDrop}
       onModuleDragStart={onModuleDragStart} onDuplicateModule={onDuplicateModule}
       onDeleteModule={onDeleteModule} onInlineEdit={onInlineEdit}
       pageCss={normalized.settings.customCss}
@@ -118,7 +119,7 @@ export default function PageDocumentRenderer({
 function TopBlock(props){
   const {
     block,index,blockCount,activeTopDrop,onPreview,onClear,editor,device,selection,onSelect,onDropAt,
-    onDragStart,onDuplicate,onDelete,onMoveBlock
+    onDragStart,onDuplicate,onDelete,onSaveToLibrary,onMoveBlock
   }=props;
   const row=isRow(block);
   const hidden=hiddenFor(block.responsive,device);
@@ -173,6 +174,7 @@ function TopBlock(props){
         hidden={hidden}
         onDragStart={event=>onDragStart?.(event,block.id)}
         onDuplicate={()=>onDuplicate?.(block.id)}
+        onSave={()=>onSaveToLibrary?.('block',block)}
         onDelete={()=>onDelete?.(block.id)}
         canMoveUp={index>0}
         canMoveDown={index<blockCount-1}
@@ -190,7 +192,7 @@ function TopBlock(props){
 
 export function BlockView({
   block,editor=false,device='desktop',selection=null,onSelect,onColumnDrop,onModuleDragStart,
-  onDuplicateModule,onDeleteModule,onInlineEdit,pageCss=''
+  onDuplicateModule,onDeleteModule,onSaveToLibrary,onInlineEdit,pageCss=''
 }){
   if(!isRow(block)){
     const target={kind:'block',blockId:block.id};
@@ -228,7 +230,7 @@ export function BlockView({
         editor={editor} device={device} selection={selection} onSelect={onSelect}
         onColumnDrop={onColumnDrop} onModuleDragStart={onModuleDragStart}
         onDuplicateModule={onDuplicateModule} onDeleteModule={onDeleteModule}
-        onInlineEdit={onInlineEdit} pageCss={pageCss}
+        onSaveToLibrary={onSaveToLibrary} onInlineEdit={onInlineEdit} pageCss={pageCss}
       />)}
     </div>
   </section>;
@@ -236,7 +238,7 @@ export function BlockView({
 
 function Column({
   row,column,columnIndex,editor,device,selection,onSelect,onColumnDrop,onModuleDragStart,
-  onDuplicateModule,onDeleteModule,onInlineEdit,pageCss
+  onDuplicateModule,onDeleteModule,onSaveToLibrary,onInlineEdit,pageCss
 }){
   const hidden=hiddenFor(column.responsive,device);
   const selected=selection?.kind==='column'&&selection.rowId===row.id&&selection.columnId===column.id;
@@ -267,7 +269,8 @@ function Column({
       key={module.id} row={row} column={column} module={module} moduleIndex={moduleIndex}
       device={device} selection={selection} onSelect={onSelect} onColumnDrop={onColumnDrop}
       onModuleDragStart={onModuleDragStart} onDuplicateModule={onDuplicateModule}
-      onDeleteModule={onDeleteModule} onInlineEdit={onInlineEdit} pageCss={pageCss}
+      onDeleteModule={onDeleteModule} onSaveToLibrary={onSaveToLibrary}
+      onInlineEdit={onInlineEdit} pageCss={pageCss}
     />)}
     {!column.modules.length&&<div className={styles.emptyColumn}>
       <span>＋</span><b>اسحب موديول هنا</b>
@@ -277,7 +280,7 @@ function Column({
 
 function NestedModule({
   row,column,module,moduleIndex,device,selection,onSelect,onColumnDrop,onModuleDragStart,
-  onDuplicateModule,onDeleteModule,onInlineEdit,pageCss
+  onDuplicateModule,onDeleteModule,onSaveToLibrary,onInlineEdit,pageCss
 }){
   const target={kind:'module',rowId:row.id,columnId:column.id,moduleId:module.id};
   const selected=selection?.kind==='module'&&selection.rowId===row.id&&
@@ -301,6 +304,14 @@ function NestedModule({
           event.stopPropagation();
           onDuplicateModule?.(row.id,column.id,module.id);
         }}>نسخ</button>
+        <button
+          type="button" className={styles.saveToolbarButton}
+          title="حفظ الموديول في المحفوظات"
+          onClick={event=>{
+            event.stopPropagation();
+            onSaveToLibrary?.('module',module);
+          }}
+        >☆ حفظ</button>
         <button type="button" onClick={event=>{
           event.stopPropagation();
           onDeleteModule?.(row.id,column.id,module.id);
@@ -319,7 +330,7 @@ function NestedModule({
 }
 
 function Toolbar({
-  label,detail,hidden,onDragStart,onDuplicate,onDelete,
+  label,detail,hidden,onDragStart,onDuplicate,onSave,onDelete,
   canMoveUp,canMoveDown,onMoveUp,onMoveDown
 }){
   function startDrag(event){
@@ -350,6 +361,11 @@ function Toolbar({
     <button type="button" draggable={false} onClick={event=>{
       event.stopPropagation();onDuplicate();
     }}>نسخ</button>
+    <button
+      type="button" draggable={false} className={styles.saveToolbarButton}
+      title="حفظ البلوك في المحفوظات"
+      onClick={event=>{event.stopPropagation();onSave?.();}}
+    >☆ حفظ</button>
     <button type="button" draggable={false} onClick={event=>{
       event.stopPropagation();onDelete();
     }}>حذف</button>

@@ -6,6 +6,7 @@ on:
       - agent/save-button-in-builder-toolbar
     paths:
       - scripts/patch-builder-toolbar-save.py
+      - scripts/repair-builder-toolbar-save-patch.py
       - .github/workflows/apply-builder-toolbar-save.yml
 
 permissions:
@@ -20,6 +21,8 @@ jobs:
         with:
           ref: agent/save-button-in-builder-toolbar
           fetch-depth: 0
+      - name: Repair patch anchors
+        run: python3 scripts/repair-builder-toolbar-save-patch.py
       - name: Apply one-click save buttons
         run: python3 scripts/patch-builder-toolbar-save.py
       - name: Commit implementation

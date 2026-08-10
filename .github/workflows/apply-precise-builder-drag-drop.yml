@@ -1,0 +1,40 @@
+name: Apply precise builder drag and drop
+
+on:
+  push:
+    branches:
+      - agent/precise-builder-drag-drop
+    paths:
+      - scripts/patch-precise-builder-drag-drop.mjs
+      - .github/workflows/apply-precise-builder-drag-drop.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/precise-builder-drag-drop
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply precise drag and drop patch
+        run: node scripts/patch-precise-builder-drag-drop.mjs
+      - name: Commit implementation
+        run: |
+          git config user.name "Marktonesa"
+          git config user.email "ceo@ifese.eu"
+          git add components package.json package-lock.json tests
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Make builder drag and drop precise and reorderable"
+            git push origin HEAD:agent/precise-builder-drag-drop
+          fi

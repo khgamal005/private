@@ -5,8 +5,7 @@ on:
     branches:
       - agent/precise-builder-drag-drop
     paths:
-      - scripts/patch-precise-builder-drag-drop.mjs
-      - scripts/repair-precise-builder-patch.mjs
+      - scripts/patch_precise_builder_remaining.py
       - .github/workflows/apply-precise-builder-drag-drop.yml
 
 permissions:
@@ -21,15 +20,8 @@ jobs:
         with:
           ref: agent/precise-builder-drag-drop
           fetch-depth: 0
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - name: Repair literal patch templates
-        run: node scripts/repair-precise-builder-patch.mjs
       - name: Apply precise drag and drop patch
-        run: node scripts/patch-precise-builder-drag-drop.mjs
+        run: python3 scripts/patch_precise_builder_remaining.py
       - name: Commit implementation
         run: |
           git config user.name "Marktonesa"

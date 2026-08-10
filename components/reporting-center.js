@@ -88,13 +88,13 @@ function PeriodFilter({range,analytics,exportPayload}){
     <label><span>من</span><input type="date" name="from" defaultValue={range.from}/></label>
     <label><span>إلى</span><input type="date" name="to" defaultValue={range.to}/></label>
     {canUseAnalytics&&<label style={{minWidth:190}}>
-      <span>الموظف / التحويلة</span>
+      <span>الموظف أو التحويلة</span>
       <select
         name="staffId"
         defaultValue={range.staffId||''}
         style={{width:'100%',height:38,padding:'0 10px',border:'1px solid rgba(255,255,255,.16)',borderRadius:10,background:'rgba(3,20,35,.32)',color:'#fff',font:'inherit',fontSize:'.68rem'}}
       >
-        <option value="" style={{color:'#102f49'}}>بدون تحديد موظف</option>
+        <option value="" style={{color:'#102f49'}}>كل الموظفين والتحويلات</option>
         {(analytics.staff||[]).map(staff=><option key={staff.staffId} value={staff.staffId} style={{color:'#102f49'}}>
           {staff.fullName}{staff.extensions?.length?` · ${staff.extensions.join('، ')}`:''}
         </option>)}

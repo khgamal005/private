@@ -76,8 +76,22 @@ export default function PageBuilder({initialData}){
   function selectTarget(target){setSelection(target);setInspectorMode('selection');if(!inspectorOpen)setInspectorOpen(true);}
   function addHtmlModule(){addBlock('html');setLibraryOpen(true);setLibraryTab('modules');setInspectorMode('selection');setInspectorOpen(true);setNotice({type:'success',text:'تمت إضافة عنصر HTML. حدده داخل الصفحة ثم أضف الكود من لوحة الخصائص.'});}
   function saveToLibrary(kind,data){
-    const item={id:`saved-${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}`,kind,type:data.type,name:`${kind==='block'?'صف':'موديول'} · ${BLOCK_CATALOG[data.type]?.label||'عنصر محفوظ'}`,data,createdAt:new Date().toISOString()};
-    const next=[item,...savedItems].slice(0,60);setSavedItems(next);localStorage.setItem(storageKey,JSON.stringify(next));setNotice({type:'success',text:'تم حفظ العنصر في تبويب Saved.'});setLibraryTab('saved');
+    if(!data)return;
+    const scope=kind==='block'
+      ?data.type==='columns'&&data.props?.row===true?'صف':'بلوك'
+      :'موديول';
+    const item={
+      id:`saved-${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}`,
+      kind,type:data.type,
+      name:`${scope} محفوظ · ${BLOCK_CATALOG[data.type]?.label||'عنصر محفوظ'}`,
+      data,createdAt:new Date().toISOString()
+    };
+    const next=[item,...savedItems].slice(0,60);
+    setSavedItems(next);
+    localStorage.setItem(storageKey,JSON.stringify(next));
+    setNotice({type:'success',text:`تم حفظ ${scope} في المحفوظات ويمكن سحبه إلى أي مكان.`});
+    setLibraryOpen(true);
+    setLibraryTab('saved');
   }
   function removeSaved(id){const next=savedItems.filter(item=>item.id!==id);setSavedItems(next);localStorage.setItem(storageKey,JSON.stringify(next));}
   function exportDesign(){
@@ -267,7 +281,8 @@ export default function PageBuilder({initialData}){
             <PageDocumentRenderer
               document={renderedDocument} editor={!previewMode&&!assistantPreview} device={device} selection={selection}
               onSelect={selectTarget} onDropAt={handleDrop} onDragStart={handleDragStart}
-              onDuplicate={duplicateBlock} onDelete={deleteBlock} onMoveBlock={moveBlock} onColumnDrop={handleColumnDrop}
+              onDuplicate={duplicateBlock} onDelete={deleteBlock} onSaveToLibrary={saveToLibrary}
+              onMoveBlock={moveBlock} onColumnDrop={handleColumnDrop}
               onModuleDragStart={handleModuleDragStart} onDuplicateModule={duplicateModule}
               onDeleteModule={deleteModule} onInlineEdit={assistantPreview?undefined:updateInline} showOutlines={showOutlines}
             />

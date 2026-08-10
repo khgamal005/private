@@ -1,0 +1,35 @@
+name: Apply builder toolbar save
+
+on:
+  push:
+    branches:
+      - agent/save-button-in-builder-toolbar
+    paths:
+      - scripts/patch-builder-toolbar-save.py
+      - .github/workflows/apply-builder-toolbar-save.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/save-button-in-builder-toolbar
+          fetch-depth: 0
+      - name: Apply one-click save buttons
+        run: python3 scripts/patch-builder-toolbar-save.py
+      - name: Commit implementation
+        run: |
+          git config user.name "Marktonesa"
+          git config user.email "ceo@ifese.eu"
+          git add components package.json package-lock.json tests
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add one-click save buttons to builder toolbars"
+            git push origin HEAD:agent/save-button-in-builder-toolbar
+          fi

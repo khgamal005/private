@@ -27,6 +27,6 @@ test('template insertion asks append or replace before reading the native packag
   assert.ok(choose>=0&&load>choose);
   assert.match(provider,/pendingAnalysis/);
   assert.match(client,/templates\/native\?\$\{params\}.*cache:'no-store'/s);
-  assert.match(wrapper,/2\.0\.0-beta\.29/);
-  assert.match(pkg,/"version": "2\.0\.0-beta\.29"/);
+  assert.match(wrapper,/2\.0\.0-beta\.30/);
+  assert.match(pkg,/"version": "2\.0\.0-beta\.30"/);
 });

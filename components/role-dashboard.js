@@ -5,7 +5,7 @@ const ROLE_COPY={
   tenant_owner:{
     eyebrow:'الرؤية التنفيذية',
     title:'لوحة قيادة المنشأة',
-    description:'صورة موحّدة عن الإيرادات والتشغيل والفريق والتدريب.'
+    description:'صورة موحّدة تربط الإيرادات والعملاء والإعلانات والمكالمات والطلاب والفريق والتشغيل في قرار واحد.'
   },
   tenant_admin:{
     eyebrow:'إدارة المنشأة',
@@ -97,6 +97,24 @@ function moneyMinor(value){
   }).format((Number(value)||0)/100);
 }
 
+function moneyMinorCurrency(value,currency='SAR'){
+  const normalized=/^[A-Z]{3}$/.test(String(currency||'').toUpperCase())
+    ?String(currency).toUpperCase()
+    :'SAR';
+  return new Intl.NumberFormat('ar-SA',{
+    style:'currency',
+    currency:normalized,
+    maximumFractionDigits:0
+  }).format((Number(value)||0)/100);
+}
+
+function ratio(value){
+  if(value==null||!Number.isFinite(Number(value)))return '—';
+  return `${new Intl.NumberFormat('ar-EG',{
+    maximumFractionDigits:2
+  }).format(Number(value))}×`;
+}
+
 function money(value){
   return new Intl.NumberFormat('ar-SA',{
     style:'currency',
@@ -127,16 +145,17 @@ function metric(label,value,note,tone='blue',featured=false){
   return {label,value,note,tone,featured};
 }
 
-function roleMetrics(role,dashboard){
+function roleMetrics(role,dashboard,marketing,canReadMarketing){
   const personal=dashboard.personal||{};
   const executive=dashboard.executive||{};
   const sales=dashboard.sales||{};
   const calls=dashboard.telephony||{};
   const leads=dashboard.leadOperations||{};
   const training=dashboard.training||{};
+  const marketingSummary=marketing?.summary||{};
 
   if(EXECUTIVE_ROLES.has(role)){
-    return [
+    const items=[
       metric(
         'إيراد محقق هذا الشهر',
         moneyMinor(executive.wonRevenueMinor),
@@ -152,10 +171,27 @@ function roleMetrics(role,dashboard){
         true
       ),
       metric('حسابات الدخول',number(executive.activeAccounts),`من ${number(executive.activeStaff)} موظف`,'purple'),
+      metric('طلاب ومتدربون نشطون',number(training.activeEnrollments),`${number(training.activeCourseRuns)} مجموعات نشطة`,'green'),
       metric('طلبات قبول معلّقة',number(executive.pendingAdmissions),'تحتاج متابعة','amber'),
       metric('مكالمات الشهر',number(calls.totalCalls),`${percent(calls.answerRate)} نسبة الرد`,'cyan'),
       metric('مجموعات نشطة',number(executive.activeCourseRuns),'مفتوحة أو جارية','pink')
     ];
+    if(canReadMarketing){
+      items.splice(4,0,metric(
+        'الإنفاق الإعلاني — 30 يومًا',
+        marketing
+          ?moneyMinorCurrency(
+            marketingSummary.spendMinor,
+            marketingSummary.currency
+          )
+          :'—',
+        marketing
+          ?`${number(marketingSummary.platformLeads)} نتيجة حسب المنصات`
+          :'تعذر تحميل بيانات الإعلانات الموثوقة',
+        'purple'
+      ));
+    }
+    return items;
   }
   if(SALES_ROLES.has(role)){
     return [
@@ -383,6 +419,280 @@ function ratioPercent(value,total){
   return normalizedPercent((Number(value)||0)/denominator*100);
 }
 
+function taskSnapshot(tasks=[]){
+  const now=Date.now();
+  const open=tasks.filter(task=>OPEN_TASK_STATUSES.has(task.status));
+  return {
+    open:open.length,
+    overdue:open.filter(task=>{
+      const due=new Date(task.dueAt).getTime();
+      return Number.isFinite(due)&&due<now;
+    }).length,
+    completed:tasks.filter(task=>task.status==='completed').length
+  };
+}
+
+function SystemPillars({dashboard,marketing,operations,slug,canReadMarketing}){
+  const executive=dashboard.executive||{};
+  const sales=dashboard.sales||{};
+  const calls=dashboard.telephony||{};
+  const training=dashboard.training||{};
+  const marketingSummary=marketing?.summary||{};
+  const tasks=taskSnapshot(operations?.tasks||[]);
+  const pillars=[
+    {
+      key:'sales',icon:'↗',title:'المبيعات والعملاء',tone:'blue',
+      href:`/tenant/${slug}/sales`,
+      headline:number(sales.activeLeads),headlineLabel:'عميلًا قيد المتابعة',
+      stats:[
+        ['مدفوعات مؤكدة',number(sales.paidThisMonth)],
+        ['نسبة التحويل',percent(sales.conversionRate)],
+        ['متابعات متأخرة',number(sales.overdueFollowUps)]
+      ]
+    },
+    ...(canReadMarketing?[{
+      key:'marketing',icon:'◎',title:'الإعلانات',tone:'violet',
+      href:`/tenant/${slug}/marketing`,
+      headline:marketing
+        ?moneyMinorCurrency(
+          marketingSummary.spendMinor,
+          marketingSummary.currency
+        )
+        :'—',
+      headlineLabel:marketing?'إنفاق آخر 30 يومًا':'البيانات غير متاحة الآن',
+      stats:marketing?[
+        ['نتائج المنصات',number(marketingSummary.platformLeads)],
+        ['مبيعات CRM',number(marketingSummary.sales)],
+        ['ROAS موثّق',Number(marketingSummary.spendMinor)>0
+          ?ratio(marketingSummary.roas)
+          :'—']
+      ]:[
+        ['حالة البيانات','تعذر التحميل'],
+        ['الأرقام البديلة','غير معروضة'],
+        ['الإجراء','فتح المركز']
+      ]
+    }]:[]),
+    {
+      key:'calls',icon:'☎',title:'المكالمات',tone:'cyan',
+      href:`/tenant/${slug}/call-reports`,
+      headline:number(calls.totalCalls),headlineLabel:'مكالمة هذا الشهر',
+      stats:[
+        ['نسبة الرد',percent(calls.answerRate)],
+        ['مكالمات فائتة',number(calls.missedCalls)],
+        ['وقت الحديث',duration(calls.talkSeconds)]
+      ]
+    },
+    {
+      key:'training',icon:'◫',title:'الطلاب والتدريب',tone:'green',
+      href:`/tenant/${slug}/admissions`,
+      headline:number(training.activeEnrollments),headlineLabel:'طالبًا ومتدربًا نشطًا',
+      stats:[
+        ['مجموعات نشطة',number(training.activeCourseRuns)],
+        ['جلسات قادمة',number(training.upcomingSessions)],
+        ['نسبة الحضور',percent(training.attendanceRate)]
+      ]
+    },
+    {
+      key:'operations',icon:'◆',title:'التشغيل والفريق',tone:'amber',
+      href:`/tenant/${slug}/tasks`,
+      headline:number(executive.activeStaff),headlineLabel:'موظفًا نشطًا',
+      stats:[
+        ['حسابات دخول',number(executive.activeAccounts)],
+        ['مهام مفتوحة',number(tasks.open)],
+        ['مهام متأخرة',number(tasks.overdue)]
+      ]
+    }
+  ];
+
+  return <section className={styles.systemSection} aria-label="خريطة أداء المنشأة">
+    <header className={styles.sectionHeading}>
+      <div><span>المنشأة في شاشة واحدة</span><h3>خريطة الأداء الشاملة</h3></div>
+      <p>كل محور يعرض رقمًا تنفيذيًا ثم أهم ثلاث إشارات تشغيلية من مصدره الفعلي.</p>
+    </header>
+    <div className={styles.pillarGrid}>
+      {pillars.map(pillar=><article
+        className={`${styles.pillar} ${styles[pillar.tone]||''}`}
+        key={pillar.key}
+      >
+        <header className={styles.pillarHead}>
+          <i aria-hidden="true">{pillar.icon}</i>
+          <div><span>محور الأداء</span><h4>{pillar.title}</h4></div>
+        </header>
+        <div className={styles.pillarHeadline}>
+          <b>{pillar.headline}</b><span>{pillar.headlineLabel}</span>
+        </div>
+        <dl>
+          {pillar.stats.map(([label,value])=><div key={label}>
+            <dt>{label}</dt><dd>{value}</dd>
+          </div>)}
+        </dl>
+        <Link href={pillar.href}>فتح التفاصيل <span aria-hidden="true">←</span></Link>
+      </article>)}
+    </div>
+  </section>;
+}
+
+function buildExecutiveActions(dashboard,marketing,operations){
+  const executive=dashboard.executive||{};
+  const sales=dashboard.sales||{};
+  const calls=dashboard.telephony||{};
+  const leads=dashboard.leadOperations||{};
+  const training=dashboard.training||{};
+  const marketingSummary=marketing?.summary||{};
+  const tasks=taskSnapshot(operations?.tasks||[]);
+  const actions=[];
+  const add=(tone,title,note)=>actions.push({tone,title,note});
+
+  if(Number(training.failedAutomationJobs)>0){
+    add('urgent','تعطل في أتمتة التدريب',`${number(training.failedAutomationJobs)} عمليات آلية فشلت وتحتاج إعادة معالجة.`);
+  }
+  if(tasks.overdue>0){
+    add('urgent','مهام تشغيلية متأخرة',`${number(tasks.overdue)} مهمة مفتوحة تجاوزت موعدها الحالي.`);
+  }
+  if(Number(sales.overdueFollowUps)>0){
+    add('urgent','عملاء بلا متابعة في موعدهم',`${number(sales.overdueFollowUps)} عميلًا تجاوز موعد الإجراء التالي.`);
+  }
+  if(Number(executive.pendingPaymentVerification)>0){
+    add('watch','مبالغ بانتظار التحقق',`${number(executive.pendingPaymentVerification)} حالة دفع تحتاج مراجعة قبل احتسابها كإيراد.`);
+  }
+  if(Number(executive.pendingAdmissions)>0){
+    add('watch','طلبات قبول لم تُغلق',`${number(executive.pendingAdmissions)} طلب قبول ما زال معلّقًا أو قيد المراجعة.`);
+  }
+  if(Number(calls.missedCalls)>0){
+    add('watch','مكالمات تحتاج استردادًا',`${number(calls.missedCalls)} مكالمة فائتة هذا الشهر وفق سجل Yeastar.`);
+  }
+  if(Number(leads.awaitingDistribution)>0){
+    add('setup','بيانات جاهزة ولم تُوزع',`${number(leads.awaitingDistribution)} عميلًا صالحًا ما زال في قائمة الانتظار.`);
+  }
+  const inactiveAccounts=Math.max(
+    0,
+    (Number(executive.activeStaff)||0)-(Number(executive.activeAccounts)||0)
+  );
+  if(inactiveAccounts>0){
+    add('setup','فجوة في حسابات الفريق',`${number(inactiveAccounts)} موظفين نشطين بلا حساب دخول نشط.`);
+  }
+  if(marketing&&Number(marketingSummary.spendMinor)>0){
+    if(Number(marketingSummary.sales)<=0){
+      add('watch','إنفاق إعلاني بلا مبيعات CRM موثقة','راجع الإسناد وربط العملاء قبل الحكم على العائد أو زيادة الميزانية.');
+    }else if(Number(marketingSummary.roas)<1){
+      add('watch','العائد الموثق أقل من نقطة التعادل',`ROAS الموثق ${ratio(marketingSummary.roas)} خلال آخر 30 يومًا.`);
+    }
+  }
+  if(!actions.length){
+    add('positive','لا توجد اختناقات ظاهرة الآن','المصادر المتاحة لا تعرض مهامًا متأخرة أو حالات تشغيل معلّقة تحتاج تدخلًا فوريًا.');
+  }
+  return actions.slice(0,6);
+}
+
+function ExecutiveActionCenter({dashboard,marketing,operations}){
+  const actions=buildExecutiveActions(dashboard,marketing,operations);
+  return <section className={styles.actionCenter} aria-label="أهم ما يحتاج إجراء">
+    <header className={styles.actionCenterHead}>
+      <div><span>من الأرقام إلى القرار</span><h3>أهم ما يحتاج إجراء الآن</h3></div>
+      <small>قواعد واضحة تعتمد على الحالات الفعلية، بلا أرقام تقديرية</small>
+    </header>
+    <div className={styles.actionList}>
+      {actions.map((item,index)=><article
+        className={`${styles.actionItem} ${styles[item.tone]||''}`}
+        key={`${item.title}-${index}`}
+      >
+        <i aria-hidden="true">{index+1}</i>
+        <div><b>{item.title}</b><p>{item.note}</p></div>
+        <span>{item.tone==='urgent'
+          ?'عاجل'
+          :item.tone==='watch'
+            ?'مراجعة'
+            :item.tone==='setup'
+              ?'تشغيل'
+              :'مستقر'}</span>
+      </article>)}
+    </div>
+  </section>;
+}
+
+function marketingVerdict(summary){
+  const spend=Number(summary.spendMinor)||0;
+  const platformLeads=Number(summary.platformLeads)||0;
+  const verifiedSales=Number(summary.sales)||0;
+  const verifiedRoas=Number(summary.roas);
+  if(!spend){
+    return {tone:'neutral',label:'بانتظار بيانات كافية',text:'لا يوجد إنفاق مسجل في الفترة الحالية؛ راجع المزامنة أو نطاق التاريخ داخل مركز الحملات.'};
+  }
+  if(verifiedSales>0&&verifiedRoas>=1){
+    return {tone:'good',label:'العائد الموثق فوق نقطة التعادل',text:'هناك مبيعات فعلية منسوبة تغطي الإنفاق. راقب تكلفة الاكتساب قبل توسيع الميزانية.'};
+  }
+  if(verifiedSales>0&&verifiedRoas<1){
+    return {tone:'risk',label:'العائد الموثق دون نقطة التعادل',text:'الإيراد الموثق أقل من الإنفاق خلال الفترة؛ راجع الحملات والإسناد قبل زيادة الميزانية.'};
+  }
+  if(platformLeads>0){
+    return {tone:'watch',label:'نتائج المنصات لم تتحول إلى مبيعات موثقة',text:'المنصات تسجل نتائج، لكن CRM لا يثبت مبيعات منسوبة بعد. افحص الربط والتتبع ومسار المتابعة.'};
+  }
+  return {tone:'risk',label:'إنفاق دون نتائج مسجلة',text:'يوجد إنفاق بلا نتائج حتى على مستوى المنصة؛ راجع التتبع والاستهداف فورًا.'};
+}
+
+function MarketingPulse({marketing,slug,canRead}){
+  if(!canRead)return null;
+  if(!marketing){
+    return <article className={`${styles.panel} ${styles.marketingPulse}`}>
+      <header className={styles.panelHead}>
+        <div><span>الإعلانات والإسناد</span><h3>نبض الحملات</h3></div>
+        <Link href={`/tenant/${slug}/marketing`}>فتح مركز الحملات</Link>
+      </header>
+      <div className={styles.integrationState}>
+        <i>◎</i>
+        <div><b>تعذر تحميل بيانات الإعلانات الموثوقة</b><p>لم نعرض أرقامًا صفرية بديلة. افتح مركز الحملات لمراجعة الربط أو حالة الإضافة.</p></div>
+      </div>
+    </article>;
+  }
+
+  const summary=marketing.summary||{};
+  const providers=marketing.providers||[];
+  const campaigns=marketing.campaigns||[];
+  const connected=providers.filter(provider=>
+    ['active','degraded'].includes(provider.connection?.status)
+  ).length;
+  const topCampaign=campaigns.slice().sort((a,b)=>
+    (Number(b.sales)||0)-(Number(a.sales)||0)
+    ||(Number(b.platformConversions)||0)-(Number(a.platformConversions)||0)
+    ||(Number(b.platformLeads)||0)-(Number(a.platformLeads)||0)
+  )[0]||null;
+  const verdict=marketingVerdict(summary);
+  const currency=summary.currency||'SAR';
+  const cards=[
+    ['الإنفاق',moneyMinorCurrency(summary.spendMinor,currency),'من بيانات المنصات'],
+    ['نتائج المنصات',number(summary.platformLeads),'قبل التحقق داخل CRM'],
+    ['عملاء CRM',number(summary.leads),'عملاء منسوبون وموثقون'],
+    ['مبيعات موثقة',number(summary.sales),'مدفوعات فعلية منسوبة'],
+    ['إيراد موثق',moneyMinorCurrency(summary.revenueMinor,currency),'بعد الإسناد والمرتجعات'],
+    ['ROAS موثّق',Number(summary.spendMinor)>0?ratio(summary.roas):'—','إيراد CRM ÷ الإنفاق']
+  ];
+
+  return <article className={`${styles.panel} ${styles.marketingPulse}`}>
+    <header className={styles.panelHead}>
+      <div><span>آخر 30 يومًا</span><h3>نبض الإعلانات والإسناد</h3></div>
+      <Link href={`/tenant/${slug}/marketing`}>التحليل الكامل</Link>
+    </header>
+    <div className={styles.marketingBody}>
+      <div className={styles.marketingMetrics}>
+        {cards.map(([label,value,note])=><div key={label}>
+          <span>{label}</span><b>{value}</b><small>{note}</small>
+        </div>)}
+      </div>
+      <aside className={`${styles.marketingVerdict} ${styles[verdict.tone]||''}`}>
+        <span>القراءة التنفيذية</span>
+        <b>{verdict.label}</b>
+        <p>{verdict.text}</p>
+        <footer>
+          <small>{number(connected)} منصة متصلة</small>
+          <small>{topCampaign
+            ?`الأعلى نتائج: ${topCampaign.campaignName||topCampaign.name||topCampaign.campaign||'حملة مسجلة'}`
+            :'لا توجد حملة قابلة للمقارنة بعد'}</small>
+        </footer>
+      </aside>
+    </div>
+  </article>;
+}
+
 function ExecutiveHealth({dashboard}){
   const executive=dashboard.executive||{};
   const sales=dashboard.sales||{};
@@ -482,6 +792,8 @@ export default function RoleDashboard({
   slug,
   dashboard,
   operations,
+  marketing=null,
+  canReadMarketing=false,
   permissions=[],
   fallbackRoleKey='tenant_user'
 }){
@@ -506,7 +818,12 @@ export default function RoleDashboard({
     </div>;
   }
 
-  const metrics=roleMetrics(role,dashboard||{});
+  const metrics=roleMetrics(
+    role,
+    dashboard||{},
+    marketing,
+    canReadMarketing
+  );
   const showCalls=SALES_ROLES.has(role)
     ||EXECUTIVE_ROLES.has(role)
     ||role==='customer_service';
@@ -516,6 +833,9 @@ export default function RoleDashboard({
   const showSources=DATA_ROLES.has(role)
     ||role==='sales_manager'
     ||EXECUTIVE_ROLES.has(role);
+  const showMarketing=canReadMarketing&&(
+    EXECUTIVE_ROLES.has(role)||role==='data_analyst'
+  );
 
   return <div className={styles.dashboard}>
     <section className={styles.hero}>
@@ -540,6 +860,18 @@ export default function RoleDashboard({
 
     <ReadinessAlerts role={role} dashboard={dashboard||{}}/>
     <MetricCards items={metrics}/>
+    {EXECUTIVE_ROLES.has(role)&&<SystemPillars
+      dashboard={dashboard||{}}
+      marketing={marketing}
+      operations={operations}
+      slug={slug}
+      canReadMarketing={canReadMarketing}
+    />}
+    {EXECUTIVE_ROLES.has(role)&&<ExecutiveActionCenter
+      dashboard={dashboard||{}}
+      marketing={marketing}
+      operations={operations}
+    />}
     {EXECUTIVE_ROLES.has(role)&&<ExecutiveHealth
       dashboard={dashboard||{}}
     />}
@@ -555,6 +887,12 @@ export default function RoleDashboard({
       <Trend daily={dashboard?.daily||[]}/>
       <TaskList tasks={operations?.tasks||[]} slug={slug}/>
     </section>
+
+    {showMarketing&&<MarketingPulse
+      marketing={marketing}
+      slug={slug}
+      canRead={canReadMarketing}
+    />}
 
     {showCalls&&<CallsPanel
       telephony={dashboard?.telephony||{}}

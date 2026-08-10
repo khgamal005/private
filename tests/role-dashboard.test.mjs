@@ -91,6 +91,33 @@ test('each operational role receives a dedicated dashboard presentation',async()
   assert.match(component,/أداء الموظفين/);
   assert.match(component,/مصادر العملاء والتحويل/);
   assert.match(component,/نطاقي الشخصي فقط/);
+  assert.match(component,/خريطة الأداء الشاملة/);
+  assert.match(component,/أهم ما يحتاج إجراء الآن/);
+  assert.match(component,/نبض الإعلانات والإسناد/);
+  assert.match(component,/طلاب ومتدربون نشطون/);
+});
+
+test('owner gets the executive command center without the personal achievement board',async()=>{
+  const [page,component,styles]=await Promise.all([
+    read('app/tenant/[slug]/page.js'),
+    read('components/role-dashboard.js'),
+    read('components/role-dashboard.module.css')
+  ]);
+
+  assert.match(page,/getTenantMarketingHub/);
+  assert.match(page,/unstable_rethrow\(error\)/);
+  assert.match(page,/getOptionalMarketing\(slug\)/);
+  assert.match(page,/showAchievement=resolvedRole!=='tenant_owner'/);
+  assert.match(page,/showAchievement&&<AchievementBoard/);
+  assert.match(page,/marketing=\{marketing\}/);
+  assert.match(component,/function SystemPillars/);
+  assert.match(component,/function ExecutiveActionCenter/);
+  assert.match(component,/function MarketingPulse/);
+  assert.match(component,/canReadMarketing/);
+  assert.match(component,/لم نعرض أرقامًا صفرية بديلة/);
+  assert.match(styles,/\.pillarGrid/);
+  assert.match(styles,/\.actionCenter/);
+  assert.match(styles,/\.marketingMetrics/);
 });
 
 test('tenant overview never substitutes stale metrics when the canonical RPC fails',async()=>{

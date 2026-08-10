@@ -1,6 +1,7 @@
-import {notFound} from 'next/navigation';
+import {notFound,unstable_rethrow} from 'next/navigation';
 import AchievementBoard from '../../../components/achievement-board';
 import RoleDashboard from '../../../components/role-dashboard';
+import {getTenantMarketingHub} from '../../../lib/marketing-api';
 import {
   getTenant,
   getTenantOperations,
@@ -10,6 +11,15 @@ import {getTenantEmployeeAchievement} from '../../../lib/achievement';
 import {requireTenantPermission} from '../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
+
+async function getOptionalMarketing(slug){
+  try{
+    return await getTenantMarketingHub(slug);
+  }catch(error){
+    unstable_rethrow(error);
+    return null;
+  }
+}
 
 function unavailableDashboard(membership){
   return {
@@ -34,23 +44,39 @@ export default async function TenantOverview({params}){
     item=>item.tenantSlug===slug
   );
   const permissions=membership?.permissions||[];
+  const membershipRole=membership?.roles?.[0]||'tenant_user';
   const canReadCrm=Boolean(
     context.platformAccess||permissions.includes('tenant.crm.read')
   );
-  const [data,operations,dashboard,achievement]=await Promise.all([
+  const canReadMarketing=Boolean(
+    context.platformAccess||permissions.includes('tenant.marketing.read')
+  );
+  const shouldLoadAchievement=membershipRole!=='tenant_owner';
+  const [data,operations,dashboard,achievement,marketing]=await Promise.all([
     getTenant(slug),
     getTenantOperations(slug,{includeSales:canReadCrm}),
     getTenantRoleDashboard(slug).catch(()=>null),
-    getTenantEmployeeAchievement(slug).catch(()=>null)
+    shouldLoadAchievement
+      ?getTenantEmployeeAchievement(slug).catch(()=>null)
+      :Promise.resolve(null),
+    canReadMarketing
+      ?getOptionalMarketing(slug)
+      :Promise.resolve(null)
   ]);
   if(!data)return notFound();
+  const resolvedRole=dashboard?.viewer?.roleKey
+    ||achievement?.viewer?.roleKey
+    ||membershipRole;
+  const showAchievement=resolvedRole!=='tenant_owner';
 
   return <>
-    <AchievementBoard achievement={achievement}/>
+    {showAchievement&&<AchievementBoard achievement={achievement}/>}
     <RoleDashboard
       slug={slug}
       dashboard={dashboard||unavailableDashboard(membership)}
       operations={operations}
+      marketing={marketing}
+      canReadMarketing={canReadMarketing}
       permissions={context.platformAccess
         ?[
           'tenant.work.read',
@@ -61,7 +87,7 @@ export default async function TenantOverview({params}){
           'tenant.settings.manage'
         ]
         :permissions}
-      fallbackRoleKey={membership?.roles?.[0]}
+      fallbackRoleKey={membershipRole}
     />
   </>;
 }

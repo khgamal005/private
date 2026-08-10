@@ -439,15 +439,47 @@ function SystemPillars({dashboard,marketing,operations,slug,canReadMarketing}){
   const training=dashboard.training||{};
   const marketingSummary=marketing?.summary||{};
   const tasks=taskSnapshot(operations?.tasks||[]);
+  const distributedThisMonth=Number(
+    sales.distributedThisMonth??sales.assignmentsThisMonth
+  )||0;
+  const paidFromDistributedThisMonth=Number(
+    sales.paidFromDistributedThisMonth
+  )||0;
+  const closingRate=distributedThisMonth>0
+    ?normalizedPercent(sales.closingRate??sales.conversionRate)
+    :null;
+  const qualifiedLeads=Number(sales.qualifiedLeads)||0;
+  const qualifiedValueMinor=Number(sales.qualifiedValueMinor)||0;
+  const hasForecast=distributedThisMonth>0
+    &&sales.expectedRevenueMinor!=null;
+  const closingRateLabel=closingRate==null?'—':percent(closingRate);
   const pillars=[
     {
-      key:'sales',icon:'↗',title:'المبيعات والعملاء',tone:'blue',
+      key:'sales',icon:'↗',title:'نسبة التقفيل',tone:'blue',
       href:`/tenant/${slug}/sales`,
-      headline:number(sales.activeLeads),headlineLabel:'عميلًا قيد المتابعة',
+      headline:closingRateLabel,
+      headlineLabel:'طلاب دفعوا ÷ أرقام موزعة هذا الشهر',
       stats:[
-        ['مدفوعات مؤكدة',number(sales.paidThisMonth)],
-        ['نسبة التحويل',percent(sales.conversionRate)],
-        ['متابعات متأخرة',number(sales.overdueFollowUps)]
+        ['أرقام موزعة',number(distributedThisMonth)],
+        ['طلاب دفعوا منها',number(paidFromDistributedThisMonth)],
+        ['مؤهلون حاليًا',number(qualifiedLeads)]
+      ]
+    },
+    {
+      key:'forecast',icon:'≈',title:'الإيراد المتوقع',tone:'emerald',
+      href:`/tenant/${slug}/reports/sales`,
+      headline:hasForecast
+        ?moneyMinor(sales.expectedRevenueMinor)
+        :'—',
+      headlineLabel:hasForecast
+        ?'توقع محافظ للعملاء المؤهلين حاليًا'
+        :'يحتاج عينة توزيع لحساب توقع موثوق',
+      stats:[
+        ['عملاء مؤهلون',number(qualifiedLeads)],
+        ['قيمتهم الحالية',moneyMinor(qualifiedValueMinor)],
+        ['المعادلة',closingRate==null
+          ?'بانتظار نسبة التقفيل'
+          :`${closingRateLabel} × القيمة`]
       ]
     },
     ...(canReadMarketing?[{
@@ -509,7 +541,9 @@ function SystemPillars({dashboard,marketing,operations,slug,canReadMarketing}){
       <div><span>المنشأة في شاشة واحدة</span><h3>خريطة الأداء الشاملة</h3></div>
       <p>كل محور يعرض رقمًا تنفيذيًا ثم أهم ثلاث إشارات تشغيلية من مصدره الفعلي.</p>
     </header>
-    <div className={styles.pillarGrid}>
+    <div className={`${styles.pillarGrid} ${
+      pillars.length===5?styles.pillarGridFive:''
+    }`}>
       {pillars.map(pillar=><article
         className={`${styles.pillar} ${styles[pillar.tone]||''}`}
         key={pillar.key}

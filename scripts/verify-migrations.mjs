@@ -97,7 +97,8 @@ const required=[
   '20260809163000_followup_task_single_calendar_record_v2.sql',
   '20260808165235_normalize_customer_phone_display.sql',
   '20260808171237_add_phone_off_lead_status.sql',
-  '20260808182149_configurable_daily_integration_sync.sql'
+  '20260808182149_configurable_daily_integration_sync.sql',
+  '20260810225500_dashboard_closing_forecast_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -138,6 +139,7 @@ for(const pattern of [
   /v2_tenant_reports_snapshot_v2/,
   /v2_tenant_reports_snapshot_v3/,
   /v2_tenant_role_dashboard_snapshot_v3/,
+  /v2_tenant_role_dashboard_snapshot_v4/,
   /v2_tenant_employee_achievement_snapshot_v2/,
   /v3_tenant_yeastar_access_snapshot/,
   /v3_tenant_yeastar_reports_snapshot/,
@@ -225,3 +227,4 @@ for(const pattern of [
 
 assert.doesNotMatch(allSql,/grant\s+all[\s\S]+to\s+anon/i);
 console.log(`Verified ${sqlFiles.length} forward migrations, including CMS v3, core public pages, Visual Builder, and isolated ZIP template imports.`);
+

@@ -120,6 +120,33 @@ test('owner gets the executive command center without the personal achievement b
   assert.match(styles,/\.marketingMetrics/);
 });
 
+test('comprehensive map uses cohort closing rate and qualified revenue forecast',async()=>{
+  const [component,styles,api,migration]=await Promise.all([
+    read('components/role-dashboard.js'),
+    read('components/role-dashboard.module.css'),
+    read('lib/api.js'),
+    read('supabase/migrations/20260810225500_dashboard_closing_forecast_v1.sql')
+  ]);
+
+  assert.match(component,/title:'نسبة التقفيل'/);
+  assert.match(component,/طلاب دفعوا ÷ أرقام موزعة هذا الشهر/);
+  assert.match(component,/title:'الإيراد المتوقع'/);
+  assert.match(component,/qualifiedValueMinor/);
+  assert.match(component,/closingRateLabel.*× القيمة/s);
+  assert.match(styles,/grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
+  assert.match(styles,/\.pillar\{[\s\S]*grid-column:span 2/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v4/);
+  assert.match(migration,/with assignment_cohort as/);
+  assert.match(migration,/count\(distinct|select distinct assignment\.contact_id/);
+  assert.match(migration,/paidFromDistributedThisMonth/);
+  assert.match(migration,/qualified_value_x_cohort_closing_rate/);
+  assert.match(migration,/security definer/);
+  assert.match(migration,/set search_path = ''/);
+  assert.match(migration,/revoke all on function[\s\S]*from public, anon/);
+  assert.match(migration,/grant execute on function[\s\S]*to authenticated/);
+  assert.doesNotMatch(migration,/service_role|supabase_secret/i);
+});
+
 test('tenant overview never substitutes stale metrics when the canonical RPC fails',async()=>{
   const [page,api,shell,layout]=await Promise.all([
     read('app/tenant/[slug]/page.js'),
@@ -132,10 +159,10 @@ test('tenant overview never substitutes stale metrics when the canonical RPC fai
   assert.doesNotMatch(page,/task\.status!=='completed'/);
   assert.match(page,/Promise\.all/);
   assert.match(page,/RoleDashboard/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v3/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v4/);
   assert.doesNotMatch(
     api,
-    /v2_tenant_role_dashboard_snapshot_v3'[\s\S]*v2_tenant_role_dashboard_snapshot_v2/
+    /v2_tenant_role_dashboard_snapshot_v4'[\s\S]*v2_tenant_role_dashboard_snapshot_v3/
   );
   assert.match(shell,/لوحة القيادة/);
   assert.match(layout,/training_manager:'مدير التدريب'/);

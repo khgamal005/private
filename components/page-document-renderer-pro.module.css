@@ -13,3 +13,6 @@
 .moduleToolbar b{font-size:11px}
 .moduleToolbar button{padding:5px 8px;font-size:10px}
 .columnToolbar{font-size:10px;padding:5px 8px}
+/* precise-column-drop-v1 */
+:global([data-builder-dragging="true"]) .columnDropZone{height:16px}
+.columnDropZone:hover{height:38px}

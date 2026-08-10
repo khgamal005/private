@@ -106,8 +106,10 @@ export function usePageBuilder(initialData){
   function addBlock(type,index){
     if(type==='columns')return addRow('1',index);
     const builderModule=createBuilderBlock(type);
-    const target=currentModuleTarget();
-    if(target)return insertModule(target.rowId,target.columnId,builderModule,target.index);
+    if(index===undefined){
+      const target=currentModuleTarget();
+      if(target)return insertModule(target.rowId,target.columnId,builderModule,target.index);
+    }
     const row=createLayoutRow('1');row.props.items[0].modules=[builderModule];
     const blocks=[...document.blocks];
     const targetIndex=index===undefined?defaultTopIndex(true):index;
@@ -136,24 +138,30 @@ export function usePageBuilder(initialData){
     commit({...document,blocks},{selection:first?.props?.row?{kind:'row',rowId:first.id}:first?{kind:'block',blockId:first.id}:selection});
   }
 
-  function insertSaved(item,index=defaultTopIndex(true)){
+  function insertSaved(item,index){
     if(!item?.data)return;
-    if(item.kind==='module')return addBlockDefinition(item.data);
+    if(item.kind==='module')return addBlockDefinition(item.data,index);
     const source=createBuilderBlock(item.data.type,item.data);
     source.id=undefined;
     const copy=source.type==='columns'&&source.props?.row
       ?cloneRowWithFreshIds(source)
       :createBuilderBlock(source.type,{props:source.props,style:source.style,responsive:source.responsive});
-    const blocks=[...document.blocks];blocks.splice(clampIndex(index,blocks.length),0,copy);
+    const blocks=[...document.blocks];
+    const targetIndex=index===undefined?defaultTopIndex(true):index;
+    blocks.splice(clampIndex(targetIndex,blocks.length),0,copy);
     commit({...document,blocks},{selection:copy.props?.row?{kind:'row',rowId:copy.id}:{kind:'block',blockId:copy.id}});
   }
 
-  function addBlockDefinition(source){
+  function addBlockDefinition(source,index){
     const builderModule=createBuilderBlock(source.type,{props:source.props,style:source.style,responsive:source.responsive});
-    const target=currentModuleTarget();
-    if(target)return insertModule(target.rowId,target.columnId,builderModule,target.index);
+    if(index===undefined){
+      const target=currentModuleTarget();
+      if(target)return insertModule(target.rowId,target.columnId,builderModule,target.index);
+    }
     const row=createLayoutRow('1');row.props.items[0].modules=[builderModule];
-    const blocks=[...document.blocks];blocks.splice(defaultTopIndex(true),0,row);
+    const blocks=[...document.blocks];
+    const targetIndex=index===undefined?defaultTopIndex(true):index;
+    blocks.splice(clampIndex(targetIndex,blocks.length),0,row);
     commit({...document,blocks},{selection:{kind:'module',rowId:row.id,columnId:row.props.items[0].id,moduleId:builderModule.id}});
   }
 
@@ -227,11 +235,35 @@ export function usePageBuilder(initialData){
   function reorderBlock(id,index){
     const currentIndex=document.blocks.findIndex(block=>block.id===id);if(currentIndex<0)return;
     const blocks=[...document.blocks];const [block]=blocks.splice(currentIndex,1);
-    const target=currentIndex<index?index-1:index;blocks.splice(clampIndex(target,blocks.length),0,block);
+    const target=currentIndex<index?index-1:index;
+    const nextIndex=clampIndex(target,blocks.length);
+    if(nextIndex===currentIndex)return;
+    blocks.splice(nextIndex,0,block);
     commit({...document,blocks},{selection:block.props?.row?{kind:'row',rowId:id}:{kind:'block',blockId:id}});
   }
 
-  function handleDragStart(event,id){event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('application/x-marktone-existing-block',id);}
+  function moveBlock(id,offset){
+    const currentIndex=document.blocks.findIndex(block=>block.id===id);if(currentIndex<0)return;
+    const direction=Number(offset)<0?-1:1;
+    const nextIndex=Math.min(Math.max(currentIndex+direction,0),Math.max(0,document.blocks.length-1));
+    if(nextIndex===currentIndex)return;
+    const blocks=[...document.blocks];const [block]=blocks.splice(currentIndex,1);blocks.splice(nextIndex,0,block);
+    commit({...document,blocks},{
+      selection:block.props?.row?{kind:'row',rowId:id}:{kind:'block',blockId:id},
+      noticeMessage:direction<0?'تم رفع البلوك خطوة واحدة.':'تم خفض البلوك خطوة واحدة.'
+    });
+  }
+
+  function handleDragStart(event,id){
+    const source=document.blocks.find(block=>block.id===id);
+    event.dataTransfer.effectAllowed='move';
+    event.dataTransfer.setData('application/x-marktone-existing-block',id);
+    event.dataTransfer.setData(
+      source?.props?.row?'application/x-marktone-existing-row':'application/x-marktone-existing-module',
+      id
+    );
+    event.dataTransfer.setData('text/plain','Marktone builder block');
+  }
   function handleModuleDragStart(event,rowId,columnId,moduleId){
     event.dataTransfer.effectAllowed='move';
     event.dataTransfer.setData('application/x-marktone-module',JSON.stringify({rowId,columnId,moduleId}));
@@ -481,7 +513,7 @@ export function usePageBuilder(initialData){
     device,setDevice,zoom,setZoom,previewMode,setPreviewMode,showOutlines,setShowOutlines,
     history,dirty,busy,notice,setNotice,versions,showVersions,setShowVersions,
     templateKey,setTemplateKey,groups,undo,redo,addRow,addBlock,insertPreset,insertSaved,
-    duplicateBlock,deleteBlock,duplicateModule,deleteModule,duplicateSelected,deleteSelected,
+    duplicateBlock,deleteBlock,moveBlock,duplicateModule,deleteModule,duplicateSelected,deleteSelected,
     handleDragStart,handleModuleDragStart,handleDrop,handleColumnDrop,
     updateSelected,updateInline,updatePageSetting,importDocument,insertImportedTemplate,
     legacyTemplateCount,upgradeLegacyTemplates,

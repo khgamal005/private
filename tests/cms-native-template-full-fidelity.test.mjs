@@ -23,6 +23,6 @@ test('native template renderer keeps media eager and materializes script-driven 
   assert.match(client,/bodyClass:safeClass/);
   assert.match(section,/template\.bodyClass/);
   assert.match(section,/template\.bodyStyle/);
-  assert.match(wrapper,/2\.0\.0-beta\.29/);
+  assert.match(wrapper,/2\.0\.0-beta\.30/);
   assert.equal(JSON.parse(pkg).version,'2.0.0-beta.30');
 });

@@ -21,3 +21,9 @@
 @media(max-width:600px){.aiPanel{top:6px;right:6px;bottom:6px;width:calc(100vw - 12px);border-radius:13px}.aiPreviewBar{align-items:flex-start}.aiPreviewBar>div:first-child{display:grid;gap:3px}.aiPreviewBar span{max-width:58vw}.utilityActions .aiToggleButton{min-width:58px!important}}
 
 .legacyUpgradeBar{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 16px;direction:rtl;background:#fff3d8;color:#6a4300;border-block:1px solid #edcf8b}.legacyUpgradeBar>div{display:grid;gap:3px}.legacyUpgradeBar b{font-size:10px}.legacyUpgradeBar span{font-size:8px;line-height:1.5}.legacyUpgradeBar button{border:0;border-radius:8px;background:#0b2949;color:#fff;padding:9px 13px;font:800 9px Tahoma,Arial,sans-serif;white-space:nowrap;cursor:pointer}.legacyUpgradeBar button:disabled{opacity:.55;cursor:wait}@media(max-width:760px){.legacyUpgradeBar{align-items:stretch;flex-direction:column}.legacyUpgradeBar button{width:100%}}
+/* precise-saved-drag-v1 */
+.savedCard{position:relative;cursor:grab;transition:transform .15s,border-color .15s,box-shadow .15s}
+.savedCard:hover{transform:translateY(-2px);border-color:#f36b21;box-shadow:0 8px 22px rgba(14,39,63,.12)}
+.savedCard:active{cursor:grabbing;transform:scale(.985);opacity:.82}
+.savedCard>button:first-child{cursor:grab}
+.savedCard>button:first-child small{line-height:1.55}

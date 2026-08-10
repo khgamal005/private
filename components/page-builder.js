@@ -20,7 +20,7 @@ export default function PageBuilder({initialData}){
     page:entity,context,document,selected,selection,setSelection,device,setDevice,zoom,setZoom,
     previewMode,setPreviewMode,showOutlines,setShowOutlines,history,dirty,busy,notice,setNotice,
     versions,showVersions,setShowVersions,templateKey,setTemplateKey,groups,undo,redo,
-    addRow,addBlock,insertPreset,insertSaved,duplicateBlock,deleteBlock,duplicateModule,deleteModule,
+    addRow,addBlock,insertPreset,insertSaved,duplicateBlock,deleteBlock,moveBlock,duplicateModule,deleteModule,
     handleDragStart,handleModuleDragStart,handleDrop,handleColumnDrop,updateSelected,updateInline,
     updatePageSetting,importDocument,insertImportedTemplate,legacyTemplateCount,upgradeLegacyTemplates,
     previewAssistantPlan,applyAssistantDocument,saveDraft,publish,restore,applyTemplate
@@ -252,14 +252,14 @@ export default function PageBuilder({initialData}){
               {templatesState==='ready'&&!filteredTemplates.length&&<p>لا توجد قوالب محفوظة مطابقة.</p>}
             </section>
           </div>}
-          {libraryTab==='saved'&&<div className={styles.savedLibrary}>{filteredSaved.map(item=><div key={item.id} className={styles.savedCard} draggable onDragStart={event=>{event.dataTransfer.effectAllowed='copy';event.dataTransfer.setData('application/x-marktone-saved',JSON.stringify({kind:item.kind,data:item.data}));}}><button type="button" onClick={()=>insertSaved(item)}><span>{item.kind==='block'?'▥':'◇'}</span><div><b>{item.name}</b><small>{new Intl.DateTimeFormat('ar-SA',{dateStyle:'medium'}).format(new Date(item.createdAt))}</small></div></button><button type="button" onClick={()=>removeSaved(item.id)} title="حذف من المكتبة">×</button></div>)}{!filteredSaved.length&&<EmptyLibrary text="حدد صفًا أو موديولًا ثم اضغط حفظ في Saved من لوحة الخصائص."/>}</div>}
+          {libraryTab==='saved'&&<div className={styles.savedLibrary}>{filteredSaved.map(item=><div key={item.id} className={styles.savedCard} draggable title="اسحب البلوك وأفلته في موضعه داخل الصفحة" onDragStart={event=>{event.dataTransfer.effectAllowed='copy';event.dataTransfer.setData('application/x-marktone-saved',JSON.stringify({kind:item.kind,data:item.data}));event.dataTransfer.setData(item.kind==='module'?'application/x-marktone-saved-module':'application/x-marktone-saved-block',String(item.id||item.kind));event.dataTransfer.setData('text/plain',String(item.name||'Marktone saved block'));}}><button type="button" onClick={()=>insertSaved(item)}><span>{item.kind==='block'?'▥':'◇'}</span><div><b>{item.name}</b><small>{new Intl.DateTimeFormat('ar-SA',{dateStyle:'medium'}).format(new Date(item.createdAt))} · اسحب للمكان المطلوب</small></div></button><button type="button" onClick={()=>removeSaved(item.id)} title="حذف من المكتبة">×</button></div>)}{!filteredSaved.length&&<EmptyLibrary text="حدد صفًا أو موديولًا ثم اضغط حفظ في Saved من لوحة الخصائص."/>}</div>}
         </div>
         <button type="button" className={styles.collapseLibrary} onClick={()=>setLibraryOpen(false)}>‹</button>
       </aside>
 
       {!libraryOpen&&<button type="button" className={styles.openLibrary} onClick={()=>setLibraryOpen(true)}>Modules ＋</button>}
 
-      <main className={styles.stage} onClick={()=>{setSelection(null);setInspectorMode('page');}}>
+      <main className={styles.stage} data-builder-scroll-container="true" onClick={()=>{setSelection(null);setInspectorMode('page');}}>
         <div className={styles.stageMeta}><span>{DEVICE_LABELS[device]}</span><small>{device==='desktop'?'عرض مرن كامل':device==='tablet'?'820px':'390px'}</small>{previewMode&&<b>معاينة حية</b>}</div>
         <div className={styles.zoomStage} style={{transform:`scale(${zoom/100})`,width:`${10000/zoom}%`}}>
           <div className={`${styles.canvas} ${styles[`canvas_${device}`]}`}>
@@ -267,7 +267,7 @@ export default function PageBuilder({initialData}){
             <PageDocumentRenderer
               document={renderedDocument} editor={!previewMode&&!assistantPreview} device={device} selection={selection}
               onSelect={selectTarget} onDropAt={handleDrop} onDragStart={handleDragStart}
-              onDuplicate={duplicateBlock} onDelete={deleteBlock} onColumnDrop={handleColumnDrop}
+              onDuplicate={duplicateBlock} onDelete={deleteBlock} onMoveBlock={moveBlock} onColumnDrop={handleColumnDrop}
               onModuleDragStart={handleModuleDragStart} onDuplicateModule={duplicateModule}
               onDeleteModule={deleteModule} onInlineEdit={assistantPreview?undefined:updateInline} showOutlines={showOutlines}
             />

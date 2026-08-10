@@ -1,12 +1,14 @@
 import {getTenantReports} from '../../../../../lib/api';
 import {resolveReportRange} from '../../../../../lib/reporting';
+import {getTenantReportAnalytics,sanitizeAnalyticsRange} from '../../../../../lib/report-analytics';
 import ReportingCenter,{ReportsUnavailable} from '../../../../../components/reporting-center';
 
 export const dynamic='force-dynamic';
 
 export default async function EmployeesReportsPage({params,searchParams}){
   const [{slug},query]=await Promise.all([params,searchParams]);
-  const range=resolveReportRange(query);
+  const analytics=await getTenantReportAnalytics(slug);
+  const range=sanitizeAnalyticsRange(resolveReportRange(query),analytics);
   let data;
   try{
     data=await getTenantReports(slug,{...range,report:'employees'});
@@ -20,5 +22,5 @@ export default async function EmployeesReportsPage({params,searchParams}){
   const view=data?.viewer?.scope==='employee'&&data?.selectedEmployee
     ?'employee'
     :'employees';
-  return <ReportingCenter data={data} slug={slug} view={view} range={range}/>;
+  return <ReportingCenter data={data} slug={slug} view={view} range={range} analytics={analytics}/>;
 }

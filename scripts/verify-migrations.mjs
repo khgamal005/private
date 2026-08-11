@@ -98,7 +98,16 @@ const required=[
   '20260808165235_normalize_customer_phone_display.sql',
   '20260808171237_add_phone_off_lead_status.sql',
   '20260808182149_configurable_daily_integration_sync.sql',
-  '20260810225500_dashboard_closing_forecast_v1.sql'
+  '20260810225500_dashboard_closing_forecast_v1.sql',
+  '20260811120000_addon_platform_v3.sql',
+  '20260811121000_addon_platform_v3_fk_indexes.sql',
+  '20260811122000_addon_platform_v3_period_authority.sql',
+  '20260811123000_addon_platform_v3_contracts.sql',
+  '20260811124000_addon_platform_v3_payment_bundle.sql',
+  '20260811125000_addon_platform_v3_grant_hardening.sql',
+  '20260811126000_addon_platform_v3_payment_hardening.sql',
+  '20260811127000_addon_platform_v3_business_timezone.sql',
+  '20260811128000_addon_platform_v3_jsonb_key_count.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -178,6 +187,16 @@ for(const pattern of [
   /platform\.website\.manage/,
   /enable row level security/,
   /vault\.create_secret/,
+  /v3_tenant_addon_center_snapshot/,
+  /v3_tenant_addon_center_action/,
+  /v3_platform_addon_center_snapshot/,
+  /v3_platform_addon_center_action/,
+  /v3_tenant_addon_media_resolve/,
+  /v3_service_payment_provider_bundle_action/,
+  /period_is_authoritative/,
+  /protected_addon_subscription_lifecycle/,
+  /catalog\.addon_price_versions/,
+  /marketplace\.payment_provider_configs/,
   /cron\.schedule/
 ])assert.match(allSql,pattern);
 
@@ -226,5 +245,4 @@ for(const pattern of [
 ])assert.match(cmsPro,pattern);
 
 assert.doesNotMatch(allSql,/grant\s+all[\s\S]+to\s+anon/i);
-console.log(`Verified ${sqlFiles.length} forward migrations, including CMS v3, core public pages, Visual Builder, and isolated ZIP template imports.`);
-
+console.log(`Verified ${sqlFiles.length} forward migrations, including Add-on Platform v3, CMS v3, core public pages, Visual Builder, and isolated ZIP template imports.`);

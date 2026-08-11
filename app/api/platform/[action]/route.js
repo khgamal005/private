@@ -2,6 +2,11 @@ import {NextResponse} from 'next/server';
 import {cookies} from 'next/headers';
 import {SUPABASE_URL,SUPABASE_KEY,ACCESS_COOKIE} from '../../../../lib/config';
 
+const ADDON_CENTER_RPC=Object.freeze({
+  current:'v3_platform_addon_center_action',
+  legacy:'v2_platform_addon_center_action'
+});
+
 const RPC={
   'provision-tenant':'v2_platform_provision_tenant',
   'invite-user':'v2_tenant_invite_user',
@@ -13,7 +18,7 @@ const RPC={
   'create-connection':'v2_platform_upsert_connection',
   'create-support':'v2_support_create_request',
   'update-support':'v2_support_update_request'
-  ,'addon-decision':'v2_platform_addon_center_action'
+  ,'addon-decision':ADDON_CENTER_RPC.current
   ,'marketplace':'v1_platform_marketplace_action'
 };
 
@@ -60,6 +65,27 @@ function translate(x){const m={
   ,invalid_addon_decision:'قرار الإضافة غير صالح'
   ,invalid_addon_limit:'حد الاستخدام غير صالح'
   ,invalid_addon_action:'إجراء الإضافة غير صالح'
+  ,addon_product_not_found:'الإضافة غير موجودة أو غير منشورة'
+  ,protected_reef_subscription:'ترخيص ريف محمي حتى نهاية سنة الإطلاق؛ يلزم مسار طوارئ موثّق'
+  ,protected_addon_subscription_lifecycle:'دورة حياة هذا الترخيص محمية حتى نهاية الفترة المحددة'
+  ,invalid_addon_price:'السعر أو تاريخ سريانه غير صالح'
+  ,addon_price_version_exists:'يوجد سعر مسجل للإضافة بنفس العملة والتاريخ'
+  ,invalid_addon_grant:'بيانات منح الترخيص غير صالحة'
+  ,invalid_addon_grant_period:'يجب أن تكون نهاية الترخيص بعد بدايته'
+  ,invalid_addon_action_payload:'بيانات عملية الإضافة غير صالحة'
+  ,tenant_id_required_for_addon_grant:'اختر المنشأة من القائمة المؤكدة'
+  ,tenant_slug_not_allowed_for_addon_grant:'يجب منح الترخيص بمعرّف المنشأة المؤكد لا بالرابط المكتوب'
+  ,invalid_addon_grant_currency:'عملة الترخيص غير صالحة'
+  ,addon_price_not_found_for_currency:'لا يوجد سعر سنوي ساري بهذه العملة في تاريخ البداية'
+  ,protected_override_not_supported:'لا يمكن تجاوز حماية دورة حياة ترخيص ريف من لوحة التحكم'
+  ,invalid_addon_subscription_status:'حالة الترخيص غير صالحة'
+  ,expired_subscription_requires_new_period:'الترخيص منتهي ويحتاج فترة جديدة بدل إعادة فتحه'
+  ,payment_provider_not_found:'وسيلة الدفع غير موجودة'
+  ,payment_provider_status_requires_verification:'لا يمكن إعلان وسيلة الدفع نشطة قبل اختبار الخادم والـWebhook'
+  ,invalid_payment_provider_environment:'بيئة وسيلة الدفع غير صالحة'
+  ,invalid_payment_provider_checkout_mode:'نمط صفحة الدفع غير صالح'
+  ,invalid_payment_provider_currencies:'قائمة العملات غير صالحة'
+  ,sensitive_payment_provider_config_rejected:'ضع بيانات الاعتماد السرية في الخزنة فقط'
   ,marketplace_order_invalid:'رقم الطلب غير صالح'
   ,marketplace_order_not_found:'طلب المتجر غير موجود'
   ,marketplace_order_not_payable:'هذا الطلب غير قابل لتأكيد الدفع'

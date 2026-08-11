@@ -8,7 +8,8 @@ const date=value=>value?new Date(value).toLocaleString('ar-SA',{day:'numeric',mo
 
 const AREAS=[
   {capability:'tenants',title:'إدارة المنشآت',description:'إنشاء المنشآت وتحديث حالتها ومتابعة التشغيل.',href:'/control/tenants',icon:'▦'},
-  {capability:'billing',title:'الباقات والاشتراكات',description:'إدارة الباقات والمزايا والاشتراكات والإضافات.',href:'/control/subscriptions',icon:'▤'},
+  {capability:'billing',title:'الباقات والاشتراكات',description:'إدارة الباقات والمزايا والاشتراكات الأساسية.',href:'/control/subscriptions',icon:'▤'},
+  {capability:'billing',title:'الإضافات والتراخيص',description:'كتالوج الإضافات والأسعار المؤرخة وتراخيص المنشآت ووسائل الدفع.',href:'/control/addons',icon:'⊞'},
   {capability:'content',title:'المحتوى والمعارف',description:'تحرير الأخبار والمعارف وإدارة مصادر المحتوى.',href:'/control/content',icon:'✦'},
   {capability:'website',title:'الموقع الإلكتروني',description:'إدارة صفحات ماركتون والمقالات والقوائم والبيلدر.',href:'/control/website',icon:'◇'},
   {capability:'access',title:'فريق المنصة والصلاحيات',description:'إضافة الموظفين وبناء الأدوار وتحديد الصلاحيات.',href:'/control/team',icon:'♙'},
@@ -73,3 +74,4 @@ export default async function ControlOverview({searchParams}){
     </section>}
   </>;
 }
+

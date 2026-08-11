@@ -10,6 +10,7 @@ export default function LoginForm(){
   const search=useSearchParams();
   const invitationToken=search.get('invite');
   const platformInvitationToken=search.get('platformInvite');
+  const requestedNext=search.get('next');
   const hasInvitation=Boolean(invitationToken||platformInvitationToken);
 
   async function submit(event){
@@ -24,7 +25,8 @@ export default function LoginForm(){
         email:form.get('email'),
         password:form.get('password'),
         invitationToken,
-        platformInvitationToken
+        platformInvitationToken,
+        requestedNext
       })
     });
     const data=await response.json().catch(()=>({}));
@@ -33,12 +35,7 @@ export default function LoginForm(){
       setError(data.error||'تعذر تسجيل الدخول');
       return;
     }
-    const requested=search.get('next');
-    router.replace(
-      data.context?.subject?.mustChangePassword
-        ?'/change-password'
-        :requested||data.next||'/control'
-    );
+    router.replace(data.next||'/control');
     router.refresh();
   }
 

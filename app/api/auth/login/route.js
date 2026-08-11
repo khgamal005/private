@@ -5,6 +5,11 @@ import {
   SUPABASE_KEY,
   SUPABASE_URL
 } from '../../../../lib/config';
+import {
+  resolvePostLoginPath
+} from '../../../../lib/login-destination.mjs';
+
+export const dynamic='force-dynamic';
 
 export async function POST(request){
   try{
@@ -12,10 +17,11 @@ export async function POST(request){
       email,
       password,
       invitationToken,
-      platformInvitationToken
+      platformInvitationToken,
+      requestedNext
     }=await request.json();
     if(!email||!password){
-      return NextResponse.json({error:'أدخل البريد وكلمة المرور'},{status:400});
+      return json({error:'أدخل البريد وكلمة المرور'},{status:400});
     }
 
     const authResponse=await fetch(
@@ -36,7 +42,7 @@ export async function POST(request){
     const session=await authResponse.json();
     if(!authResponse.ok){
       const authCode=String(session?.error_code||'');
-      return NextResponse.json({
+      return json({
         error:authCode==='email_not_confirmed'
           ?'الحساب لم يكتمل تفعيله؛ افتح رابط الدعوة وأنشئ كلمة المرور مرة أخرى.'
           :'بيانات الدخول غير صحيحة',
@@ -54,7 +60,7 @@ export async function POST(request){
         session.access_token
       );
       if(!accepted.ok){
-        return NextResponse.json({
+        return json({
           error:invitationError(accepted.data,'tenant')
         },{status:400});
       }
@@ -68,7 +74,7 @@ export async function POST(request){
         session.access_token
       );
       if(!accepted.ok){
-        return NextResponse.json({
+        return json({
           error:invitationError(accepted.data,'platform')
         },{status:400});
       }
@@ -90,32 +96,19 @@ export async function POST(request){
     );
     const context=await contextResponse.json();
     if(!contextResponse.ok){
-      return NextResponse.json({
+      return json({
         error:'الحساب غير مربوط بمنصة ماركتون'
       },{status:403});
     }
 
-    const platformPermissions=Array.isArray(context.platformPermissions)
-      ?context.platformPermissions
-      :[];
-    const platformControlAccess=Boolean(
-      context.platformControlAccess
-      ||platformPermissions.includes('platform.control.read')
-    );
+    const next=resolvePostLoginPath({
+      context,
+      requestedNext,
+      acceptedTenantInvitation,
+      acceptedPlatformInvitation
+    });
 
-    const next=acceptedPlatformInvitation
-      ?'/control'
-      :acceptedTenantInvitation?.tenantSlug
-        ?`/tenant/${acceptedTenantInvitation.tenantSlug}`
-        :context.subject?.mustChangePassword
-          ?'/change-password'
-          :platformControlAccess
-            ?'/control'
-            :context.memberships?.[0]?.tenantSlug
-              ?`/tenant/${context.memberships[0].tenantSlug}`
-              :'/';
-
-    const response=NextResponse.json({success:true,context,next});
+    const response=json({success:true,context,next});
     const secure=process.env.NODE_ENV==='production';
     response.cookies.set(ACCESS_COOKIE,session.access_token,{
       httpOnly:true,
@@ -133,11 +126,18 @@ export async function POST(request){
     });
     return response;
   }catch(error){
-    return NextResponse.json({
+    return json({
       error:'تعذر تسجيل الدخول',
       detail:error instanceof Error?error.message:String(error)
     },{status:500});
   }
+}
+
+function json(body,init){
+  const response=NextResponse.json(body,init);
+  response.headers.set('Cache-Control','private, no-store');
+  response.headers.set('Pragma','no-cache');
+  return response;
 }
 
 async function acceptInvitation(rpcName,token,accessToken){

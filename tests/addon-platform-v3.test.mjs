@@ -55,6 +55,14 @@ const FILES={
     MAIN_DIR,
     'app/api/platform/payment-provider-secret/route.js'
   ),
+  tenantActionRoute:resolve(
+    MAIN_DIR,
+    'app/api/tenant/[action]/route.js'
+  ),
+  platformActionRoute:resolve(
+    MAIN_DIR,
+    'app/api/platform/[action]/route.js'
+  ),
   providerEdge:resolve(
     MAIN_DIR,
     'supabase/functions/payment-provider-admin/index.ts'
@@ -591,4 +599,8 @@ test('add-on pages and UI actions use permission-gated, same-origin APIs',()=>{
   assert.match(source.platformConsole,/type="password"\s+autoComplete="new-password"/);
   assert.doesNotMatch(source.platformConsole,/Date\.now\s*\(/);
   assert.match(source.platformConsole,/function\s+annualEnd\s*\(/);
+  assert.match(source.tenantActionRoute,/v3_tenant_addon_center_action/);
+  assert.match(source.tenantActionRoute,/v2_tenant_addon_center_action/);
+  assert.match(source.platformActionRoute,/v3_platform_addon_center_action/);
+  assert.match(source.platformActionRoute,/v2_platform_addon_center_action/);
 });

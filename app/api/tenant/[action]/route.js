@@ -6,6 +6,11 @@ import {
   SUPABASE_URL
 } from '../../../../lib/config';
 
+const ADDON_CENTER_RPC=Object.freeze({
+  current:'v3_tenant_addon_center_action',
+  legacy:'v2_tenant_addon_center_action'
+});
+
 const RPC={
   'create-staff':'v2_tenant_create_staff',
   'update-staff':'v2_tenant_update_staff',
@@ -23,7 +28,7 @@ const RPC={
   'training-automation':'v2_tenant_training_automation_action',
   'automation-studio':'v2_tenant_automation_studio_action_v2',
   'delivery-analytics':'v2_tenant_delivery_analytics_action_v2',
-  'addon-center':'v3_tenant_addon_center_action',
+  'addon-center':ADDON_CENTER_RPC.current,
   'marketplace':'v1_tenant_marketplace_action',
   'integration-hub':'v2_tenant_integration_hub_action',
   'create-opportunity':'v2_tenant_create_opportunity',
@@ -281,4 +286,3 @@ function translate(value){
   };
   return messages[String(value)]||String(value);
 }
-

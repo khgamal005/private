@@ -2,6 +2,11 @@ import {NextResponse} from 'next/server';
 import {cookies} from 'next/headers';
 import {SUPABASE_URL,SUPABASE_KEY,ACCESS_COOKIE} from '../../../../lib/config';
 
+const ADDON_CENTER_RPC=Object.freeze({
+  current:'v3_platform_addon_center_action',
+  legacy:'v2_platform_addon_center_action'
+});
+
 const RPC={
   'provision-tenant':'v2_platform_provision_tenant',
   'invite-user':'v2_tenant_invite_user',
@@ -13,7 +18,7 @@ const RPC={
   'create-connection':'v2_platform_upsert_connection',
   'create-support':'v2_support_create_request',
   'update-support':'v2_support_update_request'
-  ,'addon-decision':'v3_platform_addon_center_action'
+  ,'addon-decision':ADDON_CENTER_RPC.current
   ,'marketplace':'v1_platform_marketplace_action'
 };
 

@@ -576,6 +576,9 @@ test('add-on pages and UI actions use permission-gated, same-origin APIs',()=>{
   assert.ok(tenantPermission!==-1&&tenantPermission<tenantRead);
 
   assert.match(source.tenantCenter,/fetch\('\/api\/tenant\/addon-center'/);
+  assert.match(source.tenantCenter,/المحاكاة والفشل لا يُفوتران/);
+  assert.match(source.tenantCenter,/طلب تجربة/);
+  assert.match(source.tenantCenter,/فتح إضافة Yeastar/);
   assert.match(source.platformConsole,/fetch\('\/api\/platform\/addon-decision'/);
   assert.match(
     source.platformConsole,

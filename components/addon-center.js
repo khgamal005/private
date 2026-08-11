@@ -192,7 +192,7 @@ export default function AddonCenter({slug,initialData}){
 
     <section className={styles.guardrail}>
       <span aria-hidden="true">✓</span>
-      <div><b>بياناتك لا ترتبط بعمر الترخيص</b><p>عند انتهاء أو إيقاف أي إضافة تُخفى شاشاتها وتتوقف عملياتها الجديدة، بينما تبقى البيانات والسجلات والتكاملات محفوظة لاستعادتها عند التجديد.</p></div>
+      <div><b>بياناتك لا ترتبط بعمر الترخيص</b><p>عند انتهاء أو إيقاف أي إضافة تُخفى شاشاتها وتتوقف عملياتها الجديدة، بينما تبقى البيانات والسجلات والتكاملات محفوظة لاستعادتها عند التجديد. المحاكاة والفشل لا يُفوتران.</p></div>
     </section>
 
     {paymentMethods.length>0&&<section className={styles.payments}>
@@ -279,9 +279,9 @@ function AddonCard({slug,product,timezone,busy,onAction,onDetails}){
     </section>
     <footer>
       <button type="button" className={styles.secondary} onClick={onDetails}>التفاصيل والشاشات</button>
-      {openHref?<Link href={openHref}>فتح الإضافة</Link>
+      {openHref?<Link href={openHref}>{product.key==='yeastar'?'فتح إضافة Yeastar':'فتح الإضافة'}</Link>
         :canCancelRequest?<button type="button" className={styles.danger} disabled={Boolean(busy)} onClick={()=>onAction('cancel_request',product)}>إلغاء الطلب</button>
-          :canRequestTrial?<button type="button" className={styles.primary} disabled={Boolean(busy)} onClick={()=>onAction('request_trial',product)}>{busy===`request_trial-${product.key}`?'جارٍ الإرسال…':`تجربة ${product.trialDays} يومًا`}</button>
+          :canRequestTrial?<button type="button" className={styles.primary} disabled={Boolean(busy)} onClick={()=>onAction('request_trial',product)}>{busy===`request_trial-${product.key}`?'جارٍ الإرسال…':`طلب تجربة ${product.trialDays} يومًا`}</button>
             :canRenew?<Link className={styles.primary} href={`/tenant/${encodeURIComponent(slug)}/addons-store`}>تجديد الإضافة</Link>
               :canCheckout?<Link className={styles.primary} href={`/tenant/${encodeURIComponent(slug)}/addons-store`}>شراء الإضافة</Link>
                 :<span className={styles.noAction}>{enabled?'تعمل في الخلفية':'لا يوجد إجراء متاح الآن'}</span>}

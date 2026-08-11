@@ -12,6 +12,12 @@ const ICON_PATHS={
   overview:['M3 10.8 12 3l9 7.8','M5.5 9.4V21h13V9.4','M9 21v-6h6v6'],
   tenants:['M4 21V8l8-5 8 5v13','M9 21v-5h6v5','M8 10h.01M12 10h.01M16 10h.01'],
   subscriptions:['M4 6h16v12H4z','M4 10h16','M8 15h3'],
+  plans:['M4 6h16v12H4z','M4 10h16','M8 15h3'],
+  catalog:['M4 8h16l-1 13H5L4 8Z','M7 8V6a5 5 0 0 1 10 0v2'],
+  billing:['M3 6h18v12H3z','M3 10h18','M7 15h4'],
+  payments:['M3 6h18v12H3z','M3 10h18','M7 15h4'],
+  providers:['M12 3v4M12 17v4M3 12h4M17 12h4','M8.5 8.5h7v7h-7z'],
+  services:['M4 7h16v13H4z','M8 7V4h8v3','M8 12h8M8 16h5'],
   marketplace:['M4 8h16l-1 13H5L4 8Z','M7 8V6a5 5 0 0 1 10 0v2','M8 12h.01M16 12h.01'],
   servicesStore:['M4 7h16v13H4z','M8 7V4h8v3','M8 12h8M8 16h5'],
   addonsStore:['M12 3v4M12 17v4M3 12h4M17 12h4','M8.5 8.5h7v7h-7z'],
@@ -115,18 +121,29 @@ function platformItems(permissions){
   const items=[
     {key:'overview',label:'لوحة المنصة',href:'/control',permission:'platform.control.read'},
     {key:'tenants',label:'المنشآت',href:'/control/tenants',permission:'platform.tenants.manage'},
-    {key:'subscriptions',label:'الباقات والاشتراكات',href:'/control/subscriptions',permission:'platform.billing.manage'},
-    {key:'addons',label:'الإضافات والتراخيص',href:'/control/addons',permission:'platform.billing.manage'},
-    {key:'marketplace',label:'متجر الخدمات والإضافات',href:'/control/marketplace',permission:'platform.billing.manage'},
+    {key:'catalog',label:'المنتجات والمتاجر',children:[
+      {key:'plans',label:'الباقات وحدود الاستخدام',href:'/control/plans',permission:'platform.billing.manage'},
+      {key:'addons',label:'متجر الإضافات',href:'/control/addons',permission:'platform.billing.manage'},
+      {key:'services',label:'متجر الخدمات',href:'/control/services',permission:'platform.billing.manage'}
+    ]},
+    {key:'billing',label:'الاشتراكات والتحصيل',children:[
+      {key:'subscriptions',label:'اشتراكات المنشآت',href:'/control/subscriptions',permission:'platform.billing.manage'},
+      {key:'payments',label:'المدفوعات والتحصيل',href:'/control/payments',permission:'platform.billing.manage'},
+      {key:'providers',label:'وسائل الدفع',href:'/control/payment-providers',permission:'platform.billing.manage'},
+      {key:'marketplace',label:'كل طلبات المتجر',href:'/control/marketplace',permission:'platform.billing.manage'}
+    ]},
     {key:'content',label:'المحتوى والمعارف',href:'/control/content',permission:'platform.content.manage'},
     {key:'website',label:'إدارة الموقع',href:'/control/website',permission:'platform.website.manage'},
     {key:'people',label:'فريق المنصة والصلاحيات',href:'/control/team',permission:'platform.access.manage'},
     {key:'settings',label:'إعدادات المنصة',href:'/control/settings',permission:['platform.settings.manage','platform.control.write']}
   ];
-  return items.filter(item=>{
-    const required=Array.isArray(item.permission)?item.permission:[item.permission];
-    return required.some(permission=>allowed.has(permission));
-  });
+  const canUse=permission=>{
+    const required=Array.isArray(permission)?permission:[permission];
+    return required.some(key=>allowed.has(key));
+  };
+  return items
+    .map(item=>item.children?{...item,children:item.children.filter(child=>canUse(child.permission))}:item)
+    .filter(item=>item.children?.length||canUse(item.permission));
 }
 
 function isActive(pathname,href){
@@ -156,7 +173,9 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
     sales:['/customer-search','/sales','/lead-queue','/incentives'].some(path=>pathname.includes(path)),
     yeastar:pathname.includes('/yeastar')||pathname.includes('/call-reports'),
     marketing:pathname.includes('/marketing')||pathname.includes('/settings'),
-    reports:pathname.includes('/reports')
+    reports:pathname.includes('/reports'),
+    catalog:['/plans','/addons','/services'].some(path=>pathname.includes(path)),
+    billing:['/subscriptions','/payments','/payment-providers','/marketplace'].some(path=>pathname.includes(path))
   }));
   const items=useMemo(()=>kind===WORKSPACE_KINDS.tenant
     ?tenantItems(
@@ -223,4 +242,3 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
     </div>
   </div>;
 }
-

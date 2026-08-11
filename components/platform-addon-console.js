@@ -7,8 +7,8 @@ import styles from './platform-addon-console.module.css';
 const EMPTY=[];
 const TABS=[
   ['catalog','كتالوج الإضافات'],
-  ['licenses','تراخيص المنشآت'],
-  ['providers','وسائل الدفع']
+  ['categories','أقسام الإضافات'],
+  ['licenses','تراخيص المنشآت']
 ];
 const STATUS={
   pending:'بانتظار القرار',trialing:'تجريبية',active:'نشطة',paused:'موقوفة',
@@ -16,12 +16,9 @@ const STATUS={
   disabled:'معطلة',error:'خطأ اتصال'
 };
 const PUBLIC_CONFIG_LABEL={
-  merchantId:'معرّف التاجر',
-  merchantAccountId:'معرّف حساب التاجر',
-  integrationId:'معرّف التكامل',
-  webhookId:'معرّف Webhook'
+  merchantId:'معرّف التاجر',merchantAccountId:'معرّف حساب التاجر',
+  integrationId:'معرّف التكامل',webhookId:'معرّف Webhook'
 };
-
 function money(amountMinor,currency='SAR'){
   return new Intl.NumberFormat('ar-SA',{
     style:'currency',currency,maximumFractionDigits:0
@@ -51,10 +48,11 @@ function annualEnd(start){
   return `${nextYear}-${month}-${day}`;
 }
 
-export default function PlatformAddonConsole({initialData}){
+export default function PlatformAddonConsole({initialData,section='addons'}){
   const router=useRouter();
   const data=initialData||{};
-  const [tab,setTab]=useState('catalog');
+  const tabs=section==='providers'?[['providers','وسائل الدفع']]:TABS;
+  const [tab,setTab]=useState(section==='providers'?'providers':'catalog');
   const [query,setQuery]=useState('');
   const [modal,setModal]=useState(null);
   const [busy,setBusy]=useState('');
@@ -63,18 +61,19 @@ export default function PlatformAddonConsole({initialData}){
   const closeModal=useCallback(()=>setModal(null),[]);
   const products=data.products||EMPTY;
   const subscriptions=data.subscriptions||EMPTY;
+  const categories=data.addonCategories||EMPTY;
   const providers=data.paymentProviders||EMPTY;
   const tenants=data.tenants||EMPTY;
   const summary=data.summary||{};
 
   const filtered=useMemo(()=>{
     const needle=query.trim().toLocaleLowerCase('ar');
-    const source=tab==='catalog'?products:tab==='licenses'?subscriptions:providers;
+    const source=tab==='catalog'?products:tab==='licenses'?subscriptions:tab==='providers'?providers:categories;
     return source.filter(item=>!needle||[
       item.name,item.key,item.productName,item.productKey,
-      item.tenantName,item.tenantSlug,item.status
+      item.tenantName,item.tenantSlug,item.status,item.categoryName
     ].some(value=>String(value||'').toLocaleLowerCase('ar').includes(needle)));
-  },[products,providers,query,subscriptions,tab]);
+  },[categories,products,providers,query,subscriptions,tab]);
 
   async function platformAction(action,payload){
     const response=await fetch('/api/platform/addon-decision',{
@@ -155,13 +154,9 @@ export default function PlatformAddonConsole({initialData}){
     const provider=modal.item;
     try{
       const secrets={};
-      for(const secretKey of [
-        ...(provider.requiredSecretKeys||EMPTY),
-        ...(provider.optionalSecretKeys||EMPTY)
-      ]){
+      for(const secretKey of [...(provider.requiredSecretKeys||EMPTY),...(provider.optionalSecretKeys||EMPTY)]){
         const secretValue=String(form.get(`secret_${secretKey}`)||'').trim();
-        if(!secretValue)continue;
-        secrets[secretKey]=secretValue;
+        if(secretValue)secrets[secretKey]=secretValue;
       }
       const publicConfig={};
       for(const configKey of provider.requiredPublicConfigKeys||EMPTY){
@@ -169,81 +164,123 @@ export default function PlatformAddonConsole({initialData}){
         if(configValue)publicConfig[configKey]=configValue;
       }
       const response=await fetch('/api/platform/payment-provider-secret',{
-        method:'POST',
-        headers:{'content-type':'application/json'},
+        method:'POST',headers:{'content-type':'application/json'},
         body:JSON.stringify({
-          providerKey:provider.key,
-          environment:form.get('environment'),
+          providerKey:provider.key,environment:form.get('environment'),
           checkoutMode:form.get('checkout_mode'),
-          supportedCurrencies:String(form.get('currencies')||'')
-            .split(',').map(value=>value.trim().toUpperCase()).filter(Boolean),
-          enabled:form.get('enabled')==='on',
-          publicConfig,
-          secrets
+          supportedCurrencies:String(form.get('currencies')||'').split(',').map(value=>value.trim().toUpperCase()).filter(Boolean),
+          enabled:form.get('enabled')==='on',publicConfig,secrets
         })
       });
       const result=await response.json();
       if(!response.ok)throw new Error(result.error||'تعذر حفظ الاتصال');
+      setModal(null);setNotice('حُفظ الإعداد. سيظل المزود غير نشط حتى ينجح اختبار Adapter وWebhook فعلي.');router.refresh();
+    }catch(err){setError(err.message)}finally{setBusy('')}
+  }
+
+  async function commerceAction(action,payload){
+    const response=await fetch('/api/platform/commerce',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({p_action:action,p_payload:payload})
+    });
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.error||'تعذر تنفيذ العملية');
+    return result.data;
+  }
+
+  async function saveCategory(event){
+    event.preventDefault();
+    setBusy('category');setError('');setNotice('');
+    const values=Object.fromEntries(new FormData(event.currentTarget).entries());
+    try{
+      await commerceAction('save_addon_category',{
+        categoryId:modal.item?.id||null,key:values.key,name:values.name,
+        description:values.description,iconKey:values.icon_key,
+        displayOrder:Number(values.display_order||100)
+      });
       setModal(null);
-      setNotice('حُفظ الإعداد. سيظل المزود غير نشط حتى ينجح اختبار Adapter وWebhook فعلي.');
+      setNotice('تم حفظ قسم الإضافات.');
       router.refresh();
+    }catch(err){setError(err.message)}finally{setBusy('')}
+  }
+
+  async function assignCategory(event){
+    event.preventDefault();setBusy('assign-category');setError('');setNotice('');
+    const values=Object.fromEntries(new FormData(event.currentTarget).entries());
+    try{
+      await commerceAction('assign_addon_category',{
+        productId:modal.item.id,categoryId:values.category_id
+      });
+      setModal(null);setNotice('تم نقل الإضافة إلى القسم المحدد.');router.refresh();
     }catch(err){setError(err.message)}finally{setBusy('')}
   }
 
   return <section className={styles.console} aria-busy={Boolean(busy)}>
     <header className={styles.hero}>
-      <div><small>ADD-ON OPERATING SYSTEM</small><h1>الإضافات والتراخيص والدفع</h1><p>إدارة مركزية لكل المنشآت، مع سعر مؤرخ، عزل كامل، وسجل لا يحذف بيانات أي منشأة.</p></div>
-      {tab==='licenses'&&<button type="button" onClick={()=>setModal({type:'grant'})}>+ منح ترخيص</button>}
+      <div><small>{section==='providers'?'PAYMENT PROVIDERS':'ADD-ON OPERATING SYSTEM'}</small><h1>{section==='providers'?'وسائل الدفع':'متجر الإضافات والتراخيص'}</h1><p>{section==='providers'?'إعداد مركزي آمن لتمارا وPaymob وPayPal وبقية بوابات التحصيل.':'كتالوج إضافات برمجية مستقل عن الخدمات، مع أقسام وأسعار مؤرخة وتراخيص معزولة لكل منشأة.'}</p></div>
+      {tab==='licenses'?<button type="button" onClick={()=>setModal({type:'grant'})}>+ منح ترخيص</button>:tab==='categories'?<button type="button" onClick={()=>setModal({type:'category'})}>+ قسم جديد</button>:null}
     </header>
 
-    <section className={styles.kpis}>
+    {section!=='providers'&&<section className={styles.kpis}>
       <article><span>الإضافات المنشورة</span><b>{summary.publishedProducts??summary.products??0}</b><small>بعقد إصدار مستقل</small></article>
       <article><span>التراخيص النشطة</span><b>{summary.activeLicenses||0}</b><small>مع فحص تاريخ الانتهاء</small></article>
-      <article><span>طلبات تنتظر القرار</span><b>{summary.pendingRequests||0}</b><small>لا تفعيل تلقائي</small></article>
+      <article><span>أقسام الإضافات</span><b>{categories.length}</b><small>تصنيف مستقل وواضح</small></article>
       <article><span>تنتهي خلال 30 يومًا</span><b>{summary.expiringWithin30Days||0}</b><small>تحتاج متابعة تجديد</small></article>
-    </section>
+    </section>}
 
     <nav className={styles.tabs} role="tablist" aria-label="أقسام إدارة الإضافات">
-      {TABS.map(([key,label])=><button type="button" role="tab" id={`addon-tab-${key}`} aria-controls={`addon-panel-${key}`} aria-selected={tab===key} key={key} onClick={()=>{setTab(key);setQuery('')}}>{label}</button>)}
+      {tabs.map(([key,label])=><button type="button" role="tab" id={`addon-tab-${key}`} aria-controls={`addon-panel-${key}`} aria-selected={tab===key} key={key} onClick={()=>{setTab(key);setQuery('')}}>{label}</button>)}
     </nav>
 
     {notice&&<div className={styles.notice} role="status">{notice}</div>}
     {error&&<div className={styles.error} role="alert">{error}</div>}
 
     <section className={styles.toolbar}>
-      <div><b>{TABS.find(([key])=>key===tab)?.[1]}</b><small>{filtered.length} سجل</small></div>
+      <div><b>{tabs.find(([key])=>key===tab)?.[1]}</b><small>{filtered.length} سجل</small></div>
       <input value={query} onChange={event=>setQuery(event.target.value)} aria-label="بحث" placeholder="ابحث باسم الإضافة أو المنشأة…"/>
     </section>
 
     <section role="tabpanel" id={`addon-panel-${tab}`} aria-labelledby={`addon-tab-${tab}`}>
-      {tab==='catalog'&&<Catalog rows={filtered} onPrice={item=>setModal({type:'price',item})}/>} 
+      {tab==='catalog'&&<Catalog rows={filtered} onPrice={item=>setModal({type:'price',item})} onCategory={item=>setModal({type:'assign-category',item})}/>} 
+      {tab==='categories'&&<Categories rows={filtered} onEdit={item=>setModal({type:'category',item})}/>} 
       {tab==='licenses'&&<Licenses rows={filtered} busy={busy} onDecision={decide} onStatus={setLicenseStatus}/>} 
       {tab==='providers'&&<Providers rows={filtered} onConfigure={item=>setModal({type:'provider',item})}/>} 
     </section>
 
     {modal?.type==='price'&&<PriceModal item={modal.item} busy={busy} onClose={closeModal} onSubmit={savePrice}/>} 
     {modal?.type==='grant'&&<GrantModal products={products} tenants={tenants} busy={busy} onClose={closeModal} onSubmit={grantLicense}/>} 
+    {modal?.type==='category'&&<CategoryModal item={modal.item} busy={busy} onClose={closeModal} onSubmit={saveCategory}/>} 
+    {modal?.type==='assign-category'&&<AssignCategoryModal item={modal.item} categories={categories} busy={busy} onClose={closeModal} onSubmit={assignCategory}/>} 
     {modal?.type==='provider'&&<ProviderModal item={modal.item} busy={busy} onClose={closeModal} onSubmit={saveProvider}/>} 
   </section>;
 }
 
-function Catalog({rows,onPrice}){
+function Catalog({rows,onPrice,onCategory}){
   return <div className={styles.table}>
-    <header><span>الإضافة</span><span>مواضع الظهور</span><span>السعر السنوي</span><span>الإصدار والصور</span><span>الحالة</span><span/></header>
+    <header><span>الإضافة</span><span>القسم</span><span>السعر السنوي</span><span>الإصدار والظهور</span><span>الحالة</span><span/></header>
     {rows.map(item=>{
       const price=item.price||{};
       const activeMedia=(item.media||EMPTY).filter(media=>media.status==='active').length;
       return <article key={item.id||item.key}>
         <div><b>{item.name}</b><small>{item.key}</small></div>
-        <div><b>{item.surfaces?.length||0} موضع</b><small>من سجل مواضع آمن</small></div>
+        <div><b>{item.categoryName||'غير مصنفة'}</b><small>{item.surfaces?.length||0} موضع ظهور</small></div>
         <div><b>{money(price.amountMinor,price.currency)}</b><small>من {formatDate(price.validFrom)}</small></div>
         <div><b>{item.manifest?.version||'—'}</b><small>{activeMedia} صور معتمدة · {item.media?.length||0} خانات</small></div>
         <Status value={item.manifest?.status||item.status}/>
-        <button type="button" onClick={()=>onPrice(item)}>تسعير</button>
+        <div className={styles.actions}><button type="button" onClick={()=>onCategory(item)}>تصنيف</button><button type="button" onClick={()=>onPrice(item)}>تسعير</button></div>
       </article>;
     })}
     {!rows.length&&<Empty/>}
   </div>;
+}
+
+function Categories({rows,onEdit}){
+  return <section className={styles.providers}>{rows.map(item=><article key={item.id}>
+    <header><i>{item.iconKey?.slice(0,2)||'إ'}</i><Status value={item.status}/></header>
+    <h2>{item.name}</h2><p>{item.description||'قسم إضافات مُدار'}</p>
+    <dl><div><dt>عدد الإضافات</dt><dd>{item.productCount||0}</dd></div><div><dt>المفتاح</dt><dd>{item.key}</dd></div></dl>
+    <button type="button" onClick={()=>onEdit(item)}>تعديل القسم</button>
+  </article>)}{!rows.length&&<Empty/>}</section>;
 }
 
 function Licenses({rows,busy,onDecision,onStatus}){
@@ -272,21 +309,12 @@ function Licenses({rows,busy,onDecision,onStatus}){
 }
 
 function Providers({rows,onConfigure}){
-  return <section className={styles.providers}>
-    {rows.map(item=>{
-      const active=item.status==='active'&&item.verifiedAt;
-      const configured=new Set(item.configuredSecretKeys||EMPTY);
-      const missing=(item.requiredSecretKeys||EMPTY).filter(key=>!configured.has(key));
-      return <article key={item.key}>
-        <header><i>{item.name?.slice(0,2)}</i><Status value={active?'active':item.status}/></header>
-        <h2>{item.name}</h2>
-        <p>{active?'تم التحقق الفعلي ويمكن عرضه للمشتري.':item.status==='configured'?'الأسرار مكتملة، ويلزم اختبار Adapter وWebhook.':'لا يظهر للمشتري قبل اكتمال الإعداد والتحقق.'}</p>
-        <dl><div><dt>البيئة</dt><dd>{item.environment==='live'?'Live':'Sandbox'}</dd></div><div><dt>آخر تحقق</dt><dd>{formatDate(item.verifiedAt)}</dd></div><div><dt>الأسرار الناقصة</dt><dd>{missing.length?missing.join('، '):'لا يوجد'}</dd></div></dl>
-        <button type="button" onClick={()=>onConfigure(item)}>إدارة الاتصال</button>
-      </article>;
-    })}
-    {!rows.length&&<Empty/>}
-  </section>;
+  return <section className={styles.providers}>{rows.map(item=>{
+    const active=item.status==='active'&&item.verifiedAt;
+    const configured=new Set(item.configuredSecretKeys||EMPTY);
+    const missing=(item.requiredSecretKeys||EMPTY).filter(key=>!configured.has(key));
+    return <article key={item.key}><header><i>{item.name?.slice(0,2)}</i><Status value={active?'active':item.status}/></header><h2>{item.name}</h2><p>{active?'تم التحقق الفعلي ويمكن عرضه للمشتري.':item.status==='configured'?'الأسرار مكتملة، ويلزم اختبار Adapter وWebhook.':'لا يظهر للمشتري قبل اكتمال الإعداد والتحقق.'}</p><dl><div><dt>البيئة</dt><dd>{item.environment==='live'?'Live':'Sandbox'}</dd></div><div><dt>آخر تحقق</dt><dd>{formatDate(item.verifiedAt)}</dd></div><div><dt>الأسرار الناقصة</dt><dd>{missing.length?missing.join('، '):'لا يوجد'}</dd></div></dl><button type="button" onClick={()=>onConfigure(item)}>إدارة الاتصال</button></article>;
+  })}{!rows.length&&<Empty/>}</section>;
 }
 
 function PriceModal({item,busy,onClose,onSubmit}){
@@ -314,16 +342,33 @@ function GrantModal({products,tenants,busy,onClose,onSubmit}){
   </form></Modal>;
 }
 
+function CategoryModal({item,busy,onClose,onSubmit}){
+  return <Modal title={item?'تعديل قسم الإضافات':'قسم إضافات جديد'} onClose={onClose}><form onSubmit={onSubmit} className={styles.form}>
+    <label>مفتاح القسم<input name="key" pattern="[a-z][a-z0-9_]{2,60}" defaultValue={item?.key||''} disabled={Boolean(item)} required/></label>
+    <label>اسم القسم<input name="name" defaultValue={item?.name||''} required/></label>
+    <label>رمز الأيقونة<input name="icon_key" defaultValue={item?.iconKey||'addon'}/></label>
+    <label>ترتيب العرض<input name="display_order" type="number" defaultValue="100"/></label>
+    <label className={styles.wide}>الوصف<textarea name="description" defaultValue={item?.description||''}/></label>
+    <footer><button type="button" onClick={onClose}>إلغاء</button><button className={styles.primary} disabled={busy==='category'}>حفظ القسم</button></footer>
+  </form></Modal>;
+}
+
+function AssignCategoryModal({item,categories,busy,onClose,onSubmit}){
+  return <Modal title={`تصنيف ${item.name}`} onClose={onClose}><form onSubmit={onSubmit} className={styles.form}>
+    <label className={styles.wide}>قسم الإضافة<select name="category_id" defaultValue={item.categoryId||categories[0]?.id||''} required>{categories.map(category=><option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+    <aside className={styles.safety}>التصنيف يغيّر مكان العرض في المتجر فقط، ولا يؤثر على تراخيص المنشآت أو بيانات الإضافة.</aside>
+    <footer><button type="button" onClick={onClose}>إلغاء</button><button className={styles.primary} disabled={busy==='assign-category'||!categories.length}>حفظ التصنيف</button></footer>
+  </form></Modal>;
+}
+
 function ProviderModal({item,busy,onClose,onSubmit}){
   const configured=new Set(item.configuredSecretKeys||EMPTY);
   const requiredSecrets=new Set(item.requiredSecretKeys||EMPTY);
   const publicConfig=item.configuredPublicConfig||{};
   const publicConfigKeys=item.requiredPublicConfigKeys||EMPTY;
   const publicConfigKeySet=new Set(publicConfigKeys);
-  const secretKeys=[
-    ...(item.requiredSecretKeys||EMPTY),
-    ...(item.optionalSecretKeys||EMPTY)
-  ].filter(secretKey=>!publicConfigKeySet.has(secretKey));
+  const secretKeys=[...(item.requiredSecretKeys||EMPTY),...(item.optionalSecretKeys||EMPTY)]
+    .filter(secretKey=>!publicConfigKeySet.has(secretKey));
   const initialEnvironment=item.environment||'sandbox';
   const [environment,setEnvironment]=useState(initialEnvironment);
   const environmentChanged=environment!==initialEnvironment;
@@ -332,13 +377,7 @@ function ProviderModal({item,busy,onClose,onSubmit}){
     <label>طريقة Checkout<select name="checkout_mode" defaultValue={item.checkoutMode||'redirect'}><option value="redirect">Redirect</option><option value="embedded">Embedded</option><option value="api">API</option></select></label>
     <label className={styles.wide}>العملات<input name="currencies" defaultValue={(item.supportedCurrencies||['SAR']).join(', ')}/></label>
     {publicConfigKeys.map(configKey=><label key={`${configKey}-${environment}`} className={styles.wide}>{PUBLIC_CONFIG_LABEL[configKey]||configKey}<small>{environmentChanged?'تغيرت البيئة — أدخل المعرّف الخاص بهذه البيئة':'بيان عام للربط وليس مفتاحًا سريًا'}</small><input name={`public_${configKey}`} defaultValue={environmentChanged?'':publicConfig[configKey]||''} maxLength="240" required/></label>)}
-    {secretKeys.map(secretKey=>{
-      const mustReplace=environmentChanged&&(
-        requiredSecrets.has(secretKey)||configured.has(secretKey)
-      );
-      const required=mustReplace||(!configured.has(secretKey)&&requiredSecrets.has(secretKey));
-      return <label key={`${secretKey}-${environment}`} className={styles.wide}>{secretKey}{configured.has(secretKey)&&<small>{mustReplace?'تغيرت البيئة — أدخل قيمة جديدة لهذه البيئة':'محفوظ في Vault — اتركه فارغًا للإبقاء عليه'}</small>}<input name={`secret_${secretKey}`} type="password" autoComplete="new-password" placeholder={configured.has(secretKey)&&!mustReplace?'••••••••':'أدخل القيمة السرية'} required={required}/></label>;
-    })}
+    {secretKeys.map(secretKey=>{const mustReplace=environmentChanged&&(requiredSecrets.has(secretKey)||configured.has(secretKey));const required=mustReplace||(!configured.has(secretKey)&&requiredSecrets.has(secretKey));return <label key={`${secretKey}-${environment}`} className={styles.wide}>{secretKey}{configured.has(secretKey)&&<small>{mustReplace?'تغيرت البيئة — أدخل قيمة جديدة لهذه البيئة':'محفوظ في Vault — اتركه فارغًا للإبقاء عليه'}</small>}<input name={`secret_${secretKey}`} type="password" autoComplete="new-password" placeholder={configured.has(secretKey)&&!mustReplace?'••••••••':'أدخل القيمة السرية'} required={required}/></label>})}
     <label className={styles.check}><input name="enabled" type="checkbox" defaultChecked={item.status!=='disabled'}/><span>إتاحة الإعداد للاختبار</span></label>
     <aside className={styles.safety}>لا تُعرض الأسرار بعد الحفظ. ولا تتحول الحالة إلى «نشط» إلا من اختبار خادمي ناجح وموقّع.</aside>
     <footer><button type="button" onClick={onClose}>إلغاء</button><button className={styles.primary} disabled={busy==='provider'}>{busy==='provider'?'جارٍ الحفظ…':'حفظ آمن'}</button></footer>

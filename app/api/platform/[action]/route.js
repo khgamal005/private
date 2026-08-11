@@ -20,6 +20,7 @@ const RPC={
   'update-support':'v2_support_update_request'
   ,'addon-decision':ADDON_CENTER_RPC.current
   ,'marketplace':'v1_platform_marketplace_action'
+  ,'commerce':'v4_platform_commerce_action'
 };
 
 export async function POST(req,{params}){
@@ -96,4 +97,20 @@ function translate(x){const m={
   ,marketplace_order_closed:'الطلب مكتمل ولا يمكن تعديله'
   ,marketplace_webhook_not_found:'إعداد Webhook الدفع غير موجود'
   ,marketplace_action_invalid:'إجراء المتجر غير مدعوم'
+  ,plan_name_required:'اسم الباقة مطلوب'
+  ,invalid_plan_key:'مفتاح الباقة يجب أن يكون إنجليزيًا وبصيغة صحيحة'
+  ,invalid_plan_status:'حالة الباقة غير صالحة'
+  ,invalid_plan_interval:'دورة فوترة الباقة غير صالحة'
+  ,invalid_plan_price:'سعر الباقة غير صالح'
+  ,invalid_plan_limit:'أحد حدود الباقة غير صالح'
+  ,plan_limit_reached:'وصلت المنشأة إلى الحد الأقصى المسموح به في باقتها'
+  ,invalid_subscription_status:'حالة الاشتراك غير صالحة'
+  ,invalid_subscription_period:'يجب أن تكون نهاية الاشتراك بعد بدايته'
+  ,category_name_required:'اسم القسم مطلوب'
+  ,invalid_category_key:'مفتاح القسم يجب أن يكون إنجليزيًا وبصيغة صحيحة'
+  ,category_not_found:'القسم غير موجود أو غير نشط'
+  ,service_name_required:'اسم الخدمة مطلوب'
+  ,invalid_service_key:'مفتاح الخدمة يجب أن يكون إنجليزيًا وبصيغة صحيحة'
+  ,service_not_found:'الخدمة غير موجودة'
+  ,commerce_action_invalid:'إجراء إدارة المنتجات والفوترة غير مدعوم'
 };return m[x]||String(x)}

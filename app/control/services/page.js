@@ -1,10 +1,10 @@
+import PlatformServices from '../../../components/platform-services';
 import {getPlatformCommerce} from '../../../lib/api';
 import {requirePlatformPermission} from '../../../lib/server-auth';
-import PlatformSubscriptions from '../../../components/platform-subscriptions';
 
 export const dynamic='force-dynamic';
 
-export default async function SubscriptionsPage(){
+export default async function ServicesPage(){
   await requirePlatformPermission('platform.billing.manage');
-  return <PlatformSubscriptions initialData={await getPlatformCommerce()}/>;
+  return <PlatformServices initialData={await getPlatformCommerce()}/>;
 }

@@ -8,8 +8,11 @@ const date=value=>value?new Date(value).toLocaleString('ar-SA',{day:'numeric',mo
 
 const AREAS=[
   {capability:'tenants',title:'إدارة المنشآت',description:'إنشاء المنشآت وتحديث حالتها ومتابعة التشغيل.',href:'/control/tenants',icon:'▦'},
-  {capability:'billing',title:'الباقات والاشتراكات',description:'إدارة الباقات والمزايا والاشتراكات الأساسية.',href:'/control/subscriptions',icon:'▤'},
-  {capability:'billing',title:'الإضافات والتراخيص',description:'كتالوج الإضافات والأسعار المؤرخة وتراخيص المنشآت ووسائل الدفع.',href:'/control/addons',icon:'⊞'},
+  {capability:'billing',title:'الباقات وحدود الاستخدام',description:'تسعير الباقات وتحديد حدود الموظفين والطلاب والدورات والعملاء.',href:'/control/plans',icon:'▤'},
+  {capability:'billing',title:'متجر الإضافات',description:'أقسام الإضافات والأسعار المؤرخة والتراخيص الخاصة بكل منشأة.',href:'/control/addons',icon:'⊞'},
+  {capability:'billing',title:'متجر الخدمات',description:'أقسام الخدمات وأسعارها وطلبات التنفيذ البشري.',href:'/control/services',icon:'▣'},
+  {capability:'billing',title:'اشتراكات المنشآت',description:'دورة حياة الاشتراكات والتجارب والتجديد والإيقاف.',href:'/control/subscriptions',icon:'◫'},
+  {capability:'billing',title:'المدفوعات والتحصيل',description:'العمليات المالية والطلبات غير المحصلة والتحقق من الدفع.',href:'/control/payments',icon:'◉'},
   {capability:'content',title:'المحتوى والمعارف',description:'تحرير الأخبار والمعارف وإدارة مصادر المحتوى.',href:'/control/content',icon:'✦'},
   {capability:'website',title:'الموقع الإلكتروني',description:'إدارة صفحات ماركتون والمقالات والقوائم والبيلدر.',href:'/control/website',icon:'◇'},
   {capability:'access',title:'فريق المنصة والصلاحيات',description:'إضافة الموظفين وبناء الأدوار وتحديد الصلاحيات.',href:'/control/team',icon:'♙'},
@@ -29,8 +32,8 @@ export default async function ControlOverview({searchParams}){
     <header className="mt-page-head">
       <div>
         <small>PLATFORM CONTROL</small>
-        <h2>لوحة إدارة منصة ماركتون</h2>
-        <p>تظهر لك فقط الأدوات والبيانات التابعة لدورك وصلاحياتك الفعلية.</p>
+        <h2>لوحة إدارة منصة مُدار</h2>
+        <p>مركز SaaS موحد لإدارة المنشآت والمنتجات والباقات والاشتراكات والتحصيل.</p>
       </div>
       {primaryArea&&<div className="mt-page-actions"><Link className="mt-button primary" href={primaryArea.href}>فتح {primaryArea.title}</Link></div>}
     </header>
@@ -57,6 +60,13 @@ export default async function ControlOverview({searchParams}){
       </>}
     </section>}
 
+    {capabilities.billing&&<section className="mt-kpis">
+      <article className="mt-kpi"><span>الاشتراكات النشطة</span><b>{number(data.commerce?.summary?.activeSubscriptions)}</b><small>{number(data.commerce?.summary?.trialSubscriptions)} اشتراك تجريبي</small></article>
+      <article className="mt-kpi"><span>الإيراد الشهري المتكرر</span><b>{new Intl.NumberFormat('ar-SA',{style:'currency',currency:'SAR',maximumFractionDigits:0}).format((Number(data.commerce?.summary?.monthlyRecurringMinor)||0)/100)}</b><small>من الاشتراكات النشطة</small></article>
+      <article className={`mt-kpi ${data.commerce?.summary?.pendingPayments?'warning':''}`}><span>طلبات تنتظر الدفع</span><b>{number(data.commerce?.summary?.pendingPayments)}</b><small>إضافات وخدمات غير محصلة</small></article>
+      <article className={`mt-kpi ${data.commerce?.summary?.pastDueSubscriptions?'danger':''}`}><span>اشتراكات متأخرة</span><b>{number(data.commerce?.summary?.pastDueSubscriptions)}</b><small>تحتاج متابعة تحصيل</small></article>
+    </section>}
+
     {(capabilities.tenants||capabilities.audit)&&<section className="mt-grid">
       {capabilities.tenants&&<article className="mt-panel">
         <header className="mt-panel-head"><div><h3>آخر المنشآت</h3><p>الحالة والباقة ومؤشرات التشغيل</p></div><Link className="mt-button soft" href="/control/tenants">عرض الكل</Link></header>
@@ -74,4 +84,3 @@ export default async function ControlOverview({searchParams}){
     </section>}
   </>;
 }
-

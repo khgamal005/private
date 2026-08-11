@@ -58,7 +58,7 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
   const [busy,setBusy]=useState('');
   const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
-  const closeModal=useCallback(()=>setModal(null),[]);
+  const closeModal=useCallback(()=>setModal(null),[setModal]);
   const products=data.products||EMPTY;
   const subscriptions=data.subscriptions||EMPTY;
   const categories=data.addonCategories||EMPTY;

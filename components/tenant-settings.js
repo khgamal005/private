@@ -5,18 +5,19 @@ import {useRouter} from 'next/navigation';
 import IntegrationHub from './integration-hub';
 import AutomationStudio from './automation-studio';
 import DeliveryAnalytics from './delivery-analytics';
-import AddonCenter from './addon-center';
 import RolePermissionsManager from './role-permissions-manager';
 
-const TABS=[
+const CORE_TABS=[
   ['users','المستخدمون'],
   ['invitations','الدعوات'],
-  ['roles','الأدوار والصلاحيات'],
-  ['addons','الإضافات والاشتراك'],
-  ['automation','الأتمتة الذكية'],
-  ['delivery','التسليم والتحليلات'],
-  ['integrations','الربط وواجهات API'],
-  ['templates','قوالب الرسائل']
+  ['roles','الأدوار والصلاحيات']
+];
+
+const ADDON_TABS=[
+  ['automation','الأتمتة الذكية',['automation']],
+  ['delivery','التسليم والتحليلات',['delivery_analytics']],
+  ['integrations','الربط وواجهات API',['whatsapp','email','api']],
+  ['templates','قوالب الرسائل',['templates']]
 ];
 
 const HEADINGS={
@@ -34,11 +35,6 @@ const HEADINGS={
     eyebrow:'إدارة الوصول',
     title:'الأدوار والصلاحيات',
     description:'اختر ما يستطيع كل دور رؤيته وتنفيذه بأسماء عربية واضحة.'
-  },
-  addons:{
-    eyebrow:'MODULAR ADD-ONS',
-    title:'الإضافات والاشتراك',
-    description:'فعّل كل قدرة مستقلة، راقب حدها واستهلاكها، واطلب التجربة دون أي تفعيل مدفوع غير معتمد.'
   },
   automation:{
     eyebrow:'AUTOMATION STUDIO',
@@ -64,8 +60,19 @@ const HEADINGS={
 
 export default function TenantSettings({slug,initialData,initialTab='users'}){
   const router=useRouter();
+  const enabledProductKeys=initialData.addonAccess?.enabledProductKeys||[];
+  const enabledAddons=useMemo(
+    ()=>new Set(enabledProductKeys),
+    [enabledProductKeys]
+  );
+  const tabs=useMemo(()=>[
+    ...CORE_TABS,
+    ...ADDON_TABS
+      .filter(([, ,required])=>required.some(key=>enabledAddons.has(key)))
+      .map(([key,label])=>[key,label])
+  ],[enabledAddons]);
   const [tab,setTab]=useState(()=>
-    TABS.some(([key])=>key===initialTab)?initialTab:'users'
+    tabs.some(([key])=>key===initialTab)?initialTab:'users'
   );
   const [query,setQuery]=useState('');
   const [modal,setModal]=useState(false);
@@ -77,11 +84,12 @@ export default function TenantSettings({slug,initialData,initialTab='users'}){
   const roles=initialData.roles||[];
   const invitations=initialData.invitations||[];
   const domains=initialData.domains||[];
-  const heading=HEADINGS[tab]||HEADINGS.users;
+  const activeTab=tabs.some(([key])=>key===tab)?tab:'users';
+  const heading=HEADINGS[activeTab]||HEADINGS.users;
   const shown=useMemo(()=>users.filter(user=>
     `${user.name||''} ${user.email||''} ${user.role||''}`.toLowerCase().includes(query.toLowerCase())
   ),[users,query]);
-  const accessTab=['users','invitations'].includes(tab);
+  const accessTab=['users','invitations'].includes(activeTab);
 
   async function inviteUser(event){
     event.preventDefault();
@@ -120,21 +128,21 @@ export default function TenantSettings({slug,initialData,initialTab='users'}){
   return <>
     <header className="mt-page-head">
       <div><small>{heading.eyebrow}</small><h2>{heading.title}</h2><p>{heading.description}</p></div>
-      {tab==='users'&&<div className="mt-page-actions"><button className="mt-button primary" onClick={()=>{setModal(true);setInvitationUrl('')}}>+ دعوة مستخدم</button></div>}
+      {activeTab==='users'&&<div className="mt-page-actions"><button className="mt-button primary" onClick={()=>{setModal(true);setInvitationUrl('')}}>+ دعوة مستخدم</button></div>}
     </header>
     {message&&accessTab&&<div className="mt-alert">{message}</div>}
     {error&&!modal&&accessTab&&<div className="mt-alert error">{error}</div>}
 
     <section className="mt-settings-tabs" aria-label="أقسام الإعدادات">
-      {TABS.map(([key,label])=><button
+      {tabs.map(([key,label])=><button
         key={key}
-        className={tab===key?'active':''}
+        className={activeTab===key?'active':''}
         onClick={()=>{setTab(key);setMessage('');setError('')}}
       >{label}</button>)}
     </section>
 
     {accessTab&&<AccessSettings
-      tab={tab}
+      tab={activeTab}
       query={query}
       setQuery={setQuery}
       users={users}
@@ -144,34 +152,31 @@ export default function TenantSettings({slug,initialData,initialTab='users'}){
       domains={domains}
     />}
 
-    {tab==='roles'&&<RolePermissionsManager
+    {activeTab==='roles'&&<RolePermissionsManager
       slug={slug}
       initialData={initialData.roleManagement}
     />}
 
-    {tab==='integrations'&&<IntegrationHub
+    {activeTab==='integrations'&&<IntegrationHub
       slug={slug}
       initialData={initialData.integrationHub}
       mode="integrations"
+      enabledProductKeys={enabledProductKeys}
     />}
 
-    {tab==='templates'&&<IntegrationHub
+    {activeTab==='templates'&&<IntegrationHub
       slug={slug}
       initialData={initialData.integrationHub}
       mode="templates"
+      enabledProductKeys={enabledProductKeys}
     />}
 
-    {tab==='automation'&&<AutomationStudio
+    {activeTab==='automation'&&<AutomationStudio
       slug={slug}
       initialData={initialData.automationStudio}
     />}
 
-    {tab==='addons'&&<AddonCenter
-      slug={slug}
-      initialData={initialData.addonCenter}
-    />}
-
-    {tab==='delivery'&&<DeliveryAnalytics
+    {activeTab==='delivery'&&<DeliveryAnalytics
       slug={slug}
       initialData={initialData.deliveryAnalytics}
     />}

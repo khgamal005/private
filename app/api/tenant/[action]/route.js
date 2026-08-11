@@ -39,6 +39,52 @@ const RPC={
   'calendar-day':'v5_tenant_calendar_day_snapshot'
 };
 
+const ACTION_ADDONS=Object.freeze({
+  'save-course-run':['lms'],
+  'update-training-operation':['lms'],
+  'training-automation':['lms'],
+  'automation-studio':['automation'],
+  'delivery-analytics':['delivery_analytics'],
+  'integration-hub':['whatsapp','email','api','templates']
+});
+
+async function checkAddonAccess({action,body,token}){
+  const required=ACTION_ADDONS[action]||(
+    action==='update-admission'
+    &&(body?.p_course_run_id||body?.p_action==='complete')
+      ?['lms']
+      :null
+  );
+  if(!required)return {ok:true};
+  const slug=body?.p_tenant_slug||body?.p_slug||body?.tenantSlug;
+  if(!slug)return {ok:false,status:400,error:'tenant_slug_required'};
+  const response=await fetch(
+    `${SUPABASE_URL}/rest/v1/rpc/v3_tenant_addon_navigation_snapshot`,
+    {
+      method:'POST',
+      headers:{
+        apikey:SUPABASE_KEY,
+        Authorization:`Bearer ${token}`,
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({p_slug:slug}),
+      cache:'no-store'
+    }
+  );
+  if(!response.ok){
+    return {
+      ok:false,
+      status:[401,403].includes(response.status)?response.status:503,
+      error:'addon_access_check_failed'
+    };
+  }
+  const snapshot=await response.json();
+  const enabled=new Set(snapshot?.enabledProductKeys||[]);
+  return required.some(productKey=>enabled.has(productKey))
+    ?{ok:true}
+    :{ok:false,status:403,error:'addon_not_enabled'};
+}
+
 export async function POST(request,{params}){
   try{
     const {action}=await params;
@@ -53,6 +99,13 @@ export async function POST(request,{params}){
     }
 
     const body=await request.json();
+    const addonAccess=await checkAddonAccess({action,body,token});
+    if(!addonAccess.ok){
+      return NextResponse.json(
+        {error:translate(addonAccess.error)},
+        {status:addonAccess.status}
+      );
+    }
     const endpoint=action==='integration-test'
       ?`${SUPABASE_URL}/functions/v1/training-automation-dispatch`
       :`${SUPABASE_URL}/rest/v1/rpc/${rpc}`;
@@ -229,6 +282,7 @@ function translate(value){
     ,invalid_delivery_payload:'بيانات إشعار التسليم غير صالحة'
     ,invalid_delivery_state:'حالة التسليم غير صالحة'
     ,addon_not_enabled:'هذه الإضافة غير مفعلة'
+    ,addon_access_check_failed:'تعذر التحقق من ترخيص الإضافة حاليًا'
     ,addon_product_not_found:'الإضافة المطلوبة غير موجودة'
     ,addon_already_enabled:'الإضافة مفعّلة بالفعل ضمن باقتك'
     ,addon_trial_unavailable:'التجربة غير متاحة لهذه الإضافة'

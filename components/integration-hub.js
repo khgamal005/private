@@ -44,7 +44,7 @@ function renderTemplate(value,variables){
   return result.replace(/\{\{[a-z][a-z0-9_]*\}\}/g,'—');
 }
 
-export default function IntegrationHub({slug,initialData,mode='integrations'}){
+export default function IntegrationHub({slug,initialData,mode='integrations',enabledProductKeys=EMPTY}){
   const router=useRouter();
   const data=initialData||{};
   const providers=data.providers||EMPTY;
@@ -58,14 +58,21 @@ export default function IntegrationHub({slug,initialData,mode='integrations'}){
   const [busy,setBusy]=useState('');
   const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
+  const enabledChannels=useMemo(
+    ()=>new Set(enabledProductKeys),
+    [enabledProductKeys]
+  );
 
-  const grouped=useMemo(()=>Object.entries(CHANNELS).map(
-    ([key,meta])=>({
+  const grouped=useMemo(()=>Object.entries(CHANNELS)
+    .filter(([key])=>enabledChannels.has(key))
+    .map(([key,meta])=>({
       key,
       ...meta,
-      providers:providers.filter(provider=>provider.channel===key)
+      providers:providers.filter(
+        provider=>provider.channel===key&&provider.addonEnabled!==false
+      )
     })
-  ),[providers]);
+  ),[enabledChannels,providers]);
 
   async function action(name,payload){
     const response=await fetch('/api/tenant/integration-hub',{

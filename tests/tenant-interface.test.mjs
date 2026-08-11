@@ -36,7 +36,10 @@ test('tenant navigation follows the approved business order and groups',async()=
     'لوحة القيادة',
     'الأخبار والمعارف',
     'تقويم المهام',
-    'البرامج والدورات',
+    'الدبلومات والدورات',
+    'منصة التدريب التفاعلي',
+    'إضافات مُدار',
+    'متجر الخدمات',
     'المبيعات والعملاء',
     'التسجيل والقبول',
     'التسويق والأتمتة',
@@ -51,8 +54,14 @@ test('tenant navigation follows the approved business order and groups',async()=
     assert.ok(index>previous,`${label} must keep its approved menu position`);
     previous=index;
   }
-  assert.match(shell,/label:'متجر البرامج والدورات'/);
-  assert.match(shell,/label:'منصة التدريب التفاعلي \(قريبًا\)'/);
+  assert.doesNotMatch(shell,/البرامج والدورات/);
+  assert.match(shell,/label:'الدبلومات والدورات',href:`\$\{base\}\/courses`/);
+  assert.match(shell,/label:'منصة التدريب التفاعلي',href:`\$\{base\}\/lms`/);
+  assert.match(shell,/hasAddon\('lms'\)/);
+  assert.match(shell,/label:'إضافات مُدار',children:\[/);
+  assert.match(shell,/label:'الإضافات المثبتة'/);
+  assert.match(shell,/label:'إضافة جديدة'/);
+  assert.match(shell,/key:'servicesStore',label:'متجر الخدمات',href:/);
   assert.match(shell,/label:'توزيع العملاء'/);
   assert.match(shell,/label:'الأهداف والحوافز'/);
   assert.match(shell,/label:'مركز الحملات والتسويق'/);
@@ -63,6 +72,8 @@ test('tenant navigation follows the approved business order and groups',async()=
   assert.match(shell,/aria-disabled=\{child\.disabled\|\|undefined\}/);
   assert.match(settingsPage,/initialTab=\{query\?\.tab\}/);
   assert.match(settings,/initialTab='users'/);
+  assert.match(settings,/ADDON_TABS/);
+  assert.doesNotMatch(settings,/AddonCenter/);
 });
 
 test('toolbar notifications use live role dashboard counts',async()=>{

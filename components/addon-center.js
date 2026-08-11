@@ -93,7 +93,18 @@ function statusTone(status){
 export default function AddonCenter({slug,initialData}){
   const router=useRouter();
   const data=initialData||{};
-  const products=data.products||EMPTY;
+  const sourceProducts=data.products||EMPTY;
+  const products=useMemo(()=>sourceProducts.filter(product=>{
+      const entitlement=product.entitlement||{};
+      const status=entitlement.effectiveStatus||entitlement.status||'disabled';
+      const source=entitlement.source||'none';
+      return Boolean(
+        entitlement.enabled
+        ||product.subscription?.id
+        ||entitlement.subscriptionId
+        ||(!['none','default','missing'].includes(source)&&status!=='disabled')
+      );
+    }),[sourceProducts]);
   const summary=data.summary||{};
   const timezone=data.tenant?.timezone||data.timezone||'Asia/Riyadh';
   const paymentMethods=data.paymentProviders||data.paymentMethods||EMPTY;
@@ -129,7 +140,6 @@ export default function AddonCenter({slug,initialData}){
       const enabled=Boolean(entitlement.enabled);
       const filterMatch=filter==='all'
         ||(filter==='enabled'&&enabled)
-        ||(filter==='available'&&!enabled&&!['pending','expired'].includes(status))
         ||(filter==='attention'&&['pending','expired','paused'].includes(status));
       const queryMatch=!needle||[
         product.name,product.description,product.featureKey,
@@ -184,7 +194,7 @@ export default function AddonCenter({slug,initialData}){
     </header>
 
     <section className={styles.kpis}>
-      <article><small>الإضافات المتاحة</small><b>{summary.products||products.length}</b><span>كتالوج مركزي موحّد</span></article>
+      <article><small>الإضافات المثبتة</small><b>{products.length}</b><span>تراخيص منشأتك فقط</span></article>
       <article><small>التراخيص النشطة</small><b>{summary.enabled||0}</b><span>لهذه المنشأة فقط</span></article>
       <article><small>تنتهي خلال 30 يومًا</small><b>{summary.expiringWithin30Days??summary.expiringSoon??0}</b><span>تحتاج قرار تجديد</span></article>
       <article><small>قيمة أسعار الكتالوج</small><b>{money(activeAnnualValue,summary.currency||'SAR')}</b><span>للإضافات المفعلة وليست إثبات دفع</span></article>
@@ -212,7 +222,7 @@ export default function AddonCenter({slug,initialData}){
     <section className={styles.toolbar}>
       <label><span aria-hidden="true">⌕</span><input aria-label="البحث في الإضافات" value={query} onChange={event=>setQuery(event.target.value)} placeholder="ابحث باسم الإضافة أو الشاشة…"/></label>
       <div role="group" aria-label="تصفية الإضافات">{[
-        ['all','الكل'],['enabled','المفعّلة'],['available','المتاحة'],['attention','تحتاج إجراء']
+        ['all','الكل'],['enabled','المفعّلة'],['attention','تحتاج إجراء']
       ].map(([key,label])=><button type="button" key={key} aria-pressed={filter===key} className={filter===key?styles.selected:''} onClick={()=>setFilter(key)}>{label}</button>)}</div>
     </section>
 

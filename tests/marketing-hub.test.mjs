@@ -141,7 +141,10 @@ test('tenant command center exposes decision metrics, connections, and protected
     read('proxy.js'),
     read('lib/marketing-api.js')
   ]);
-  assert.match(page,/requireTenantPermission\(slug,'tenant\.marketing\.read'\)/);
+  assert.match(
+    page,
+    /requireTenantAddon\(slug,'marketing_attribution',[\s\S]*?permission:'tenant\.marketing\.read'/
+  );
   for(const pattern of [
     /مركز قرار الحملات/,
     /سلامة البيانات/,
@@ -178,3 +181,4 @@ test('tenant command center exposes decision metrics, connections, and protected
   assert.match(shell,/href:`\$\{base\}\/marketing`/);
   assert.match(proxy,/\/api\/marketing/);
 });
+

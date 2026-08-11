@@ -1,6 +1,6 @@
 import MarketingCommandCenter from '../../../../components/marketing-command-center';
 import {getTenantMarketingHub} from '../../../../lib/marketing-api';
-import {requireTenantPermission} from '../../../../lib/server-auth';
+import {requireTenantAddon} from '../../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
 
@@ -77,10 +77,10 @@ async function safeSnapshot(slug,range){
 export default async function MarketingPage({params,searchParams}){
   const [{slug},query]=await Promise.all([params,searchParams]);
   const range={from:validDate(query?.from),to:validDate(query?.to)};
-  const [context,snapshot]=await Promise.all([
-    requireTenantPermission(slug,'tenant.marketing.read'),
-    safeSnapshot(slug,range)
-  ]);
+  const context=await requireTenantAddon(slug,'marketing_attribution',{
+    permission:'tenant.marketing.read'
+  });
+  const snapshot=await safeSnapshot(slug,range);
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
   const canManage=Boolean(
     context.platformAccess

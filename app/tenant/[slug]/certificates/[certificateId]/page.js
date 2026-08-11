@@ -1,5 +1,5 @@
 import {getTenantCertificate} from '../../../../../lib/api';
-import {requireTenantPermission} from '../../../../../lib/server-auth';
+import {requireTenantAddon} from '../../../../../lib/server-auth';
 import PrintCertificateButton from '../../../../../components/print-certificate-button';
 
 export const dynamic='force-dynamic';
@@ -12,12 +12,14 @@ const date=value=>value?new Date(value).toLocaleDateString('ar-SA',{
 
 export default async function CertificatePage({params}){
   const {slug,certificateId}=await params;
-  await requireTenantPermission(slug,'tenant.training.read');
+  await requireTenantAddon(slug,'lms',{
+    permission:'tenant.training.read'
+  });
   const certificate=await getTenantCertificate(slug,certificateId);
 
   return <main className="mt-certificate-page" dir="rtl">
     <div className="mt-certificate-print-actions">
-      <a href={`/tenant/${encodeURIComponent(slug)}/admissions`}>
+      <a href={`/tenant/${encodeURIComponent(slug)}/lms`}>
         العودة إلى تشغيل المتدربين
       </a>
       <PrintCertificateButton/>

@@ -24,10 +24,11 @@ test('platform staff access has isolated roles, invitations and guarded RPCs',as
 });
 
 test('delegated platform employees cannot inherit the owner cross-tenant bypass',async()=>{
-  const [migration,auth,login]=await Promise.all([
+  const [migration,auth,login,destination]=await Promise.all([
     read('supabase/migrations/20260804201500_platform_access_scope_hardening_v1.sql'),
     read('lib/server-auth.js'),
-    read('app/api/auth/login/route.js')
+    read('app/api/auth/login/route.js'),
+    read('lib/login-destination.mjs')
   ]);
   assert.match(migration,/'platformAccess',v_platform_full_access/);
   assert.match(migration,/'platformControlAccess',v_platform_control_access/);
@@ -35,16 +36,18 @@ test('delegated platform employees cannot inherit the owner cross-tenant bypass'
   assert.match(migration,/'platform_access',v_platform_content_access/);
   assert.match(auth,/canAccessPlatformControl/);
   assert.match(auth,/context\?\.platformControlAccess/);
-  assert.doesNotMatch(
-    auth,
-    /function hasPlatformPermission[\s\S]*?context\?\.platformAccess[\s\S]*?\n}/
-  );
+  const hasPermission=auth.match(
+    /function hasPlatformPermission\(context,permission\)\{([\s\S]*?)\n}/
+  )?.[1]||'';
+  assert.doesNotMatch(hasPermission,/platformAccess/);
   assert.match(
     auth,
     /if\(!context\.platformAccess&&!context\.memberships\?\.some/
   );
-  assert.match(login,/platformControlAccess/);
-  assert.match(login,/platform\.control\.read/);
+  assert.match(login,/resolvePostLoginPath/);
+  assert.match(destination,/context\?\.platformControlAccess/);
+  assert.match(destination,/context\?\.platformAccess/);
+  assert.match(destination,/platform\.control\.read/);
 });
 
 test('platform navigation and routes are driven by explicit permissions',async()=>{
@@ -95,3 +98,4 @@ test('platform access UI supports employees, custom roles and safe invitations',
   assert.match(activation,/v2_platform_invitation_preview/);
   assert.match(edge,/v2_accept_platform_invitation/);
 });
+

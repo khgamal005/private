@@ -111,7 +111,7 @@ test('employee tenant routes do not eagerly load administrator-only settings',as
     /export async function getTenant\(slug(?:,\{[\s\S]*?\}=\{\})?\)\{([\s\S]*?)\n\}\n\nexport async function getTenantWooCommerce/
   )?.[1]||'';
   const getSettingsBody=data.match(
-    /export async function getTenantSettings\(slug\)\{([\s\S]*?)\n\}\n\nexport async function getTenantOperations/
+    /export async function getTenantSettings\(slug,\{addonAccess\}=\{\}\)\{([\s\S]*?)\n\}\n\nexport async function getTenantMarketplace/
   )?.[1]||'';
 
   assert.match(getTenantBody,/v2_tenant_workspace_snapshot/);
@@ -120,7 +120,8 @@ test('employee tenant routes do not eagerly load administrator-only settings',as
   assert.match(getSettingsBody,/v2_tenant_integration_hub_snapshot/);
   assert.match(getSettingsBody,/v2_tenant_automation_studio_snapshot_v2/);
   assert.match(getSettingsBody,/v2_tenant_delivery_analytics_snapshot_v2/);
-  assert.match(getSettingsBody,/v2_tenant_addon_center_snapshot/);
+  assert.match(getSettingsBody,/enabled\.has\('automation'\)/);
+  assert.match(data,/v3_tenant_addon_navigation_snapshot/);
   assert.match(settings,/getTenantSettings/);
   assert.match(data,/includeSales=true/);
   assert.match(data,/includeSales\s*\?authRpc\('v3_tenant_sales_pipeline_snapshot'/);
@@ -142,6 +143,8 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   const data=await read('../lib/api.js');
   const sales=await read('../components/sales-workspace.js');
   const admissions=await read('../components/admissions-workspace.js');
+  const lms=await read('../components/lms-workspace.js');
+  const lmsPage=await read('../app/tenant/[slug]/lms/page.js');
   const shell=await read('../components/workspace-shell.js');
   const tasks=await read('../components/task-calendar-page.js');
   const followupModal=await read('../components/sales-followup-modal.js');
@@ -224,8 +227,10 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(shell,/tenant\.admissions\.read/);
   assert.match(admissions,/تأكيد الدفع/);
   assert.match(admissions,/إنشاء المتدرب وإتمام التسجيل/);
-  assert.match(admissions,/الدفعات والجداول/);
-  assert.match(admissions,/تشغيل المتدربين/);
+  assert.doesNotMatch(admissions,/الدفعات والجداول|تشغيل المتدربين/);
+  assert.match(lms,/الدفعات والجداول/);
+  assert.match(lms,/تشغيل المتدربين/);
+  assert.match(lmsPage,/requireTenantAddon\(slug,'lms'/);
   assert.match(learnerOperations,/رسالة الانضمام/);
   assert.match(learnerOperations,/الحضور حسب الجلسة/);
   assert.match(learnerOperations,/التقييم النهائي/);
@@ -445,13 +450,15 @@ test('add-ons have approval, entitlement, quota reservation, and finalized usage
   assert.match(dispatcher,/p_usage_reservation_id/);
   assert.match(center,/المحاكاة والفشل لا يُفوتران/);
   assert.match(center,/طلب تجربة/);
-  assert.match(settings,/AddonCenter/);
+  assert.doesNotMatch(settings,/AddonCenter/);
+  assert.match(settings,/ADDON_TABS/);
   assert.match(control,/decideAddon/);
   assert.match(control,/طلبات التجربة والتفعيل/);
   assert.match(tenantApi,/v2_tenant_addon_center_action/);
   assert.match(platformApi,/v2_platform_addon_center_action/);
   assert.match(data,/v2_platform_addon_center_snapshot/);
-  assert.match(data,/v2_tenant_addon_center_snapshot/);
+  assert.match(data,/v3_tenant_addon_center_snapshot/);
+  assert.match(data,/v3_tenant_addon_navigation_snapshot/);
   assert.match(styles,/mt-addon-grid/);
 });
 

@@ -45,6 +45,10 @@ const FILES={
     MIGRATIONS_DIR,
     '20260811128000_addon_platform_v3_jsonb_key_count.sql'
   ),
+  lmsNavigation:resolve(
+    MIGRATIONS_DIR,
+    '20260812110000_lms_addon_navigation_gates.sql'
+  ),
   api:resolve(MAIN_DIR,'lib/api.js'),
   placementRegistry:resolve(MAIN_DIR,'lib/addons/placement-registry.js'),
   tenantCenter:resolve(MAIN_DIR,'components/addon-center.js'),
@@ -81,7 +85,7 @@ const entries=await Promise.all(
 );
 const source=Object.fromEntries(entries);
 
-const EXPECTED_PRODUCTS=[
+const INITIAL_PRODUCTS=[
   'api',
   'automation',
   'cms_pro',
@@ -98,6 +102,11 @@ const EXPECTED_PRODUCTS=[
   'zid',
   'zoom'
 ];
+
+const EXPECTED_PRODUCTS=[
+  ...INITIAL_PRODUCTS,
+  'lms'
+].sort();
 
 function sortedUnique(values){
   return [...new Set(values)].sort();
@@ -169,7 +178,8 @@ test('migrations are additive and contain no destructive SQL statements',()=>{
     'grantHardening',
     'paymentHardening',
     'businessTimezone',
-    'jsonbKeyCount'
+    'jsonbKeyCount',
+    'lmsNavigation'
   ]){
     const migration=withoutAllowedForeignKeyDeletes(source[key]);
     assert.doesNotMatch(
@@ -220,7 +230,7 @@ test('the fixed 15-product annual price catalog has matching manifest surfaces',
   assert.equal(prices.length,15,'Expected exactly 15 initial annual prices');
   assert.deepEqual(
     sortedUnique(prices.map(price=>price.productKey)),
-    EXPECTED_PRODUCTS
+    INITIAL_PRODUCTS
   );
   assert.ok(prices.every(price=>price.amountMinor>0));
   assert.match(priceSeed,/'SAR'[\s\S]*?'year'[\s\S]*?date\s*'2026-08-01'/i);
@@ -253,7 +263,41 @@ test('the fixed 15-product annual price catalog has matching manifest surfaces',
     /\(\s*'([a-z][a-z0-9_]*)'\s*,\s*'([^']+)'/g
   )].map(([,productKey])=>productKey);
   assert.equal(surfaceProducts.length,15,'Expected one known surface per product');
-  assert.deepEqual(sortedUnique(surfaceProducts),EXPECTED_PRODUCTS);
+  assert.deepEqual(sortedUnique(surfaceProducts),INITIAL_PRODUCTS);
+});
+
+test('LMS is a standalone licensed surface with a tenant-safe navigation snapshot',()=>{
+  const migration=source.lmsNavigation;
+  const navigation=sqlFunction(
+    migration,
+    'public.v3_tenant_addon_navigation_snapshot'
+  );
+
+  assert.match(migration,/'addon\.training\.lms'/);
+  assert.match(migration,/'lms'[\s\S]*?'training'/);
+  assert.match(migration,/200000[\s\S]*?'SAR'[\s\S]*?'year'/);
+  assert.match(migration,/'tenant\.lms'[\s\S]*?'when_entitled'/);
+  assert.match(migration,/\/tenant\/\{slug\}\/lms/);
+  assert.match(migration,/tenant\.academy\.read/);
+
+  assert.match(navigation,/private_app\.can_access_tenant\s*\(/i);
+  assert.match(navigation,/private_app\.tenant_addon_enabled\s*\(/i);
+  assert.match(navigation,/'enabledProductKeys'/);
+  assert.match(navigation,/'surfaces'/);
+  assert.doesNotMatch(navigation,/route_template|external_url|secret/i);
+
+  const reef=sectionBetween(
+    migration,
+    'do $reef_lms_grant$',
+    '$reef_lms_grant$;'
+  );
+  assert.match(reef,/tenant\.tenant_key\s*=\s*'tenant-reef-skills'/i);
+  assert.match(reef,/period_is_authoritative[\s\S]*?true/i);
+  assert.match(
+    reef,
+    /lifecycle_protected_until[\s\S]*?2027-08-01 00:00:00\+03/i
+  );
+  assert.doesNotMatch(migration,/tenant-modaar-training-center[\s\S]*?insert into catalog\.tenant_addon_subscriptions/i);
 });
 
 test('Reef receives every published add-on for the exact fixed year only',()=>{
@@ -512,7 +556,7 @@ test('database surface keys resolve only through the tenant-safe placement regis
   const routeKeys=sortedUnique(quotedObjectKeys(routesBody));
   const placements=productPlacementEntries(productBody);
 
-  assert.equal(placements.length,15);
+  assert.equal(placements.length,16);
   assert.deepEqual(
     sortedUnique(placements.map(entry=>entry.productKey)),
     EXPECTED_PRODUCTS

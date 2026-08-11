@@ -1,5 +1,5 @@
-import MarketplaceStore from '../../../../components/marketplace-store';
-import {getTenantMarketplace} from '../../../../lib/api';
+import MarketplaceAddonStoreV2 from '../../../../components/marketplace-addon-store-v2';
+import {getTenantMarketplaceV2} from '../../../../lib/marketplace-v2';
 import {requireTenantPermission} from '../../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
@@ -7,9 +7,9 @@ export const dynamic='force-dynamic';
 export default async function AddonsStorePage({params}){
   const {slug}=await params;
   await requireTenantPermission(slug,'tenant.users.manage');
-  return <MarketplaceStore
+  return <MarketplaceAddonStoreV2
     slug={slug}
-    initialTab="addons"
-    initialData={await getTenantMarketplace(slug)}
+    initialData={await getTenantMarketplaceV2(slug)}
   />;
 }
+

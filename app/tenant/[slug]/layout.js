@@ -1,5 +1,6 @@
 import {
   getTenant,
+  getTenantAddonNavigation,
   getTenantRoleDashboard,
   getTenantYeastarAccess
 } from '../../../lib/api';
@@ -13,7 +14,7 @@ export const dynamic='force-dynamic';
 export default async function TenantLayout({children,params}){
   const {slug}=await params;
   const context=await requireTenant(slug);
-  const [data,dashboard,yeastarAccess]=await Promise.all([
+  const [data,dashboard,yeastarAccess,addonAccess]=await Promise.all([
     getTenant(slug),
     getTenantRoleDashboard(slug).catch(()=>null),
     getTenantYeastarAccess(slug).catch(()=>({
@@ -22,6 +23,10 @@ export default async function TenantLayout({children,params}){
       configured:false,
       canView:false,
       canManage:false
+    })),
+    getTenantAddonNavigation(slug).catch(()=>({
+      enabledProductKeys:[],
+      surfaces:[]
     }))
   ]);
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
@@ -48,6 +53,7 @@ export default async function TenantLayout({children,params}){
     roleLabel={roleLabel}
     notificationSummary={headerSummary(dashboard)}
     yeastarAccess={yeastarAccess}
+    addonAccess={addonAccess}
   >
     {children}
     <MyRoleGuide

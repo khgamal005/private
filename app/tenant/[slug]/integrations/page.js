@@ -1,6 +1,6 @@
 import CommerceIntegrationHub from '../../../../components/commerce-integration-hub';
 import {getTenantCommerceHub} from '../../../../lib/commerce-api';
-import {requireTenantPermission} from '../../../../lib/server-auth';
+import {requireTenantAddon} from '../../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
 
@@ -79,11 +79,16 @@ const FALLBACK_PROVIDERS=[
   }
 ];
 
-function normalizeProviders(data){
+const PRODUCT_BY_PROVIDER={custom:'custom_store'};
+
+function normalizeProviders(data,enabledProductKeys){
+  const enabled=new Set(enabledProductKeys||[]);
   const hasRemoteProviders=Array.isArray(data?.providers)&&data.providers.length>0;
   const providers=hasRemoteProviders?data.providers:FALLBACK_PROVIDERS;
   const wooCommerce=data?.woocommerce||{};
-  return providers.map(provider=>{
+  return providers.filter(provider=>enabled.has(
+    PRODUCT_BY_PROVIDER[provider.providerKey]||provider.providerKey
+  )).map(provider=>{
     if(provider.providerKey!=='woocommerce')return provider;
     return {
       ...provider,
@@ -97,17 +102,17 @@ function normalizeProviders(data){
   });
 }
 
-async function safeCommerceHub(slug){
+async function safeCommerceHub(slug,enabledProductKeys){
   try{
     const data=await getTenantCommerceHub(slug);
     return {
       ...data,
-      providers:normalizeProviders(data),
+      providers:normalizeProviders(data,enabledProductKeys),
       degraded:!Array.isArray(data?.providers)||data.providers.length===0
     };
   }catch{
     return {
-      providers:normalizeProviders(null),
+      providers:normalizeProviders(null,enabledProductKeys),
       canManage:false,
       degraded:true
     };
@@ -116,10 +121,15 @@ async function safeCommerceHub(slug){
 
 export default async function IntegrationsPage({params}){
   const {slug}=await params;
-  const [context,commerceHub]=await Promise.all([
-    requireTenantPermission(slug,'tenant.users.manage'),
-    safeCommerceHub(slug)
-  ]);
+  const context=await requireTenantAddon(
+    slug,
+    ['woocommerce','salla','zid','shopify','custom_store'],
+    {permission:'tenant.users.manage'}
+  );
+  const commerceHub=await safeCommerceHub(
+    slug,
+    context.addonAccess?.enabledProductKeys
+  );
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
   const canManage=Boolean(
     context.platformAccess

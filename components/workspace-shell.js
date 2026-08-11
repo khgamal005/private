@@ -59,23 +59,25 @@ function tenantItems(
   permissions,
   platformAccess,
   roleKey,
-  yeastarAccess
+  yeastarAccess,
+  addonAccess
 ){
   const base=`/tenant/${encodeURIComponent(slug)}`;
   const policy=tenantRolePolicy(roleKey,{platformAccess});
+  const enabledAddons=new Set(addonAccess?.enabledProductKeys||[]);
+  const hasAddon=productKey=>enabledAddons.has(productKey);
+  const hasAnyAddon=productKeys=>productKeys.some(hasAddon);
   const items=[
     {key:'overview',label:'لوحة القيادة',href:base,permission:'tenant.workspace.read'},
     {key:'news',label:'الأخبار والمعارف',href:`${base}/news`,permission:'tenant.content.read',visible:policy.showNews},
     {key:'tasks',label:'تقويم المهام',href:`${base}/tasks`,permission:'tenant.work.read'},
-    {key:'courses',label:'البرامج والدورات',children:[
-      {key:'courses',label:'متجر البرامج والدورات',href:`${base}/courses`,permission:'tenant.academy.read'},
-      {key:'interactive',label:'منصة التدريب التفاعلي (قريبًا)',permission:'tenant.academy.read',visible:policy.showInteractiveTraining,disabled:true}
-    ]},
-    {key:'marketplace',label:'إضافات وخدمات مُدار',children:[
+    {key:'courses',label:'الدبلومات والدورات',href:`${base}/courses`,permission:'tenant.academy.read'},
+    {key:'interactive',label:'منصة التدريب التفاعلي',href:`${base}/lms`,permission:'tenant.academy.read',visible:policy.showInteractiveTraining&&hasAddon('lms')},
+    {key:'marketplace',label:'إضافات مُدار',children:[
       {key:'addons',label:'الإضافات المثبتة',href:`${base}/addons`,permission:'tenant.settings.manage'},
-      {key:'addonsStore',label:'إضافة جديدة',href:`${base}/addons-store`,permission:'tenant.users.manage'},
-      {key:'servicesStore',label:'متجر الخدمات',href:`${base}/services-store`,permission:'tenant.users.manage'}
+      {key:'addonsStore',label:'إضافة جديدة',href:`${base}/addons-store`,permission:'tenant.users.manage'}
     ]},
+    {key:'servicesStore',label:'متجر الخدمات',href:`${base}/services-store`,permission:'tenant.users.manage'},
     {key:'sales',label:'المبيعات والعملاء',children:[
       {key:'search',label:'البحث عن عميل',href:`${base}/customer-search`,always:true},
       {key:'sales',label:'إدارة المبيعات والعملاء',href:`${base}/sales`,permission:'tenant.crm.read'},
@@ -89,9 +91,9 @@ function tenantItems(
       {key:'callReports',label:'تقارير المكالمات',href:`${base}/yeastar`,permission:'tenant.crm.read',visible:Boolean(yeastarAccess?.canView)},
       {key:'settings',label:'إعدادات الربط',href:`${base}/yeastar/settings`,permission:'tenant.settings.manage',visible:Boolean(yeastarAccess?.canManage)}
     ]},
-    {key:'marketing',label:'التسويق والأتمتة',visible:policy.showMarketingAutomation,children:[
-      {key:'marketing',label:'مركز الحملات والتسويق',href:`${base}/marketing`,permission:'tenant.marketing.read'},
-      {key:'automation',label:'الأتمتة',href:`${base}/settings?tab=automation`,permission:'tenant.users.manage'}
+    {key:'marketing',label:'التسويق والأتمتة',visible:policy.showMarketingAutomation&&hasAnyAddon(['marketing_attribution','automation']),children:[
+      {key:'marketing',label:'مركز الحملات والتسويق',href:`${base}/marketing`,permission:'tenant.marketing.read',visible:hasAddon('marketing_attribution')},
+      {key:'automation',label:'الأتمتة',href:`${base}/settings?tab=automation`,permission:'tenant.users.manage',visible:hasAddon('automation')}
     ]},
     {key:'accounting',label:'الحسابات والفوترة (قريبًا)',permission:'tenant.workspace.read',disabled:true},
     {key:'people',label:'فريق العمل',href:`${base}/team`,permission:'tenant.people.read',visible:policy.showTeam},
@@ -101,9 +103,9 @@ function tenantItems(
       {key:'sales',label:'تقارير المبيعات',href:`${base}/reports/sales`,permission:'tenant.crm.read'},
       {key:'campaignReports',label:'تقارير الحملات',href:`${base}/reports/campaigns`,permission:['tenant.crm.read','tenant.leads.read','tenant.leads.analytics'],visible:policy.showCampaignReports}
     ]},
-    {key:'website',label:'الموقع الإلكتروني',href:`${base}/website`,permission:'tenant.website.read'},
+    {key:'website',label:'الموقع الإلكتروني',href:`${base}/website`,permission:'tenant.website.read',visible:hasAddon('cms_pro')},
     {key:'settings',label:'الإعدادات والصلاحيات',href:`${base}/settings`,permission:'tenant.users.manage'},
-    {key:'integrations',label:'المزامنة والترابط',href:`${base}/integrations`,permission:'tenant.users.manage'}
+    {key:'integrations',label:'المزامنة والترابط',href:`${base}/integrations`,permission:'tenant.users.manage',visible:hasAnyAddon(['woocommerce','salla','zid','shopify','custom_store'])}
   ];
   const allowed=new Set(permissions||[]);
   const canUse=permission=>{
@@ -164,12 +166,11 @@ function notificationItems(summary,slug){
   return items;
 }
 
-export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,yeastarAccess=null}){
+export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,yeastarAccess=null,addonAccess=null}){
   const pathname=usePathname();
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
-    courses:pathname.includes('/courses'),
-    marketplace:pathname.includes('/services-store')||pathname.includes('/addons'),
+    marketplace:pathname.includes('/addons'),
     sales:['/customer-search','/sales','/lead-queue','/incentives'].some(path=>pathname.includes(path)),
     yeastar:pathname.includes('/yeastar')||pathname.includes('/call-reports'),
     marketing:pathname.includes('/marketing')||pathname.includes('/settings'),
@@ -183,7 +184,8 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       permissions,
       platformAccess,
       roleKey,
-      yeastarAccess
+      yeastarAccess,
+      addonAccess
     )
     :platformItems(permissions),[
       kind,
@@ -191,7 +193,8 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       permissions,
       platformAccess,
       roleKey,
-      yeastarAccess
+      yeastarAccess,
+      addonAccess
     ]);
   const areaLabel=kind===WORKSPACE_KINDS.tenant?'لوحة المنشأة':'لوحة إدارة المنصة';
   const canCreateTask=platformAccess||permissions.includes('tenant.work.write');

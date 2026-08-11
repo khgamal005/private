@@ -68,7 +68,7 @@ test('reports render personal performance and hide unavailable report links',asy
   assert.match(center,/availability\[capability\]!==false/);
   assert.match(center,/personalOnly\?'أدائي':'أداء الموظفين'/);
   assert.match(center,/availability\.campaigns!==false/);
-  assert.match(api,/v2_tenant_reports_snapshot_v3/);
+  assert.match(api,/v4_tenant_reports_snapshot/);
   assert.match(calls,/v3_tenant_yeastar_reports_snapshot/);
 });
 

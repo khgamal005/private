@@ -1,4 +1,8 @@
 import * as XLSX from 'xlsx';
+import {
+  ASSIGNMENT_METRIC_CONTRACT_VERSION,
+  leadIntakeDateBasis
+} from '../../../../lib/assignment-metric-contract.mjs';
 import {authRpc} from '../../../../lib/server-auth';
 
 export const runtime='nodejs';
@@ -99,7 +103,7 @@ function reportDataKeys(data,section){
 
 async function loadCallContext(payload,rpcParams,first){
   const [performance,dashboard,departments]=await Promise.all([
-    authRpc('v2_tenant_reports_snapshot_v3',{
+    authRpc('v4_tenant_reports_snapshot',{
       p_slug:payload.slug,
       p_from:payload.from||null,
       p_to:payload.to||null,
@@ -157,7 +161,7 @@ async function loadCallReport(payload){
 
 async function loadLeadIntakeReport(payload){
   const optional=value=>value&&value!=='all'?value:null;
-  return authRpc('v2_tenant_lead_intake_export_v1',{
+  return authRpc('v3_tenant_lead_intake_export_v1',{
     p_slug:payload.slug,
     p_section:payload.section||'assignments',
     p_from:payload.from||null,
@@ -181,7 +185,7 @@ async function loadGeneralReport(payload){
     p_limit:GENERAL_PAGE_SIZE,
     p_offset:0
   };
-  const first=await authRpc('v2_tenant_reports_snapshot_v3',params);
+  const first=await authRpc('v4_tenant_reports_snapshot',params);
   const section=payload.section||'all';
   if(payload.report!=='employee'||!['all','details'].includes(section))return first;
 
@@ -193,7 +197,7 @@ async function loadGeneralReport(payload){
   let offset=GENERAL_PAGE_SIZE;
 
   while(needsMore&&offset<DETAIL_EXPORT_LIMIT){
-    const page=await authRpc('v2_tenant_reports_snapshot_v3',{
+    const page=await authRpc('v4_tenant_reports_snapshot',{
       ...params,
       p_offset:offset
     });
@@ -261,6 +265,12 @@ export async function POST(request){
       batchId:payload.batchId||'',
       validation:payload.validation||'',
       query:payload.query||'',
+      dateBasis:isLeadIntake
+        ?leadIntakeDateBasis(payload.section||'assignments').field
+        :'event_specific',
+      metricContract:isLeadIntake
+        ?ASSIGNMENT_METRIC_CONTRACT_VERSION
+        :'reporting-v4',
       exportedAt:new Date().toISOString()
     }]);
     for(const key of reportDataKeys(data,payload.section||'all'))appendValue(workbook,key,data[key]);

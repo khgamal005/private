@@ -16,7 +16,7 @@ const page=await readFile(
 );
 
 test('Yeastar page reuses canonical employee metrics and staff mapping',()=>{
-  assert.match(page,/v2_tenant_reports_snapshot_v3/);
+  assert.match(page,/v4_tenant_reports_snapshot/);
   assert.match(page,/v4_tenant_yeastar_department_snapshot/);
   assert.match(page,/getTenantRoleDashboard/);
   assert.match(page,/p_report:'employees'/);

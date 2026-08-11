@@ -130,7 +130,7 @@ test('lead distribution tabs share separated filters and complete XLSX exports',
   for(const tab of ['queue','batches','assignments','analytics','team']){
     assert.match(route,new RegExp(tab+":\\['"+tab+"'\\]"));
   }
-  assert.match(route,/v2_tenant_lead_intake_export_v1/);
+  assert.match(route,/v3_tenant_lead_intake_export_v1/);
   assert.match(route,/isLeadIntake/);
   assert.match(css,/\.mt-lead-report-filter-grid/);
   assert.match(migration,/p_quality text/);

@@ -71,7 +71,9 @@ function metricsFor(view,summary){
     metric('اكتمال البيانات',percent(summary.dataCompletenessRate),'الحقول الأساسية للعملاء','amber')
   ];
   return [
-    metric('العملاء المسندون',number(summary.leadsAssigned),'عملاء تم توزيعهم خلال الفترة','blue'),
+    metric('العملاء المسندون',number(summary.leadsAssigned),'عملاء فريدون تم إسنادهم خلال الفترة بغض النظر عن نتيجتهم اللاحقة','blue'),
+    metric('عمليات الإسناد',number(summary.assignmentOperations),'تشمل إعادة توزيع العميل إن حدثت','cyan'),
+    metric('الصالحون بعد المعالجة',number(summary.validAssignedLeads),'بعد استبعاد الرقم الخاطئ وغير المؤهل والمكرر','amber'),
     metric('المدفوعات المؤكدة',number(summary.paidContacts),'حالات تم التحقق من دفعها','green'),
     metric('قيمة المبيعات',moneyMinor(revenue),'قيمة محققة خلال الفترة','green'),
     metric('أنشطة المتابعة',number(summary.activities),'مكالمات ومتابعات مسجلة','purple'),

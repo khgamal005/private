@@ -107,7 +107,8 @@ const required=[
   '20260811125000_addon_platform_v3_grant_hardening.sql',
   '20260811126000_addon_platform_v3_payment_hardening.sql',
   '20260811127000_addon_platform_v3_business_timezone.sql',
-  '20260811128000_addon_platform_v3_jsonb_key_count.sql'
+  '20260811128000_addon_platform_v3_jsonb_key_count.sql',
+  '20260811190000_assignment_metric_reconciliation_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -147,6 +148,9 @@ for(const pattern of [
   /v2_tenant_incentives_snapshot/,
   /v2_tenant_reports_snapshot_v2/,
   /v2_tenant_reports_snapshot_v3/,
+  /v4_tenant_reports_snapshot/,
+  /v3_tenant_lead_intake_export_v1/,
+  /v3_assignment_events/,
   /v2_tenant_role_dashboard_snapshot_v3/,
   /v2_tenant_role_dashboard_snapshot_v4/,
   /v2_tenant_employee_achievement_snapshot_v2/,

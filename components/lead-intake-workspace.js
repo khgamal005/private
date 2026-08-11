@@ -2,6 +2,11 @@
 
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import {
+  assignmentDateMatches,
+  dateMatches,
+  leadIntakeDateBasis
+} from '../lib/assignment-metric-contract.mjs';
 import ReportExcelButton from './report-excel-button';
 
 const EMPTY=[];
@@ -218,25 +223,27 @@ function assignmentQualities(assignment){
   ]);
 }
 
-function dateMatches(values,filters){
-  if(!filters.from&&!filters.to)return true;
-  const from=filters.from?new Date(filters.from+'T00:00:00'):null;
-  const to=filters.to?new Date(filters.to+'T23:59:59.999'):null;
-  return values.some(value=>{
-    if(!value)return false;
-    const current=new Date(value);
-    if(Number.isNaN(current.getTime()))return false;
-    if(from&&current<from)return false;
-    if(to&&current>to)return false;
-    return true;
-  });
-}
-
-function matchesUniversal(item,dateValues,filters,qualities=['unrated']){
-  if(!dateMatches(dateValues,filters))return false;
+function matchesUniversal(
+  item,
+  dateValues,
+  filters,
+  qualities=['unrated'],
+  timeZone='Asia/Riyadh'
+){
+  if(!dateMatches(dateValues,filters,timeZone))return false;
   if(filters.source!=='all'&&item.source!==filters.source)return false;
   if(filters.campaign!=='all'&&item.campaignName!==filters.campaign)return false;
   if(filters.quality!=='all'&&!qualities.includes(filters.quality))return false;
+  return true;
+}
+
+function matchesAssignment(assignment,filters,timeZone){
+  if(!assignmentDateMatches(assignment,filters,timeZone))return false;
+  if(filters.source!=='all'&&assignment.source!==filters.source)return false;
+  if(filters.campaign!=='all'
+    &&assignment.campaignName!==filters.campaign)return false;
+  if(filters.quality!=='all'
+    &&!assignmentQualities(assignment).includes(filters.quality))return false;
   return true;
 }
 
@@ -375,6 +382,8 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   const campaigns=data.campaigns||EMPTY;
   const staff=data.staff||EMPTY;
   const summary=data.summary||{};
+  const timeZone=data.timezone||'Asia/Riyadh';
+  const dateBasis=leadIntakeDateBasis(tab);
 
   const awaitingRows=useMemo(
     ()=>rows.filter(row=>row.validationStatus==='valid'
@@ -410,13 +419,8 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   ]),[assignments]);
 
   const filteredAssignments=useMemo(()=>assignments.filter(assignment=>
-    matchesUniversal(
-      assignment,
-      [assignment.assignedAt,assignment.firstActionAt],
-      filters,
-      assignmentQualities(assignment)
-    )
-  ),[assignments,filters]);
+    matchesAssignment(assignment,filters,timeZone)
+  ),[assignments,filters,timeZone]);
 
   const shownRows=useMemo(()=>rows.filter(row=>{
     if(batchFilter!=='all'&&row.batchId!==batchFilter)return false;
@@ -431,7 +435,8 @@ export default function LeadIntakeWorkspace({slug,initialData}){
       row,
       [row.createdAt,assignment?.assignedAt,assignment?.firstActionAt],
       filters,
-      assignmentQualities(assignment)
+      assignmentQualities(assignment),
+      timeZone
     ))return false;
     const haystack=[
       row.name,row.phone,row.whatsapp,row.email,row.programName,
@@ -444,14 +449,17 @@ export default function LeadIntakeWorkspace({slug,initialData}){
     validationFilter,
     query,
     assignmentsByRow,
-    filters
+    filters,
+    timeZone
   ]);
 
   const shownBatches=useMemo(()=>batches.filter(batch=>{
     if(!matchesUniversal(
       batch,
       [batch.createdAt,batch.distributedAt],
-      {...filters,quality:'all'}
+      {...filters,quality:'all'},
+      ['unrated'],
+      timeZone
     ))return false;
     if(filters.quality==='all')return true;
     return rows.some(row=>{
@@ -459,7 +467,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
       return assignmentQualities(assignmentsByRow.get(row.id))
         .includes(filters.quality);
     });
-  }),[batches,rows,assignmentsByRow,filters]);
+  }),[batches,rows,assignmentsByRow,filters,timeZone]);
 
   const shownCampaigns=useMemo(()=>{
     const needsRowLevel=Boolean(filters.from||filters.to)
@@ -468,7 +476,9 @@ export default function LeadIntakeWorkspace({slug,initialData}){
       return campaigns.filter(campaign=>matchesUniversal(
         campaign,
         [],
-        {...filters,from:'',to:'',quality:'all'}
+        {...filters,from:'',to:'',quality:'all'},
+        ['unrated'],
+        timeZone
       ));
     }
     const matchingRows=rows.filter(row=>{
@@ -477,11 +487,12 @@ export default function LeadIntakeWorkspace({slug,initialData}){
         row,
         [row.createdAt,assignment?.assignedAt,assignment?.firstActionAt],
         filters,
-        assignmentQualities(assignment)
+        assignmentQualities(assignment),
+        timeZone
       );
     });
     return aggregateCampaignRows(matchingRows,assignmentsByRow);
-  },[campaigns,rows,assignmentsByRow,filters]);
+  },[campaigns,rows,assignmentsByRow,filters,timeZone]);
 
   const filtersActive=Boolean(
     filters.from
@@ -788,6 +799,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
         <div>
           <h3>فلترة وتحليل بيانات التوزيع</h3>
           <p>المصدر هو قناة جلب العميل، والحملة هي حملة التسويق المحددة؛ كلاهما مستقل.</p>
+          <p>أساس الفترة في هذا التبويب: <b>{dateBasis.label}</b> · التوقيت: {timeZone}</p>
         </div>
         <div className="mt-page-actions">
           {filtersActive&&<button

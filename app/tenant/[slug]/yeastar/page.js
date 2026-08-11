@@ -61,7 +61,7 @@ export default async function YeastarReportsPage({params,searchParams}){
     });
 
     const [performance,dashboard,departments]=await Promise.all([
-      authRpc('v2_tenant_reports_snapshot_v3',{
+      authRpc('v4_tenant_reports_snapshot',{
         p_slug:slug,
         p_from:filters.from||null,
         p_to:filters.to||null,

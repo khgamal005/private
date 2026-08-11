@@ -279,6 +279,7 @@ function AddonCard({slug,product,timezone,busy,onAction,onDetails}){
     </section>
     <footer>
       <button type="button" className={styles.secondary} onClick={onDetails}>التفاصيل والشاشات</button>
+      {/* Keep the dedicated Yeastar label stable for legacy navigation and regression checks. */}
       {openHref?<Link href={openHref}>{product.key==='yeastar'?'فتح إضافة Yeastar':'فتح الإضافة'}</Link>
         :canCancelRequest?<button type="button" className={styles.danger} disabled={Boolean(busy)} onClick={()=>onAction('cancel_request',product)}>إلغاء الطلب</button>
           :canRequestTrial?<button type="button" className={styles.primary} disabled={Boolean(busy)} onClick={()=>onAction('request_trial',product)}>{busy===`request_trial-${product.key}`?'جارٍ الإرسال…':`طلب تجربة ${product.trialDays} يومًا`}</button>

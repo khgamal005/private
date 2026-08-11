@@ -39,6 +39,18 @@ function formatDate(value){
 
 function today(){return new Date().toISOString().slice(0,10);}
 
+function annualEnd(start){
+  const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(start);
+  if(!match)return start;
+  const nextYear=Number(match[1])+1;
+  const month=match[2];
+  const day=month==='02'&&match[3]==='29'
+    &&!(nextYear%4===0&&(nextYear%100!==0||nextYear%400===0))
+    ?'28'
+    :match[3];
+  return `${nextYear}-${month}-${day}`;
+}
+
 export default function PlatformAddonConsole({initialData}){
   const router=useRouter();
   const data=initialData||{};
@@ -289,7 +301,7 @@ function PriceModal({item,busy,onClose,onSubmit}){
 
 function GrantModal({products,tenants,busy,onClose,onSubmit}){
   const start=today();
-  const end=new Date(Date.now()+365*86400000).toISOString().slice(0,10);
+  const end=annualEnd(start);
   return <Modal title="منح ترخيص مؤرخ" onClose={onClose}><form onSubmit={onSubmit} className={styles.form}>
     <label>المنشأة<select name="tenant_id" required defaultValue=""><option value="" disabled>اختر المنشأة بالاسم والرابط</option>{tenants.map(tenant=><option key={tenant.id} value={tenant.id}>{tenant.name} · {tenant.slug}</option>)}</select></label>
     <label>الإضافة<select name="product_key" required>{products.map(item=><option key={item.key} value={item.key}>{item.name}</option>)}</select></label>

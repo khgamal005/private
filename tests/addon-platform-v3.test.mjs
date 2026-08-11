@@ -586,4 +586,6 @@ test('add-on pages and UI actions use permission-gated, same-origin APIs',()=>{
     /fetch\(\s*(?:`|['"])https?:\/\//i
   );
   assert.match(source.platformConsole,/type="password"\s+autoComplete="new-password"/);
+  assert.doesNotMatch(source.platformConsole,/Date\.now\s*\(/);
+  assert.match(source.platformConsole,/function\s+annualEnd\s*\(/);
 });

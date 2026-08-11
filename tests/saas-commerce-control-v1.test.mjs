@@ -4,8 +4,9 @@ import {readFile} from 'node:fs/promises';
 
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
-const [migration,route,api,shell,plans,subscriptions,services,payments,addons]=await Promise.all([
+const [migration,indexes,route,api,shell,plans,subscriptions,services,payments,addons]=await Promise.all([
   read('supabase/migrations/20260812100000_modaar_saas_commerce_control_v1.sql'),
+  read('supabase/migrations/20260812101000_modaar_saas_commerce_control_v1_fk_indexes.sql'),
   read('app/api/platform/[action]/route.js'),read('lib/api.js'),read('components/workspace-shell.js'),
   read('components/platform-plans.js'),read('components/platform-subscriptions.js'),
   read('components/platform-services.js'),read('components/platform-payments.js'),
@@ -20,6 +21,9 @@ test('commerce control migration is additive and tenant safe',()=>{
   assert.match(migration,/create table if not exists catalog\.plan_limit_definitions/);
   assert.match(migration,/create table if not exists catalog\.plan_limits/);
   assert.match(migration,/create table if not exists catalog\.addon_categories/);
+  assert.match(indexes,/catalog_plan_limits_limit_key_idx/);
+  assert.match(indexes,/on catalog\.plan_limits\(limit_key\)/);
+  assert.doesNotMatch(indexes,/\b(?:drop|delete|truncate)\b/i);
 });
 
 test('free and paid plans have enforceable resource criteria',()=>{

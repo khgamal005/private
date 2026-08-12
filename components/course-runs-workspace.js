@@ -64,7 +64,7 @@ export default function CourseRunsWorkspace({slug,data}){
       venueOrLink:'',
       price:'',
       status:'planning',
-      sessions:[emptySession(course.deliveryMode||'hybrid')]
+      sessions:Array.from({length:5},()=>emptySession(course.deliveryMode||'hybrid'))
     });
     setError('');
     setNotice('');

@@ -277,7 +277,12 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
           ||{};
         setNotice(
           `تم اختبار ${provider.nameAr} بنجاح`
-          +`${identity.name?` — ${identity.name}`:''}.`
+          +`${identity.name?` — ${identity.name}`:''}`
+          +`${identity.currency?` · العملة ${identity.currency}`:''}`
+          +`${identity.totalProducts!=null
+            &&Number.isFinite(Number(identity.totalProducts))
+            ?` · ${Number(identity.totalProducts).toLocaleString('ar-SA')} منتجًا`
+            :''}.`
         );
       }else{
         let completed=result;
@@ -292,9 +297,10 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
           );
           completed=await waitForWooSync(result.runId);
           if(!completed){
+            syncKeys.current.delete(provider.providerKey);
             setNotice(
-              `مزامنة ${provider.nameAr} ما زالت تعمل في الخلفية. `
-              +'لن يؤدي ذلك إلى تكرار البيانات.'
+              `انتهت نافذة متابعة مزامنة ${provider.nameAr}. `
+              +'العملية مستمرة أو اكتملت في الخلفية؛ حدّث الصفحة لرؤية سجلها.'
             );
             router.refresh();
             return;
@@ -317,6 +323,7 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
       }
       router.refresh();
     }catch(reason){
+      if(action==='sync')syncKeys.current.delete(provider.providerKey);
       setError(reason.message);
     }finally{
       setBusy('');
@@ -328,7 +335,16 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
       runId,
       wait:delay,
       isActive:()=>mounted.current,
-      fetchSnapshot:()=>call('woocommerce','status')
+      fetchSnapshot:()=>call('woocommerce','status'),
+      onProgress:run=>{
+        const reviewed=wooSyncReviewedCount(run);
+        setNotice(
+          'المزامنة تعمل في الخلفية'
+          +`${reviewed>0
+            ?` · تمت مراجعة ${reviewed.toLocaleString('ar-SA')} سجلًا`
+            :''}…`
+        );
+      }
     });
   }
 
@@ -358,7 +374,11 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
     }
   }
 
-  return <section className={styles.hub} aria-labelledby="commerce-hub-title">
+  return <section
+    className={styles.hub}
+    aria-labelledby="commerce-hub-title"
+    aria-busy={Boolean(busy)}
+  >
     <header className={styles.header}>
       <div>
         <small>MARKTONE SYNC & CONNECT</small>
@@ -393,6 +413,17 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
       </span>
     </div>}
 
+    <div
+      className={styles.feedbackRegion}
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      {notice&&<div className={styles.notice} role="status">{notice}</div>}
+      {error&&!selected&&<div className={styles.error} role="alert">
+        {error}
+      </div>}
+    </div>
+
     <div className={styles.grid}>
       {providers.map(provider=><ProviderCard
         key={provider.providerKey}
@@ -410,9 +441,6 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
     {!providers.length&&<div className={styles.emptyState}>
       لم يتم تحميل منصات المتاجر. أعد فتح الصفحة أو تواصل مع إدارة المنصة.
     </div>}
-
-    {notice&&<div className={styles.notice}>{notice}</div>}
-    {error&&!selected&&<div className={styles.error}>{error}</div>}
 
     {selected&&modalMode==='connect'&&<ProviderModal
       provider={selected}

@@ -135,7 +135,7 @@ test('comprehensive map uses cohort closing rate and qualified revenue forecast'
   assert.match(component,/closingRateLabel.*× القيمة/s);
   assert.match(styles,/grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
   assert.match(styles,/\.pillar\{[\s\S]*grid-column:span 2/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v4/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v5/);
   assert.match(migration,/with assignment_cohort as/);
   assert.match(migration,/count\(distinct|select distinct assignment\.contact_id/);
   assert.match(migration,/paidFromDistributedThisMonth/);
@@ -159,10 +159,10 @@ test('tenant overview never substitutes stale metrics when the canonical RPC fai
   assert.doesNotMatch(page,/task\.status!=='completed'/);
   assert.match(page,/Promise\.all/);
   assert.match(page,/RoleDashboard/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v4/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v5/);
   assert.doesNotMatch(
     api,
-    /v2_tenant_role_dashboard_snapshot_v4'[\s\S]*v2_tenant_role_dashboard_snapshot_v3/
+    /v2_tenant_role_dashboard_snapshot_v5'[\s\S]*v2_tenant_role_dashboard_snapshot_v4/
   );
   assert.match(shell,/لوحة القيادة/);
   assert.match(layout,/training_manager:'مدير التدريب'/);

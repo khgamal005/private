@@ -37,6 +37,7 @@ type ConnectionConfiguration = {
   consumerSecret: string;
   syncScope: Json;
   lastSyncedAt: string;
+  syncTimezone: string;
 };
 
 type WooClient = {
@@ -502,7 +503,8 @@ function connectionConfiguration(value: Json): ConnectionConfiguration {
     syncScope: (
       recordValue(record, 'syncScope', 'sync_scope') ?? null
     ) as Json,
-    lastSyncedAt: recordText(record, 'lastSyncedAt', 'last_synced_at')
+    lastSyncedAt: recordText(record, 'lastSyncedAt', 'last_synced_at'),
+    syncTimezone: recordText(record, 'syncTimezone', 'sync_timezone') || 'UTC'
   };
   if (
     !isUuid(configuration.connectionId)
@@ -706,6 +708,25 @@ function endpointUrl(
 ) {
   const safeEndpoint = endpoint.replace(/^\/+/, '');
   const url = new URL(safeEndpoint, client.apiBase);
+  for (const [key, value] of Object.entries(query)) {
+    if (value != null && value !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  }
+  return url;
+}
+
+function analyticsEndpointUrl(
+  client: WooClient,
+  endpoint: string,
+  query: Record<string, string | number | undefined> = {}
+) {
+  const base = new URL(client.apiBase);
+  base.pathname = base.pathname.replace(
+    /\/wc\/v3\/$/,
+    '/wc-analytics/'
+  );
+  const url = new URL(endpoint.replace(/^\/+/, ''), base);
   for (const [key, value] of Object.entries(query)) {
     if (value != null && value !== '') {
       url.searchParams.set(key, String(value));
@@ -1157,7 +1178,7 @@ function normalizeOrder(item: JsonRecord, fallbackCurrency: string): JsonRecord 
     :'';
   const paidAtLocal = recordText(item, 'date_paid');
   const refunds = Array.isArray(item.refunds) ? item.refunds : [];
-  const refundTotalMinor = refunds.reduce(
+  const refundTotalMinor = refunds.reduce<number>(
     (total, refund) => total + Math.abs(
       priceMinor(asRecord(refund)?.total, minorDigits) || 0
     ),
@@ -1213,10 +1234,14 @@ function normalizeCustomer(item: JsonRecord): JsonRecord {
   };
 }
 
-async function currentCurrency(client: WooClient) {
+async function currentCurrency(
+  client: WooClient,
+  requestOptions: {attempts?: number; timeoutMs?: number} = {}
+) {
   const response = await wooRequest(
     client,
-    endpointUrl(client, 'data/currencies/current')
+    endpointUrl(client, 'data/currencies/current'),
+    requestOptions
   );
   const record = asRecord(response.data);
   const currency = recordText(record || {}, 'code').toUpperCase();
@@ -1224,6 +1249,143 @@ async function currentCurrency(client: WooClient) {
     throw new IntegrationError('woocommerce_currency_unavailable', 502);
   }
   return currency;
+}
+
+function zonedMonthToDate(timeZone: string) {
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23'
+    });
+  } catch {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'UTC',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23'
+    });
+    timeZone = 'UTC';
+  }
+  const values = Object.fromEntries(
+    formatter.formatToParts(new Date())
+      .filter(part => part.type !== 'literal')
+      .map(part => [part.type, part.value])
+  );
+  const date = `${values.year}-${values.month}-${values.day}`;
+  return {
+    timeZone,
+    periodKey: `${values.year}-${values.month}`,
+    after: `${values.year}-${values.month}-01T00:00:00`,
+    before: `${date}T${values.hour}:${values.minute}:${values.second}`
+  };
+}
+
+async function currentRevenueReport(
+  client: WooClient,
+  currency: string,
+  syncTimezone: string
+) {
+  const range = zonedMonthToDate(syncTimezone);
+  const minorDigits = currencyMinorDigits(currency);
+  const fetchedAt = new Date().toISOString();
+  try {
+    const response = await wooRequest(
+      client,
+      analyticsEndpointUrl(
+        client,
+        'reports/revenue/stats',
+        {
+          after: range.after,
+          before: range.before,
+          interval: 'day',
+          page: 1,
+          per_page: 100,
+          order: 'asc',
+          orderby: 'date'
+        }
+      ),
+      {
+        attempts: DURABLE_REMOTE_ATTEMPTS,
+        timeoutMs: DURABLE_REMOTE_TIMEOUT_MS
+      }
+    );
+    const report = asRecord(response.data);
+    const totals = asRecord(report?.totals);
+    if (!report || !totals) {
+      throw new IntegrationError(
+        'woocommerce_revenue_report_invalid',
+        502
+      );
+    }
+    const minor = (key: string, absolute = false) => {
+      const value = priceMinor(totals[key], minorDigits);
+      if (value == null) return null;
+      return absolute ? Math.abs(value) : value;
+    };
+    const requiredCount = (key: string) => {
+      const raw = textValue(totals[key]);
+      const value = Number(raw);
+      return raw && Number.isSafeInteger(value) && value >= 0
+        ? value
+        : null;
+    };
+    const normalizedTotals = {
+      orderCount: requiredCount('orders_count'),
+      itemCount: requiredCount('num_items_sold'),
+      grossSalesMinor: minor('gross_sales'),
+      returnsMinor: minor('refunds', true),
+      couponsMinor: minor('coupons', true),
+      netSalesMinor: minor('net_revenue'),
+      taxesMinor: minor('taxes'),
+      shippingMinor: minor('shipping'),
+      totalSalesMinor: minor('total_sales')
+    };
+    if (Object.values(normalizedTotals).some(value => value == null)) {
+      throw new IntegrationError(
+        'woocommerce_revenue_report_invalid',
+        502
+      );
+    }
+    return {
+      available: true,
+      source: 'woocommerce_analytics',
+      endpoint: 'wc-analytics/reports/revenue/stats',
+      dateType: 'store_default',
+      currency,
+      minorDigits,
+      timeZone: range.timeZone,
+      periodKey: range.periodKey,
+      after: range.after,
+      before: range.before,
+      fetchedAt,
+      totals: normalizedTotals
+    } as JsonRecord;
+  } catch (error) {
+    return {
+      available: false,
+      source: 'woocommerce_analytics',
+      endpoint: 'wc-analytics/reports/revenue/stats',
+      currency,
+      minorDigits,
+      timeZone: range.timeZone,
+      periodKey: range.periodKey,
+      after: range.after,
+      before: range.before,
+      fetchedAt,
+      error: safeErrorCode(error)
+    } as JsonRecord;
+  }
 }
 
 function pageInformation(
@@ -2013,11 +2175,20 @@ async function processDurableStep(
   const client = await createWooClient(configuration);
 
   if (cursor.mode === 'metadata') {
-    const currency = await currentCurrency(client);
+    const currency = await currentCurrency(client, {
+      attempts: DURABLE_REMOTE_ATTEMPTS,
+      timeoutMs: DURABLE_REMOTE_TIMEOUT_MS
+    });
+    const revenueReport = await currentRevenueReport(
+      client,
+      currency,
+      configuration.syncTimezone
+    );
     const nextCursor = cursorAfterWooMetadata(cursor, plan, {
       apiVersion: 'wc/v3',
       storeOrigin: client.apiBase.origin,
       currency,
+      revenueReport,
       lastSyncedAt: configuration.lastSyncedAt || null
     }) as JsonRecord;
     await checkpointDurablePage(keys, claim, nextCursor);
@@ -2427,7 +2598,7 @@ Deno.serve(async request => {
       );
       const requestedScope = recordValue(body, 'scope', 'syncScope');
       if (
-        recordText(body, 'responseMode', 'response_mode') !== 'durable-v2'
+        recordText(body, 'responseMode', 'response_mode') === 'legacy-v1'
       ) {
         return json(
           await performSync(

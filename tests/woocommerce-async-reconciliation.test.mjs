@@ -14,6 +14,10 @@ const dashboard=await read('../components/role-dashboard.js');
 const migration=await read(
   '../supabase/migrations/20260812134000_woocommerce_checkpoint_worker_v3.sql'
 );
+const resultsMigration=await read(
+  '../supabase/migrations/20260812150000_woocommerce_results_revenue_v1.sql'
+);
+const api=await read('../lib/api.js');
 const syncState=await import('../lib/woocommerce-sync-state.mjs');
 const syncMachine=await import(
   '../supabase/functions/_shared/woocommerce-sync-machine.mjs'
@@ -149,11 +153,13 @@ test('both WooCommerce interfaces poll the same run instead of retrying it',()=>
 
 test('polling tolerates transient failures and resolves the original run',async()=>{
   let calls=0;
+  const progress=[];
   const run=await syncState.pollWooSyncRun({
     runId:'run-1',
     maxAttempts:4,
     intervalMs:0,
     wait:async()=>{},
+    onProgress:value=>progress.push(value.status),
     fetchSnapshot:async()=>{
       calls+=1;
       if(calls===1)throw new Error('temporary status failure');
@@ -170,6 +176,7 @@ test('polling tolerates transient failures and resolves the original run',async(
   assert.equal(run.status,'success');
   assert.equal(syncState.wooSyncReviewedCount(run),3179);
   assert.equal(calls,3);
+  assert.deepEqual(progress,['running','success']);
 });
 
 test('polling reports partial and failed terminal runs without restarting',async()=>{
@@ -213,8 +220,34 @@ test('orders preserve paid time and separate financial components',()=>{
   assert.doesNotMatch(edge,/netAmountMinor:/);
 });
 
-test('dashboard labels verified registrations without claiming Woo revenue',()=>{
+test('dashboard separates Woo Analytics revenue from verified registrations',()=>{
+  assert.match(edge,/wc-analytics/);
+  assert.match(edge,/reports\/revenue\/stats/);
+  assert.match(edge,/grossSalesMinor/);
+  assert.match(edge,/netSalesMinor/);
+  assert.match(edge,/requiredCount\('orders_count'\)/);
+  assert.match(edge,/woocommerce_revenue_report_invalid/);
+  assert.match(edge,/configuration\.syncTimezone/);
+  assert.match(resultsMigration,/v2_tenant_role_dashboard_snapshot_v5/);
+  assert.match(resultsMigration,/woocommerceRevenue/);
+  assert.match(resultsMigration,/revenueReport/);
+  assert.match(resultsMigration,/run\.finished_at < settings\.enabled_at/);
+  assert.match(resultsMigration,/'orders' = any\(run\.scope\)/);
+  assert.doesNotMatch(resultsMigration,/reef-skills/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v5/);
+  assert.match(dashboard,/صافي مبيعات WooCommerce هذا الشهر/);
   assert.match(dashboard,/دفعات التسجيل المؤكدة هذا الشهر/);
-  assert.match(dashboard,/وليست تقرير WooCommerce/);
-  assert.doesNotMatch(dashboard,/صافي مبيعات WooCommerce هذا الشهر/);
+  assert.match(dashboard,/منع الازدواج/);
+});
+
+test('integration results remain visible while users stay on provider cards',()=>{
+  const noticePosition=hub.indexOf('role="status"');
+  const gridPosition=hub.indexOf('<div className={styles.grid}>');
+  assert.ok(noticePosition>0);
+  assert.ok(gridPosition>noticePosition);
+  assert.match(hub,/feedbackRegion/);
+  assert.match(hub,/aria-atomic="true"/);
+  assert.match(legacyPanel,/aria-live="polite"/);
+  assert.match(hub,/onProgress:run/);
+  assert.match(legacyPanel,/onProgress:run/);
 });

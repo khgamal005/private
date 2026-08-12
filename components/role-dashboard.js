@@ -108,6 +108,20 @@ function moneyMinorCurrency(value,currency='SAR'){
   }).format((Number(value)||0)/100);
 }
 
+function moneyMinorCurrencyExact(value,currency='SAR',minorDigits=2){
+  if(value==null||!Number.isFinite(Number(value)))return '—';
+  const normalized=/^[A-Z]{3}$/.test(String(currency||'').toUpperCase())
+    ?String(currency).toUpperCase()
+    :'SAR';
+  const digits=Math.min(4,Math.max(0,Number(minorDigits)||0));
+  return new Intl.NumberFormat('ar-SA',{
+    style:'currency',
+    currency:normalized,
+    minimumFractionDigits:digits,
+    maximumFractionDigits:digits
+  }).format((Number(value)||0)/(10**digits));
+}
+
 function ratio(value){
   if(value==null||!Number.isFinite(Number(value)))return '—';
   return `${new Intl.NumberFormat('ar-EG',{
@@ -155,13 +169,42 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
   const marketingSummary=marketing?.summary||{};
 
   if(EXECUTIVE_ROLES.has(role)){
-    const items=[
+    const woo=executive.woocommerceRevenue||{};
+    const wooTotals=woo.totals||{};
+    const wooMoney=value=>moneyMinorCurrencyExact(
+      value,
+      woo.currency,
+      woo.minorDigits
+    );
+    const items=[];
+    const hasWooRevenue=woo.available
+      &&Number.isFinite(Number(wooTotals.netSalesMinor))
+      &&wooTotals.netSalesMinor!=null;
+    if(woo.connected){
+      items.push(metric(
+        'صافي مبيعات WooCommerce هذا الشهر',
+        hasWooRevenue?wooMoney(wooTotals.netSalesMinor):'التقرير غير متاح',
+        hasWooRevenue
+          ?`${number(wooTotals.orderCount)} طلبًا · `
+            +`الإجمالي ${wooMoney(wooTotals.grossSalesMinor)} · `
+            +`الخصومات ${wooMoney(wooTotals.couponsMinor)}`
+            +`${Number(wooTotals.returnsMinor)>0
+              ?` · المرتجعات ${wooMoney(wooTotals.returnsMinor)}`
+              :''}`
+            +`${woo.stale?' · البيانات تحتاج مزامنة حديثة':''}`
+          :woo.error
+            ?'تعذر جلب تقرير WooCommerce الرسمي في آخر محاولة؛ راجع صلاحيات Analytics ثم أعد الاختبار.'
+            :'سيظهر رقم WooCommerce الرسمي بعد اكتمال مزامنة تشمل الطلبات.',
+        hasWooRevenue?'green':'amber',
+        true
+      ));
+    }
+    items.push(
       metric(
         'دفعات التسجيل المؤكدة هذا الشهر',
         moneyMinor(executive.wonRevenueMinor),
-        'دفعات تم التحقق منها في سجل القبول داخل المنصة؛ وليست تقرير WooCommerce',
-        'green',
-        true
+        'دفعات تم التحقق منها في سجل القبول داخل المنصة؛ وتظهر منفصلة لمنع الازدواج',
+        'green'
       ),
       metric(
         'قيمة المسار',
@@ -175,7 +218,7 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
       metric('طلبات قبول معلّقة',number(executive.pendingAdmissions),'تحتاج متابعة','amber'),
       metric('مكالمات الشهر',number(calls.totalCalls),`${percent(calls.answerRate)} نسبة الرد`,'cyan'),
       metric('مجموعات نشطة',number(executive.activeCourseRuns),'مفتوحة أو جارية','pink')
-    ];
+    );
     if(canReadMarketing){
       items.splice(4,0,metric(
         'الإنفاق الإعلاني — 30 يومًا',

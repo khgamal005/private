@@ -175,8 +175,10 @@ export default function WooCommerceSyncPanel({
         );
         completed=await waitForSync(result.runId);
         if(!completed){
+          syncKey.current=null;
           setNotice(
-            'المزامنة ما زالت تعمل في الخلفية، ولن تتكرر البيانات.'
+            'انتهت نافذة المتابعة. المزامنة مستمرة أو اكتملت في الخلفية؛ '
+            +'حدّث الصفحة لرؤية سجلها.'
           );
           router.refresh();
           return;
@@ -198,6 +200,7 @@ export default function WooCommerceSyncPanel({
       syncKey.current=null;
       router.refresh();
     }catch(reason){
+      syncKey.current=null;
       setNotice('');
       setError(reason.message);
       router.refresh();
@@ -211,7 +214,16 @@ export default function WooCommerceSyncPanel({
       runId,
       wait:delay,
       isActive:()=>mounted.current,
-      fetchSnapshot:()=>call('status')
+      fetchSnapshot:()=>call('status'),
+      onProgress:run=>{
+        const reviewed=wooSyncReviewedCount(run);
+        setNotice(
+          'المزامنة تعمل في الخلفية'
+          +`${reviewed>0
+            ?` · تمت مراجعة ${reviewed.toLocaleString('ar-SA')} سجلًا`
+            :''}…`
+        );
+      }
     });
   }
 
@@ -357,8 +369,15 @@ export default function WooCommerceSyncPanel({
       </ol>
     </div>}
 
-    {notice&&<div className="mt-alert mt-woocommerce-alert">{notice}</div>}
-    {error&&<div className="mt-alert error mt-woocommerce-alert">{error}</div>}
+    {notice&&<div
+      className="mt-alert mt-woocommerce-alert"
+      role="status"
+      aria-live="polite"
+    >{notice}</div>}
+    {error&&<div
+      className="mt-alert error mt-woocommerce-alert"
+      role="alert"
+    >{error}</div>}
     {connection?.lastError&&!error&&<div className="mt-alert error mt-woocommerce-alert">
       آخر ملاحظة: {connection.lastError}
     </div>}

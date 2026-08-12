@@ -24,6 +24,9 @@ test('tenant navigation is one compact list with the supplied wordmark',async()=
   assert.match(layout,/tenant-shell-polish\.css/);
   assert.match(polish,/--mt-shell-width:246px/);
   assert.match(polish,/@media\(max-width:980px\)/);
+  assert.match(polish,/\.mt-navigation>a>b\{[\s\S]*?font-size:12px!important/);
+  assert.match(polish,/\.mt-navigation-parent>b\{[\s\S]*?font-size:12px!important/);
+  assert.match(polish,/\.mt-navigation-children a b\{font-size:10px!important/);
 });
 
 test('tenant navigation follows the approved business order and groups',async()=>{
@@ -38,12 +41,12 @@ test('tenant navigation follows the approved business order and groups',async()=
     'تقويم المهام',
     'الدبلومات والدورات',
     'منصة التدريب التفاعلي',
-    'إضافات مُدار',
-    'متجر الخدمات',
     'المبيعات والعملاء',
     'التسجيل والقبول',
     'التسويق والأتمتة',
     'الحسابات والفوترة (قريبًا)',
+    'إضافات مُدار',
+    'متجر الخدمات',
     'فريق العمل',
     'التقارير والتحليل',
     'الإعدادات والصلاحيات'

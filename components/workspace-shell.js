@@ -73,11 +73,6 @@ function tenantItems(
     {key:'tasks',label:'تقويم المهام',href:`${base}/tasks`,permission:'tenant.work.read'},
     {key:'courses',label:'الدبلومات والدورات',href:`${base}/courses`,permission:'tenant.academy.read'},
     {key:'interactive',label:'منصة التدريب التفاعلي',href:`${base}/lms`,permission:'tenant.academy.read',visible:policy.showInteractiveTraining&&hasAddon('lms')},
-    {key:'marketplace',label:'إضافات مُدار',children:[
-      {key:'addons',label:'الإضافات المثبتة',href:`${base}/addons`,permission:'tenant.settings.manage'},
-      {key:'addonsStore',label:'إضافة جديدة',href:`${base}/addons-store`,permission:'tenant.users.manage'}
-    ]},
-    {key:'servicesStore',label:'متجر الخدمات',href:`${base}/services-store`,permission:'tenant.users.manage'},
     {key:'sales',label:'المبيعات والعملاء',children:[
       {key:'search',label:'البحث عن عميل',href:`${base}/customer-search`,always:true},
       {key:'sales',label:'إدارة المبيعات والعملاء',href:`${base}/sales`,permission:'tenant.crm.read'},
@@ -96,6 +91,11 @@ function tenantItems(
       {key:'automation',label:'الأتمتة',href:`${base}/settings?tab=automation`,permission:'tenant.users.manage',visible:hasAddon('automation')}
     ]},
     {key:'accounting',label:'الحسابات والفوترة (قريبًا)',permission:'tenant.workspace.read',disabled:true},
+    {key:'marketplace',label:'إضافات مُدار',children:[
+      {key:'addons',label:'الإضافات المثبتة',href:`${base}/addons`,permission:'tenant.settings.manage'},
+      {key:'addonsStore',label:'إضافة جديدة',href:`${base}/addons-store`,permission:'tenant.users.manage'}
+    ]},
+    {key:'servicesStore',label:'متجر الخدمات',href:`${base}/services-store`,permission:'tenant.users.manage'},
     {key:'people',label:'فريق العمل',href:`${base}/team`,permission:'tenant.people.read',visible:policy.showTeam},
     {key:'reports',label:'التقارير والتحليل',children:[
       {key:'overview',label:'لوحة التقارير',href:`${base}/reports`,permission:'tenant.workspace.read'},

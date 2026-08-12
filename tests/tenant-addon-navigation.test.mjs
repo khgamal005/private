@@ -9,8 +9,12 @@ test('tenant menu separates core training, licensed LMS, add-ons and services',a
   const shell=await read('components/workspace-shell.js');
   const addonsStart=shell.indexOf("label:'إضافات مُدار'");
   const servicesStart=shell.indexOf("label:'متجر الخدمات'",addonsStart);
+  const teamStart=shell.indexOf("label:'فريق العمل'",servicesStart);
   assert.notEqual(addonsStart,-1);
   assert.notEqual(servicesStart,-1);
+  assert.notEqual(teamStart,-1);
+  assert.ok(addonsStart<servicesStart);
+  assert.ok(servicesStart<teamStart);
   const addonsGroup=shell.slice(addonsStart,servicesStart);
 
   assert.match(shell,/label:'الدبلومات والدورات',href:`\$\{base\}\/courses`/);

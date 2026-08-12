@@ -42,7 +42,11 @@ test('add-on navigation and protected pages use the same database entitlement',a
   assert.match(marketing,/requireTenantAddon\(slug,'marketing_attribution'/);
   assert.match(website,/requireTenantAddon\(slug,'cms_pro'/);
   assert.match(integrations,/\['woocommerce','salla','zid','shopify','custom_store'\]/);
-  assert.match(actions,/'save-course-run':\['lms'\]/);
+  assert.doesNotMatch(
+    actions,
+    /'(?:save-course-run|update-training-operation|training-automation)':\['lms'\]/
+  );
+  assert.match(actions,/'automation-studio':\['automation'\]/);
   assert.match(actions,/addon_access_check_failed/);
 });
 

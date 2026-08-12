@@ -4,6 +4,11 @@ import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 
 const EMPTY=[];
+const LECTURE_SCHEDULE_VARIABLE={
+  key:'lecture_schedule',
+  label:'موعد المحاضرة/المحاضرات',
+  sample:'من الأحد إلى الخميس، من 6:00 م إلى 10:00 م'
+};
 
 const CHANNELS={
   whatsapp:{label:'واتساب',description:'رسائل الانضمام والتذكيرات والقوالب المعتمدة'},
@@ -49,7 +54,12 @@ export default function IntegrationHub({slug,initialData,mode='integrations',ena
   const data=initialData||{};
   const providers=data.providers||EMPTY;
   const templates=data.templates||EMPTY;
-  const variables=data.variables||EMPTY;
+  const variables=useMemo(()=>{
+    const current=data.variables||EMPTY;
+    return current.some(variable=>variable.key==='lecture_schedule')
+      ?current
+      :[...current,LECTURE_SCHEDULE_VARIABLE];
+  },[data.variables]);
   const summary=data.summary||{};
   const canManage=Boolean(data.viewer?.canManage);
   const [providerModal,setProviderModal]=useState(null);

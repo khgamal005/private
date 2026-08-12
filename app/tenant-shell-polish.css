@@ -475,6 +475,20 @@
   font-size:8px;
 }
 
+.mt-notification-read-all{
+  width:100%;
+  padding:8px 16px;
+  border:0;
+  border-bottom:1px solid #e8eef4;
+  background:#f8fbfe;
+  color:#28749f;
+  cursor:pointer;
+  font-size:8px;
+  font-weight:800;
+  text-align:right;
+}
+.mt-notification-read-all:hover{background:#eef7fc}
+
 .mt-notification-list{
   display:grid;
   max-height:340px;
@@ -489,6 +503,13 @@
   gap:11px;
   padding:12px 2px;
   border-bottom:1px solid #edf2f6;
+}
+
+.mt-notification-list>a.is-unread{
+  margin-inline:-8px;
+  padding-inline:10px;
+  border-radius:10px;
+  background:#f2f9fd;
 }
 
 .mt-notification-list>a:last-child{border-bottom:0}
@@ -522,6 +543,73 @@
   color:#748598;
   font-size:8px;
   line-height:1.65;
+}
+.mt-notification-list>a time{
+  display:block;
+  margin-top:5px;
+  color:#9aa9b5;
+  font-size:7px;
+}
+
+.mt-notification-toast{
+  position:fixed;
+  top:78px;
+  right:18px;
+  z-index:120;
+  display:grid;
+  width:min(390px,calc(100vw - 36px));
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px;
+  padding:14px 15px;
+  border:1px solid #cfe1ec;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 22px 65px rgba(7,31,51,.24);
+  animation:mt-notification-enter .24s ease-out both;
+}
+.mt-notification-toast>i{
+  width:11px;
+  height:11px;
+  border-radius:50%;
+  background:#3488c0;
+  box-shadow:0 0 0 6px rgba(52,136,192,.1);
+}
+.mt-notification-toast>i.green{
+  background:#27a274;
+  box-shadow:0 0 0 6px rgba(39,162,116,.1);
+}
+.mt-notification-toast>i.amber{
+  background:#dfa62c;
+  box-shadow:0 0 0 6px rgba(223,166,44,.12);
+}
+.mt-notification-toast>i.danger{
+  background:#d84b5c;
+  box-shadow:0 0 0 6px rgba(216,75,92,.1);
+}
+.mt-notification-toast b,
+.mt-notification-toast span{display:block}
+.mt-notification-toast b{color:#173650;font-size:11px}
+.mt-notification-toast span{
+  margin-top:4px;
+  color:#637b8d;
+  font-size:9px;
+  line-height:1.65;
+}
+.mt-notification-toast>button{
+  width:28px;
+  height:28px;
+  border:0;
+  border-radius:8px;
+  background:#f0f5f8;
+  color:#597386;
+  cursor:pointer;
+  font-size:18px;
+}
+
+@keyframes mt-notification-enter{
+  from{opacity:0;transform:translateY(-10px)}
+  to{opacity:1;transform:translateY(0)}
 }
 
 .mt-notification-empty{
@@ -743,5 +831,11 @@
     left:12px;
     width:auto;
     max-width:none;
+  }
+  .mt-notification-toast{
+    top:74px;
+    right:12px;
+    left:12px;
+    width:auto;
   }
 }

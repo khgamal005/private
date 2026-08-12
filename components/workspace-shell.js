@@ -5,6 +5,7 @@ import {usePathname} from 'next/navigation';
 import {useMemo,useState} from 'react';
 import LogoutButton from './logout-button';
 import MarktoneLogo from './marktone-logo';
+import NotificationCenter from './notification-center';
 import {WORKSPACE_KINDS} from '../lib/workspaces';
 import {tenantRolePolicy} from '../lib/tenant-role-policy';
 
@@ -223,8 +224,9 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
   const profileName=userName||email?.split('@')[0]||'مستخدم ماركتون';
   const profileInitial=Array.from(profileName.trim())[0]||'م';
   const notifications=kind===WORKSPACE_KINDS.tenant?notificationItems(notificationSummary,slug):[];
-  const notificationCount=count(notificationSummary?.overdueTasks)+count(notificationSummary?.tasksToday)+count(notificationSummary?.pendingAdmissions);
-  const notificationLabel=notificationCount>99?'99+':notificationCount;
+  const operationalNotificationCount=count(notificationSummary?.overdueTasks)
+    +count(notificationSummary?.tasksToday)
+    +count(notificationSummary?.pendingAdmissions);
   return <div className={`mt-workspace mt-workspace-${kind}`}>
     {mobileOpen&&<button className="mt-shell-backdrop" aria-label="إغلاق القائمة" onClick={()=>setMobileOpen(false)}/>} 
     <aside className={`mt-sidebar ${mobileOpen?'is-open':''}`}>
@@ -249,7 +251,14 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
         <div className="mt-topbar-tools">
           {kind===WORKSPACE_KINDS.tenant&&canCreateTask&&<Link className="mt-quick-link" href={`/tenant/${encodeURIComponent(slug)}/tasks`}>+ مهمة جديدة</Link>}
           {kind===WORKSPACE_KINDS.platform&&canManageTenants&&<Link className="mt-quick-link" href="/control/tenants">إدارة المنشآت</Link>}
-          {kind===WORKSPACE_KINDS.tenant&&<details className="mt-toolbar-menu mt-notification-menu"><summary aria-label="فتح التنبيهات"><span className="mt-toolbar-icon"><ShellIcon name="bell"/></span>{notificationCount>0&&<b>{notificationLabel}</b>}</summary><div className="mt-toolbar-popover"><header><div><small>مركز المتابعة</small><h2>التنبيهات والمهام</h2></div><span>{notificationCount?`${notificationLabel} تحتاج متابعة`:'لا توجد عناصر عاجلة'}</span></header><div className="mt-notification-list">{notifications.map(item=><Link key={`${item.href}-${item.title}`} href={item.href}><i className={item.tone}/><span><b>{item.title}</b><small>{item.description}</small></span></Link>)}{!notifications.length&&<div className="mt-notification-empty"><span>✓</span><b>كل شيء تحت السيطرة</b><small>لا توجد مهام أو تنبيهات عاجلة الآن.</small></div>}</div><footer><Link href={`/tenant/${encodeURIComponent(slug)}/tasks`}>فتح مركز المهام</Link></footer></div></details>}
+          {kind===WORKSPACE_KINDS.tenant&&<NotificationCenter
+            slug={slug}
+            className="mt-notification-menu"
+            operationalItems={notifications}
+            operationalCount={operationalNotificationCount}
+            icon={<ShellIcon name="bell"/>}
+            emptyMessage="لا توجد مهام أو تنبيهات عاجلة الآن."
+          />}
           <details className="mt-toolbar-menu mt-account-menu"><summary><span className="mt-user-avatar">{profileInitial}</span><span className="mt-user-copy"><b>{profileName}</b><small>{roleLabel||email}</small></span><ShellIcon name="chevron"/></summary><div className="mt-account-popover"><header><span className="mt-user-avatar">{profileInitial}</span><div><b>{profileName}</b><small>{email}</small></div></header><p>{roleLabel||areaLabel}</p>{kind===WORKSPACE_KINDS.tenant&&platformAccess&&<Link href="/control">العودة إلى إدارة المنصة والمنشآت</Link>}{canOpenSettings&&<Link href={kind===WORKSPACE_KINDS.tenant?`/tenant/${encodeURIComponent(slug)}/settings`:platformSettingsHref}>إعدادات الحساب والصلاحيات</Link>}<LogoutButton/></div></details>
         </div>
       </header>

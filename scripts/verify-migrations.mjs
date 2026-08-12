@@ -108,7 +108,10 @@ const required=[
   '20260811126000_addon_platform_v3_payment_hardening.sql',
   '20260811127000_addon_platform_v3_business_timezone.sql',
   '20260811128000_addon_platform_v3_jsonb_key_count.sql',
-  '20260811190000_assignment_metric_reconciliation_v1.sql'
+  '20260811190000_assignment_metric_reconciliation_v1.sql',
+  '20260812130000_tenant_accounting_core_v1.sql',
+  '20260812131000_tenant_accounting_zatca_addon_v1.sql',
+  '20260812132000_tenant_accounting_fk_indexes_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -131,6 +134,8 @@ for(const pattern of [
   /create schema if not exists communication_hub;/,
   /create schema if not exists commerce_hub;/,
   /create schema if not exists marketing_hub;/,
+  /create schema if not exists accounting_core;/,
+  /create schema if not exists accounting_zatca;/,
   /create schema if not exists website;/,
   /v2_current_user_context/,
   /v2_platform_control_snapshot/,
@@ -146,6 +151,10 @@ for(const pattern of [
   /v2_tenant_training_operations_snapshot/,
   /v2_tenant_integration_hub_snapshot/,
   /v2_tenant_incentives_snapshot/,
+  /v1_tenant_accounting_snapshot/,
+  /v1_tenant_accounting_action/,
+  /v1_tenant_zatca_snapshot/,
+  /v1_tenant_zatca_action/,
   /v2_tenant_reports_snapshot_v2/,
   /v2_tenant_reports_snapshot_v3/,
   /v4_tenant_reports_snapshot/,

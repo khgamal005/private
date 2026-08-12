@@ -89,6 +89,7 @@ function roleName(roleKey){
     sales_manager:'مدير المبيعات',sales_supervisor:'مشرف المبيعات',sales_user:'مسؤول مبيعات',
     customer_service:'خدمة العملاء',data_officer:'مسؤول البيانات',data_analyst:'محلل البيانات',
     training_manager:'مدير التدريب',admissions_officer:'مسؤول التسجيل والقبول',
+    finance_manager:'المدير المالي',accountant:'المحاسب',cashier:'أمين الصندوق',
     platform_owner:'إدارة منصة ماركتون'
   })[roleKey]||'مستخدم المنشأة';
 }

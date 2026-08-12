@@ -44,7 +44,7 @@ test('tenant navigation follows the approved business order and groups',async()=
     'المبيعات والعملاء',
     'التسجيل والقبول',
     'التسويق والأتمتة',
-    'الحسابات والفوترة (قريبًا)',
+    'الحسابات والفوترة',
     'إضافات مُدار',
     'متجر الخدمات',
     'فريق العمل',
@@ -66,7 +66,13 @@ test('tenant navigation follows the approved business order and groups',async()=
   assert.match(shell,/label:'إضافة جديدة'/);
   assert.match(shell,/key:'servicesStore',label:'متجر الخدمات',href:/);
   assert.match(shell,/label:'توزيع العملاء'/);
-  assert.match(shell,/label:'الأهداف والحوافز'/);
+  assert.doesNotMatch(shell,/label:'الأهداف والحوافز'/);
+  assert.match(shell,/label:'الحسابات والفوترة',children:\[/);
+  assert.match(shell,/label:'حسابات العملاء والمستحقات'/);
+  assert.match(shell,/label:'عروض الأسعار'/);
+  assert.match(shell,/label:'المدفوعات والإيصالات'/);
+  assert.match(shell,/label:'الحوافز والعمولات'/);
+  assert.match(shell,/hasAddon\('zatca'\)/);
   assert.match(shell,/label:'مركز الحملات والتسويق'/);
   assert.match(shell,/href:`\$\{base\}\/marketing`/);
   assert.match(shell,/permission:'tenant\.marketing\.read'/);

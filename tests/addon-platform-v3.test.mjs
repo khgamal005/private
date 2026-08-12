@@ -49,6 +49,10 @@ const FILES={
     MIGRATIONS_DIR,
     '20260812110000_lms_addon_navigation_gates.sql'
   ),
+  zatcaAccounting:resolve(
+    MIGRATIONS_DIR,
+    '20260812131000_tenant_accounting_zatca_addon_v1.sql'
+  ),
   api:resolve(MAIN_DIR,'lib/api.js'),
   placementRegistry:resolve(MAIN_DIR,'lib/addons/placement-registry.js'),
   tenantCenter:resolve(MAIN_DIR,'components/addon-center.js'),
@@ -105,7 +109,8 @@ const INITIAL_PRODUCTS=[
 
 const EXPECTED_PRODUCTS=[
   ...INITIAL_PRODUCTS,
-  'lms'
+  'lms',
+  'zatca'
 ].sort();
 
 function sortedUnique(values){
@@ -179,7 +184,8 @@ test('migrations are additive and contain no destructive SQL statements',()=>{
     'paymentHardening',
     'businessTimezone',
     'jsonbKeyCount',
-    'lmsNavigation'
+    'lmsNavigation',
+    'zatcaAccounting'
   ]){
     const migration=withoutAllowedForeignKeyDeletes(source[key]);
     assert.doesNotMatch(
@@ -556,7 +562,7 @@ test('database surface keys resolve only through the tenant-safe placement regis
   const routeKeys=sortedUnique(quotedObjectKeys(routesBody));
   const placements=productPlacementEntries(productBody);
 
-  assert.equal(placements.length,16);
+  assert.equal(placements.length,17);
   assert.deepEqual(
     sortedUnique(placements.map(entry=>entry.productKey)),
     EXPECTED_PRODUCTS

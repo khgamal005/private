@@ -76,8 +76,7 @@ function tenantItems(
     {key:'sales',label:'المبيعات والعملاء',children:[
       {key:'search',label:'البحث عن عميل',href:`${base}/customer-search`,always:true},
       {key:'sales',label:'إدارة المبيعات والعملاء',href:`${base}/sales`,permission:'tenant.crm.read'},
-      {key:'leadQueue',label:'توزيع العملاء',href:`${base}/lead-queue`,permission:'tenant.leads.read'},
-      {key:'incentives',label:'الأهداف والحوافز',href:`${base}/incentives`,permission:'tenant.incentives.read'}
+      {key:'leadQueue',label:'توزيع العملاء',href:`${base}/lead-queue`,permission:'tenant.leads.read'}
     ]},
     {key:'admissions',label:'التسجيل والقبول',href:`${base}/admissions`,permission:'tenant.admissions.read'},
     {key:'yeastar',label:'إضافة Yeastar',visible:Boolean(
@@ -90,7 +89,18 @@ function tenantItems(
       {key:'marketing',label:'مركز الحملات والتسويق',href:`${base}/marketing`,permission:'tenant.marketing.read',visible:hasAddon('marketing_attribution')},
       {key:'automation',label:'الأتمتة',href:`${base}/settings?tab=automation`,permission:'tenant.users.manage',visible:hasAddon('automation')}
     ]},
-    {key:'accounting',label:'الحسابات والفوترة (قريبًا)',permission:'tenant.workspace.read',disabled:true},
+    {key:'accounting',label:'الحسابات والفوترة',children:[
+      {key:'overview',label:'لوحة الحسابات',href:`${base}/accounting`,permission:'tenant.accounting.read'},
+      {key:'people',label:'حسابات العملاء والمستحقات',href:`${base}/accounting/receivables`,permission:'tenant.accounting.read'},
+      {key:'sales',label:'عروض الأسعار',href:`${base}/accounting/quotes`,permission:'tenant.accounting.read'},
+      {key:'accounting',label:'الفواتير',href:`${base}/accounting/invoices`,permission:'tenant.accounting.read'},
+      {key:'payments',label:'المدفوعات والإيصالات',href:`${base}/accounting/payments`,permission:'tenant.accounting.read'},
+      {key:'billing',label:'المرتجعات والتسويات',href:`${base}/accounting/adjustments`,permission:'tenant.accounting.read'},
+      {key:'incentives',label:'الحوافز والعمولات',href:`${base}/accounting/incentives`,permission:['tenant.accounting.read','tenant.incentives.read']},
+      {key:'reports',label:'التقارير المالية',href:`${base}/accounting/reports`,permission:'tenant.accounting.read'},
+      {key:'settings',label:'إعدادات الحسابات',href:`${base}/accounting/settings`,permission:['tenant.accounting.settings.manage','tenant.accounting.read']},
+      {key:'integrations',label:'زاتكا والفوترة الإلكترونية',href:`${base}/accounting/zatca`,permission:['tenant.zatca.manage','tenant.accounting.read'],visible:hasAddon('zatca')}
+    ]},
     {key:'marketplace',label:'إضافات مُدار',children:[
       {key:'addons',label:'الإضافات المثبتة',href:`${base}/addons`,permission:'tenant.settings.manage'},
       {key:'addonsStore',label:'إضافة جديدة',href:`${base}/addons-store`,permission:'tenant.users.manage'}
@@ -152,6 +162,7 @@ function isActive(pathname,href){
   if(href==='/control')return pathname===href;
   if(/^\/tenant\/[^/]+$/.test(href))return pathname===href;
   if(/\/yeastar$/.test(href))return pathname===href;
+  if(/\/accounting$/.test(href))return pathname===href;
   return pathname===href||pathname.startsWith(`${href}/`);
 }
 function count(value){return Math.max(0,Number(value)||0);}
@@ -171,7 +182,8 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
     marketplace:pathname.includes('/addons'),
-    sales:['/customer-search','/sales','/lead-queue','/incentives'].some(path=>pathname.includes(path)),
+    sales:['/customer-search','/sales','/lead-queue'].some(path=>pathname.includes(path)),
+    accounting:pathname.includes('/accounting')||pathname.includes('/incentives'),
     yeastar:pathname.includes('/yeastar')||pathname.includes('/call-reports'),
     marketing:pathname.includes('/marketing')||pathname.includes('/settings'),
     reports:pathname.includes('/reports'),

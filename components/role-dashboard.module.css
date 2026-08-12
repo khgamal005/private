@@ -90,6 +90,38 @@
 }
 .alerts p{margin:0;font-size:.88rem}
 
+.metricSection{
+  display:grid;
+  gap:14px;
+  padding:21px;
+  border:1px solid #dfe6ef;
+  border-radius:24px;
+  background:
+    radial-gradient(circle at 97% 0,rgba(51,139,225,.09),transparent 22rem),
+    linear-gradient(180deg,#fff,#fafcff);
+  box-shadow:0 10px 30px rgba(23,36,61,.045);
+}
+.metricSectionHead{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:20px;
+}
+.metricSectionHead span{
+  display:block;
+  color:#397faf;
+  font-size:.68rem;
+  font-weight:900;
+}
+.metricSectionHead h3{margin:5px 0 0;font-size:1.18rem}
+.metricSectionHead p{
+  max-width:520px;
+  margin:0;
+  color:var(--muted);
+  font-size:.76rem;
+  line-height:1.7;
+  text-align:left;
+}
 .metrics{
   display:grid;
   grid-template-columns:repeat(12,minmax(0,1fr));
@@ -117,8 +149,14 @@
 }
 .metric>span,.metric>small{display:block;color:var(--muted)}
 .metric>span{font-size:.78rem;font-weight:800}
-.metric>b{display:block;margin:12px 0 6px;font-size:1.65rem;line-height:1.05}
-.metric>small{font-size:.73rem}
+.metric>b{
+  display:block;
+  margin:12px 0 6px;
+  font-size:1.65rem;
+  line-height:1.1;
+  overflow-wrap:anywhere;
+}
+.metric>small{font-size:.78rem;line-height:1.55}
 .metricFeatured{
   grid-column:span 6;
   min-height:154px;
@@ -128,7 +166,7 @@
     radial-gradient(circle at 8% 5%,rgba(46,133,220,.09),transparent 14rem),
     #fff;
 }
-.featuredMetrics .metric:not(.metricFeatured){grid-column:span 3}
+.featuredMetrics .metric:not(.metricFeatured){grid-column:span 4}
 .metricFeatured::before{height:5px}
 .metricFeatured>span{font-size:.82rem}
 .metricFeatured>b{
@@ -433,6 +471,7 @@
   box-shadow:0 7px 20px rgba(19,49,76,.035);
 }
 .pillarGridFive .pillar:nth-last-child(-n+2){grid-column:span 3}
+.pillarGridFour .pillar{grid-column:span 3}
 .pillar::before{
   content:"";
   position:absolute;
@@ -587,12 +626,11 @@
 .marketingMetrics span,.marketingMetrics b,.marketingMetrics small{display:block}
 .marketingMetrics span{color:#718197;font-size:.64rem;font-weight:800}
 .marketingMetrics b{
-  overflow:hidden;
   margin:8px 0 6px;
   color:#173a5b;
   font-size:1.05rem;
-  text-overflow:ellipsis;
-  white-space:nowrap;
+  line-height:1.35;
+  overflow-wrap:anywhere;
 }
 .marketingMetrics small{color:#8a96a5;font-size:.58rem;line-height:1.5}
 .marketingVerdict{
@@ -628,7 +666,8 @@
   .metricFeatured{grid-column:span 6}
   .pillarGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .pillarGrid .pillar,
-  .pillarGridFive .pillar:nth-last-child(-n+2){grid-column:auto}
+  .pillarGridFive .pillar:nth-last-child(-n+2),
+  .pillarGridFour .pillar{grid-column:auto}
   .health{grid-template-columns:1fr}
   .healthHead{border-bottom:1px solid #e8edf3;border-left:0}
   .callStats{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -643,6 +682,8 @@
   .grid{grid-template-columns:1fr}
   .actions{align-items:flex-start;flex-direction:column}
   .systemSection{padding:19px}
+  .metricSectionHead{align-items:flex-start;flex-direction:column;gap:7px}
+  .metricSectionHead p{text-align:right}
   .sectionHeading{align-items:flex-start;flex-direction:column;gap:8px}
   .sectionHeading p{text-align:right}
   .actionCenter{grid-template-columns:1fr}
@@ -661,6 +702,7 @@
   .hero p{font-size:.87rem}
   .identity{font-size:.78rem}
   .heroAside{width:auto}
+  .metricSection{padding:14px;border-radius:18px}
   .metrics{gap:9px}
   .metric,.metricFeatured,
   .featuredMetrics .metric:not(.metricFeatured){grid-column:1/-1}

@@ -17,6 +17,9 @@ const migration=await read(
 const resultsMigration=await read(
   '../supabase/migrations/20260812150000_woocommerce_results_revenue_v1.sql'
 );
+const dashboardMigration=await read(
+  '../supabase/migrations/20260812165221_dashboard_month_to_date_v1.sql'
+);
 const api=await read('../lib/api.js');
 const syncState=await import('../lib/woocommerce-sync-state.mjs');
 const syncMachine=await import(
@@ -234,7 +237,8 @@ test('dashboard separates Woo Analytics revenue from verified registrations',()=
   assert.match(resultsMigration,/run\.finished_at < settings\.enabled_at/);
   assert.match(resultsMigration,/'orders' = any\(run\.scope\)/);
   assert.doesNotMatch(resultsMigration,/reef-skills/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v5/);
+  assert.match(dashboardMigration,/v2_tenant_role_dashboard_snapshot_v5\(p_slug\)/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v6/);
   assert.match(dashboard,/صافي مبيعات WooCommerce هذا الشهر/);
   assert.match(dashboard,/دفعات التسجيل المؤكدة هذا الشهر/);
   assert.match(dashboard,/منع الازدواج/);

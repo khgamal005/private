@@ -91,10 +91,10 @@ test('each operational role receives a dedicated dashboard presentation',async()
   assert.match(component,/أداء الموظفين/);
   assert.match(component,/مصادر العملاء والتحويل/);
   assert.match(component,/نطاقي الشخصي فقط/);
-  assert.match(component,/خريطة الأداء الشاملة/);
+  assert.match(component,/خريطة أداء الشهر/);
   assert.match(component,/أهم ما يحتاج إجراء الآن/);
-  assert.match(component,/نبض الإعلانات والإسناد/);
-  assert.match(component,/طلاب ومتدربون نشطون/);
+  assert.match(component,/نبض الإعلانات هذا الشهر/);
+  assert.match(component,/تسجيلات جديدة هذا الشهر/);
 });
 
 test('owner gets the executive command center without the personal achievement board',async()=>{
@@ -105,6 +105,7 @@ test('owner gets the executive command center without the personal achievement b
   ]);
 
   assert.match(page,/getTenantMarketingHub/);
+  assert.match(page,/monthToDate:true/);
   assert.match(page,/unstable_rethrow\(error\)/);
   assert.match(page,/getOptionalMarketing\(slug\)/);
   assert.match(page,/showAchievement=resolvedRole!=='tenant_owner'/);
@@ -120,26 +121,42 @@ test('owner gets the executive command center without the personal achievement b
   assert.match(styles,/\.marketingMetrics/);
 });
 
-test('comprehensive map uses cohort closing rate and qualified revenue forecast',async()=>{
-  const [component,styles,api,migration]=await Promise.all([
+test('executive dashboard uses one tenant-local month and qualified flow',async()=>{
+  const [component,styles,api,marketingApi,page,migration]=await Promise.all([
     read('components/role-dashboard.js'),
     read('components/role-dashboard.module.css'),
     read('lib/api.js'),
-    read('supabase/migrations/20260810225500_dashboard_closing_forecast_v1.sql')
+    read('lib/marketing-api.js'),
+    read('app/tenant/[slug]/page.js'),
+    read('supabase/migrations/20260812165221_dashboard_month_to_date_v1.sql')
   ]);
 
-  assert.match(component,/title:'نسبة التقفيل'/);
-  assert.match(component,/طلاب دفعوا ÷ أرقام موزعة هذا الشهر/);
-  assert.match(component,/title:'الإيراد المتوقع'/);
-  assert.match(component,/qualifiedValueMinor/);
-  assert.match(component,/closingRateLabel.*× القيمة/s);
+  assert.match(component,/أداء الشهر الحالي/);
+  assert.match(component,/الإنفاق الإعلاني الفعلي هذا الشهر/);
+  assert.match(component,/عملاء تأهلوا هذا الشهر/);
+  assert.match(component,/إنجاز المهام المستحقة هذا الشهر/);
+  assert.match(component,/مضاعف المبيعات إلى الإنفاق/);
+  assert.doesNotMatch(component,/قيمة المسار/);
+  assert.doesNotMatch(component,/آخر 30 يومًا/);
+  assert.doesNotMatch(component,/title:'الإيراد المتوقع'/);
   assert.match(styles,/grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
   assert.match(styles,/\.pillar\{[\s\S]*grid-column:span 2/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v5/);
+  assert.match(styles,/\.metricSection/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v6/);
+  assert.match(marketingApi,/v3_tenant_marketing_month_snapshot/);
+  assert.match(page,/monthToDate:true/);
+  assert.match(migration,/v2_tenant_role_dashboard_snapshot_v6/);
+  assert.match(migration,/v3_tenant_marketing_month_snapshot/);
+  assert.match(migration,/now\(\) at time zone v_timezone/);
+  assert.match(migration,/'mode', 'month_to_date'/);
+  assert.match(migration,/with first_qualified as/);
+  assert.match(migration,/qualifiedEnteredThisMonth/);
   assert.match(migration,/with assignment_cohort as/);
-  assert.match(migration,/count\(distinct|select distinct assignment\.contact_id/);
+  assert.match(migration,/min\(assignment\.assigned_at\) as first_assigned_at/);
+  assert.match(migration,/handoff\.paid_at >= assignment\.first_assigned_at/);
   assert.match(migration,/paidFromDistributedThisMonth/);
-  assert.match(migration,/qualified_value_x_cohort_closing_rate/);
+  assert.match(migration,/handoff\.paid_at >= v_month_start/);
+  assert.match(migration,/taskCompletionRateThisMonth/);
   assert.match(migration,/security definer/);
   assert.match(migration,/set search_path = ''/);
   assert.match(migration,/revoke all on function[\s\S]*from public, anon/);
@@ -159,10 +176,10 @@ test('tenant overview never substitutes stale metrics when the canonical RPC fai
   assert.doesNotMatch(page,/task\.status!=='completed'/);
   assert.match(page,/Promise\.all/);
   assert.match(page,/RoleDashboard/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v5/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v6/);
   assert.doesNotMatch(
     api,
-    /v2_tenant_role_dashboard_snapshot_v5'[\s\S]*v2_tenant_role_dashboard_snapshot_v4/
+    /v2_tenant_role_dashboard_snapshot_v6'[\s\S]*v2_tenant_role_dashboard_snapshot_v5/
   );
   assert.match(shell,/لوحة القيادة/);
   assert.match(layout,/training_manager:'مدير التدريب'/);

@@ -104,7 +104,8 @@ function moneyMinorCurrency(value,currency='SAR'){
   return new Intl.NumberFormat('ar-SA',{
     style:'currency',
     currency:normalized,
-    maximumFractionDigits:0
+    minimumFractionDigits:2,
+    maximumFractionDigits:2
   }).format((Number(value)||0)/100);
 }
 
@@ -155,6 +156,67 @@ function when(value){
   }).format(new Date(value));
 }
 
+function periodLabel(period){
+  const from=String(period?.from||'');
+  const to=String(period?.to||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(from)
+    ||!/^\d{4}-\d{2}-\d{2}$/.test(to)){
+    return 'نطاق الشهر غير متاح';
+  }
+  const fromDate=new Date(`${from}T12:00:00Z`);
+  const toDate=new Date(`${to}T12:00:00Z`);
+  const fromDay=new Intl.DateTimeFormat('ar-EG',{day:'numeric'}).format(fromDate);
+  const toLabel=new Intl.DateTimeFormat('ar-EG',{
+    day:'numeric',month:'long',year:'numeric'
+  }).format(toDate);
+  const timezone=period?.timeZone||period?.timezone;
+  const timezoneLabel=timezone==='Asia/Riyadh'
+    ?'بتوقيت الرياض'
+    :timezone
+      ?`بتوقيت ${timezone}`
+      :'';
+  return `${fromDay}–${toLabel}${timezoneLabel?` · ${timezoneLabel}`:''}`;
+}
+
+function marketingDataNeedsAttention(marketing){
+  const dataHealth=marketing?.dataHealth||{};
+  return marketing?.featureEnabled===false
+    ||Number(dataHealth.currencyMismatches)>0
+    ||Number(dataHealth.staleConnections)>0;
+}
+
+function commercialReturn(woo,marketing){
+  const marketingSummary=marketing?.summary||{};
+  const totals=woo?.totals||{};
+  const wooCurrency=String(woo?.currency||'').toUpperCase();
+  const marketingCurrency=String(
+    marketingSummary?.currency||''
+  ).toUpperCase();
+  const netMinor=Number(totals.netSalesMinor);
+  const spendMinor=Number(marketingSummary?.spendMinor);
+  const digits=Math.min(4,Math.max(0,Number(woo?.minorDigits)||0));
+  const rangeFrom=String(marketing?.range?.from||'');
+  const rangeTo=String(marketing?.range?.to||'');
+  const periodKey=String(woo?.periodKey||'');
+  const sameMonth=/^\d{4}-\d{2}-01$/.test(rangeFrom)
+    &&/^\d{4}-\d{2}-\d{2}$/.test(rangeTo)
+    &&rangeFrom.slice(0,7)===rangeTo.slice(0,7)
+    &&rangeFrom.slice(0,7)===periodKey;
+  if(!woo?.available
+    ||woo?.stale
+    ||marketing?.rangeMode!=='month_to_date'
+    ||marketingDataNeedsAttention(marketing)
+    ||!sameMonth
+    ||!Number.isFinite(netMinor)
+    ||!Number.isFinite(spendMinor)
+    ||spendMinor<=0
+    ||!wooCurrency
+    ||wooCurrency!==marketingCurrency){
+    return null;
+  }
+  return (netMinor/(10**digits))/(spendMinor/100);
+}
+
 function metric(label,value,note,tone='blue',featured=false){
   return {label,value,note,tone,featured};
 }
@@ -180,6 +242,10 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
     const hasWooRevenue=woo.available
       &&Number.isFinite(Number(wooTotals.netSalesMinor))
       &&wooTotals.netSalesMinor!=null;
+    const wooOrderCount=Number(wooTotals.orderCount)||0;
+    const averageOrderMinor=hasWooRevenue&&wooOrderCount>0
+      ?Math.round(Number(wooTotals.netSalesMinor)/wooOrderCount)
+      :null;
     if(woo.connected){
       items.push(metric(
         'صافي مبيعات WooCommerce هذا الشهر',
@@ -191,6 +257,9 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
             +`${Number(wooTotals.returnsMinor)>0
               ?` · المرتجعات ${wooMoney(wooTotals.returnsMinor)}`
               :''}`
+            +`${averageOrderMinor!=null
+              ?` · متوسط الطلب ${wooMoney(averageOrderMinor)}`
+              :''}`
             +`${woo.stale?' · البيانات تحتاج مزامنة حديثة':''}`
           :woo.error
             ?'تعذر جلب تقرير WooCommerce الرسمي في آخر محاولة؛ راجع صلاحيات Analytics ثم أعد الاختبار.'
@@ -199,41 +268,81 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
         true
       ));
     }
-    items.push(
-      metric(
-        'دفعات التسجيل المؤكدة هذا الشهر',
-        moneyMinor(executive.wonRevenueMinor),
-        'دفعات تم التحقق منها في سجل القبول داخل المنصة؛ وتظهر منفصلة لمنع الازدواج',
-        'green'
-      ),
-      metric(
-        'قيمة المسار',
-        moneyMinor(executive.pipelineValueMinor),
-        'القيمة الإجمالية للفرص المفتوحة حاليًا',
-        'blue',
-        true
-      ),
-      metric('حسابات الدخول',number(executive.activeAccounts),`من ${number(executive.activeStaff)} موظف`,'purple'),
-      metric('طلاب ومتدربون نشطون',number(training.activeEnrollments),`${number(training.activeCourseRuns)} مجموعات نشطة`,'green'),
-      metric('طلبات قبول معلّقة',number(executive.pendingAdmissions),'تحتاج متابعة','amber'),
-      metric('مكالمات الشهر',number(calls.totalCalls),`${percent(calls.answerRate)} نسبة الرد`,'cyan'),
-      metric('مجموعات نشطة',number(executive.activeCourseRuns),'مفتوحة أو جارية','pink')
-    );
     if(canReadMarketing){
-      items.splice(4,0,metric(
-        'الإنفاق الإعلاني — 30 يومًا',
-        marketing
+      const marketingDegraded=marketingDataNeedsAttention(marketing);
+      const hasMarketing=Boolean(marketing)
+        &&marketingSummary.spendMinor!=null
+        &&Number.isFinite(Number(marketingSummary.spendMinor));
+      const returnValue=commercialReturn(woo,marketing);
+      items.push(metric(
+        marketingDegraded
+          ?'الإنفاق الإعلاني المسجل هذا الشهر'
+          :'الإنفاق الإعلاني الفعلي هذا الشهر',
+        hasMarketing
           ?moneyMinorCurrency(
             marketingSummary.spendMinor,
             marketingSummary.currency
           )
           :'—',
-        marketing
+        hasMarketing
           ?`${number(marketingSummary.platformLeads)} نتيجة حسب المنصات`
-          :'تعذر تحميل بيانات الإعلانات الموثوقة',
-        'purple'
+            +`${marketingDegraded?' · البيانات جزئية أو تحتاج مزامنة':''}`
+            +`${returnValue!=null
+              ?` · مضاعف المبيعات إلى الإنفاق ${ratio(returnValue)}`
+              :''}`
+          :'تعذر تحميل الإنفاق الفعلي؛ لم نعرض صفرًا بديلًا',
+        hasMarketing&&!marketingDegraded?'purple':'amber',
+        true
       ));
     }
+    items.push(
+      metric(
+        'عملاء تأهلوا هذا الشهر',
+        sales.monthAvailable===false
+          ?'—'
+          :number(sales.qualifiedEnteredThisMonth),
+        sales.monthAvailable===false
+          ?'لا تملك هذه الجلسة صلاحية قراءة مؤشرات CRM الشهرية'
+          :`${number(sales.qualifiedOpenFromMonth)} ما زالت مفتوحة · ${number(sales.qualifiedWonFromMonth)} أُغلقت ناجحًا`,
+        'blue'
+      ),
+      metric(
+        'عملاء وُزعوا هذا الشهر',
+        sales.monthAvailable===false
+          ?'—'
+          :number(sales.distributedThisMonth),
+        sales.monthAvailable===false
+          ?'لا تملك هذه الجلسة صلاحية قراءة مؤشرات CRM الشهرية'
+          :`${number(sales.paidFromDistributedThisMonth)} دفعوا خلال الشهر · ${sales.closingRate==null?'—':percent(sales.closingRate)} تقفيل`,
+        'cyan'
+      ),
+      metric(
+        'دفعات التسجيل المؤكدة هذا الشهر',
+        moneyMinorCurrencyExact(executive.wonRevenueMinor,'SAR',2),
+        `${number(executive.verifiedAdmissionsThisMonth)} عميلًا بتحقق دفع داخل المنصة؛ منفصلة عن WooCommerce لمنع الازدواج`,
+        'green'
+      ),
+      metric(
+        'مكالمات هذا الشهر',
+        number(calls.totalCalls),
+        `${number(calls.answeredCalls)} مجاب عليها · ${percent(calls.answerRate)} نسبة الرد`,
+        'cyan'
+      ),
+      metric(
+        'إنجاز المهام المستحقة هذا الشهر',
+        Number(executive.dueTasksThisMonthToDate)<=0
+          ?'—'
+          :percent(executive.taskCompletionRateThisMonth),
+        `${number(executive.completedDueTasksThisMonthToDate)} مكتملة من ${number(executive.dueTasksThisMonthToDate)} مستحقة حتى اليوم`,
+        'amber'
+      ),
+      metric(
+        'عملاء جدد هذا الشهر',
+        number(executive.newContactsThisMonth),
+        `بعد استبعاد المؤرشف والمكرر · ${number(executive.activitiesThisMonth)} نشاط مبيعات خلال الشهر`,
+        'pink'
+      )
+    );
     return items;
   }
   if(SALES_ROLES.has(role)){
@@ -313,21 +422,42 @@ function MetricCards({items}){
       key={item.label}
     >
       <span>{item.label}</span>
-      <b>{item.value}</b>
+      <b><bdi>{item.value}</bdi></b>
       <small>{item.note}</small>
     </article>)}
   </section>;
 }
 
-function Trend({daily=[]}){
-  const max=Math.max(1,...daily.flatMap(day=>[
+function ExecutiveMetricSection({items,period}){
+  return <section
+    className={styles.metricSection}
+    aria-labelledby="month-performance-heading"
+  >
+    <header className={styles.metricSectionHead}>
+      <div>
+        <span>من أول الشهر حتى الآن</span>
+        <h3 id="month-performance-heading">أداء الشهر الحالي</h3>
+      </div>
+      <p>{periodLabel(period)} · مؤشرات المنصة بتوقيت المنشأة، وWooCommerce حسب تقرير المتجر الرسمي للشهر نفسه.</p>
+    </header>
+    <MetricCards items={items}/>
+  </section>;
+}
+
+function Trend({daily=[],period}){
+  const monthFrom=String(period?.from||'');
+  const scopedDaily=daily.filter(day=>
+    !/^\d{4}-\d{2}-\d{2}$/.test(monthFrom)
+    ||String(day.date||'')>=monthFrom
+  );
+  const max=Math.max(1,...scopedDaily.flatMap(day=>[
     Number(day.activities)||0,
     Number(day.calls)||0,
     Number(day.paid)||0
   ]));
   return <article className={styles.panel}>
     <header className={styles.panelHead}>
-      <div><span>آخر 7 أيام</span><h3>اتجاه النشاط اليومي</h3></div>
+      <div><span>{periodLabel(period)}</span><h3>اتجاه آخر 7 أيام داخل الشهر</h3></div>
       <div className={styles.legend}>
         <i className={styles.activities}/> أنشطة
         <i className={styles.calls}/> مكالمات
@@ -335,15 +465,15 @@ function Trend({daily=[]}){
       </div>
     </header>
     <div className={styles.chart}>
-      {daily.map(day=><div className={styles.chartDay} key={day.date}>
-        <div className={styles.bars} aria-label={`${day.date}: ${day.activities} نشاط، ${day.calls} مكالمة، ${day.paid} دفع`}>
+      {scopedDaily.map(day=><div className={styles.chartDay} key={day.date}>
+        <div className={styles.bars} role="img" aria-label={`${day.date}: ${day.activities} نشاط، ${day.calls} مكالمة، ${day.paid} دفع`}>
           <i className={styles.activities} style={{height:`${Math.max(4,(Number(day.activities)||0)/max*100)}%`}}/>
           <i className={styles.calls} style={{height:`${Math.max(4,(Number(day.calls)||0)/max*100)}%`}}/>
           <i className={styles.paid} style={{height:`${Math.max(4,(Number(day.paid)||0)/max*100)}%`}}/>
         </div>
         <small>{new Intl.DateTimeFormat('ar-EG',{weekday:'short'}).format(new Date(`${day.date}T12:00:00`))}</small>
       </div>)}
-      {!daily.length&&<div className={styles.empty}>ستظهر حركة الأداء بعد تسجيل أول نشاط.</div>}
+      {!scopedDaily.length&&<div className={styles.empty}>ستظهر حركة الأداء بعد تسجيل أول نشاط.</div>}
     </div>
   </article>;
 }
@@ -378,7 +508,7 @@ function CallsPanel({telephony={},slug,showSettings=false}){
   const mapped=Boolean(telephony.mapped);
   return <article className={`${styles.panel} ${styles.callsPanel}`}>
     <header className={styles.panelHead}>
-      <div><span>Yeastar P550</span><h3>تحليل المكالمات</h3></div>
+      <div><span>Yeastar P550 · الشهر الحالي</span><h3>تحليل المكالمات</h3></div>
       {configured&&mapped&&<Link href={`/tenant/${slug}/call-reports`}>التقرير الكامل</Link>}
     </header>
     {!configured?<div className={styles.integrationState}>
@@ -436,11 +566,11 @@ function TeamTable({team=[],slug}){
   </article>;
 }
 
-function SourcesPanel({sources=[]}){
+function SourcesPanel({sources=[],monthToDate=false}){
   const max=Math.max(1,...sources.map(item=>Number(item.total)||0));
   return <article className={styles.panel}>
     <header className={styles.panelHead}>
-      <div><span>جودة القنوات</span><h3>مصادر العملاء والتحويل</h3></div>
+      <div><span>{monthToDate?'عملاء الشهر الحالي':'جودة القنوات'}</span><h3>مصادر العملاء والتحويل</h3></div>
     </header>
     <div className={styles.sourceList}>
       {sources.map(item=><div key={item.source}>
@@ -456,12 +586,6 @@ function normalizedPercent(value){
   return Math.min(100,Math.max(0,Number(value)||0));
 }
 
-function ratioPercent(value,total){
-  const denominator=Number(total)||0;
-  if(!denominator)return 0;
-  return normalizedPercent((Number(value)||0)/denominator*100);
-}
-
 function taskSnapshot(tasks=[]){
   const now=Date.now();
   const open=tasks.filter(task=>OPEN_TASK_STATUSES.has(task.status));
@@ -475,78 +599,83 @@ function taskSnapshot(tasks=[]){
   };
 }
 
-function SystemPillars({dashboard,marketing,operations,slug,canReadMarketing}){
+function SystemPillars({dashboard,marketing,slug,canReadMarketing}){
   const executive=dashboard.executive||{};
   const sales=dashboard.sales||{};
   const calls=dashboard.telephony||{};
   const training=dashboard.training||{};
   const marketingSummary=marketing?.summary||{};
-  const tasks=taskSnapshot(operations?.tasks||[]);
-  const distributedThisMonth=Number(
-    sales.distributedThisMonth??sales.assignmentsThisMonth
-  )||0;
-  const paidFromDistributedThisMonth=Number(
-    sales.paidFromDistributedThisMonth
-  )||0;
-  const closingRate=distributedThisMonth>0
-    ?normalizedPercent(sales.closingRate??sales.conversionRate)
+  const woo=executive.woocommerceRevenue||{};
+  const wooTotals=woo.totals||{};
+  const wooMoney=value=>moneyMinorCurrencyExact(
+    value,
+    woo.currency,
+    woo.minorDigits
+  );
+  const hasWooRevenue=woo.available
+    &&wooTotals.netSalesMinor!=null
+    &&Number.isFinite(Number(wooTotals.netSalesMinor));
+  const orderCount=Number(wooTotals.orderCount)||0;
+  const averageOrderMinor=hasWooRevenue&&orderCount>0
+    ?Math.round(Number(wooTotals.netSalesMinor)/orderCount)
     :null;
-  const qualifiedLeads=Number(sales.qualifiedLeads)||0;
-  const qualifiedValueMinor=Number(sales.qualifiedValueMinor)||0;
-  const hasForecast=distributedThisMonth>0
-    &&sales.expectedRevenueMinor!=null;
-  const closingRateLabel=closingRate==null?'—':percent(closingRate);
+  const hasMarketing=Boolean(marketing)
+    &&marketingSummary.spendMinor!=null
+    &&Number.isFinite(Number(marketingSummary.spendMinor));
+  const marketingDegraded=marketingDataNeedsAttention(marketing);
+  const returnValue=commercialReturn(woo,marketing);
+  const closingRate=sales.closingRate==null
+    ?null
+    :normalizedPercent(sales.closingRate);
   const pillars=[
-    {
-      key:'sales',icon:'↗',title:'نسبة التقفيل',tone:'blue',
-      href:`/tenant/${slug}/sales`,
-      headline:closingRateLabel,
-      headlineLabel:'طلاب دفعوا ÷ أرقام موزعة هذا الشهر',
+    ...(woo.connected?[{
+      key:'commerce',icon:'◈',title:'مبيعات WooCommerce',tone:'emerald',
+      href:`/tenant/${slug}/reports`,
+      headline:hasWooRevenue?wooMoney(wooTotals.netSalesMinor):'—',
+      headlineLabel:hasWooRevenue?'صافي المبيعات هذا الشهر':'التقرير غير متاح',
       stats:[
-        ['أرقام موزعة',number(distributedThisMonth)],
-        ['طلاب دفعوا منها',number(paidFromDistributedThisMonth)],
-        ['مؤهلون حاليًا',number(qualifiedLeads)]
+        ['الطلبات',number(orderCount)],
+        ['الإجمالي',hasWooRevenue?wooMoney(wooTotals.grossSalesMinor):'—'],
+        ['متوسط الطلب',averageOrderMinor!=null
+          ?wooMoney(averageOrderMinor)
+          :'—']
       ]
-    },
-    {
-      key:'forecast',icon:'≈',title:'الإيراد المتوقع',tone:'emerald',
-      href:`/tenant/${slug}/reports/sales`,
-      headline:hasForecast
-        ?moneyMinor(sales.expectedRevenueMinor)
-        :'—',
-      headlineLabel:hasForecast
-        ?'توقع محافظ للعملاء المؤهلين حاليًا'
-        :'يحتاج عينة توزيع لحساب توقع موثوق',
-      stats:[
-        ['عملاء مؤهلون',number(qualifiedLeads)],
-        ['قيمتهم الحالية',moneyMinor(qualifiedValueMinor)],
-        ['المعادلة',closingRate==null
-          ?'بانتظار نسبة التقفيل'
-          :`${closingRateLabel} × القيمة`]
-      ]
-    },
+    }]:[]),
     ...(canReadMarketing?[{
       key:'marketing',icon:'◎',title:'الإعلانات',tone:'violet',
       href:`/tenant/${slug}/marketing`,
-      headline:marketing
+      headline:hasMarketing
         ?moneyMinorCurrency(
           marketingSummary.spendMinor,
           marketingSummary.currency
         )
         :'—',
-      headlineLabel:marketing?'إنفاق آخر 30 يومًا':'البيانات غير متاحة الآن',
-      stats:marketing?[
+      headlineLabel:hasMarketing
+        ?marketingDegraded
+          ?'إنفاق مسجل؛ البيانات جزئية أو قديمة'
+          :'الإنفاق الفعلي هذا الشهر'
+        :'البيانات غير متاحة الآن',
+      stats:hasMarketing?[
         ['نتائج المنصات',number(marketingSummary.platformLeads)],
-        ['مبيعات CRM',number(marketingSummary.sales)],
-        ['ROAS موثّق',Number(marketingSummary.spendMinor)>0
-          ?ratio(marketingSummary.roas)
-          :'—']
+        ['النقرات',number(marketingSummary.clicks)],
+        ['مضاعف المبيعات/الإنفاق',returnValue==null?'—':ratio(returnValue)]
       ]:[
         ['حالة البيانات','تعذر التحميل'],
         ['الأرقام البديلة','غير معروضة'],
         ['الإجراء','فتح المركز']
       ]
     }]:[]),
+    {
+      key:'sales',icon:'↗',title:'التأهيل والمبيعات',tone:'blue',
+      href:`/tenant/${slug}/sales`,
+      headline:number(sales.qualifiedEnteredThisMonth),
+      headlineLabel:'عميلًا دخل التأهيل للمرة الأولى هذا الشهر',
+      stats:[
+        ['ما زالت مفتوحة',number(sales.qualifiedOpenFromMonth)],
+        ['أُغلقت ناجحًا',number(sales.qualifiedWonFromMonth)],
+        ['تقفيل موزعي الشهر',closingRate==null?'—':percent(closingRate)]
+      ]
+    },
     {
       key:'calls',icon:'☎',title:'المكالمات',tone:'cyan',
       href:`/tenant/${slug}/call-reports`,
@@ -560,32 +689,41 @@ function SystemPillars({dashboard,marketing,operations,slug,canReadMarketing}){
     {
       key:'training',icon:'◫',title:'الطلاب والتدريب',tone:'green',
       href:`/tenant/${slug}/admissions`,
-      headline:number(training.activeEnrollments),headlineLabel:'طالبًا ومتدربًا نشطًا',
+      headline:number(training.newEnrollmentsThisMonth),headlineLabel:'تسجيلات جديدة هذا الشهر',
       stats:[
-        ['مجموعات نشطة',number(training.activeCourseRuns)],
-        ['جلسات قادمة',number(training.upcomingSessions)],
-        ['نسبة الحضور',percent(training.attendanceRate)]
+        ['جلسات بدأت هذا الشهر',number(training.sessionsThisMonth)],
+        ['شهادات صادرة',number(training.issuedCertificatesThisMonth)],
+        ['حضور الشهر',Number(training.attendanceRecordsThisMonth)>0
+          ?percent(training.attendanceRateThisMonth)
+          :'—']
       ]
     },
     {
       key:'operations',icon:'◆',title:'التشغيل والفريق',tone:'amber',
       href:`/tenant/${slug}/tasks`,
-      headline:number(executive.activeStaff),headlineLabel:'موظفًا نشطًا',
+      headline:Number(executive.dueTasksThisMonthToDate)<=0
+        ?'—'
+        :percent(executive.taskCompletionRateThisMonth),
+      headlineLabel:'إنجاز المهام المستحقة حتى اليوم',
       stats:[
-        ['حسابات دخول',number(executive.activeAccounts)],
-        ['مهام مفتوحة',number(tasks.open)],
-        ['مهام متأخرة',number(tasks.overdue)]
+        ['مكتملة',number(executive.completedDueTasksThisMonthToDate)],
+        ['مستحقة',number(executive.dueTasksThisMonthToDate)],
+        ['أنشطة المبيعات',number(executive.activitiesThisMonth)]
       ]
     }
   ];
 
   return <section className={styles.systemSection} aria-label="خريطة أداء المنشأة">
     <header className={styles.sectionHeading}>
-      <div><span>المنشأة في شاشة واحدة</span><h3>خريطة الأداء الشاملة</h3></div>
-      <p>كل محور يعرض رقمًا تنفيذيًا ثم أهم ثلاث إشارات تشغيلية من مصدره الفعلي.</p>
+      <div><span>{periodLabel(dashboard.period)}</span><h3>خريطة أداء الشهر</h3></div>
+      <p>كل محور يعرض الشهر الحالي حسب مصدره الفعلي، مع فصل مبيعات المتجر عن دفعات القبول لمنع الازدواج.</p>
     </header>
     <div className={`${styles.pillarGrid} ${
-      pillars.length===5?styles.pillarGridFive:''
+      pillars.length===5
+        ?styles.pillarGridFive
+        :pillars.length===4
+          ?styles.pillarGridFour
+          :''
     }`}>
       {pillars.map(pillar=><article
         className={`${styles.pillar} ${styles[pillar.tone]||''}`}
@@ -596,11 +734,11 @@ function SystemPillars({dashboard,marketing,operations,slug,canReadMarketing}){
           <div><span>محور الأداء</span><h4>{pillar.title}</h4></div>
         </header>
         <div className={styles.pillarHeadline}>
-          <b>{pillar.headline}</b><span>{pillar.headlineLabel}</span>
+          <b><bdi>{pillar.headline}</bdi></b><span>{pillar.headlineLabel}</span>
         </div>
         <dl>
           {pillar.stats.map(([label,value])=><div key={label}>
-            <dt>{label}</dt><dd>{value}</dd>
+            <dt>{label}</dt><dd><bdi>{value}</bdi></dd>
           </div>)}
         </dl>
         <Link href={pillar.href}>فتح التفاصيل <span aria-hidden="true">←</span></Link>
@@ -616,6 +754,7 @@ function buildExecutiveActions(dashboard,marketing,operations){
   const leads=dashboard.leadOperations||{};
   const training=dashboard.training||{};
   const marketingSummary=marketing?.summary||{};
+  const woo=executive.woocommerceRevenue||{};
   const tasks=taskSnapshot(operations?.tasks||[]);
   const actions=[];
   const add=(tone,title,note)=>actions.push({tone,title,note});
@@ -649,10 +788,11 @@ function buildExecutiveActions(dashboard,marketing,operations){
     add('setup','فجوة في حسابات الفريق',`${number(inactiveAccounts)} موظفين نشطين بلا حساب دخول نشط.`);
   }
   if(marketing&&Number(marketingSummary.spendMinor)>0){
-    if(Number(marketingSummary.sales)<=0){
-      add('watch','إنفاق إعلاني بلا مبيعات CRM موثقة','راجع الإسناد وربط العملاء قبل الحكم على العائد أو زيادة الميزانية.');
-    }else if(Number(marketingSummary.roas)<1){
-      add('watch','العائد الموثق أقل من نقطة التعادل',`ROAS الموثق ${ratio(marketingSummary.roas)} خلال آخر 30 يومًا.`);
+    const returnValue=commercialReturn(woo,marketing);
+    if(returnValue===0&&Number(woo.totals?.orderCount)<=0){
+      add('watch','إنفاق إعلاني بلا طلبات WooCommerce مكتملة','راجع الحملات ومسار إكمال الطلب قبل زيادة الإنفاق خلال الشهر.');
+    }else if(returnValue!=null&&returnValue<1){
+      add('watch','الإنفاق أعلى من صافي مبيعات المتجر',`مضاعف صافي WooCommerce إلى الإنفاق = ${ratio(returnValue)} هذا الشهر. لا يقيس هذا المؤشر الربحية أو إسناد حملة بعينها.`);
     }
   }
   if(!actions.length){
@@ -687,27 +827,30 @@ function ExecutiveActionCenter({dashboard,marketing,operations}){
   </section>;
 }
 
-function marketingVerdict(summary){
+function marketingVerdict(marketing,woo){
+  const summary=marketing?.summary||{};
   const spend=Number(summary.spendMinor)||0;
   const platformLeads=Number(summary.platformLeads)||0;
-  const verifiedSales=Number(summary.sales)||0;
-  const verifiedRoas=Number(summary.roas);
+  const returnValue=commercialReturn(woo,marketing);
+  if(marketingDataNeedsAttention(marketing)){
+    return {tone:'watch',label:'بيانات الإعلانات تحتاج مراجعة',text:'توجد مزامنة قديمة أو عملة مستبعدة؛ الرقم المسجل قد يكون جزئيًا، لذلك لم نحكم على مضاعف المبيعات إلى الإنفاق.'};
+  }
   if(!spend){
     return {tone:'neutral',label:'بانتظار بيانات كافية',text:'لا يوجد إنفاق مسجل في الفترة الحالية؛ راجع المزامنة أو نطاق التاريخ داخل مركز الحملات.'};
   }
-  if(verifiedSales>0&&verifiedRoas>=1){
-    return {tone:'good',label:'العائد الموثق فوق نقطة التعادل',text:'هناك مبيعات فعلية منسوبة تغطي الإنفاق. راقب تكلفة الاكتساب قبل توسيع الميزانية.'};
+  if(returnValue!=null&&returnValue>=1){
+    return {tone:'good',label:'صافي المبيعات أعلى من الإنفاق الإعلاني',text:`مضاعف صافي WooCommerce إلى الإنفاق ${ratio(returnValue)} هذا الشهر. لا يقيس الربحية ولا ينسب المبيعات إلى حملة بعينها.`};
   }
-  if(verifiedSales>0&&verifiedRoas<1){
-    return {tone:'risk',label:'العائد الموثق دون نقطة التعادل',text:'الإيراد الموثق أقل من الإنفاق خلال الفترة؛ راجع الحملات والإسناد قبل زيادة الميزانية.'};
+  if(returnValue!=null&&returnValue<1){
+    return {tone:'risk',label:'الإنفاق أعلى من صافي مبيعات المتجر',text:`مضاعف صافي WooCommerce إلى الإنفاق ${ratio(returnValue)} هذا الشهر. راجع الكفاءة، مع مراعاة أن المؤشر لا يقيس الربحية.`};
   }
   if(platformLeads>0){
-    return {tone:'watch',label:'نتائج المنصات لم تتحول إلى مبيعات موثقة',text:'المنصات تسجل نتائج، لكن CRM لا يثبت مبيعات منسوبة بعد. افحص الربط والتتبع ومسار المتابعة.'};
+    return {tone:'watch',label:'المنصات تسجل نتائج هذا الشهر',text:'تظهر نتائج إعلانية، لكن لا يمكن حساب العائد التجاري الإجمالي حتى يتوفر تقرير WooCommerce بنفس العملة.'};
   }
   return {tone:'risk',label:'إنفاق دون نتائج مسجلة',text:'يوجد إنفاق بلا نتائج حتى على مستوى المنصة؛ راجع التتبع والاستهداف فورًا.'};
 }
 
-function MarketingPulse({marketing,slug,canRead}){
+function MarketingPulse({marketing,dashboard,slug,canRead}){
   if(!canRead)return null;
   if(!marketing){
     return <article className={`${styles.panel} ${styles.marketingPulse}`}>
@@ -729,30 +872,39 @@ function MarketingPulse({marketing,slug,canRead}){
     ['active','degraded'].includes(provider.connection?.status)
   ).length;
   const topCampaign=campaigns.slice().sort((a,b)=>
-    (Number(b.sales)||0)-(Number(a.sales)||0)
-    ||(Number(b.platformConversions)||0)-(Number(a.platformConversions)||0)
+    (Number(b.platformConversions)||0)-(Number(a.platformConversions)||0)
     ||(Number(b.platformLeads)||0)-(Number(a.platformLeads)||0)
   )[0]||null;
-  const verdict=marketingVerdict(summary);
+  const woo=dashboard?.executive?.woocommerceRevenue||{};
+  const verdict=marketingVerdict(marketing,woo);
   const currency=summary.currency||'SAR';
+  const returnValue=commercialReturn(woo,marketing);
   const cards=[
-    ['الإنفاق',moneyMinorCurrency(summary.spendMinor,currency),'من بيانات المنصات'],
+    ['الإنفاق المسجل',moneyMinorCurrency(summary.spendMinor,currency),
+      marketingDataNeedsAttention(marketing)
+        ?'قد يكون جزئيًا؛ راجع صحة الربط والعملات'
+        :'الإنفاق الفعلي من بيانات المنصات خلال الشهر'],
     ['نتائج المنصات',number(summary.platformLeads),'قبل التحقق داخل CRM'],
-    ['عملاء CRM',number(summary.leads),'عملاء منسوبون وموثقون'],
-    ['مبيعات موثقة',number(summary.sales),'مدفوعات فعلية منسوبة'],
-    ['إيراد موثق',moneyMinorCurrency(summary.revenueMinor,currency),'بعد الإسناد والمرتجعات'],
-    ['ROAS موثّق',Number(summary.spendMinor)>0?ratio(summary.roas):'—','إيراد CRM ÷ الإنفاق']
+    ['النقرات',number(summary.clicks),'النقرات المسجلة في المنصات'],
+    ['مرات الظهور',number(summary.impressions),'الظهور المسجل في المنصات'],
+    ['تكلفة نتيجة المنصة',summary.platformCplMinor==null
+      ?'—'
+      :moneyMinorCurrency(summary.platformCplMinor,currency),'الإنفاق ÷ نتائج المنصات'],
+    ['مضاعف المبيعات إلى الإنفاق',returnValue==null? '—':ratio(returnValue),'صافي WooCommerce ÷ الإنفاق؛ لا يقيس الربحية']
   ];
 
   return <article className={`${styles.panel} ${styles.marketingPulse}`}>
     <header className={styles.panelHead}>
-      <div><span>آخر 30 يومًا</span><h3>نبض الإعلانات والإسناد</h3></div>
+      <div><span>{periodLabel({
+        ...marketing.range,
+        timeZone:marketing.range?.timeZone||marketing.settings?.timezone
+      })}</span><h3>نبض الإعلانات هذا الشهر</h3></div>
       <Link href={`/tenant/${slug}/marketing`}>التحليل الكامل</Link>
     </header>
     <div className={styles.marketingBody}>
       <div className={styles.marketingMetrics}>
         {cards.map(([label,value,note])=><div key={label}>
-          <span>{label}</span><b>{value}</b><small>{note}</small>
+          <span>{label}</span><b><bdi>{value}</bdi></b><small>{note}</small>
         </div>)}
       </div>
       <aside className={`${styles.marketingVerdict} ${styles[verdict.tone]||''}`}>
@@ -775,66 +927,74 @@ function ExecutiveHealth({dashboard}){
   const sales=dashboard.sales||{};
   const calls=dashboard.telephony||{};
   const leads=dashboard.leadOperations||{};
-  const accountRate=ratioPercent(
-    executive.activeAccounts,
-    executive.activeStaff
-  );
   const responseRate=Number(
     leads.firstResponseSlaRate??sales.firstResponseSlaRate
   )||0;
   const responseMinutes=Number(
     leads.averageFirstResponseMinutes??sales.averageFirstResponseMinutes
   )||0;
+  const dueTasks=Number(executive.dueTasksThisMonthToDate)||0;
+  const totalCalls=Number(calls.totalCalls)||0;
+  const distributed=Number(sales.distributedThisMonth)||0;
   const items=[
     {
-      label:'تفعيل حسابات الفريق',
-      value:accountRate,
-      note:`${number(executive.activeAccounts)} من ${number(executive.activeStaff)} موظف`
+      label:'إنجاز المهام المستحقة',
+      value:dueTasks>0
+        ?normalizedPercent(executive.taskCompletionRateThisMonth)
+        :null,
+      note:`${number(executive.completedDueTasksThisMonthToDate)} من ${number(executive.dueTasksThisMonthToDate)} مهمة حتى اليوم`
     },
     {
       label:'الرد على المكالمات',
-      value:normalizedPercent(calls.answerRate),
+      value:totalCalls>0?normalizedPercent(calls.answerRate):null,
       note:`${number(calls.answeredCalls)} من ${number(calls.totalCalls)} مكالمة`
     },
     {
       label:'الالتزام بأول متابعة',
-      value:normalizedPercent(responseRate),
+      value:distributed>0?normalizedPercent(responseRate):null,
       note:responseMinutes
         ?`${number(responseMinutes)} دقيقة متوسط أول رد`
         :'لا توجد مدة استجابة مسجلة'
     },
     {
       label:'تحويل العملاء للدفع',
-      value:normalizedPercent(sales.conversionRate),
-      note:`${number(sales.paidThisMonth)} تسجيلًا محققًا هذا الشهر`
+      value:distributed>0&&sales.closingRate!=null
+        ?normalizedPercent(sales.closingRate)
+        :null,
+      note:`${number(sales.paidFromDistributedThisMonth)} دفعوا من ${number(sales.distributedThisMonth)} موزعين هذا الشهر`
     }
   ];
 
   return <section className={styles.health} aria-label="صحة المنشأة">
     <header className={styles.healthHead}>
       <div>
-        <span>قراءة إدارية موحّدة</span>
-        <h3>صحة المنشأة</h3>
+        <span>{periodLabel(dashboard.period)}</span>
+        <h3>صحة أداء الشهر</h3>
       </div>
-      <p>النسب محسوبة مباشرة من الحسابات والمبيعات والمكالمات المسجلة.</p>
+      <p>أربع نسب تشغيلية محسوبة على الشهر الحالي فقط، من مصادرها المسجلة.</p>
     </header>
     <div className={styles.healthGrid}>
-      {items.map(item=><article key={item.label}>
+      {items.map(item=>{
+        const available=item.value!=null
+          &&Number.isFinite(Number(item.value));
+        const normalized=available?Math.round(item.value):0;
+        return <article key={item.label}>
         <div>
           <span>{item.label}</span>
-          <b>{percent(Math.round(item.value))}</b>
+          <b>{available?percent(normalized):'—'}</b>
         </div>
         <i
           role="progressbar"
           aria-label={item.label}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(item.value)}
+          aria-valuenow={available?normalized:undefined}
+          aria-valuetext={available?undefined:'لا توجد بيانات كافية'}
         >
-          <span style={{width:`${item.value}%`}}/>
+          <span style={{width:`${available?item.value:0}%`}}/>
         </i>
         <small>{item.note}</small>
-      </article>)}
+      </article>})}
     </div>
   </section>;
 }
@@ -929,18 +1089,20 @@ export default function RoleDashboard({
         </div>
       </div>
       <div className={styles.heroAside}>
-        <span>آخر تحديث</span>
-        <b>{when(dashboard?.generatedAt)}</b>
-        <small>تتحدث الأرقام تلقائيًا من بيانات التشغيل</small>
+        <span>نطاق مؤشرات اللوحة</span>
+        <b>{periodLabel(dashboard?.period)}</b>
+        <small>آخر تحديث {when(dashboard?.generatedAt)}</small>
       </div>
     </section>
 
     <ReadinessAlerts role={role} dashboard={dashboard||{}}/>
-    <MetricCards items={metrics}/>
+    {EXECUTIVE_ROLES.has(role)
+      ?<ExecutiveMetricSection items={metrics} period={dashboard?.period}/>
+      :<MetricCards items={metrics}/>
+    }
     {EXECUTIVE_ROLES.has(role)&&<SystemPillars
       dashboard={dashboard||{}}
       marketing={marketing}
-      operations={operations}
       slug={slug}
       canReadMarketing={canReadMarketing}
     />}
@@ -961,12 +1123,13 @@ export default function RoleDashboard({
     </section>
 
     <section className={styles.grid}>
-      <Trend daily={dashboard?.daily||[]}/>
+      <Trend daily={dashboard?.daily||[]} period={dashboard?.period}/>
       <TaskList tasks={operations?.tasks||[]} slug={slug}/>
     </section>
 
     {showMarketing&&<MarketingPulse
       marketing={marketing}
+      dashboard={dashboard||{}}
       slug={slug}
       canRead={canReadMarketing}
     />}
@@ -978,16 +1141,19 @@ export default function RoleDashboard({
     />}
 
     {showSources&&<section className={styles.grid}>
-      <SourcesPanel sources={dashboard?.sources||[]}/>
+      <SourcesPanel
+        sources={dashboard?.sources||[]}
+        monthToDate={EXECUTIVE_ROLES.has(role)}
+      />
       <article className={styles.panel}>
         <header className={styles.panelHead}>
-          <div><span>سرعة التشغيل</span><h3>الاستجابة والتوزيع</h3></div>
+          <div><span>{periodLabel(dashboard?.period)}</span><h3>الاستجابة والتوزيع</h3></div>
         </header>
         <div className={styles.callStats}>
           <div><span>متوسط أول رد</span><b>{number((dashboard?.leadOperations||{}).averageFirstResponseMinutes||(dashboard?.sales||{}).averageFirstResponseMinutes)} د</b></div>
           <div><span>الالتزام بالمهلة</span><b>{percent((dashboard?.leadOperations||{}).firstResponseSlaRate||(dashboard?.sales||{}).firstResponseSlaRate)}</b></div>
-          <div><span>بانتظار التوزيع</span><b>{number((dashboard?.leadOperations||{}).awaitingDistribution)}</b></div>
-          <div><span>تجاوزات المهلة</span><b>{number((dashboard?.leadOperations||{}).slaBreaches)}</b></div>
+          <div><span>وُزعوا هذا الشهر</span><b>{number((dashboard?.sales||{}).distributedThisMonth)}</b></div>
+          <div><span>دفعوا من موزعي الشهر</span><b>{number((dashboard?.sales||{}).paidFromDistributedThisMonth)}</b></div>
         </div>
       </article>
     </section>}

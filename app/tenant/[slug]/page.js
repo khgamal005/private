@@ -14,7 +14,7 @@ export const dynamic='force-dynamic';
 
 async function getOptionalMarketing(slug){
   try{
-    return await getTenantMarketingHub(slug);
+    return await getTenantMarketingHub(slug,{monthToDate:true});
   }catch(error){
     unstable_rethrow(error);
     return null;

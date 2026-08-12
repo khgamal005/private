@@ -73,7 +73,8 @@ test('connector uses authenticated wc v3 reads with safe pagination and retries'
   assert.match(edge,/redirect:\s*'error'/);
   assert.match(edge,/MAX_PAGES_PER_COLLECTION/);
   assert.match(edge,/MAX_REMOTE_RESPONSE_BYTES/);
-  assert.match(edge,/itemCount > 0/);
+  assert.match(edge,/itemCount >= perPage/);
+  assert.match(edge,/408, 429, 500, 502, 503, 504/);
   assert.match(edge,/startsWith\('sb_secret_'\)/);
   assert.doesNotMatch(edge,/consumer_key=.*consumer_secret=/i);
 });
@@ -122,7 +123,7 @@ test('standalone integrations UI keeps secrets server-side and routes WooCommerc
   assert.match(hub,/يدوي فقط/);
   assert.match(hub,/أسبوعي/);
   assert.match(hub,/الطلبات والمدفوعات/);
-  assert.match(hub,/syncScope:scope/);
+  assert.match(hub,/syncScope:normalizedScope/);
   assert.match(hub,/matchBySku/);
   assert.match(catalog,/regularPriceMinor/);
   assert.match(catalog,/salePriceMinor/);

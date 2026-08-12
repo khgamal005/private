@@ -157,9 +157,9 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
   if(EXECUTIVE_ROLES.has(role)){
     const items=[
       metric(
-        'إيراد محقق هذا الشهر',
+        'دفعات التسجيل المؤكدة هذا الشهر',
         moneyMinor(executive.wonRevenueMinor),
-        'مدفوعات تم التحقق منها خلال الشهر الحالي',
+        'دفعات تم التحقق منها في سجل القبول داخل المنصة؛ وليست تقرير WooCommerce',
         'green',
         true
       ),

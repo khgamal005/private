@@ -1,8 +1,12 @@
 'use client';
 
 import Image from 'next/image';
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import {
+  pollWooSyncRun,
+  wooSyncReviewedCount
+} from '../lib/woocommerce-sync-state.mjs';
 import styles from './commerce-integration-hub.module.css';
 
 const STATUS_LABELS={
@@ -100,6 +104,20 @@ const GUIDE_STEPS={
   ]
 };
 
+const delay=milliseconds=>new Promise(resolve=>{
+  window.setTimeout(resolve,milliseconds);
+});
+
+function providerScope(providerKey,scope){
+  const values=[...new Set(scope||[])];
+  if(
+    providerKey==='woocommerce'
+    &&values.includes('attributes')
+    &&!values.includes('attribute_terms')
+  )values.push('attribute_terms');
+  return values;
+}
+
 export default function CommerceIntegrationHub({slug,initialData,canManage}){
   const router=useRouter();
   const providers=useMemo(
@@ -113,6 +131,8 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
   const [busy,setBusy]=useState('');
   const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
+  const syncKeys=useRef(new Map());
+  const mounted=useRef(true);
   const selected=useMemo(
     ()=>providers.find(item=>item.providerKey===selectedKey)||null,
     [providers,selectedKey]
@@ -121,6 +141,11 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
     ['active','degraded','draft','awaiting_authorization']
       .includes(item.connection?.status)
   ).length;
+
+  useEffect(()=>{
+    mounted.current=true;
+    return ()=>{mounted.current=false;};
+  },[]);
 
   useEffect(()=>{
     if(!selected)return undefined;
@@ -136,10 +161,14 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
     };
   },[selected,busy]);
 
-  async function call(provider,action,payload={}){
+  async function call(provider,action,payload={},options={}){
+    const headers={'content-type':'application/json'};
+    if(options.idempotencyKey){
+      headers['x-idempotency-key']=options.idempotencyKey;
+    }
     const response=await fetch(`/api/commerce/${provider}/${action}`,{
       method:'POST',
-      headers:{'content-type':'application/json'},
+      headers,
       body:JSON.stringify({tenantSlug:slug,payload})
     });
     const result=await response.json().catch(()=>({}));
@@ -184,6 +213,7 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
       const scope=(selected.capabilities||[]).filter(key=>
         key==='products'||values[`scope_${key}`]==='on'
       );
+      const normalizedScope=providerScope(selected.providerKey,scope);
       const matchBySku=values.matchBySku==='on';
       const payload=selected.providerKey==='woocommerce'
         ?{
@@ -192,7 +222,7 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
             syncTime,
             syncTimezone:'Asia/Riyadh',
             matchBySku,
-            syncScope:scope,
+            syncScope:normalizedScope,
             secrets
           }
         :{
@@ -206,7 +236,7 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
             sourceOfTruth:'remote',
             conflictPolicy:'remote_wins',
             matchBySku,
-            syncScope:scope,
+            syncScope:normalizedScope,
             configuration,
             secrets
           };
@@ -229,8 +259,16 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
     setNotice('');
     setError('');
     try{
+      let syncKey=null;
+      if(action==='sync'){
+        syncKey=syncKeys.current.get(provider.providerKey)
+          ||crypto.randomUUID();
+        syncKeys.current.set(provider.providerKey,syncKey);
+      }
       const result=await call(provider.providerKey,action,{
         scope:provider.connection?.syncScope||['products']
+      },{
+        idempotencyKey:syncKey
       });
       if(action==='test'){
         const identity=result?.identity
@@ -242,18 +280,40 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
           +`${identity.name?` — ${identity.name}`:''}.`
         );
       }else{
-        const totals=result?.totals
-          ||result?.stats?.totals
-          ||result?.stats
-          ||{};
-        const total=Object.values(totals).reduce(
-          (sum,value)=>sum+(Number.isFinite(Number(value))?Number(value):0),
-          0
+        let completed=result;
+        if(
+          provider.providerKey==='woocommerce'
+          &&result?.runId
+          &&(result.status==='running'||result.duplicate===true)
+        ){
+          setNotice(
+            `بدأت مزامنة ${provider.nameAr}. `
+            +'يمكنك إبقاء الصفحة مفتوحة لمتابعة اكتمالها.'
+          );
+          completed=await waitForWooSync(result.runId);
+          if(!completed){
+            setNotice(
+              `مزامنة ${provider.nameAr} ما زالت تعمل في الخلفية. `
+              +'لن يؤدي ذلك إلى تكرار البيانات.'
+            );
+            router.refresh();
+            return;
+          }
+        }
+        if(completed?.status==='failed'){
+          syncKeys.current.delete(provider.providerKey);
+          throw new Error('فشلت مزامنة WooCommerce. راجع سجل التشغيل.');
+        }
+        const total=wooSyncReviewedCount(completed);
+        const failed=Number(completed?.failedCount)||0;
+        setNotice(completed?.status==='partial'
+          ?`اكتملت مزامنة ${provider.nameAr} مع تحذيرات: `
+            +`${total.toLocaleString('ar-SA')} سجلًا، `
+            +`${failed.toLocaleString('ar-SA')} تعذر حفظه.`
+          :`اكتملت مزامنة ${provider.nameAr}: `
+            +`${total.toLocaleString('ar-SA')} سجلًا.`
         );
-        setNotice(
-          `اكتملت مزامنة ${provider.nameAr}: `
-          +`${total.toLocaleString('ar-SA')} سجلًا.`
-        );
+        syncKeys.current.delete(provider.providerKey);
       }
       router.refresh();
     }catch(reason){
@@ -261,6 +321,15 @@ export default function CommerceIntegrationHub({slug,initialData,canManage}){
     }finally{
       setBusy('');
     }
+  }
+
+  async function waitForWooSync(runId){
+    return pollWooSyncRun({
+      runId,
+      wait:delay,
+      isActive:()=>mounted.current,
+      fetchSnapshot:()=>call('woocommerce','status')
+    });
   }
 
   async function toggle(provider){

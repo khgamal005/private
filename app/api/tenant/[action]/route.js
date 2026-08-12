@@ -20,6 +20,7 @@ const RPC={
   'create-sales-lead':'v2_tenant_create_sales_lead',
   'update-sales-contact':'v2_tenant_update_sales_contact_v1',
   'lead-intake':'v2_tenant_lead_intake_action',
+  'woocommerce-order-routing':'v3_tenant_commerce_order_action',
   'record-sales-followup':'v2_tenant_record_sales_followup_v4',
   'update-admission':'v2_tenant_update_admission',
   'update-admission-document':'v2_tenant_update_admission_document',

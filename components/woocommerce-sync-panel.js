@@ -1,7 +1,11 @@
 'use client';
 
-import {useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import {
+  pollWooSyncRun,
+  wooSyncReviewedCount
+} from '../lib/woocommerce-sync-state.mjs';
 
 const FREQUENCIES={
   manual:'يدوي فقط',
@@ -39,6 +43,10 @@ const SCOPE_FIELDS=[
   ['customers','العملاء (اختياري)','بيانات العملاء اللازمة للربط والتقارير؛ قد تزيد مدة أول مزامنة في المتاجر الكبيرة.']
 ];
 
+const delay=milliseconds=>new Promise(resolve=>{
+  window.setTimeout(resolve,milliseconds);
+});
+
 export default function WooCommerceSyncPanel({
   slug,
   initialData,
@@ -64,15 +72,26 @@ export default function WooCommerceSyncPanel({
   const [scope,setScope]=useState(
     initialScope(connection?.syncScope,connection?.matchBySku)
   );
+  const syncKey=useRef(null);
+  const mounted=useRef(true);
   const lastRun=recentRuns[0]||null;
   const configured=Boolean(connection);
   const credentialsReady=configuredSecrets.includes('consumerKey')
     &&configuredSecrets.includes('consumerSecret');
 
-  async function call(action,body={}){
+  useEffect(()=>{
+    mounted.current=true;
+    return ()=>{mounted.current=false;};
+  },[]);
+
+  async function call(action,body={},options={}){
+    const headers={'content-type':'application/json'};
+    if(options.idempotencyKey){
+      headers['x-idempotency-key']=options.idempotencyKey;
+    }
     const response=await fetch(`/api/woocommerce/${action}`,{
       method:'POST',
-      headers:{'content-type':'application/json'},
+      headers,
       body:JSON.stringify({tenantSlug:slug,...body})
     });
     const payload=await response.json().catch(()=>({}));
@@ -140,19 +159,43 @@ export default function WooCommerceSyncPanel({
     setError('');
     setNotice('جارٍ قراءة بيانات WooCommerce وحفظها دون تكرار…');
     try{
-      const result=await call('sync');
-      const stats=result.stats||{};
-      const total=Number(
-        stats.total
-        ??Object.values(stats.totals||{}).reduce(
-          (sum,value)=>sum+(Number(value)||0),
-          0
-        )
+      syncKey.current=syncKey.current||crypto.randomUUID();
+      const result=await call('sync',{
+        scope:scopeList(scope)
+      },{
+        idempotencyKey:syncKey.current
+      });
+      let completed=result;
+      if(
+        result?.runId
+        &&(result.status==='running'||result.duplicate===true)
+      ){
+        setNotice(
+          'بدأت المزامنة في الخلفية. جارٍ متابعة سجل التشغيل…'
+        );
+        completed=await waitForSync(result.runId);
+        if(!completed){
+          setNotice(
+            'المزامنة ما زالت تعمل في الخلفية، ولن تتكرر البيانات.'
+          );
+          router.refresh();
+          return;
+        }
+      }
+      if(completed?.status==='failed'){
+        syncKey.current=null;
+        throw new Error('فشلت مزامنة WooCommerce. راجع سجل التشغيل.');
+      }
+      const total=wooSyncReviewedCount(completed);
+      const failed=Number(completed?.failedCount)||0;
+      setNotice(completed?.status==='partial'
+        ?'اكتملت المزامنة مع تحذيرات: '
+          +`${total.toLocaleString('ar-SA')} سجل تمت مراجعته، `
+          +`${failed.toLocaleString('ar-SA')} تعذر حفظه.`
+        :'اكتملت المزامنة بنجاح: '
+          +`${total.toLocaleString('ar-SA')} سجل تمت مراجعته.`
       );
-      setNotice(
-        `اكتملت المزامنة بنجاح: `
-        +`${total.toLocaleString('ar-SA')} سجل تمت مراجعته.`
-      );
+      syncKey.current=null;
       router.refresh();
     }catch(reason){
       setNotice('');
@@ -161,6 +204,15 @@ export default function WooCommerceSyncPanel({
     }finally{
       setBusy('');
     }
+  }
+
+  async function waitForSync(runId){
+    return pollWooSyncRun({
+      runId,
+      wait:delay,
+      isActive:()=>mounted.current,
+      fetchSnapshot:()=>call('status')
+    });
   }
 
   async function disable(){

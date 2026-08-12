@@ -13,11 +13,29 @@ const EMPTY=[];
 
 const TABS=[
   ['queue','صف الانتظار'],
+  ['commerce_orders','طلبات WooCommerce'],
   ['batches','دفعات الرفع'],
   ['assignments','سجل التوزيع'],
   ['analytics','المصادر والحملات'],
   ['team','فريق التوزيع']
 ];
+
+const WOO_ORDER_STATUS={
+  pending:'بانتظار الدفع',
+  processing:'قيد التنفيذ',
+  'on-hold':'معلّق',
+  completed:'مكتمل',
+  cancelled:'ملغي',
+  refunded:'مسترد',
+  failed:'فشل الدفع',
+  trash:'محذوف'
+};
+
+const ORDER_ROUTING_MODE={
+  queue:'كيو مدير المبيعات / مسؤول البيانات',
+  auto_fair:'توزيع تلقائي عادل',
+  auto_online:'توزيع تلقائي على فريق الأونلاين'
+};
 
 const VALIDATION_LABELS={
   valid:'صالح',
@@ -198,6 +216,19 @@ function number(value){
   return Number(value||0).toLocaleString('ar-SA');
 }
 
+function moneyMinor(value,currency='SAR',minorDigits=2){
+  const parsedDigits=Number(minorDigits);
+  const digits=Math.max(0,Math.min(
+    Number.isInteger(parsedDigits)?parsedDigits:2,
+    3
+  ));
+  return new Intl.NumberFormat('ar-SA',{
+    style:'currency',
+    currency:/^[A-Z]{3}$/.test(currency)?currency:'SAR',
+    maximumFractionDigits:digits
+  }).format(Number(value||0)/(10**digits));
+}
+
 function validationClass(value){
   if(value==='valid')return 'good';
   if(value==='duplicate')return 'warning';
@@ -338,6 +369,11 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   const [filters,setFilters]=useState(DEFAULT_FILTERS);
   const [query,setQuery]=useState('');
   const [selectedRows,setSelectedRows]=useState([]);
+  const [selectedOrders,setSelectedOrders]=useState([]);
+  const [orderAssignee,setOrderAssignee]=useState('');
+  const [routingDraft,setRoutingDraft]=useState({
+    mode:'queue',queueOwnerStaffId:'',slaMinutes:60
+  });
   const [modal,setModal]=useState(null);
   const [busy,setBusy]=useState(false);
   const [parseBusy,setParseBusy]=useState(false);
@@ -362,6 +398,12 @@ export default function LeadIntakeWorkspace({slug,initialData}){
 
   useEffect(()=>{
     setData(initialData);
+    const orderSettings=initialData.commerceOrders?.settings||{};
+    setRoutingDraft({
+      mode:orderSettings.mode||'queue',
+      queueOwnerStaffId:orderSettings.queueOwnerStaffId||'',
+      slaMinutes:Number(orderSettings.slaMinutes)||60
+    });
     setTeamDrafts(Object.fromEntries(
       (initialData.staff||EMPTY).map(staff=>[
         staff.id,
@@ -382,6 +424,10 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   const campaigns=data.campaigns||EMPTY;
   const staff=data.staff||EMPTY;
   const summary=data.summary||{};
+  const commerceOrders=data.commerceOrders||{};
+  const orderItems=commerceOrders.items||EMPTY;
+  const orderStaff=commerceOrders.staff||EMPTY;
+  const orderSummary=commerceOrders.summary||{};
   const timeZone=data.timezone||'Asia/Riyadh';
   const dateBasis=leadIntakeDateBasis(tab);
 
@@ -543,6 +589,58 @@ export default function LeadIntakeWorkspace({slug,initialData}){
     const result=await response.json();
     if(!response.ok)throw new Error(result.error||'تعذر تنفيذ العملية');
     return result.data;
+  }
+
+  async function callOrderRouting(action,payload={}){
+    const response=await fetch('/api/tenant/woocommerce-order-routing',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        p_tenant_slug:slug,
+        p_action:action,
+        p_payload:payload
+      })
+    });
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.error||'تعذر تحديث توزيع الطلبات');
+    return result.data;
+  }
+
+  async function saveOrderRouting(){
+    setBusy(true);resetFeedback();
+    try{
+      await callOrderRouting('set_routing',{
+        mode:routingDraft.mode,
+        queueOwnerStaffId:routingDraft.queueOwnerStaffId||null,
+        slaMinutes:Number(routingDraft.slaMinutes)||60
+      });
+      setMessage('تم حفظ مسار طلبات WooCommerce الجديدة.');
+      router.refresh();
+    }catch(reason){setError(reason.message)}finally{setBusy(false)}
+  }
+
+  async function assignOrders(automatic=false){
+    if(!selectedOrders.length){
+      setError('حدد طلبًا واحدًا على الأقل');return;
+    }
+    if(!automatic&&!orderAssignee){
+      setError('اختر مسؤول المبيعات');return;
+    }
+    setBusy(true);resetFeedback();
+    try{
+      const result=await callOrderRouting(
+        automatic?'auto_distribute':'assign',
+        automatic
+          ?{itemIds:selectedOrders}
+          :{itemIds:selectedOrders,staffId:orderAssignee}
+      );
+      setMessage(
+        `تم توزيع ${number(result.assigned||0)} طلب، `
+        +`وبقي ${number(result.queued||0)} في الكيو.`
+      );
+      setSelectedOrders([]);
+      router.refresh();
+    }catch(reason){setError(reason.message)}finally{setBusy(false)}
   }
 
   function resetFeedback(){
@@ -785,7 +883,8 @@ export default function LeadIntakeWorkspace({slug,initialData}){
     </section>
 
     <nav className="mt-section-tabs mt-lead-intake-tabs">
-      {TABS.filter(([key])=>key!=='analytics'||viewer.canAnalytics)
+      {TABS.filter(([key])=>key!=='commerce_orders'||commerceOrders.configured)
+        .filter(([key])=>key!=='analytics'||viewer.canAnalytics)
         .filter(([key])=>key!=='team'||viewer.canDistribute)
         .map(([key,label])=><button
           key={key}
@@ -794,7 +893,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
         >{label}</button>)}
     </nav>
 
-    <section className="mt-panel mt-lead-report-filters">
+    {tab!=='commerce_orders'&&<section className="mt-panel mt-lead-report-filters">
       <div className="mt-lead-report-filter-head">
         <div>
           <h3>فلترة وتحليل بيانات التوزيع</h3>
@@ -888,7 +987,73 @@ export default function LeadIntakeWorkspace({slug,initialData}){
           </select>
         </label>
       </div>
-    </section>
+    </section>}
+
+    {tab==='commerce_orders'&&<section className="mt-panel">
+      <div className="mt-panel-head">
+        <div>
+          <h3>كيو مهام طلبات WooCommerce</h3>
+          <p>كل طلب جديد يُنشئ مهمة واحدة مهما كانت حالته، وتُحدّث المهمة نفسها عند تغير الحالة دون تكرار.</p>
+        </div>
+        <span className="mt-status good">
+          الالتقاط منذ {formatDate(commerceOrders.settings?.enabledAt)}
+        </span>
+      </div>
+
+      <div className="mt-kpis mt-lead-intake-kpis">
+        <article className="mt-kpi warning"><span>بانتظار التوزيع</span><b>{number(orderSummary.awaitingDistribution)}</b><small>لدى مدير المبيعات أو مسؤول البيانات</small></article>
+        <article className="mt-kpi"><span>طلبات موزعة</span><b>{number(orderSummary.assigned)}</b><small>مرتبطة بمسؤول مبيعات ومهمة</small></article>
+        <article className="mt-kpi danger"><span>تحتاج مراجعة</span><b>{number(orderSummary.errors)}</b><small>تعذر إنشاء مهمة أو تحديد مسارها</small></article>
+        <article className="mt-kpi"><span>إجمالي الطلبات الجديدة</span><b>{number(orderSummary.total)}</b><small>كل حالات WooCommerce بعد التفعيل</small></article>
+      </div>
+
+      {commerceOrders.viewer?.canRoute&&<div className="mt-form mt-commerce-order-settings">
+        <label className="mt-field">مسار الطلبات الجديدة
+          <select value={routingDraft.mode} onChange={event=>setRoutingDraft(current=>({...current,mode:event.target.value}))}>
+            {Object.entries(ORDER_ROUTING_MODE).map(([value,label])=><option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
+        <label className="mt-field">مسؤول الكيو
+          <select value={routingDraft.queueOwnerStaffId} onChange={event=>setRoutingDraft(current=>({...current,queueOwnerStaffId:event.target.value}))}>
+            <option value="">اختيار تلقائي لمدير المبيعات</option>
+            {orderStaff.filter(member=>member.canOwnQueue).map(member=><option key={member.id} value={member.id}>{member.name} — {member.roleLabel}</option>)}
+          </select>
+        </label>
+        <label className="mt-field">مهلة أول متابعة بالدقائق
+          <input type="number" min="5" max="10080" value={routingDraft.slaMinutes} onChange={event=>setRoutingDraft(current=>({...current,slaMinutes:Number(event.target.value)}))}/>
+        </label>
+        <button className="mt-button primary" disabled={busy} onClick={saveOrderRouting}>حفظ المسار</button>
+      </div>}
+
+      {commerceOrders.viewer?.canRoute&&<div className="mt-toolbar mt-lead-queue-toolbar">
+        <select value={orderAssignee} onChange={event=>setOrderAssignee(event.target.value)}>
+          <option value="">اختر مسؤول المبيعات</option>
+          {orderStaff.filter(member=>member.canReceiveOrders).map(member=><option key={member.id} value={member.id}>{member.name} — {member.activeOrderTasks} مهمة مفتوحة</option>)}
+        </select>
+        <button className="mt-button primary" disabled={busy||!selectedOrders.length} onClick={()=>assignOrders(false)}>إسناد المحدد ({number(selectedOrders.length)})</button>
+        <button className="mt-button soft" disabled={busy||!selectedOrders.length} onClick={()=>assignOrders(true)}>توزيع تلقائي للمحدد</button>
+      </div>}
+
+      <div className="mt-table-wrap">
+        <table className="mt-table">
+          <thead><tr>
+            <th>{commerceOrders.viewer?.canRoute&&<input type="checkbox" aria-label="تحديد طلبات الكيو" checked={Boolean(orderItems.length)&&orderItems.filter(item=>item.taskStatus!=='completed').every(item=>selectedOrders.includes(item.id))} onChange={event=>setSelectedOrders(event.target.checked?orderItems.filter(item=>item.taskStatus!=='completed').map(item=>item.id):[])}/>}</th>
+            <th>الطلب</th><th>العميل</th><th>حالة Woo</th><th>القيمة</th><th>مسار التوزيع</th><th>المسؤول</th><th>المهمة</th>
+          </tr></thead>
+          <tbody>{orderItems.map(item=><tr key={item.id}>
+            <td>{commerceOrders.viewer?.canRoute&&item.taskStatus!=='completed'?<input type="checkbox" checked={selectedOrders.includes(item.id)} onChange={()=>setSelectedOrders(current=>current.includes(item.id)?current.filter(id=>id!==item.id):[...current,item.id])}/>:<span>—</span>}</td>
+            <td><b>#{item.orderNumber||item.externalOrderId}</b><small>{formatDate(item.orderCreatedAt)}</small></td>
+            <td><b>{item.customerName||'عميل WooCommerce'}</b><small dir="ltr">{item.customerPhone||item.customerEmail||'لا توجد وسيلة تواصل'}</small></td>
+            <td><span className={`mt-status ${['completed','processing'].includes(item.orderStatus)?'good':['failed','cancelled','refunded'].includes(item.orderStatus)?'danger':'warning'}`}>{WOO_ORDER_STATUS[item.orderStatus]||item.orderStatus}</span></td>
+            <td>{moneyMinor(item.amountMinor,item.currency,item.minorDigits)}</td>
+            <td><b>{item.routingState==='awaiting_distribution'?'في الكيو':item.routingState==='assigned'?'تم التوزيع':'تحتاج مراجعة'}</b><small>{ORDER_ROUTING_MODE[item.routingStrategy]||item.routingStrategy}</small></td>
+            <td>{item.assigneeName||'غير مسند'}</td>
+            <td><b>{item.taskStatus==='completed'?'مكتملة':item.taskStatus==='in_progress'?'قيد التنفيذ':'مطلوبة'}</b><small>{formatDate(item.taskDueAt)}</small></td>
+          </tr>)}</tbody>
+        </table>
+        {!orderItems.length&&<div className="mt-empty">لا توجد طلبات جديدة بعد تفعيل مسار المهام. الطلبات التاريخية لم تُحوّل تلقائيًا حمايةً للفريق من آلاف المهام القديمة.</div>}
+      </div>
+    </section>}
 
     {tab==='queue'&&<section className="mt-panel">
       <div className="mt-toolbar mt-lead-queue-toolbar">

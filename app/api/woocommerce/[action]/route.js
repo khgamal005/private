@@ -82,13 +82,20 @@ function translated(value){
 export async function POST(request,{params}){
   try{
     const {action}=await params;
-    if(!['save','disable','test','sync'].includes(action)){
+    if(!['save','disable','test','sync','status'].includes(action)){
       return json({error:'غير موجود'},404);
     }
     const token=await userToken();
     if(!token)return json({error:'انتهت الجلسة'},401);
     const body=await request.json().catch(()=>({}));
     const tenantSlug=String(body.tenantSlug||'');
+
+    if(action==='status'){
+      const data=await rpc(token,'v2_tenant_woocommerce_snapshot',{
+        p_slug:tenantSlug
+      });
+      return json({success:true,data});
+    }
 
     if(action==='save'||action==='disable'){
       const data=await rpc(
@@ -110,11 +117,15 @@ export async function POST(request,{params}){
         headers:{
           apikey:SUPABASE_KEY,
           authorization:`Bearer ${token}`,
-          'content-type':'application/json'
+          'content-type':'application/json',
+          'x-idempotency-key':request.headers.get('x-idempotency-key')
+            ||crypto.randomUUID()
         },
         body:JSON.stringify({
           tenantSlug,
-          action:action==='test'?'test_connection':'sync_now'
+          action:action==='test'?'test_connection':'sync_now',
+          scope:body.scope||null,
+          responseMode:action==='sync'?'durable-v2':null
         }),
         cache:'no-store'
       }
@@ -126,7 +137,7 @@ export async function POST(request,{params}){
         response.status
       );
     }
-    return json({success:true,data:payload});
+    return json({success:true,data:payload},response.status);
   }catch(error){
     return json({error:translated(error.message)},400);
   }

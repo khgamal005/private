@@ -6,7 +6,15 @@ export const runtime='nodejs';
 export const dynamic='force-dynamic';
 
 const PROVIDERS=new Set(['woocommerce','salla','zid','shopify','custom']);
-const ACTIONS=new Set(['save','disable','enable','test','sync']);
+const ACTIONS=new Set(['save','disable','enable','test','sync','status']);
+
+class RequestError extends Error{
+  constructor(message,status=400){
+    super(message);
+    this.status=status;
+  }
+}
+
 
 function json(body,status=200){
   return NextResponse.json(body,{status,headers:{'cache-control':'no-store'}});
@@ -29,7 +37,10 @@ async function rpc(token,name,args){
   });
   const payload=await response.json().catch(()=>null);
   if(!response.ok){
-    throw new Error(payload?.message||payload?.error||'commerce_hub_request_failed');
+    throw new RequestError(
+      payload?.message||payload?.error||'commerce_hub_request_failed',
+      response.status
+    );
   }
   return payload;
 }
@@ -52,26 +63,42 @@ async function invokeCommerceSync(token,provider,action,tenantSlug,payload,reque
     cache:'no-store'
   });
   const result=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(result?.error||'commerce_sync_failed');
+  if(!response.ok)throw new RequestError(
+    result?.error||'commerce_sync_failed',
+    response.status
+  );
   return result;
 }
 
-async function invokeWooCommerceSync(token,action,tenantSlug){
+async function invokeWooCommerceSync(
+  token,
+  action,
+  tenantSlug,
+  payload,
+  request
+){
   const response=await fetch(`${SUPABASE_URL}/functions/v1/woocommerce-sync`,{
     method:'POST',
     headers:{
       apikey:SUPABASE_KEY,
       authorization:`Bearer ${token}`,
-      'content-type':'application/json'
+      'content-type':'application/json',
+      'x-idempotency-key':request.headers.get('x-idempotency-key')
+        ||crypto.randomUUID()
     },
     body:JSON.stringify({
       tenantSlug,
-      action:action==='test'?'test_connection':'sync_now'
+      action:action==='test'?'test_connection':'sync_now',
+      scope:payload?.scope||null,
+      responseMode:action==='sync'?'durable-v2':null
     }),
     cache:'no-store'
   });
   const result=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(result?.error||'woocommerce_connection_failed');
+  if(!response.ok)throw new RequestError(
+    result?.error||'woocommerce_connection_failed',
+    response.status
+  );
   return result;
 }
 
@@ -108,6 +135,7 @@ function translated(value){
     woocommerce_invalid_frequency:'جدول المزامنة غير صالح.',
     woocommerce_invalid_scope:'اختيارات المزامنة غير صالحة.',
     woocommerce_sync_in_progress:'توجد مزامنة تعمل الآن. انتظر اكتمالها ثم حاول مجددًا.',
+    woocommerce_previous_sync_failed:'فشلت المحاولة السابقة. ابدأ مزامنة جديدة.',
     woocommerce_authentication_failed:'رفض WooCommerce المفاتيح. راجع صلاحية Consumer Key وSecret.',
     woocommerce_forbidden:'المفتاح لا يملك صلاحية قراءة البيانات المطلوبة.',
     woocommerce_not_found:'لم يُعثر على WooCommerce REST API في هذا الرابط.',
@@ -126,12 +154,29 @@ function translated(value){
   return messages[key]||'تعذر حفظ ربط المتجر. راجع البيانات ثم أعد المحاولة.';
 }
 
-async function handleWooCommerce({token,action,tenantSlug,payload}){
+async function handleWooCommerce({
+  token,
+  action,
+  tenantSlug,
+  payload,
+  request
+}){
   if(action==='enable'){
     throw new Error('invalid_woocommerce_action');
   }
+  if(action==='status'){
+    return rpc(token,'v2_tenant_woocommerce_snapshot',{
+      p_slug:tenantSlug
+    });
+  }
   if(action==='test'||action==='sync'){
-    return invokeWooCommerceSync(token,action,tenantSlug);
+    return invokeWooCommerceSync(
+      token,
+      action,
+      tenantSlug,
+      payload,
+      request
+    );
   }
   return rpc(token,'v3_tenant_woocommerce_action',{
     p_tenant_slug:tenantSlug,
@@ -146,6 +191,9 @@ export async function POST(request,{params}){
     if(!PROVIDERS.has(provider)||!ACTIONS.has(action)){
       return json({error:'غير موجود'},404);
     }
+    if(action==='status'&&provider!=='woocommerce'){
+      return json({error:'غير موجود'},404);
+    }
     const token=await userToken();
     if(!token)return json({error:'انتهت الجلسة'},401);
     const body=await request.json().catch(()=>({}));
@@ -158,9 +206,13 @@ export async function POST(request,{params}){
         token,
         action,
         tenantSlug,
-        payload
+        payload,
+        request
       });
-      return json({success:true,data});
+      return json(
+        {success:true,data},
+        action==='sync'&&data?.status==='running'?202:200
+      );
     }
 
     if(action==='test'||action==='sync'){
@@ -183,6 +235,7 @@ export async function POST(request,{params}){
     });
     return json({success:true,data});
   }catch(error){
-    return json({error:translated(error.message)},400);
+    const status=Number.isInteger(error?.status)?error.status:400;
+    return json({error:translated(error.message)},status);
   }
 }

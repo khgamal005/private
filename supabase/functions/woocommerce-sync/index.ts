@@ -1,3 +1,14 @@
+import {
+  buildWooSyncPlan,
+  cursorAfterWooChildPage,
+  cursorAfterWooMetadata,
+  cursorAfterWooParentPage,
+  cursorAfterWooPlainPage,
+  isWooSyncCursor,
+  recordWooSyncPage,
+  wooSyncCompletion
+} from '../_shared/woocommerce-sync-machine.mjs';
+
 type Json =
   | null
   | boolean
@@ -55,6 +66,29 @@ type SyncStats = {
   pages: Partial<Record<WooEntity, number>>;
 };
 
+type DurablePlanStep =
+  | {kind: 'plain'; entityType: WooEntity}
+  | {
+      kind: 'nested';
+      parentEntity: 'attributes' | 'products';
+      childEntity: 'attribute_terms' | 'variations';
+      storeParent: boolean;
+    };
+
+type DurableClaim = {
+  runId: string;
+  connectionId: string;
+  workerId: string;
+  scope: WooEntity[];
+  cursor: JsonRecord;
+  checkpointSeq: number;
+  attemptCount: number;
+};
+
+declare const EdgeRuntime: {
+  waitUntil(promise: Promise<unknown>): void;
+};
+
 const ALL_ENTITIES: WooEntity[] = [
   'categories',
   'attributes',
@@ -66,9 +100,11 @@ const ALL_ENTITIES: WooEntity[] = [
   'customers'
 ];
 
-const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 const MAX_REMOTE_ATTEMPTS = 4;
 const REMOTE_TIMEOUT_MS = 25_000;
+const DURABLE_REMOTE_ATTEMPTS = 2;
+const DURABLE_REMOTE_TIMEOUT_MS = 20_000;
 const MAX_REQUEST_BODY_BYTES = 64 * 1024;
 const MAX_REMOTE_RESPONSE_BYTES = 20 * 1024 * 1024;
 const MAX_PAGES_PER_COLLECTION = 500;
@@ -759,10 +795,16 @@ async function readLimitedText(
   return new TextDecoder().decode(joined);
 }
 
-async function wooRequest(client: WooClient, url: URL): Promise<WooResponse> {
-  for (let attempt = 0; attempt < MAX_REMOTE_ATTEMPTS; attempt += 1) {
+async function wooRequest(
+  client: WooClient,
+  url: URL,
+  options: {attempts?: number; timeoutMs?: number} = {}
+): Promise<WooResponse> {
+  const attempts = options.attempts || MAX_REMOTE_ATTEMPTS;
+  const timeoutMs = options.timeoutMs || REMOTE_TIMEOUT_MS;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REMOTE_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       await assertPublicDns(url.hostname);
       const response = await fetch(url, {
@@ -776,7 +818,7 @@ async function wooRequest(client: WooClient, url: URL): Promise<WooResponse> {
       });
       if (
         RETRYABLE_STATUS.has(response.status)
-        && attempt + 1 < MAX_REMOTE_ATTEMPTS
+        && attempt + 1 < attempts
       ) {
         const delay = retryDelayMs(response, attempt);
         await response.body?.cancel();
@@ -813,7 +855,7 @@ async function wooRequest(client: WooClient, url: URL): Promise<WooResponse> {
       };
     } catch (error) {
       if (error instanceof IntegrationError) throw error;
-      if (attempt + 1 >= MAX_REMOTE_ATTEMPTS) {
+      if (attempt + 1 >= attempts) {
         throw new IntegrationError('woocommerce_remote_unavailable', 502);
       }
       await wait(Math.min(400 * (2 ** attempt), 4_000));
@@ -1099,18 +1141,58 @@ function normalizeOrder(item: JsonRecord, fallbackCurrency: string): JsonRecord 
   const currency = recordText(item, 'currency').toUpperCase() || fallbackCurrency;
   const billing = asRecord(item.billing) || {};
   const customer = asRecord(item.customer) || {};
+  const minorDigits = currencyMinorDigits(currency);
+  const status = recordText(item, 'status').toLowerCase();
+  const createdAtGmt = recordText(item, 'date_created_gmt');
+  const createdAt = createdAtGmt
+    ?/(?:z|[+-][0-9]{2}:[0-9]{2})$/i.test(createdAtGmt)
+      ?createdAtGmt
+      :`${createdAtGmt}Z`
+    :recordText(item, 'date_created');
+  const paidAtGmt = recordText(item, 'date_paid_gmt');
+  const paidAt = paidAtGmt
+    ?/(?:z|[+-][0-9]{2}:[0-9]{2})$/i.test(paidAtGmt)
+      ?paidAtGmt
+      :`${paidAtGmt}Z`
+    :'';
+  const paidAtLocal = recordText(item, 'date_paid');
+  const refunds = Array.isArray(item.refunds) ? item.refunds : [];
+  const refundTotalMinor = refunds.reduce(
+    (total, refund) => total + Math.abs(
+      priceMinor(asRecord(refund)?.total, minorDigits) || 0
+    ),
+    0
+  );
+  const totalMinor = priceMinor(item.total, minorDigits);
+  const discountMinor = priceMinor(item.discount_total, minorDigits) || 0;
+  const taxMinor = priceMinor(item.total_tax, minorDigits) || 0;
+  const shippingMinor = priceMinor(item.shipping_total, minorDigits) || 0;
   return {
     ...item,
     _marktone: {
       externalId: recordText(item, 'id'),
       externalUpdatedAt: recordText(item, 'date_modified_gmt', 'date_modified'),
       orderNumber: recordText(item, 'number', 'id'),
-      occurredAt: recordText(item, 'date_created_gmt', 'date_created'),
-      status: recordText(item, 'status'),
-      paymentStatus: recordText(item, 'status'),
-      amountMinor: priceMinor(item.total, currencyMinorDigits(currency)),
+      occurredAt: createdAt,
+      createdAt,
+      paidAt: paidAt || null,
+      paidAtLocal: paidAtLocal || null,
+      status,
+      paymentStatus: status,
+      paidByDefaultWooStatus:
+        status === 'completed' || status === 'processing',
+      amountMinor: totalMinor,
+      orderTotalMinor: totalMinor,
+      discountMinor,
+      taxMinor,
+      shippingMinor,
+      refundTotalMinor,
       currency,
       customerId: recordText(item, 'customer_id') || recordText(customer, 'id'),
+      customerName: [
+        recordText(billing, 'first_name'),
+        recordText(billing, 'last_name')
+      ].filter(Boolean).join(' '),
       customerEmail: recordText(billing, 'email') || recordText(customer, 'email'),
       customerPhone: recordText(billing, 'phone') || recordText(customer, 'phone'),
       ...orderAttribution(item)
@@ -1147,14 +1229,15 @@ async function currentCurrency(client: WooClient) {
 function pageInformation(
   headers: Headers,
   currentPage: number,
-  itemCount: number
+  itemCount: number,
+  perPage = 100
 ) {
   const totalPages = positiveInteger(headers.get('x-wp-totalpages'));
   const totalItems = positiveInteger(headers.get('x-wp-total'));
   const link = nextLink(headers);
   const hasMore = Boolean(link)
     || (totalPages != null && currentPage < totalPages)
-    || (totalPages == null && !link && itemCount > 0);
+    || (totalPages == null && !link && itemCount >= perPage);
   return {totalPages, totalItems, link, hasMore};
 }
 
@@ -1564,6 +1647,48 @@ async function performSync(
   request: Request | null,
   body: JsonRecord
 ): Promise<JsonRecord> {
+  const prepared = await prepareSync(
+    keys,
+    connectionId,
+    trigger,
+    requestedScope,
+    request,
+    body
+  );
+
+  if (prepared.start.duplicate) {
+    if (prepared.start.status === 'running') {
+      throw new IntegrationError('woocommerce_sync_in_progress', 409);
+    }
+    if (prepared.start.status === 'failed') {
+      throw new IntegrationError('woocommerce_previous_sync_failed', 409);
+    }
+    return {
+      success: true,
+      connectionId,
+      runId: prepared.start.runId,
+      duplicate: true,
+      status: prepared.start.status
+    };
+  }
+
+  return processStartedSync(
+    keys,
+    connectionId,
+    prepared.configuration,
+    prepared.scope,
+    prepared.start.runId
+  );
+}
+
+async function prepareSync(
+  keys: ReturnType<typeof configuredKeys>,
+  connectionId: string,
+  trigger: 'manual' | 'scheduled',
+  requestedScope: Json | undefined,
+  request: Request | null,
+  body: JsonRecord
+) {
   const configuration = await loadConnection(keys, connectionId);
   const scope = selectedScope(configuration.syncScope, requestedScope);
   const start = startResult(
@@ -1580,22 +1705,16 @@ async function performSync(
     })
   );
 
-  if (start.duplicate) {
-    if (start.status === 'running') {
-      throw new IntegrationError('woocommerce_sync_in_progress', 409);
-    }
-    if (start.status === 'failed') {
-      throw new IntegrationError('woocommerce_previous_sync_failed', 409);
-    }
-    return {
-      success: true,
-      connectionId,
-      runId: start.runId,
-      duplicate: true,
-      status: start.status
-    };
-  }
+  return {configuration, scope, start};
+}
 
+async function processStartedSync(
+  keys: ReturnType<typeof configuredKeys>,
+  connectionId: string,
+  configuration: ConnectionConfiguration,
+  scope: WooEntity[],
+  runId: string
+): Promise<JsonRecord> {
   const stats: SyncStats = {
     startedAt: new Date().toISOString(),
     scope,
@@ -1609,7 +1728,7 @@ async function performSync(
       client,
       keys,
       configuration,
-      start.runId,
+      runId,
       scope,
       stats
     );
@@ -1618,14 +1737,14 @@ async function performSync(
       Date.parse(stats.completedAt) - Date.parse(stats.startedAt);
     await rpcAsService(keys, 'v2_woocommerce_complete_sync', {
       p_connection_id: connectionId,
-      p_run_id: start.runId,
+      p_run_id: runId,
       p_stats: stats as unknown as JsonRecord,
       p_remote_metadata: remoteMetadata
     });
     return {
       success: true,
       connectionId,
-      runId: start.runId,
+      runId,
       duplicate: false,
       status: 'completed',
       stats: stats as unknown as JsonRecord,
@@ -1635,13 +1754,459 @@ async function performSync(
     try {
       await rpcAsService(keys, 'v2_woocommerce_fail_sync', {
         p_connection_id: connectionId,
-        p_run_id: start.runId,
+        p_run_id: runId,
         p_error: safeErrorCode(error)
       });
     } catch {
       // Preserve the original, sanitized sync failure.
     }
     throw error;
+  }
+}
+
+async function queueManualSync(
+  keys: ReturnType<typeof configuredKeys>,
+  connectionId: string,
+  requestedScope: Json | undefined,
+  request: Request,
+  body: JsonRecord
+): Promise<JsonRecord> {
+  return startDurableSync(
+    keys,
+    connectionId,
+    'manual',
+    requestedScope,
+    request,
+    body
+  );
+}
+
+async function startDurableSync(
+  keys: ReturnType<typeof configuredKeys>,
+  connectionId: string,
+  trigger: 'manual' | 'scheduled',
+  requestedScope: Json | undefined,
+  request: Request | null,
+  body: JsonRecord
+): Promise<JsonRecord> {
+  let scope: WooEntity[] | null = null;
+  if (requestedScope != null) {
+    const configuration = await loadConnection(keys, connectionId);
+    scope = selectedScope(configuration.syncScope, requestedScope);
+  }
+  const start = startResult(
+    await rpcAsService(keys, 'v3_woocommerce_start_sync', {
+      p_connection_id: connectionId,
+      p_trigger: trigger,
+      p_scope: scope,
+      p_idempotency_key: idempotencyKey(
+        request,
+        body,
+        connectionId,
+        trigger
+      )
+    })
+  );
+
+  return {
+    success: start.status !== 'failed',
+    accepted: start.status === 'running',
+    connectionId,
+    runId: start.runId,
+    duplicate: start.duplicate,
+    status: start.status
+  };
+}
+
+function nonNegativeInteger(value: unknown) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function durableClaim(value: Json): DurableClaim | null {
+  const record = asRecord(unwrapRpcValue(value));
+  if (!record) return null;
+  const runId = recordText(record, 'runId', 'run_id');
+  const connectionId = recordText(
+    record,
+    'connectionId',
+    'connection_id'
+  );
+  const workerId = recordText(record, 'workerId', 'worker_id');
+  const cursor = asRecord(recordValue(record, 'cursor'));
+  const checkpointSeq = nonNegativeInteger(
+    recordValue(record, 'checkpointSeq', 'checkpoint_seq')
+  );
+  const attemptCount = nonNegativeInteger(
+    recordValue(record, 'attemptCount', 'attempt_count')
+  );
+  const scope = scopeValues(recordValue(record, 'scope'));
+  if (
+    !isUuid(runId)
+    || !isUuid(connectionId)
+    || !workerId
+    || !cursor
+    || !isWooSyncCursor(cursor)
+    || checkpointSeq == null
+    || attemptCount == null
+    || !scope.length
+  ) {
+    throw new IntegrationError('woocommerce_sync_claim_invalid', 500);
+  }
+  return {
+    runId,
+    connectionId,
+    workerId,
+    scope,
+    cursor,
+    checkpointSeq,
+    attemptCount
+  };
+}
+
+function durableEndpoint(entityType: WooEntity) {
+  const endpoints: Partial<Record<WooEntity, string>> = {
+    categories: 'products/categories',
+    attributes: 'products/attributes',
+    products: 'products',
+    coupons: 'coupons',
+    orders: 'orders',
+    customers: 'customers'
+  };
+  const endpoint = endpoints[entityType];
+  if (!endpoint) {
+    throw new IntegrationError('woocommerce_sync_step_invalid', 500);
+  }
+  return endpoint;
+}
+
+async function durablePage(
+  client: WooClient,
+  endpoint: string,
+  page: number,
+  query: Record<string, string | number | undefined> = {}
+) {
+  if (!Number.isInteger(page) || page < 1 || page > MAX_PAGES_PER_COLLECTION) {
+    throw new IntegrationError(
+      'woocommerce_collection_page_limit_reached',
+      502
+    );
+  }
+  const response = await wooRequest(
+    client,
+    endpointUrl(client, endpoint, {
+      ...query,
+      order: 'asc',
+      orderby: 'id',
+      page,
+      per_page: 100
+    }),
+    {
+      attempts: DURABLE_REMOTE_ATTEMPTS,
+      timeoutMs: DURABLE_REMOTE_TIMEOUT_MS
+    }
+  );
+  const items = jsonItems(response.data);
+  const pageInfo = pageInformation(response.headers, page, items.length);
+  return {items, pageInfo};
+}
+
+function durableTransform(
+  entityType: WooEntity,
+  item: JsonRecord,
+  currency: string,
+  parentId?: number
+) {
+  if (entityType === 'products') return normalizeProduct(item, currency);
+  if (entityType === 'variations') {
+    return normalizeProduct(item, currency, parentId);
+  }
+  if (entityType === 'orders') return normalizeOrder(item, currency);
+  if (entityType === 'customers') return normalizeCustomer(item);
+  if (entityType === 'attribute_terms') {
+    return {
+      ...item,
+      attribute_id: parentId || null,
+      _marktone: {attributeId: parentId || null}
+    };
+  }
+  return item;
+}
+
+function durableParentIds(
+  entityType: 'attributes' | 'products',
+  items: JsonRecord[]
+) {
+  const ids: number[] = [];
+  for (const item of items) {
+    const id = positiveInteger(item.id);
+    if (id == null) continue;
+    if (entityType === 'attributes') {
+      ids.push(id);
+      continue;
+    }
+    const variations = Array.isArray(item.variations)
+      ? item.variations
+      : [];
+    if (recordText(item, 'type') === 'variable' || variations.length > 0) {
+      ids.push(id);
+    }
+  }
+  return [...new Set(ids)];
+}
+
+async function storeDurablePage(
+  keys: ReturnType<typeof configuredKeys>,
+  claim: DurableClaim,
+  entityType: WooEntity,
+  items: JsonRecord[],
+  nextCursor: JsonRecord
+) {
+  return rpcAsService(keys, 'v3_woocommerce_store_batch_and_yield', {
+    p_connection_id: claim.connectionId,
+    p_run_id: claim.runId,
+    p_worker_id: claim.workerId,
+    p_expected_seq: claim.checkpointSeq,
+    p_entity_type: entityType,
+    p_items: items,
+    p_next_cursor: nextCursor,
+    p_has_more: true
+  });
+}
+
+async function checkpointDurablePage(
+  keys: ReturnType<typeof configuredKeys>,
+  claim: DurableClaim,
+  nextCursor: JsonRecord
+) {
+  return rpcAsService(keys, 'v3_woocommerce_checkpoint_and_yield', {
+    p_connection_id: claim.connectionId,
+    p_run_id: claim.runId,
+    p_worker_id: claim.workerId,
+    p_expected_seq: claim.checkpointSeq,
+    p_next_cursor: nextCursor,
+    p_has_more: true
+  });
+}
+
+async function processDurableStep(
+  keys: ReturnType<typeof configuredKeys>,
+  claim: DurableClaim
+) {
+  const plan = buildWooSyncPlan(claim.scope) as DurablePlanStep[];
+  const cursor = claim.cursor;
+
+  if (cursor.mode === 'complete') {
+    const completion = wooSyncCompletion(cursor);
+    await rpcAsService(keys, 'v3_woocommerce_complete_claimed_run', {
+      p_connection_id: claim.connectionId,
+      p_run_id: claim.runId,
+      p_worker_id: claim.workerId,
+      p_expected_seq: claim.checkpointSeq,
+      p_stats: completion.stats,
+      p_remote_metadata: completion.remoteMetadata
+    });
+    return;
+  }
+
+  const configuration = await loadConnection(keys, claim.connectionId);
+  const client = await createWooClient(configuration);
+
+  if (cursor.mode === 'metadata') {
+    const currency = await currentCurrency(client);
+    const nextCursor = cursorAfterWooMetadata(cursor, plan, {
+      apiVersion: 'wc/v3',
+      storeOrigin: client.apiBase.origin,
+      currency,
+      lastSyncedAt: configuration.lastSyncedAt || null
+    }) as JsonRecord;
+    await checkpointDurablePage(keys, claim, nextCursor);
+    return;
+  }
+
+  const step = plan[Number(cursor.step)];
+  if (!step) throw new IntegrationError('woocommerce_sync_step_invalid', 500);
+  const currency = recordText(
+    asRecord(cursor.remoteMetadata) || {},
+    'currency'
+  );
+
+  if (step.kind === 'plain' && cursor.mode === 'page') {
+    const page = Number(cursor.page);
+    const response = await durablePage(
+      client,
+      durableEndpoint(step.entityType),
+      page
+    );
+    const items = response.items.map(item =>
+      durableTransform(step.entityType, item, currency)
+    );
+    let nextCursor = cursorAfterWooPlainPage(
+      cursor,
+      plan,
+      response.pageInfo.hasMore
+    );
+    nextCursor = recordWooSyncPage(
+      nextCursor,
+      step.entityType,
+      items.length
+    );
+    await storeDurablePage(
+      keys,
+      claim,
+      step.entityType,
+      items,
+      nextCursor as JsonRecord
+    );
+    return;
+  }
+
+  if (step.kind === 'nested' && cursor.mode === 'parent') {
+    const page = Number(cursor.page);
+    const response = await durablePage(
+      client,
+      durableEndpoint(step.parentEntity),
+      page,
+      step.parentEntity === 'products' && !step.storeParent
+        ?{type: 'variable'}
+        :{}
+    );
+    const parentIds = durableParentIds(step.parentEntity, response.items);
+    let nextCursor = cursorAfterWooParentPage(
+      cursor,
+      plan,
+      parentIds,
+      response.pageInfo.hasMore
+    );
+    if (!step.storeParent) {
+      await checkpointDurablePage(keys, claim, nextCursor as JsonRecord);
+      return;
+    }
+    const items = response.items.map(item =>
+      durableTransform(step.parentEntity, item, currency)
+    );
+    nextCursor = recordWooSyncPage(
+      nextCursor,
+      step.parentEntity,
+      items.length
+    );
+    await storeDurablePage(
+      keys,
+      claim,
+      step.parentEntity,
+      items,
+      nextCursor as JsonRecord
+    );
+    return;
+  }
+
+  if (step.kind === 'nested' && cursor.mode === 'children') {
+    const parentIds = Array.isArray(cursor.parentIds)
+      ?cursor.parentIds.map(Number)
+      :[];
+    const parentIndex = Number(cursor.parentIndex);
+    const parentId = positiveInteger(parentIds[parentIndex]);
+    const childPage = Number(cursor.childPage);
+    if (parentId == null) {
+      throw new IntegrationError('woocommerce_sync_parent_invalid', 500);
+    }
+    const endpoint = step.childEntity === 'attribute_terms'
+      ?`products/attributes/${encodeURIComponent(parentId)}/terms`
+      :`products/${encodeURIComponent(parentId)}/variations`;
+    const response = await durablePage(client, endpoint, childPage);
+    const items = response.items.map(item =>
+      durableTransform(step.childEntity, item, currency, parentId)
+    );
+    let nextCursor = cursorAfterWooChildPage(
+      cursor,
+      plan,
+      response.pageInfo.hasMore
+    );
+    nextCursor = recordWooSyncPage(
+      nextCursor,
+      step.childEntity,
+      items.length
+    );
+    await storeDurablePage(
+      keys,
+      claim,
+      step.childEntity,
+      items,
+      nextCursor as JsonRecord
+    );
+    return;
+  }
+
+  throw new IntegrationError('woocommerce_sync_cursor_invalid', 500);
+}
+
+function retryableDurableError(error: unknown) {
+  if (!(error instanceof IntegrationError)) return true;
+  return error.code === 'woocommerce_remote_unavailable'
+    || error.code === 'woocommerce_store_dns_unavailable'
+    || /^woocommerce_remote_http_(408|429|500|502|503|504)$/.test(error.code);
+}
+
+async function settleDurableFailure(
+  keys: ReturnType<typeof configuredKeys>,
+  claim: DurableClaim,
+  error: unknown
+) {
+  const retryCount = nonNegativeInteger(claim.cursor.retryCount) || 0;
+  if (error instanceof RpcError) {
+    // A failed checkpoint/complete RPC may have committed even when its
+    // response was lost. Leave the lease in place so recovery re-reads the
+    // authoritative cursor instead of mutating the claimed page twice. Bound
+    // deterministic RPC failures so a broken deployment cannot block the
+    // connection forever.
+    if (claim.attemptCount < 8) return;
+  }
+  if (retryableDurableError(error) && retryCount < 5) {
+    try {
+      await rpcAsService(keys, 'v3_woocommerce_release_run', {
+        p_connection_id: claim.connectionId,
+        p_run_id: claim.runId,
+        p_worker_id: claim.workerId,
+        p_expected_seq: claim.checkpointSeq,
+        p_error: safeErrorCode(error),
+        p_delay_seconds: Math.min(60 * (2 ** retryCount), 900)
+      });
+    } catch {
+      // An expired lease lets the recovery dispatcher resume safely.
+    }
+    return;
+  }
+  try {
+    await rpcAsService(keys, 'v3_woocommerce_fail_claimed_run', {
+      p_connection_id: claim.connectionId,
+      p_run_id: claim.runId,
+      p_worker_id: claim.workerId,
+      p_expected_seq: claim.checkpointSeq,
+      p_error: safeErrorCode(error)
+    });
+  } catch {
+    // Preserve the run for lease-based recovery if the final RPC is uncertain.
+  }
+}
+
+async function processOneDurableCheckpoint(
+  keys: ReturnType<typeof configuredKeys>,
+  runId: string
+) {
+  const workerId = `edge:${crypto.randomUUID()}`;
+  const claim = durableClaim(
+    await rpcAsService(keys, 'v3_woocommerce_claim_run', {
+      p_run_id: runId,
+      p_worker_id: workerId,
+      p_lease_seconds: 90
+    })
+  );
+  if (!claim) return;
+
+  try {
+    await processDurableStep(keys, claim);
+  } catch (error) {
+    await settleDurableFailure(keys, claim, error);
   }
 }
 
@@ -1719,16 +2284,11 @@ async function scheduledSync(
   body: JsonRecord,
   keys: ReturnType<typeof configuredKeys>
 ) {
-  const secret = (
-    request.headers.get('x-marktone-woocommerce-secret') || ''
-  ).trim();
-  if (!secret || secret.length > 4096) {
-    throw new IntegrationError('woocommerce_schedule_not_authorized', 401);
-  }
-  ensureScheduleAuthorized(
-    await rpcAsService(keys, 'v2_woocommerce_schedule_authorize', {
-      p_secret: secret
-    })
+  await authorizeScheduleRequest(request, keys);
+  const recovery = await rpcAsService(
+    keys,
+    'v3_woocommerce_requeue_recoverable',
+    {p_limit: 10}
   );
   const connectionIds = dueConnectionIds(
     await rpcAsService(keys, 'v2_woocommerce_due_connections', {})
@@ -1737,7 +2297,7 @@ async function scheduledSync(
   for (const connectionId of connectionIds) {
     try {
       results.push(
-        await performSync(
+        await startDurableSync(
           keys,
           connectionId,
           'scheduled',
@@ -1757,7 +2317,51 @@ async function scheduledSync(
   return {
     success: results.every(result => result.success === true),
     processed: results.length,
+    recovery,
     results
+  } as JsonRecord;
+}
+
+async function authorizeScheduleRequest(
+  request: Request,
+  keys: ReturnType<typeof configuredKeys>
+) {
+  const secret = (
+    request.headers.get('x-marktone-woocommerce-secret') || ''
+  ).trim();
+  if (!secret || secret.length > 4096) {
+    throw new IntegrationError('woocommerce_schedule_not_authorized', 401);
+  }
+  ensureScheduleAuthorized(
+    await rpcAsService(keys, 'v2_woocommerce_schedule_authorize', {
+      p_secret: secret
+    })
+  );
+}
+
+async function continueDurableSync(
+  request: Request,
+  body: JsonRecord,
+  keys: ReturnType<typeof configuredKeys>
+) {
+  await authorizeScheduleRequest(request, keys);
+  const runId = recordText(body, 'runId', 'run_id');
+  if (!isUuid(runId)) {
+    throw new IntegrationError('woocommerce_sync_run_invalid', 400);
+  }
+  EdgeRuntime.waitUntil(
+    processOneDurableCheckpoint(keys, runId).catch(error => {
+      console.error(
+        'woocommerce_checkpoint_worker_failed',
+        safeErrorCode(error)
+      );
+    })
+  );
+  return {
+    success: true,
+    accepted: true,
+    runId,
+    status: 'queued'
   } as JsonRecord;
 }
 
@@ -1822,20 +2426,36 @@ Deno.serve(async request => {
         action
       );
       const requestedScope = recordValue(body, 'scope', 'syncScope');
-      return json(
-        await performSync(
-          keys,
-          connectionId,
-          'manual',
-          requestedScope === null ? undefined : requestedScope,
-          request,
-          body
-        )
+      if (
+        recordText(body, 'responseMode', 'response_mode') !== 'durable-v2'
+      ) {
+        return json(
+          await performSync(
+            keys,
+            connectionId,
+            'manual',
+            requestedScope === null ? undefined : requestedScope,
+            request,
+            body
+          )
+        );
+      }
+      const result = await queueManualSync(
+        keys,
+        connectionId,
+        requestedScope === null ? undefined : requestedScope,
+        request,
+        body
       );
+      return json(result, result.status === 'running' ? 202 : 200);
+    }
+
+    if (action === 'continue_sync') {
+      return json(await continueDurableSync(request, body, keys), 202);
     }
 
     if (action === 'scheduled_sync') {
-      return json(await scheduledSync(request, body, keys));
+      return json(await scheduledSync(request, body, keys), 202);
     }
 
     return json({error: 'unsupported_action'}, 400);

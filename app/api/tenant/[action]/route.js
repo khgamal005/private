@@ -40,21 +40,13 @@ const RPC={
 };
 
 const ACTION_ADDONS=Object.freeze({
-  'save-course-run':['lms'],
-  'update-training-operation':['lms'],
-  'training-automation':['lms'],
   'automation-studio':['automation'],
   'delivery-analytics':['delivery_analytics'],
   'integration-hub':['whatsapp','email','api','templates']
 });
 
 async function checkAddonAccess({action,body,token}){
-  const required=ACTION_ADDONS[action]||(
-    action==='update-admission'
-    &&(body?.p_course_run_id||body?.p_action==='complete')
-      ?['lms']
-      :null
-  );
+  const required=ACTION_ADDONS[action]||null;
   if(!required)return {ok:true};
   const slug=body?.p_tenant_slug||body?.p_slug||body?.tenantSlug;
   if(!slug)return {ok:false,status:400,error:'tenant_slug_required'};

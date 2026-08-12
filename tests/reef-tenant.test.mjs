@@ -227,9 +227,9 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(shell,/tenant\.admissions\.read/);
   assert.match(admissions,/تأكيد الدفع/);
   assert.match(admissions,/إنشاء المتدرب وإتمام التسجيل/);
-  assert.doesNotMatch(admissions,/الدفعات والجداول|تشغيل المتدربين/);
-  assert.match(lms,/الدفعات والجداول/);
-  assert.match(lms,/تشغيل المتدربين/);
+  assert.match(admissions,/الدفعات والجداول/);
+  assert.match(admissions,/تشغيل المتدربين/);
+  assert.match(lms,/منصة التدريب التفاعلي/);
   assert.match(lmsPage,/requireTenantAddon\(slug,'lms'/);
   assert.match(learnerOperations,/رسالة الانضمام/);
   assert.match(learnerOperations,/الحضور حسب الجلسة/);

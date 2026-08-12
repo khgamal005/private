@@ -2,6 +2,8 @@
 
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import CourseRunsWorkspace from './course-runs-workspace';
+import LearnerOperationsWorkspace from './learner-operations-workspace';
 
 const EMPTY=[];
 
@@ -76,6 +78,7 @@ function paymentTone(value){
 export default function AdmissionsWorkspace({slug,initialData}){
   const router=useRouter();
   const [data,setData]=useState(initialData);
+  const [view,setView]=useState('cases');
   const [filter,setFilter]=useState('all');
   const [query,setQuery]=useState('');
   const [selected,setSelected]=useState(null);
@@ -204,11 +207,34 @@ export default function AdmissionsWorkspace({slug,initialData}){
         <h2>التسجيل والقبول</h2>
         <p>من بلاغ الدفع إلى التحقق والمستندات ثم إنشاء المتدرب وتسكينه في الدفعة.</p>
       </div>
+      <div className="mt-page-actions mt-admissions-view-switch">
+        <button
+          className={`mt-button ${view==='cases'?'primary':'soft'}`}
+          onClick={()=>setView('cases')}
+        >طلبات التسجيل</button>
+        <button
+          className={`mt-button ${view==='batches'?'primary':'soft'}`}
+          onClick={()=>setView('batches')}
+        >الدفعات والجداول</button>
+        <button
+          className={`mt-button ${view==='operations'?'primary':'soft'}`}
+          onClick={()=>setView('operations')}
+        >تشغيل المتدربين</button>
+      </div>
     </header>
 
     {notice&&<div className="mt-alert">{notice}</div>}
     {error&&!selected&&<div className="mt-alert error">{error}</div>}
 
+    {view==='batches'
+      ?<CourseRunsWorkspace slug={slug} data={data}/>
+      :view==='operations'
+        ?<LearnerOperationsWorkspace
+          slug={slug}
+          data={data.trainingOperations}
+          automation={data.trainingAutomation}
+        />
+        :<>
     <section className="mt-kpis mt-admissions-kpis">
       <button onClick={()=>setFilter('pending_verification')} className="mt-kpi warning">
         <span>بانتظار تحقق الدفع</span>
@@ -365,6 +391,7 @@ export default function AdmissionsWorkspace({slug,initialData}){
         </footer>}
       </section>
     </div>}
+    </>}
   </main>;
 }
 

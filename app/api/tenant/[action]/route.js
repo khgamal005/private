@@ -23,7 +23,7 @@ const RPC={
   'lead-assignment-search':'v1_tenant_lead_assignment_search',
   'lead-reassignment':'v1_tenant_lead_reassignment_action',
   'woocommerce-order-routing':'v3_tenant_commerce_order_action',
-  'record-sales-followup':'v2_tenant_record_sales_followup_v4',
+  'record-sales-followup':'v2_tenant_record_sales_followup_v5',
   'update-admission':'v2_tenant_update_admission',
   'update-admission-document':'v2_tenant_update_admission_document',
   'save-course-run':'v2_tenant_save_course_run',
@@ -39,6 +39,7 @@ const RPC={
   'log-activity':'v2_tenant_log_activity',
   'create-task':'v2_tenant_create_task',
   'update-task-status':'v2_tenant_update_task_status',
+  'transition-task':'v3_tenant_transition_task',
   'calendar-day':'v5_tenant_calendar_day_snapshot'
 };
 
@@ -183,6 +184,11 @@ function translate(value){
     ,invalid_assignee:'الموظف المسند إليه غير صالح'
     ,invalid_priority:'أولوية المهمة غير صالحة'
     ,invalid_task_status:'حالة المهمة غير صالحة'
+    ,task_not_followup:'مهمة المتابعة المحددة غير صالحة أو لم تعد مفتوحة'
+    ,task_transition_conflict:'تم تغيير المهمة في جلسة أخرى؛ حدّث التقويم وحاول مجددًا'
+    ,task_transition_required:'لم يتم إجراء أي تغيير على المهمة'
+    ,task_note_too_long:'ملاحظة الإجراء أطول من الحد المسموح'
+    ,task_closed:'المهمة مغلقة؛ أعد فتحها أولًا قبل نقل موعدها'
     ,invalid_calendar_day:'تاريخ اليوم المطلوب غير صالح'
     ,too_many_calendar_tasks:'عدد المهام المطلوب عرضه يتجاوز الحد المسموح'
     ,invalid_lead_status:'حالة العميل غير صالحة'

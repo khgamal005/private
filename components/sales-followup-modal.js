@@ -107,6 +107,7 @@ export function ActionSelect({preferred='call',...props}){
 export default function SalesFollowupModal({
   slug,
   contact,
+  task=null,
   courses=EMPTY,
   courseRuns=EMPTY,
   onClose,
@@ -143,6 +144,7 @@ export default function SalesFollowupModal({
         body:JSON.stringify({
           p_tenant_slug:slug,
           p_contact_id:contact.id,
+          p_task_id:task?.id||null,
           p_contact_name:values.contact_name,
           p_activity_type:values.activity_type,
           p_summary:values.summary,

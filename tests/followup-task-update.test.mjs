@@ -8,6 +8,8 @@ const migrationPath=
   'supabase/migrations/20260808161625_move_sales_followup_task_v1.sql';
 const lifecycleMigrationPath=
   'supabase/migrations/20260809163000_followup_task_single_calendar_record_v2.sql';
+const allRolesLifecycleMigrationPath=
+  'supabase/migrations/20260813123327_calendar_task_lifecycle_v3.sql';
 
 test('an open customer follow-up moves the same task instead of inserting a duplicate',async()=>{
   const migration=await read(migrationPath);
@@ -86,8 +88,9 @@ test('calendar and follow-up dialogs show the exact latest customer note',async(
 
 
 test('the distributed lead task and sales follow-up are one calendar lifecycle',async()=>{
-  const [migration,api,followup]=await Promise.all([
+  const [migration,allRolesMigration,api,followup]=await Promise.all([
     read(lifecycleMigrationPath),
+    read(allRolesLifecycleMigrationPath),
     read('app/api/tenant/[action]/route.js'),
     read('components/sales-followup-modal.js')
   ]);
@@ -101,6 +104,10 @@ test('the distributed lead task and sales follow-up are one calendar lifecycle',
   assert.match(migration,/status = 'todo'[\s\S]+source', 'sales_followup'/);
   assert.match(migration,/due_at = p_next_action_at/);
   assert.match(migration,/status = 'completed'[\s\S]+resolvedByActivityId/);
-  assert.match(api,/record-sales-followup':'v2_tenant_record_sales_followup_v4/);
+  assert.match(allRolesMigration,/v2_tenant_record_sales_followup_v5/);
+  assert.match(allRolesMigration,/p_task_id uuid default null/);
+  assert.match(allRolesMigration,/v_result_task_id is distinct from p_task_id/);
+  assert.match(api,/record-sales-followup':'v2_tenant_record_sales_followup_v5/);
+  assert.match(followup,/p_task_id:task\?\.id\|\|null/);
   assert.match(followup,/دون إنشاء مهمة مكررة/);
 });

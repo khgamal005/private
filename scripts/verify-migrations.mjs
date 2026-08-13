@@ -111,7 +111,9 @@ const required=[
   '20260811190000_assignment_metric_reconciliation_v1.sql',
   '20260812130000_tenant_accounting_core_v1.sql',
   '20260812131000_tenant_accounting_zatca_addon_v1.sql',
-  '20260812132000_tenant_accounting_fk_indexes_v1.sql'
+  '20260812132000_tenant_accounting_fk_indexes_v1.sql',
+  '20260813123327_calendar_task_lifecycle_v3.sql',
+  '20260813123957_calendar_task_history_hardening_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -145,6 +147,11 @@ for(const pattern of [
   /v3_tenant_sales_pipeline_snapshot/,
   /v2_tenant_record_sales_followup_v3/,
   /v2_tenant_record_sales_followup_v4/,
+  /v2_tenant_record_sales_followup_v5/,
+  /v3_tenant_transition_task/,
+  /v3_tenant_operations_snapshot/,
+  /v3_tenant_customer_history_snapshot/,
+  /work_core\.task_history/,
   /v2_tenant_update_sales_contact_v1/,
   /v2_tenant_customer_history_snapshot_v2/,
   /v2_tenant_admissions_snapshot/,

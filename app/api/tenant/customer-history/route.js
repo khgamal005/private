@@ -21,7 +21,7 @@ export async function GET(request){
     }
 
     const response=await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/v2_tenant_customer_history_snapshot_v2`,
+      `${SUPABASE_URL}/rest/v1/rpc/v3_tenant_customer_history_snapshot`,
       {
         method:'POST',
         headers:{

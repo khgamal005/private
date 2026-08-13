@@ -47,6 +47,13 @@ const LEAD_QUALITY={
   good:'جيد',
   excellent:'ممتاز'
 };
+const SALES_TASK_SOURCES=new Set([
+  'lead_assignment',
+  'opportunity_next_action',
+  'activity_next_action',
+  'lead_next_action',
+  'sales_followup'
+]);
 
 function monthStart(value){return new Date(value.getFullYear(),value.getMonth(),1)}
 function calendarDays(value){
@@ -95,6 +102,16 @@ function inputDate(value){
   const day=String(date.getDate()).padStart(2,'0');
   return `${year}-${month}-${day}`;
 }
+function inputDateTime(value){
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return '';
+  const year=date.getFullYear();
+  const month=String(date.getMonth()+1).padStart(2,'0');
+  const day=String(date.getDate()).padStart(2,'0');
+  const hours=String(date.getHours()).padStart(2,'0');
+  const minutes=String(date.getMinutes()).padStart(2,'0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
 function number(value){
   return new Intl.NumberFormat('ar-SA').format(Number(value)||0);
 }
@@ -125,7 +142,7 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
   const [notice,setNotice]=useState('');
   const [showForm,setShowForm]=useState(false);
   const [selected,setSelected]=useState(null);
-  const [followupContact,setFollowupContact]=useState(null);
+  const [followupTarget,setFollowupTarget]=useState(null);
   const [dayPanel,setDayPanel]=useState(null);
 
   useEffect(()=>setData(initialData),[initialData]);
@@ -225,11 +242,23 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
     setSaving(true);
     setError('');
     try{
-      const result=await call('update-task-status',{
+      const result=await call('transition-task',{
         p_tenant_slug:slug,
         p_task_id:task.id,
-        p_status:status
+        p_status:status,
+        p_due_at:null,
+        p_note:null
       });
+      setData(current=>({
+        ...current,
+        tasks:(current.tasks||EMPTY).map(item=>item.id===task.id?{
+          ...item,
+          status:result.status,
+          dueAt:result.dueAt||item.dueAt,
+          completionTiming:result.completionTiming||null,
+          completedAt:result.status==='completed'?new Date().toISOString():null
+        }:item)
+      }));
       setNotice(
         status==='completed'
           ?result.completionTiming==='late'
@@ -250,11 +279,50 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
     const contact=task.contactId
       ?contacts.find(item=>item.id===task.contactId)
       :null;
-    if(contact&&canWriteCrm&&task.status!=='completed'){
-      setFollowupContact(contact);
+    if(
+      contact
+      &&canWriteCrm
+      &&['todo','in_progress'].includes(task.status)
+      &&SALES_TASK_SOURCES.has(task.taskSource)
+    ){
+      setFollowupTarget({contact,task});
       return;
     }
     setSelected(task);
+  }
+
+  async function moveTask(event,task){
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    setNotice('');
+    const values=Object.fromEntries(new FormData(event.currentTarget).entries());
+    try{
+      const result=await call('transition-task',{
+        p_tenant_slug:slug,
+        p_task_id:task.id,
+        p_status:values.status||task.status,
+        p_due_at:new Date(values.due_at).toISOString(),
+        p_note:values.note||null
+      });
+      setData(current=>({
+        ...current,
+        tasks:(current.tasks||EMPTY).map(item=>item.id===task.id?{
+          ...item,
+          status:result.status,
+          dueAt:result.dueAt,
+          completionTiming:result.completionTiming||null,
+          completedAt:result.status==='completed'?new Date().toISOString():null
+        }:item)
+      }));
+      setNotice('تم نقل المهمة نفسها إلى الموعد الجديد وحفظ الموعد السابق في السجل');
+      setSelected(null);
+      router.refresh();
+    }catch(err){
+      setError(err.message);
+    }finally{
+      setSaving(false);
+    }
   }
 
   async function openDay(day){
@@ -462,6 +530,34 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
             </time>}
           </div>}
         </aside>}
+        {selected.status!=='completed'&&selected.status!=='cancelled'&&canWrite&&<form
+          className="calendar-task-transition"
+          onSubmit={event=>moveTask(event,selected)}
+        >
+          <header>
+            <b>نقل نفس المهمة</b>
+            <small>يتغير الموعد الحالي فورًا، ويُحفظ الموعد السابق في السجل فقط.</small>
+          </header>
+          <label>الموعد الجديد<input
+            name="due_at"
+            type="datetime-local"
+            defaultValue={inputDateTime(selected.dueAt)}
+            required
+          /></label>
+          <label>الحالة<select name="status" defaultValue={selected.status}>
+            <option value="todo">مفتوحة</option>
+            <option value="in_progress">جارية</option>
+          </select></label>
+          <label className="wide">ملاحظة الإجراء<textarea
+            name="note"
+            rows="2"
+            maxLength="2000"
+            placeholder="اختياري — سبب نقل الموعد أو نتيجة الإجراء"
+          /></label>
+          <button className="calendar-primary" disabled={saving}>
+            {saving?'جارٍ النقل…':'حفظ ونقل المهمة'}
+          </button>
+        </form>}
         <footer>
           <button onClick={()=>setSelected(null)}>إغلاق</button>
           {selected.status==='todo'&&canWrite&&<button onClick={()=>updateStatus(selected,'in_progress')} disabled={saving}>بدء التنفيذ</button>}
@@ -482,15 +578,29 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
       }}
     />}
 
-    {followupContact&&<SalesFollowupModal
+    {followupTarget&&<SalesFollowupModal
       slug={slug}
-      contact={followupContact}
+      contact={followupTarget.contact}
+      task={followupTarget.task}
       courses={courses}
       courseRuns={courseRuns}
-      onClose={()=>setFollowupContact(null)}
-      onSaved={followupMessage=>{
+      onClose={()=>setFollowupTarget(null)}
+      onSaved={(followupMessage,result)=>{
+        const taskId=result?.selectedTaskId||result?.followupTaskId;
+        if(taskId){
+          setData(current=>({
+            ...current,
+            tasks:(current.tasks||EMPTY).map(item=>item.id===taskId?{
+              ...item,
+              status:result?.taskClosed?'completed':'todo',
+              dueAt:result?.nextDueAt||item.dueAt,
+              completedAt:result?.taskClosed?new Date().toISOString():null,
+              completionTiming:null
+            }:item)
+          }));
+        }
         setNotice(followupMessage);
-        setFollowupContact(null);
+        setFollowupTarget(null);
         router.refresh();
       }}
     />}

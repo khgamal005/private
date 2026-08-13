@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import ReportExcelButton from './report-excel-button';
 import styles from './reporting-center.module.css';
-import {reportQuery} from '../lib/reporting';
+import {REPORT_DATE_PRESETS,reportQuery} from '../lib/reporting';
 
 const REPORT_TABS=[
   ['overview','لوحة التقارير','',null],
@@ -86,24 +86,44 @@ function metricsFor(view,summary){
 
 function PeriodFilter({range,analytics,exportPayload}){
   const canUseAnalytics=Boolean(analytics?.canUseAnalytics);
+  const selectedStaff=canUseAnalytics&&range.staffId
+    ?(analytics.staff||[]).find(staff=>staff.staffId===range.staffId)
+    :null;
   return <form className={styles.period} method="get">
-    <label><span>من</span><input type="date" name="from" defaultValue={range.from}/></label>
-    <label><span>إلى</span><input type="date" name="to" defaultValue={range.to}/></label>
-    {canUseAnalytics&&<label style={{minWidth:190}}>
-      <span>الموظف أو التحويلة</span>
+    <div className={styles.presets}>
+      <span>اختيار سريع للفترة</span>
+      <div className={styles.presetButtons} aria-label="فترات تاريخ جاهزة">
+        {REPORT_DATE_PRESETS.map(preset=><button
+          key={preset.key}
+          type="submit"
+          name="period"
+          value={preset.key}
+          className={`${styles.presetButton} ${range.period===preset.key?styles.activePreset:''}`}
+          aria-pressed={range.period===preset.key}
+        >{preset.label}</button>)}
+      </div>
+    </div>
+    <label><span>من تاريخ</span><input type="date" name="from" defaultValue={range.from}/></label>
+    <label><span>إلى تاريخ</span><input type="date" name="to" defaultValue={range.to}/></label>
+    {canUseAnalytics&&<label className={styles.staffFilter}>
+      <span>اسم الموظف</span>
       <select
         name="staffId"
         defaultValue={range.staffId||''}
-        style={{width:'100%',height:38,padding:'0 10px',border:'1px solid rgba(255,255,255,.16)',borderRadius:10,background:'rgba(3,20,35,.32)',color:'#fff',font:'inherit',fontSize:'.68rem'}}
       >
-        <option value="" style={{color:'#102f49'}}>كل الموظفين والتحويلات</option>
-        {(analytics.staff||[]).map(staff=><option key={staff.staffId} value={staff.staffId} style={{color:'#102f49'}}>
+        <option value="">كل الموظفين</option>
+        {(analytics.staff||[]).map(staff=><option key={staff.staffId} value={staff.staffId}>
           {staff.fullName}{staff.extensions?.length?` · ${staff.extensions.join('، ')}`:''}
         </option>)}
       </select>
     </label>}
-    <button type="submit">تطبيق الفلاتر</button>
+    <button className={styles.applyButton} type="submit">تطبيق الفلاتر</button>
     {canUseAnalytics&&<ReportExcelButton payload={{...exportPayload,section:'all'}} label="تصدير التقرير XLSX"/>}
+    <small className={styles.filterHint} role="status">
+      {selectedStaff
+        ?<>يتم تصفية جميع المؤشرات والرسوم البيانية والجداول حسب الموظف: <b>{selectedStaff.fullName}</b>.</>
+        :'تُطبّق الفترة المختارة على جميع المؤشرات والرسوم البيانية والجداول في اللوحة.'}
+    </small>
   </form>;
 }
 

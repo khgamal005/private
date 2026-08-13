@@ -368,8 +368,13 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   const [validationFilter,setValidationFilter]=useState('all');
   const [filters,setFilters]=useState(DEFAULT_FILTERS);
   const [query,setQuery]=useState('');
+  const [assignmentQuery,setAssignmentQuery]=useState('');
+  const [assignmentSearchResults,setAssignmentSearchResults]=useState(null);
+  const [assignmentSearchBusy,setAssignmentSearchBusy]=useState(false);
+  const [assignmentSearchError,setAssignmentSearchError]=useState('');
   const [selectedRows,setSelectedRows]=useState([]);
   const [selectedOrders,setSelectedOrders]=useState([]);
+  const [selectedAssignments,setSelectedAssignments]=useState([]);
   const [orderAssignee,setOrderAssignee]=useState('');
   const [routingDraft,setRoutingDraft]=useState({
     mode:'queue',queueOwnerStaffId:'',slaMinutes:60
@@ -393,6 +398,11 @@ export default function LeadIntakeWorkspace({slug,initialData}){
     strategy:'fair',
     deadlineAt:localDateTime(),
     staffIds:[]
+  });
+  const [reassignment,setReassignment]=useState({
+    newStaffId:'',
+    deadlineAt:localDateTime(),
+    reason:''
   });
   const [teamDrafts,setTeamDrafts]=useState({});
 
@@ -438,10 +448,17 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   );
 
   const assignmentsByRow=useMemo(
-    ()=>new Map(assignments.map(assignment=>[
-      assignment.rowId,
-      assignment
-    ])),
+    ()=>{
+      const latest=new Map();
+      for(const assignment of assignments){
+        const current=latest.get(assignment.rowId);
+        if(!current
+          ||(assignment.status==='active'&&current.status!=='active')){
+          latest.set(assignment.rowId,assignment);
+        }
+      }
+      return latest;
+    },
     [assignments]
   );
 
@@ -467,6 +484,20 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   const filteredAssignments=useMemo(()=>assignments.filter(assignment=>
     matchesAssignment(assignment,filters,timeZone)
   ),[assignments,filters,timeZone]);
+
+  const locallySearchedAssignments=useMemo(()=>{
+    const needle=normalizeHeader(assignmentQuery);
+    if(!needle)return filteredAssignments;
+    return filteredAssignments.filter(assignment=>normalizeHeader([
+      assignment.contactName,
+      assignment.phone
+    ].join(' ')).includes(needle));
+  },[filteredAssignments,assignmentQuery]);
+
+  const shownAssignments=assignmentQuery.trim()
+    &&assignmentSearchResults!==null
+    ?assignmentSearchResults
+    :locallySearchedAssignments;
 
   const shownRows=useMemo(()=>rows.filter(row=>{
     if(batchFilter!=='all'&&row.batchId!==batchFilter)return false;
@@ -576,6 +607,67 @@ export default function LeadIntakeWorkspace({slug,initialData}){
       &&row.queueStatus==='awaiting_distribution'
   );
 
+  const selectableAssignments=shownAssignments.filter(
+    assignment=>assignment.status==='active'
+  );
+
+  useEffect(()=>{
+    const search=assignmentQuery.trim();
+    if(!search){
+      setAssignmentSearchResults(null);
+      setAssignmentSearchBusy(false);
+      setAssignmentSearchError('');
+      return undefined;
+    }
+
+    const controller=new AbortController();
+    const timer=setTimeout(async()=>{
+      setAssignmentSearchBusy(true);
+      setAssignmentSearchError('');
+      try{
+        const response=await fetch('/api/tenant/lead-assignment-search',{
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          body:JSON.stringify({
+            p_slug:slug,
+            p_query:search,
+            p_from:filters.from||null,
+            p_to:filters.to||null,
+            p_quality:filters.quality==='all'?null:filters.quality,
+            p_source:filters.source==='all'?null:filters.source,
+            p_campaign:filters.campaign==='all'?null:filters.campaign,
+            p_limit:100
+          }),
+          signal:controller.signal
+        });
+        const result=await response.json();
+        if(!response.ok){
+          throw new Error(result.error||'تعذر البحث في سجل التوزيع');
+        }
+        setAssignmentSearchResults(result.data?.assignments||[]);
+      }catch(searchError){
+        if(searchError.name!=='AbortError'){
+          setAssignmentSearchError(searchError.message);
+        }
+      }finally{
+        if(!controller.signal.aborted)setAssignmentSearchBusy(false);
+      }
+    },250);
+
+    return ()=>{
+      clearTimeout(timer);
+      controller.abort();
+    };
+  },[
+    assignmentQuery,
+    filters.from,
+    filters.to,
+    filters.quality,
+    filters.source,
+    filters.campaign,
+    slug
+  ]);
+
   async function call(action,payload){
     const response=await fetch('/api/tenant/lead-intake',{
       method:'POST',
@@ -588,6 +680,20 @@ export default function LeadIntakeWorkspace({slug,initialData}){
     });
     const result=await response.json();
     if(!response.ok)throw new Error(result.error||'تعذر تنفيذ العملية');
+    return result.data;
+  }
+
+  async function callReassignment(payload){
+    const response=await fetch('/api/tenant/lead-reassignment',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        p_tenant_slug:slug,
+        p_payload:payload
+      })
+    });
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.error||'تعذر تغيير الإسناد');
     return result.data;
   }
 
@@ -763,6 +869,54 @@ export default function LeadIntakeWorkspace({slug,initialData}){
     }
   }
 
+  function openReassignment(){
+    if(!selectedAssignments.length){
+      setError('حدد عميلًا واحدًا على الأقل');
+      return;
+    }
+    resetFeedback();
+    setReassignment({
+      newStaffId:'',
+      deadlineAt:localDateTime(),
+      reason:''
+    });
+    setModal('reassign');
+  }
+
+  async function submitReassignment(event){
+    event.preventDefault();
+    if(!reassignment.newStaffId){
+      setError('اختر مسؤول المبيعات الجديد');
+      return;
+    }
+    if(reassignment.reason.trim().length<3){
+      setError('اكتب سبب تغيير الإسناد');
+      return;
+    }
+    setBusy(true);
+    resetFeedback();
+    try{
+      const result=await callReassignment({
+        assignmentIds:selectedAssignments,
+        newStaffId:reassignment.newStaffId,
+        deadlineAt:new Date(reassignment.deadlineAt).toISOString(),
+        reason:reassignment.reason.trim()
+      });
+      setMessage(
+        `تم تغيير إسناد ${number(result.reassigned)} عميل إلى ${result.newStaffName}، `
+        +'وإرسال الإشعارات وحفظ التغيير في سجل العملاء.'
+      );
+      setSelectedAssignments([]);
+      setAssignmentSearchResults(null);
+      setModal(null);
+      router.refresh();
+    }catch(reassignmentError){
+      setError(reassignmentError.message);
+    }finally{
+      setBusy(false);
+    }
+  }
+
   async function cancelBatch(batchId){
     if(!window.confirm('هل تريد إلغاء هذه الدفعة قبل توزيعها؟'))return;
     setBusy(true);
@@ -816,6 +970,23 @@ export default function LeadIntakeWorkspace({slug,initialData}){
     setSelectedRows(selectableRows
       .filter(row=>row.batchId===firstBatch)
       .map(row=>row.id));
+  }
+
+  function toggleAssignment(assignmentId){
+    setSelectedAssignments(current=>current.includes(assignmentId)
+      ?current.filter(id=>id!==assignmentId)
+      :[...current,assignmentId]
+    );
+  }
+
+  function toggleVisibleAssignments(){
+    const ids=selectableAssignments.map(assignment=>assignment.id);
+    const allSelected=ids.length
+      &&ids.every(id=>selectedAssignments.includes(id));
+    setSelectedAssignments(current=>allSelected
+      ?current.filter(id=>!ids.includes(id))
+      :[...new Set([...current,...ids])]
+    );
   }
 
   const selectedBatchId=rows.find(
@@ -884,8 +1055,8 @@ export default function LeadIntakeWorkspace({slug,initialData}){
 
     <nav className="mt-section-tabs mt-lead-intake-tabs">
       {TABS.filter(([key])=>key!=='commerce_orders'||commerceOrders.configured)
-        .filter(([key])=>key!=='analytics'||viewer.canAnalytics)
-        .filter(([key])=>key!=='team'||viewer.canDistribute)
+        .filter(([key])=>key!=='analytics'||viewer.canAnalytics||viewer.isDataOfficer)
+        .filter(([key])=>key!=='team'||viewer.canDistribute||viewer.isDataOfficer)
         .map(([key,label])=><button
           key={key}
           className={tab===key?'active':''}
@@ -920,7 +1091,11 @@ export default function LeadIntakeWorkspace({slug,initialData}){
               validation:tab==='queue'&&validationFilter!=='all'
                 ?validationFilter
                 :null,
-              query:tab==='queue'?query.trim()||null:null
+              query:tab==='queue'
+                ?query.trim()||null
+                :tab==='assignments'
+                  ?assignmentQuery.trim()||null
+                  :null
             }}
             label="تصدير النتائج إلى إكسيل"
           />
@@ -1217,12 +1392,49 @@ export default function LeadIntakeWorkspace({slug,initialData}){
           <h3>سجل توزيع العملاء</h3>
           <p>دليل الإسناد والموعد وأول استجابة لكل عميل.</p>
         </div>
+        {viewer.canReassign&&selectedAssignments.length>0&&<button
+          className="mt-button primary"
+          onClick={openReassignment}
+        >تغيير إسناد المحدد ({number(selectedAssignments.length)})</button>}
       </div>
+      <div className="mt-toolbar mt-lead-queue-toolbar">
+        <input
+          className="mt-search"
+          placeholder="ابحث مباشرة باسم العميل أو رقم الهاتف..."
+          value={assignmentQuery}
+          onChange={event=>{
+            setAssignmentQuery(event.target.value);
+            setAssignmentSearchResults(null);
+            setSelectedAssignments([]);
+          }}
+        />
+        {assignmentSearchBusy&&<span className="mt-status warning">
+          جارٍ البحث في كامل السجل...
+        </span>}
+        {!assignmentSearchBusy&&assignmentQuery.trim()&&<span className="mt-status good">
+          {number(shownAssignments.length)} نتيجة
+        </span>}
+      </div>
+      {assignmentSearchError&&<div className="mt-alert error">
+        {assignmentSearchError}
+      </div>}
       <div className="mt-table-wrap">
         <table className="mt-table mt-lead-assignment-table">
           <thead><tr>
+            <th>
+              {viewer.canReassign&&<input
+                type="checkbox"
+                aria-label="تحديد الإسنادات الحالية الظاهرة"
+                checked={Boolean(selectableAssignments.length)
+                  &&selectableAssignments.every(assignment=>
+                    selectedAssignments.includes(assignment.id)
+                  )}
+                onChange={toggleVisibleAssignments}
+              />}
+            </th>
             <th>العميل</th>
             <th>المسؤول</th>
+            <th>حالة الإسناد</th>
             <th>المصدر</th>
             <th>الحملة</th>
             <th>طريقة التوزيع</th>
@@ -1231,7 +1443,17 @@ export default function LeadIntakeWorkspace({slug,initialData}){
             <th>نتيجة العميل</th>
           </tr></thead>
           <tbody>
-            {filteredAssignments.map(assignment=><tr key={assignment.id}>
+            {shownAssignments.map(assignment=><tr key={assignment.id}>
+              <td>
+                {viewer.canReassign&&assignment.status==='active'
+                  ?<input
+                    type="checkbox"
+                    checked={selectedAssignments.includes(assignment.id)}
+                    onChange={()=>toggleAssignment(assignment.id)}
+                    aria-label={`تحديد إسناد ${assignment.contactName}`}
+                  />
+                  :<span>—</span>}
+              </td>
               <td>
                 <b>{assignment.contactName}</b>
                 <small dir="ltr">{assignment.phone||'—'}</small>
@@ -1239,6 +1461,24 @@ export default function LeadIntakeWorkspace({slug,initialData}){
               <td>
                 <b>{assignment.assignedStaffName}</b>
                 <small>بواسطة {assignment.assignedByName||'إدارة المنشأة'}</small>
+              </td>
+              <td>
+                <span className={`mt-status ${assignment.status==='active'
+                  ?'good'
+                  :assignment.status==='reassigned'
+                    ?'warning'
+                    :'muted'}`}>
+                  {assignment.status==='active'
+                    ?'الإسناد الحالي'
+                    :assignment.status==='reassigned'
+                      ?'تم تغيير الإسناد'
+                      :assignment.status==='completed'
+                        ?'مكتمل'
+                        :'ملغي'}
+                </span>
+                {assignment.reassignmentReason&&<small>
+                  السبب: {assignment.reassignmentReason}
+                </small>}
               </td>
               <td>{assignment.source||'غير محدد'}</td>
               <td>
@@ -1265,11 +1505,15 @@ export default function LeadIntakeWorkspace({slug,initialData}){
             </tr>)}
           </tbody>
         </table>
-        {!filteredAssignments.length&&<div className="mt-empty">لا توجد عمليات توزيع مطابقة للفلاتر الحالية.</div>}
+        {!shownAssignments.length&&!assignmentSearchBusy&&<div className="mt-empty">
+          {assignmentQuery.trim()
+            ?'لا يوجد عميل مطابق للاسم أو رقم الهاتف.'
+            :'لا توجد عمليات توزيع مطابقة للفلاتر الحالية.'}
+        </div>}
       </div>
     </section>}
 
-    {tab==='analytics'&&viewer.canAnalytics&&<section className="mt-panel">
+    {tab==='analytics'&&(viewer.canAnalytics||viewer.isDataOfficer)&&<section className="mt-panel">
       <div className="mt-panel-head">
         <div>
           <h3>جودة المصادر والحملات</h3>
@@ -1324,7 +1568,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
       </div>
     </section>}
 
-    {tab==='team'&&viewer.canDistribute&&<section className="mt-distribution-team-grid">
+    {tab==='team'&&(viewer.canDistribute||viewer.isDataOfficer)&&<section className="mt-distribution-team-grid">
       {shownStaff.map(member=>{
         const draft=teamDrafts[member.id]||{};
         return <article key={member.id}>
@@ -1578,6 +1822,71 @@ export default function LeadIntakeWorkspace({slug,initialData}){
         <footer>
           <button className="mt-button primary" disabled={busy}>
             {busy?'جارٍ التوزيع...':'تأكيد التوزيع والموعد'}
+          </button>
+          <button className="mt-button" type="button" onClick={closeModal}>إلغاء</button>
+        </footer>
+      </form>
+    </div>}
+
+    {modal==='reassign'&&<div className="mt-modal-layer">
+      <button className="mt-modal-backdrop" onClick={closeModal} aria-label="إغلاق"/>
+      <form className="mt-modal" onSubmit={submitReassignment}>
+        <header>
+          <div>
+            <small>ASSIGNMENT CONTROL</small>
+            <h3>تغيير إسناد العملاء</h3>
+          </div>
+          <button type="button" onClick={closeModal}>×</button>
+        </header>
+        <div className="mt-form">
+          <section className="mt-distribution-summary">
+            <div><span>العملاء المحددون</span><b>{number(selectedAssignments.length)}</b></div>
+            <div><span>نوع العملية</span><b>نقل موثّق للمسؤولية</b></div>
+          </section>
+          <label className="mt-field wide">مسؤول المبيعات الجديد
+            <select
+              required
+              value={reassignment.newStaffId}
+              onChange={event=>setReassignment(current=>({
+                ...current,newStaffId:event.target.value
+              }))}
+            >
+              <option value="">اختر المسؤول الجديد</option>
+              {staff.map(member=><option key={member.id} value={member.id}>
+                {member.name} — {number(member.activeAssignments)} بانتظار التواصل
+              </option>)}
+            </select>
+            <small>ستنتقل إليه ملكية العميل والفرصة ومهام المبيعات المفتوحة.</small>
+          </label>
+          <label className="mt-field wide">موعد المتابعة الجديد
+            <input
+              required
+              type="datetime-local"
+              min={localDateTime(0.1)}
+              value={reassignment.deadlineAt}
+              onChange={event=>setReassignment(current=>({
+                ...current,deadlineAt:event.target.value
+              }))}
+            />
+          </label>
+          <label className="mt-field wide">سبب تغيير الإسناد
+            <textarea
+              required
+              minLength="3"
+              maxLength="500"
+              value={reassignment.reason}
+              onChange={event=>setReassignment(current=>({
+                ...current,reason:event.target.value
+              }))}
+              placeholder="مثال: إعادة توزيع الحمل أو انتقال الموظف إلى فريق آخر"
+            />
+            <small>يظهر السبب في سجل العميل ويُرسل ضمن إشعار الإدارة والموظفين المعنيين.</small>
+          </label>
+        </div>
+        {error&&<div className="mt-alert error mt-modal-alert">{error}</div>}
+        <footer>
+          <button className="mt-button primary" disabled={busy}>
+            {busy?'جارٍ نقل الإسناد...':'تأكيد التغيير وإرسال الإشعارات'}
           </button>
           <button className="mt-button" type="button" onClick={closeModal}>إلغاء</button>
         </footer>

@@ -20,6 +20,8 @@ const RPC={
   'create-sales-lead':'v2_tenant_create_sales_lead',
   'update-sales-contact':'v2_tenant_update_sales_contact_v1',
   'lead-intake':'v2_tenant_lead_intake_action',
+  'lead-assignment-search':'v1_tenant_lead_assignment_search',
+  'lead-reassignment':'v1_tenant_lead_reassignment_action',
   'woocommerce-order-routing':'v3_tenant_commerce_order_action',
   'record-sales-followup':'v2_tenant_record_sales_followup_v4',
   'update-admission':'v2_tenant_update_admission',
@@ -329,6 +331,13 @@ function translate(value){
     ,lead_batch_not_ready:'الدفعة غير جاهزة للتوزيع'
     ,no_online_sales_team:'لا يوجد مسؤول مبيعات أونلاين متاح للتوزيع'
     ,no_sales_team:'لا يوجد مسؤول مبيعات متاح ضمن الإعدادات الحالية'
+    ,lead_assignment_required:'حدد عميلًا واحدًا على الأقل لتغيير الإسناد'
+    ,lead_reassignment_too_large:'يمكن تغيير إسناد 100 عميل كحد أقصى في العملية الواحدة'
+    ,invalid_lead_reassignment_payload:'بيانات تغيير الإسناد غير صالحة'
+    ,lead_reassignment_reason_required:'اكتب سبب تغيير الإسناد بوضوح'
+    ,lead_reassignment_reason_too_long:'سبب تغيير الإسناد أطول من الحد المسموح'
+    ,lead_assignment_not_active:'تغيرت حالة أحد الإسنادات؛ حدّث الصفحة ثم أعد المحاولة'
+    ,same_sales_assignee:'العملاء المحددون مسندون بالفعل إلى هذا المسؤول'
     ,invalid_lead_intake_action:'إجراء استقبال العملاء غير صالح'
   };
   return messages[String(value)]||String(value);

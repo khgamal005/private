@@ -115,6 +115,7 @@ export default function SalesWorkspace({
   const courseRuns=data.courseRuns||EMPTY;
   const summary=data.summary||{};
   const canWrite=Boolean(data.viewer?.canWriteCrm);
+  const canReassign=Boolean(data.viewer?.canReassign);
   const paymentSubmittedCount=contacts.filter(
     contact=>contact.leadStatus==='payment_submitted'
   ).length;
@@ -308,6 +309,7 @@ export default function SalesWorkspace({
                 key={contact.id}
                 contact={contact}
                 canWrite={canWrite}
+                canReassign={canReassign}
                 onFollowup={()=>openModal('followup',contact)}
                 onHistory={()=>setHistoryContact(contact)}
                 onEdit={()=>openModal('edit',contact)}
@@ -329,7 +331,9 @@ export default function SalesWorkspace({
           <td><b>{contact.nextActionType?ACTIONS[contact.nextActionType]||contact.nextActionType:'لا توجد متابعة'}</b><small>{when(contact.nextActionAt)}</small></td>
           <td><div className="mt-customer-row-actions">
             <button className="mt-button soft mt-followup-button" onClick={()=>setHistoryContact(contact)}>سجل العميل</button>
-            {canWrite&&<button className="mt-button soft mt-followup-button" onClick={()=>openModal('edit',contact)}>تعديل البيانات</button>}
+            {(canWrite||canReassign)&&<button className="mt-button soft mt-followup-button" onClick={()=>openModal('edit',contact)}>
+              {canWrite?'تعديل البيانات':'تغيير الإسناد'}
+            </button>}
             {canWrite&&(
               ['payment_submitted','paid'].includes(contact.leadStatus)
                 ?<span className="mt-status warning">مع التسجيل والقبول</span>
@@ -429,6 +433,9 @@ export default function SalesWorkspace({
       slug={slug}
       contact={modal.record}
       courses={courses}
+      staff={staff}
+      canEdit={canWrite}
+      canReassign={canReassign}
       onClose={closeModal}
       onSaved={(editMessage,updatedContact)=>{
         setData(current=>({
@@ -459,7 +466,7 @@ export default function SalesWorkspace({
     {historyContact&&<CustomerHistoryDrawer
       slug={slug}
       contact={historyContact}
-      canEdit={canWrite}
+      canEdit={canWrite||canReassign}
       onEdit={()=>{
         const selected=historyContact;
         setHistoryContact(null);
@@ -470,7 +477,14 @@ export default function SalesWorkspace({
   </>;
 }
 
-function LeadCard({contact,canWrite,onFollowup,onHistory,onEdit}){
+function LeadCard({
+  contact,
+  canWrite,
+  canReassign,
+  onFollowup,
+  onHistory,
+  onEdit
+}){
   return <article className="mt-lead-card">
     <header>
       <div><h3>{contact.name}</h3><small>{contact.interestCourseName||'الدورة غير محددة'}</small></div>
@@ -488,7 +502,9 @@ function LeadCard({contact,canWrite,onFollowup,onHistory,onEdit}){
     </dl>
     <div className="mt-lead-card-actions">
       <button className="mt-button soft mt-followup-button" onClick={onHistory}>سجل العميل</button>
-      {canWrite&&<button className="mt-button soft mt-followup-button" onClick={onEdit}>تعديل البيانات</button>}
+      {(canWrite||canReassign)&&<button className="mt-button soft mt-followup-button" onClick={onEdit}>
+        {canWrite?'تعديل البيانات':'تغيير الإسناد'}
+      </button>}
       {canWrite&&!['payment_submitted','paid'].includes(contact.leadStatus)&&<button className="mt-button primary mt-followup-button" onClick={onFollowup}>تسجيل نتيجة المتابعة</button>}
     </div>
   </article>;
@@ -511,3 +527,4 @@ function ModalFooter({busy,onClose,label}){
     <button className="mt-button primary" disabled={busy}>{busy?'جارٍ الحفظ…':label}</button>
   </footer>;
 }
+

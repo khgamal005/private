@@ -8,6 +8,8 @@ const migrationPath=
   'supabase/migrations/20260812235107_lead_reassignment_permissions_audit_v1.sql';
 const exportMigrationPath=
   'supabase/migrations/20260813000924_lead_assignment_export_search_v1.sql';
+const customerModalMigrationPath=
+  'supabase/migrations/20260813003628_customer_modal_reassignment_v1.sql';
 
 test('data officers can see every distribution screen and authorized roles can reassign',async()=>{
   const [migration,api]=await Promise.all([
@@ -105,4 +107,31 @@ test('sales supervisors and data officers get a reasoned bulk reassignment contr
   assert.match(route,/'lead-reassignment':'v1_tenant_lead_reassignment_action'/);
   assert.match(route,/lead_assignment_not_active/);
   assert.match(route,/same_sales_assignee/);
+});
+
+test('authorized users can reassign one customer directly from the customer modal',async()=>{
+  const [modal,sales,api,migration]=await Promise.all([
+    read('components/customer-edit-modal.js'),
+    read('components/sales-workspace.js'),
+    read('lib/api.js'),
+    read(customerModalMigrationPath)
+  ]);
+
+  assert.match(modal,/تغيير إسناد العميل/);
+  assert.match(modal,/مسؤول المبيعات الجديد/);
+  assert.match(modal,/موعد المتابعة الجديد/);
+  assert.match(modal,/سبب تغيير الإسناد/);
+  assert.match(modal,/assignmentIds:\[contact\.activeAssignmentId\]/);
+  assert.match(modal,/\/api\/tenant\/lead-reassignment/);
+  assert.match(modal,/إرسال الإشعارات/);
+  assert.match(modal,/canEdit=true/);
+  assert.match(sales,/canReassign=\{canReassign\}/);
+  assert.match(sales,/staff=\{staff\}/);
+  assert.match(sales,/canWrite\|\|canReassign/);
+  assert.match(api,/activeAssignmentsByContact/);
+  assert.match(api,/activeAssignmentId:assignment\?\.assignmentId\|\|null/);
+  assert.match(migration,/'activeAssignments', v_active_assignments/);
+  assert.match(migration,/assignment\.tenant_id = v_tenant_id/);
+  assert.match(migration,/assignment\.status = 'active'/);
+  assert.match(migration,/if v_can_reassign then/);
 });

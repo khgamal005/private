@@ -3,7 +3,7 @@
 import baseStyles from './page-document-renderer.module.css';
 import proStyles from './page-document-renderer-pro.module.css';
 import ImportedTemplateRuntime from './imported-template-runtime';
-import NativeTemplateSection from './native-template-section';
+import NativeTemplateSection from './native-template-section-enhanced';
 import {
   ModuleView as BaseModuleView,blockLabel,blockStyle,hiddenFor,safeCss
 } from './page-builder-module-view.js';
@@ -30,6 +30,7 @@ export function ModuleView(props){
     checksum:p.checksum,
     title:p.title,
     templateId:p.templateId,
+    scriptCount:Number(p.scriptCount)||0,
     textOverrides:p.textOverrides,
     editor,
     target,

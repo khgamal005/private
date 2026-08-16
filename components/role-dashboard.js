@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import {REPORT_DATE_PRESETS} from '../lib/reporting';
+import DashboardDateRangePicker from './dashboard-date-range-picker';
 import styles from './role-dashboard.module.css';
 
 const ROLE_COPY={
@@ -464,27 +465,12 @@ function DashboardDateFilter({slug,range,period}){
       >{preset.label}</button>)}
     </div>
     <div className={styles.dateInputs}>
-      <label>
-        <span>من تاريخ</span>
-        <input
-          type="date"
-          name="from"
-          defaultValue={range?.from}
-          max={maxDate}
-          required
-        />
-      </label>
-      <span className={styles.dateArrow} aria-hidden="true">←</span>
-      <label>
-        <span>إلى تاريخ</span>
-        <input
-          type="date"
-          name="to"
-          defaultValue={range?.to}
-          max={maxDate}
-          required
-        />
-      </label>
+      <DashboardDateRangePicker
+        key={`${range?.from||''}-${range?.to||''}`}
+        from={range?.from}
+        to={range?.to}
+        maxDate={maxDate}
+      />
       <button className={styles.applyDate} type="submit">تطبيق</button>
       <Link href={`/tenant/${encodeURIComponent(slug)}?period=this_month`}>
         إعادة الضبط

@@ -6,9 +6,10 @@ const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 
 test('dashboard filter is server-driven, accessible, and responsive',async()=>{
-  const [page,component,styles]=await Promise.all([
+  const [page,component,picker,styles]=await Promise.all([
     read('app/tenant/[slug]/page.js'),
     read('components/role-dashboard.js'),
+    read('components/dashboard-date-range-picker.js'),
     read('components/role-dashboard.module.css')
   ]);
 
@@ -25,8 +26,7 @@ test('dashboard filter is server-driven, accessible, and responsive',async()=>{
   assert.match(component,/aria-label="تصفية لوحة القيادة حسب التاريخ"/);
   assert.match(component,/REPORT_DATE_PRESETS\.map/);
   assert.match(component,/name="period"/);
-  assert.match(component,/type="date"[\s\S]*name="from"/);
-  assert.match(component,/type="date"[\s\S]*name="to"/);
+  assert.match(component,/DashboardDateRangePicker/);
   assert.match(component,/aria-pressed=/);
   assert.match(component,/المهام الأقرب والتنبيهات والحالات المعلّقة تبقى لحظية/);
   assert.match(
@@ -34,7 +34,7 @@ test('dashboard filter is server-driven, accessible, and responsive',async()=>{
     /const canFilterDate=EXECUTIVE_ROLES\.has\(role\)[\s\S]*permissions\?\.crm!==false/
   );
   assert.equal((component.match(/<DashboardDateFilter/g)||[]).length,2);
-  assert.match(component,/max=\{maxDate\}/);
+  assert.match(component,/maxDate=\{maxDate\}/);
   assert.match(component,/period=this_month/);
   assert.match(component,/date>=from[\s\S]*date<=to/);
   assert.match(component,/trendBuckets\(daily\.filter/);
@@ -51,8 +51,24 @@ test('dashboard filter is server-driven, accessible, and responsive',async()=>{
   assert.match(component,/Number\(day\.activities\)>0\?Math\.max/);
   assert.match(component,/عملاء مسندون خلال الفترة/);
 
+  assert.match(picker,/'use client'/);
+  assert.match(picker,/type="date"[\s\S]*name="from"/);
+  assert.match(picker,/type="date"[\s\S]*name="to"/);
+  assert.match(picker,/max=\{maxDate\}/);
+  assert.match(picker,/min=\{from\}/);
+  assert.match(picker,/showPicker/);
+  assert.match(picker,/onKeyDown=\{preventManualEntry\}/);
+  assert.match(picker,/onPaste=\{event=>event\.preventDefault\(\)\}/);
+  assert.match(picker,/onDrop=\{event=>event\.preventDefault\(\)\}/);
+  assert.match(picker,/if\(next&&to&&next>to\)setTo\(next\)/);
+  assert.match(picker,/if\(next&&from&&next<from\)setFrom\(next\)/);
+  assert.match(picker,/ar-EG-u-ca-gregory/);
+  assert.match(picker,/اختيار من التقويم/);
+
   assert.match(styles,/\.dateFilter\{/);
   assert.match(styles,/\.datePresets \.activePreset/);
+  assert.match(styles,/\.calendarControl\{/);
+  assert.match(styles,/\.calendarControl input\{[\s\S]*opacity:0/);
   assert.match(styles,/@media \(max-width:560px\)[\s\S]*\.datePresets/);
   assert.match(styles,/@media \(max-width:390px\)[\s\S]*\.dateInputs/);
 });

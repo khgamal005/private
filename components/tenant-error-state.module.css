@@ -1,0 +1,47 @@
+.page{
+  min-height:60vh;
+  display:grid;
+  place-items:center;
+  padding:32px 18px;
+  background:#f6f8fb;
+  color:#172033;
+}
+.card{
+  width:min(100%,620px);
+  padding:34px;
+  border:1px solid #dce3ee;
+  border-radius:20px;
+  background:#fff;
+  box-shadow:0 18px 50px rgba(23,32,51,.08);
+  text-align:center;
+}
+.icon{
+  display:grid;
+  place-items:center;
+  width:52px;
+  height:52px;
+  margin:0 auto 18px;
+  border-radius:50%;
+  background:#fff2d9;
+  color:#8a5600;
+  font-size:28px;
+  font-weight:800;
+}
+.eyebrow{margin:0 0 8px;color:#68738a;font-size:13px;font-weight:700}
+.card h1{margin:0;font-size:clamp(24px,4vw,34px);line-height:1.35}
+.copy{margin:14px auto 0;max-width:500px;color:#59657a;line-height:1.8}
+.actions{display:flex;justify-content:center;gap:10px;margin:24px 0 14px;flex-wrap:wrap}
+.actions button,.actions a{
+  min-width:142px;
+  padding:11px 18px;
+  border:1px solid #203a64;
+  border-radius:10px;
+  font:inherit;
+  font-weight:700;
+  cursor:pointer;
+  text-decoration:none;
+}
+.actions button{background:#203a64;color:#fff}
+.actions a{background:#fff;color:#203a64}
+.card small{color:#7b8495}
+@media(max-width:520px){.card{padding:26px 18px}.actions>*{width:100%}}

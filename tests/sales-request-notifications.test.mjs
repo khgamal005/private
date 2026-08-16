@@ -98,7 +98,7 @@ test('notification RPC prevents cross-agent and cross-tenant reads or acknowledg
   );
 });
 
-test('the notification center polls, alerts, and refreshes an open calendar',async()=>{
+test('the notification center polls with backoff without refreshing the dashboard',async()=>{
   const [center,shell,route,css]=await Promise.all([
     read('components/notification-center.js'),
     read('components/workspace-shell.js'),
@@ -106,9 +106,12 @@ test('the notification center polls, alerts, and refreshes an open calendar',asy
     read('app/tenant-shell-polish.css')
   ]);
 
-  assert.match(center,/const POLL_INTERVAL_MS=4000/);
-  assert.match(center,/window\.setInterval\(poll,POLL_INTERVAL_MS\)/);
-  assert.match(center,/router\.refresh\(\)/);
+  assert.match(center,/const POLL_INTERVAL_MS=30000/);
+  assert.match(center,/MAX_BACKOFF_MS=120000/);
+  assert.match(center,/window\.setTimeout\(runAndSchedule,delay\)/);
+  assert.match(center,/document\.visibilityState==='hidden'/);
+  assert.doesNotMatch(center,/router\.refresh\(\)/);
+  assert.match(center,/router\.replace\('\/login\?reason=session'\)/);
   assert.match(center,/mt-notification-toast/);
   assert.match(center,/window\.Notification\.permission==='granted'/);
   assert.match(center,/mark_read/);
@@ -118,6 +121,7 @@ test('the notification center polls, alerts, and refreshes an open calendar',asy
   assert.match(route,/v1_tenant_notification_center/);
   assert.match(route,/const WRITE_ACTIONS=new Set\(\['mark_read','mark_all_read'\]\)/);
   assert.match(route,/ACCESS_COOKIE/);
+  assert.match(route,/AbortSignal\.timeout\(6000\)/);
   assert.match(css,/\.mt-notification-toast/);
   assert.match(css,/\.mt-notification-list>a\.is-unread/);
 });

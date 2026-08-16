@@ -15,7 +15,7 @@ test('dashboard filter is server-driven, accessible, and responsive',async()=>{
   assert.match(page,/TenantOverview\(\{params,searchParams\}\)/);
   assert.match(page,/await Promise\.all\(\[params,searchParams\]\)/);
   assert.match(page,/resolveDashboardRange\(query,/);
-  assert.match(page,/data\.tenant\?\.timezone\|\|data\.timezone\|\|'UTC'/);
+  assert.match(page,/live\?\.tenant\?\.timezone\|\|'Asia\/Riyadh'/);
   assert.match(page,/getTenantRoleDashboard\(slug,range\.from,range\.to\)/);
   assert.match(page,/getOptionalMarketing\(slug,range\)/);
   assert.match(page,/range=\{range\}/);

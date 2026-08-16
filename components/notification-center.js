@@ -4,7 +4,9 @@ import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import {useEffect,useRef,useState} from 'react';
 
-const POLL_INTERVAL_MS=4000;
+const POLL_INTERVAL_MS=30000;
+const MAX_BACKOFF_MS=120000;
+const POLL_JITTER_MS=5000;
 const EMPTY_DATA={notifications:[],unreadCount:0};
 
 function safeCount(value){
@@ -38,8 +40,12 @@ async function requestNotifications(slug,action='list',notificationId=null){
     ?`/api/tenant/notifications?slug=${encodeURIComponent(slug)}`
     :'/api/tenant/notifications';
   const response=await fetch(endpoint,options);
-  const payload=await response.json();
-  if(!response.ok)throw new Error(payload.error||'تعذر تحميل الإشعارات');
+  const payload=await response.json().catch(()=>({}));
+  if(!response.ok){
+    const error=new Error(payload.error||'تعذر تحميل الإشعارات');
+    error.status=response.status;
+    throw error;
+  }
   return payload.data||EMPTY_DATA;
 }
 
@@ -60,13 +66,20 @@ export default function NotificationCenter({
 
   useEffect(()=>{
     let cancelled=false;
+    let timer=null;
+    let failures=0;
 
     async function poll(){
-      if(cancelled||busyRef.current||document.visibilityState==='hidden')return;
+      if(
+        cancelled
+        ||busyRef.current
+        ||document.visibilityState==='hidden'
+        ||window.navigator.onLine===false
+      )return true;
       busyRef.current=true;
       try{
         const next=await requestNotifications(slug);
-        if(cancelled)return;
+        if(cancelled)return true;
         const newest=next.notifications?.[0]||null;
         if(
           initializedRef.current
@@ -75,7 +88,6 @@ export default function NotificationCenter({
           &&!newest.readAt
         ){
           setToast(newest);
-          router.refresh();
           if('Notification' in window&&window.Notification.permission==='granted'){
             try{
               new window.Notification(newest.title,{body:newest.message});
@@ -87,15 +99,30 @@ export default function NotificationCenter({
         latestIdRef.current=newest?.id||latestIdRef.current;
         initializedRef.current=true;
         setData(next);
-      }catch{
-        // Keep the last valid notification state and retry on the next poll.
+        return true;
+      }catch(error){
+        if(error?.status===401){
+          cancelled=true;
+          router.replace('/login?reason=session');
+        }
+        // Keep the last valid state and back off before the next request.
+        return false;
       }finally{
         busyRef.current=false;
       }
     }
 
-    poll();
-    const timer=window.setInterval(poll,POLL_INTERVAL_MS);
+    async function runAndSchedule(){
+      const succeeded=await poll();
+      failures=succeeded?0:Math.min(failures+1,3);
+      const delay=Math.min(
+        MAX_BACKOFF_MS,
+        POLL_INTERVAL_MS*(2**failures)
+      )+Math.floor(Math.random()*POLL_JITTER_MS);
+      if(!cancelled)timer=window.setTimeout(runAndSchedule,delay);
+    }
+
+    runAndSchedule();
     const handleFocus=()=>poll();
     const handleVisibility=()=>{
       if(document.visibilityState==='visible')poll();
@@ -104,7 +131,7 @@ export default function NotificationCenter({
     document.addEventListener('visibilitychange',handleVisibility);
     return ()=>{
       cancelled=true;
-      window.clearInterval(timer);
+      if(timer)window.clearTimeout(timer);
       window.removeEventListener('focus',handleFocus);
       document.removeEventListener('visibilitychange',handleVisibility);
     };

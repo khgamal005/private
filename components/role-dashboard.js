@@ -712,16 +712,27 @@ function normalizedPercent(value){
   return Math.min(100,Math.max(0,Number(value)||0));
 }
 
-function taskSnapshot(tasks=[]){
+function taskSnapshot(source={}){
+  const tasks=Array.isArray(source)
+    ?source
+    :Array.isArray(source?.tasks)?source.tasks:[];
+  const summary=Array.isArray(source)?{}:source?.summary||{};
   const now=Date.now();
   const open=tasks.filter(task=>OPEN_TASK_STATUSES.has(task.status));
+  const countedOpen=Number(summary.openTasks);
+  const countedOverdue=Number(summary.overdueTasks);
+  const countedCompleted=Number(summary.completedTasks);
   return {
-    open:open.length,
-    overdue:open.filter(task=>{
-      const due=new Date(task.dueAt).getTime();
-      return Number.isFinite(due)&&due<now;
-    }).length,
-    completed:tasks.filter(task=>task.status==='completed').length
+    open:Number.isFinite(countedOpen)?countedOpen:open.length,
+    overdue:Number.isFinite(countedOverdue)
+      ?countedOverdue
+      :open.filter(task=>{
+        const due=new Date(task.dueAt).getTime();
+        return Number.isFinite(due)&&due<now;
+      }).length,
+    completed:Number.isFinite(countedCompleted)
+      ?countedCompleted
+      :tasks.filter(task=>task.status==='completed').length
   };
 }
 
@@ -882,7 +893,7 @@ function buildExecutiveActions(dashboard,marketing,operations){
   const training=dashboard.training||{};
   const marketingSummary=marketing?.summary||{};
   const woo=executive.woocommerceRevenue||{};
-  const tasks=taskSnapshot(operations?.tasks||[]);
+  const tasks=taskSnapshot(operations);
   const actions=[];
   const add=(tone,title,note)=>actions.push({tone,title,note});
 

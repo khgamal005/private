@@ -108,7 +108,7 @@ test('owner gets the executive command center without the personal achievement b
   assert.match(page,/resolveDashboardRange/);
   assert.match(page,/from:range\.from/);
   assert.match(page,/to:range\.to/);
-  assert.match(page,/unstable_rethrow\(error\)/);
+  assert.match(page,/optionalServerRead/);
   assert.match(page,/getOptionalMarketing\(slug,range\)/);
   assert.match(page,/showAchievement=!EXECUTIVE_ROLES\.has\(resolvedRole\)/);
   assert.match(page,/shouldLoadAchievement=!EXECUTIVE_ROLES\.has\(membershipRole\)/);
@@ -186,13 +186,16 @@ test('tenant overview never substitutes stale metrics when the canonical RPC fai
   ]);
   assert.match(
     page,
-    /getTenantRoleDashboard\(slug,range\.from,range\.to\)\.catch\(\(\)=>null\)/
+    /optionalServerRead\([\s\S]*getTenantRoleDashboard\(slug,range\.from,range\.to\)/
   );
   assert.match(page,/unavailable:true/);
   assert.doesNotMatch(page,/task\.status!=='completed'/);
   assert.match(page,/Promise\.all/);
   assert.match(page,/RoleDashboard/);
   assert.match(api,/v2_tenant_role_dashboard_snapshot_v7/);
+  assert.match(api,/v1_tenant_dashboard_live_snapshot/);
+  assert.doesNotMatch(page,/getTenantOperations|getTenant\(/);
+  assert.doesNotMatch(layout,/getTenantRoleDashboard|getTenant\(/);
   assert.doesNotMatch(
     api,
     /v2_tenant_role_dashboard_snapshot_v7'[\s\S]*v2_tenant_role_dashboard_snapshot_v6/

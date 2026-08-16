@@ -76,7 +76,11 @@ test('role-protected tenant routes enforce their permissions on the server',asyn
 
 test('temporary-password redirects finish before protected tenant data loads',async()=>{
   const routes=[
-    ['../app/tenant/[slug]/layout.js','requireTenant','getTenant'],
+    [
+      '../app/tenant/[slug]/layout.js',
+      'requireTenant',
+      'getTenantDashboardLive'
+    ],
     [
       '../app/tenant/[slug]/team/page.js',
       'requireTenantPermission',
@@ -125,7 +129,8 @@ test('employee tenant routes do not eagerly load administrator-only settings',as
   assert.match(settings,/getTenantSettings/);
   assert.match(data,/includeSales=true/);
   assert.match(data,/includeSales\s*\?authRpc\('v3_tenant_sales_pipeline_snapshot'/);
-  assert.match(overview,/includeSales:canReadCrm/);
+  assert.match(overview,/getTenantDashboardLive\(slug\)/);
+  assert.doesNotMatch(overview,/getTenantOperations|includeSales/);
   assert.match(tasks,/getTenantOperations\(slug,\{includeSales\}\)/);
 });
 

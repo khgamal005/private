@@ -85,18 +85,20 @@ test('tenant navigation follows the approved business order and groups',async()=
   assert.doesNotMatch(settings,/AddonCenter/);
 });
 
-test('toolbar notifications use live role dashboard counts',async()=>{
+test('toolbar notifications use a bounded live snapshot',async()=>{
   const [layout,api,shell]=await Promise.all([
     read('app/tenant/[slug]/layout.js'),
     read('lib/api.js'),
     read('components/workspace-shell.js')
   ]);
 
-  assert.match(layout,/getTenantRoleDashboard\(slug\)\.catch\(\(\)=>null\)/);
-  assert.match(layout,/notificationSummary=\{headerSummary\(dashboard\)\}/);
-  assert.match(layout,/tasksToday:personal\.tasksToday/);
-  assert.match(layout,/pendingAdmissions:executive\.pendingAdmissions/);
-  assert.match(api,/cache\(async function getTenantRoleDashboard/);
+  assert.match(layout,/getTenantDashboardLive\(slug\)/);
+  assert.doesNotMatch(layout,/getTenantRoleDashboard|getTenant\(/);
+  assert.match(layout,/notificationSummary=\{headerSummary\(live\)\}/);
+  assert.match(layout,/tasksToday:summary\.tasksToday/);
+  assert.match(layout,/pendingAdmissions:summary\.pendingAdmissions/);
+  assert.match(api,/cache\(async function getTenantDashboardLive/);
+  assert.match(api,/v1_tenant_dashboard_live_snapshot/);
   assert.match(shell,/notificationItems\(notificationSummary,slug\)/);
   assert.match(shell,/لا توجد مهام أو تنبيهات عاجلة الآن/);
 });

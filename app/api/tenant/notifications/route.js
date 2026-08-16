@@ -20,7 +20,8 @@ async function notificationRpc(token,body){
         'Content-Type':'application/json'
       },
       body:JSON.stringify(body),
-      cache:'no-store'
+      cache:'no-store',
+      signal:AbortSignal.timeout(6000)
     }
   );
   const text=await response.text();
@@ -53,7 +54,10 @@ function errorResponse(error){
       :'تعذر تحميل الإشعارات الآن';
   return NextResponse.json(
     {error:translated},
-    {status:Number(error?.status)||500}
+    {
+      status:Number(error?.status)||503,
+      headers:{'Cache-Control':'private, no-store'}
+    }
   );
 }
 

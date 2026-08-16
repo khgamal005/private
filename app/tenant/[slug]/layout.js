@@ -1,10 +1,10 @@
 import {
-  getTenant,
   getTenantAddonNavigation,
-  getTenantRoleDashboard,
+  getTenantDashboardLive,
   getTenantYeastarAccess
 } from '../../../lib/api';
 import {requireTenant} from '../../../lib/server-auth';
+import {optionalServerRead} from '../../../lib/server-resilience';
 import {navigationPolicyRoleKey} from '../../../lib/tenant-role-policy';
 import WorkspaceShell from '../../../components/workspace-shell';
 import MyRoleGuide from '../../../components/my-role-guide';
@@ -14,29 +14,32 @@ export const dynamic='force-dynamic';
 export default async function TenantLayout({children,params}){
   const {slug}=await params;
   const context=await requireTenant(slug);
-  const [data,dashboard,yeastarAccess,addonAccess]=await Promise.all([
-    getTenant(slug),
-    getTenantRoleDashboard(slug).catch(()=>null),
-    getTenantYeastarAccess(slug).catch(()=>({
+  const membership=context.memberships?.find(item=>item.tenantSlug===slug);
+  const [live,yeastarAccess,addonAccess]=await Promise.all([
+    optionalServerRead(
+      'tenant-shell-live',
+      ()=>getTenantDashboardLive(slug),
+      null
+    ),
+    optionalServerRead('tenant-shell-yeastar',()=>getTenantYeastarAccess(slug),{
       enabled:false,
       visible:false,
       configured:false,
       canView:false,
       canManage:false
-    })),
-    getTenantAddonNavigation(slug).catch(()=>({
+    }),
+    optionalServerRead('tenant-shell-addons',()=>getTenantAddonNavigation(slug),{
       enabledProductKeys:[],
       surfaces:[]
-    }))
+    })
   ]);
-  const membership=context.memberships?.find(item=>item.tenantSlug===slug);
   const roleKey=context.platformAccess
     ?'platform_owner'
-    :dashboard?.viewer?.roleKey||membership?.roles?.[0]||'member';
-  const userName=dashboard?.viewer?.name||context.subject?.fullName||context.subject?.email?.split('@')[0];
+    :membership?.roles?.[0]||'member';
+  const userName=context.subject?.fullName||context.subject?.email?.split('@')[0];
   const roleLabel=context.platformAccess
     ?'إدارة منصة ماركتون'
-    :dashboard?.viewer?.roleLabel||roleName(roleKey);
+    :roleName(roleKey);
   const permissions=membership?.permissions||[];
   const guideRoleKey=roleKey==='admissions_officer'?'customer_service':roleKey;
   const navigationRoleKey=navigationPolicyRoleKey(permissions,{platformAccess:Boolean(context.platformAccess)});
@@ -44,14 +47,14 @@ export default async function TenantLayout({children,params}){
   return <WorkspaceShell
     kind="tenant"
     slug={slug}
-    title={data?.tenant?.name||'منشأة ماركتون'}
+    title={live?.tenant?.name||membership?.tenantName||'منشأة ماركتون'}
     email={context.subject.email}
     userName={userName}
     permissions={permissions}
     platformAccess={context.platformAccess}
     roleKey={navigationRoleKey}
     roleLabel={roleLabel}
-    notificationSummary={headerSummary(dashboard)}
+    notificationSummary={headerSummary(live)}
     yeastarAccess={yeastarAccess}
     addonAccess={addonAccess}
   >
@@ -67,19 +70,16 @@ export default async function TenantLayout({children,params}){
   </WorkspaceShell>;
 }
 
-function headerSummary(dashboard){
-  if(!dashboard)return null;
-  const personal=dashboard.personal||{};
-  const executive=dashboard.executive||{};
-  const sales=dashboard.sales||{};
-  const training=dashboard.training||{};
+function headerSummary(live){
+  if(!live)return null;
+  const summary=live.summary||{};
   return {
-    tasksToday:personal.tasksToday||0,
-    openTasks:personal.openTasks||0,
-    overdueTasks:personal.overdueTasks||sales.overdueFollowUps||0,
-    activitiesToday:personal.activitiesToday||0,
-    activeLeads:sales.activeLeads||personal.activeLeads||0,
-    pendingAdmissions:executive.pendingAdmissions||training.pendingAdmissions||0
+    tasksToday:summary.tasksToday||0,
+    openTasks:summary.openTasks||0,
+    overdueTasks:summary.overdueTasks||0,
+    activitiesToday:summary.activitiesToday||0,
+    activeLeads:summary.activeLeads||0,
+    pendingAdmissions:summary.pendingAdmissions||0
   };
 }
 

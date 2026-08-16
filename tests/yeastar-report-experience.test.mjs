@@ -43,6 +43,14 @@ test('call intelligence keeps core operations and detail records visible',()=>{
   assert.match(reports,/Pagination/);
 });
 
+test('call intelligence shows the exact talk and ring duration card',()=>{
+  assert.match(reports,/label="إجمالي التحدث والرنين"/);
+  assert.match(reports,/summary\.totalTalkAndRingSeconds/);
+  assert.match(reports,/summary\.totalRoutingSeconds/);
+  assert.match(styles,/\.kpi_teal\{/);
+  assert.match(styles,/grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/);
+});
+
 test('report layout is responsive and print ready',()=>{
   assert.match(styles,/@media\(max-width:680px\)/);
   assert.match(styles,/\.kpiGrid\{display:grid/);

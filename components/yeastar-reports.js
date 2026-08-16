@@ -145,6 +145,7 @@ export default function YeastarReports({
       <Kpi icon="✓" label="تم الرد" value={number(summary.answeredCalls)} note={`نسبة الرد ${percent(summary.answerRate)}`} tone="green" progress={summary.answerRate}/>
       <Kpi icon="!" label="مكالمات فائتة" value={number(summary.missedCalls)} note={`${number(summary.failedCalls)} مكالمة فشلت`} tone="red"/>
       <Kpi icon="◷" label="إجمالي وقت الحديث" value={duration(summary.totalTalkSeconds)} note={`متوسط المكالمة ${duration(summary.averageTalkSeconds)}`} tone="blue"/>
+      <Kpi icon="⏱" label="إجمالي التحدث والرنين" value={duration(summary.totalTalkAndRingSeconds)} note={`حديث ${duration(summary.totalTalkSeconds)} · رنين ${duration(summary.totalRoutingSeconds)}`} tone="teal"/>
       <Kpi icon="⌛" label="متوسط انتظار الرد" value={duration(summary.averageRoutingSeconds)} note="من بداية الرنين حتى الرد" tone="amber"/>
       <Kpi icon="◉" label="مكالمات مسجلة" value={number(summary.recordedCalls)} note="مؤشر فقط دون نسخ الصوت أو ملف التسجيل" tone="violet"/>
     </section>

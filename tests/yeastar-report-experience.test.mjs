@@ -48,12 +48,14 @@ test('call intelligence shows the exact talk and ring duration card',()=>{
   assert.match(reports,/summary\.totalTalkAndRingSeconds/);
   assert.match(reports,/summary\.totalRoutingSeconds/);
   assert.match(styles,/\.kpi_teal\{/);
-  assert.match(styles,/grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/);
+  assert.match(styles,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(styles,/\.kpi_teal\{grid-column:span 2/);
 });
 
 test('report layout is responsive and print ready',()=>{
   assert.match(styles,/@media\(max-width:680px\)/);
   assert.match(styles,/\.kpiGrid\{display:grid/);
   assert.match(styles,/\.departmentGrid\{display:grid/);
+  assert.match(styles,/@media\(max-width:430px\)[\s\S]+\.kpi_teal\{grid-column:auto\}/);
   assert.match(styles,/@media print/);
 });

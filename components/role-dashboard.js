@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import {REPORT_DATE_PRESETS} from '../lib/reporting';
 import styles from './role-dashboard.module.css';
 
 const ROLE_COPY={
@@ -89,14 +90,6 @@ function percent(value){
   return `${number(value)}٪`;
 }
 
-function moneyMinor(value){
-  return new Intl.NumberFormat('ar-SA',{
-    style:'currency',
-    currency:'SAR',
-    maximumFractionDigits:0
-  }).format((Number(value)||0)/100);
-}
-
 function moneyMinorCurrency(value,currency='SAR'){
   const normalized=/^[A-Z]{3}$/.test(String(currency||'').toUpperCase())
     ?String(currency).toUpperCase()
@@ -146,14 +139,19 @@ function duration(seconds){
   return `${number(minutes)} دقيقة`;
 }
 
-function when(value){
+function when(value,timeZone){
   if(!value)return 'الآن';
-  return new Intl.DateTimeFormat('ar-EG',{
-    day:'numeric',
-    month:'short',
-    hour:'numeric',
-    minute:'2-digit'
-  }).format(new Date(value));
+  const options={
+    day:'numeric',month:'short',hour:'numeric',minute:'2-digit',
+    ...(timeZone?{timeZone}:{})
+  };
+  try{
+    return new Intl.DateTimeFormat('ar-EG',options).format(new Date(value));
+  }catch{
+    return new Intl.DateTimeFormat('ar-EG',{
+      day:'numeric',month:'short',hour:'numeric',minute:'2-digit'
+    }).format(new Date(value));
+  }
 }
 
 function periodLabel(period){
@@ -161,21 +159,40 @@ function periodLabel(period){
   const to=String(period?.to||'');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(from)
     ||!/^\d{4}-\d{2}-\d{2}$/.test(to)){
-    return 'نطاق الشهر غير متاح';
+    return 'النطاق الزمني غير متاح';
   }
   const fromDate=new Date(`${from}T12:00:00Z`);
   const toDate=new Date(`${to}T12:00:00Z`);
-  const fromDay=new Intl.DateTimeFormat('ar-EG',{day:'numeric'}).format(fromDate);
-  const toLabel=new Intl.DateTimeFormat('ar-EG',{
+  const day=new Intl.DateTimeFormat('ar-EG',{day:'numeric'});
+  const monthDay=new Intl.DateTimeFormat('ar-EG',{
+    day:'numeric',month:'long'
+  });
+  const full=new Intl.DateTimeFormat('ar-EG',{
     day:'numeric',month:'long',year:'numeric'
-  }).format(toDate);
+  });
+  const label=from===to
+    ?full.format(toDate)
+    :from.slice(0,7)===to.slice(0,7)
+      ?`${day.format(fromDate)}–${full.format(toDate)}`
+      :from.slice(0,4)===to.slice(0,4)
+        ?`${monthDay.format(fromDate)}–${full.format(toDate)}`
+        :`${full.format(fromDate)}–${full.format(toDate)}`;
   const timezone=period?.timeZone||period?.timezone;
   const timezoneLabel=timezone==='Asia/Riyadh'
     ?'بتوقيت الرياض'
     :timezone
       ?`بتوقيت ${timezone}`
       :'';
-  return `${fromDay}–${toLabel}${timezoneLabel?` · ${timezoneLabel}`:''}`;
+  return `${label}${timezoneLabel?` · ${timezoneLabel}`:''}`;
+}
+
+function rangeHref(path,period){
+  const from=String(period?.from||'');
+  const to=String(period?.to||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(from)
+    ||!/^\d{4}-\d{2}-\d{2}$/.test(to))return path;
+  const query=new URLSearchParams({from,to});
+  return `${path}?${query.toString()}`;
 }
 
 function marketingDataNeedsAttention(marketing){
@@ -197,16 +214,16 @@ function commercialReturn(woo,marketing){
   const digits=Math.min(4,Math.max(0,Number(woo?.minorDigits)||0));
   const rangeFrom=String(marketing?.range?.from||'');
   const rangeTo=String(marketing?.range?.to||'');
-  const periodKey=String(woo?.periodKey||'');
-  const sameMonth=/^\d{4}-\d{2}-01$/.test(rangeFrom)
+  const wooFrom=String(woo?.range?.from||'');
+  const wooTo=String(woo?.range?.to||'');
+  const sameRange=/^\d{4}-\d{2}-\d{2}$/.test(rangeFrom)
     &&/^\d{4}-\d{2}-\d{2}$/.test(rangeTo)
-    &&rangeFrom.slice(0,7)===rangeTo.slice(0,7)
-    &&rangeFrom.slice(0,7)===periodKey;
+    &&rangeFrom===wooFrom
+    &&rangeTo===wooTo;
   if(!woo?.available
     ||woo?.stale
-    ||marketing?.rangeMode!=='month_to_date'
     ||marketingDataNeedsAttention(marketing)
-    ||!sameMonth
+    ||!sameRange
     ||!Number.isFinite(netMinor)
     ||!Number.isFinite(spendMinor)
     ||spendMinor<=0
@@ -239,6 +256,7 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
       woo.minorDigits
     );
     const items=[];
+    const trainingAvailable=executive.trainingMonthAvailable!==false;
     const hasWooRevenue=woo.available
       &&Number.isFinite(Number(wooTotals.netSalesMinor))
       &&wooTotals.netSalesMinor!=null;
@@ -248,8 +266,8 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
       :null;
     if(woo.connected){
       items.push(metric(
-        'صافي مبيعات WooCommerce هذا الشهر',
-        hasWooRevenue?wooMoney(wooTotals.netSalesMinor):'التقرير غير متاح',
+        'صافي مبيعات WooCommerce خلال الفترة',
+        hasWooRevenue?wooMoney(wooTotals.netSalesMinor):'غير متاح للفترة',
         hasWooRevenue
           ?`${number(wooTotals.orderCount)} طلبًا · `
             +`الإجمالي ${wooMoney(wooTotals.grossSalesMinor)} · `
@@ -261,6 +279,8 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
               ?` · متوسط الطلب ${wooMoney(averageOrderMinor)}`
               :''}`
             +`${woo.stale?' · البيانات تحتاج مزامنة حديثة':''}`
+          :woo.rangeAvailable===false
+            ?'لا توجد نسخة رسمية محفوظة من WooCommerce لهذا النطاق؛ لم نعرض رقم الشهر الحالي مكانها.'
           :woo.error
             ?'تعذر جلب تقرير WooCommerce الرسمي في آخر محاولة؛ راجع صلاحيات Analytics ثم أعد الاختبار.'
             :'سيظهر رقم WooCommerce الرسمي بعد اكتمال مزامنة تشمل الطلبات.',
@@ -276,8 +296,8 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
       const returnValue=commercialReturn(woo,marketing);
       items.push(metric(
         marketingDegraded
-          ?'الإنفاق الإعلاني المسجل هذا الشهر'
-          :'الإنفاق الإعلاني الفعلي هذا الشهر',
+          ?'الإنفاق الإعلاني المسجل خلال الفترة'
+          :'الإنفاق الإعلاني الفعلي خلال الفترة',
         hasMarketing
           ?moneyMinorCurrency(
             marketingSummary.spendMinor,
@@ -297,49 +317,57 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
     }
     items.push(
       metric(
-        'عملاء تأهلوا هذا الشهر',
+        'عملاء تأهلوا خلال الفترة',
         sales.monthAvailable===false
           ?'—'
           :number(sales.qualifiedEnteredThisMonth),
         sales.monthAvailable===false
-          ?'لا تملك هذه الجلسة صلاحية قراءة مؤشرات CRM الشهرية'
+          ?'لا تملك هذه الجلسة صلاحية قراءة مؤشرات CRM للفترة'
           :`${number(sales.qualifiedOpenFromMonth)} ما زالت مفتوحة · ${number(sales.qualifiedWonFromMonth)} أُغلقت ناجحًا`,
         'blue'
       ),
       metric(
-        'عملاء وُزعوا هذا الشهر',
+        'عملاء وُزعوا خلال الفترة',
         sales.monthAvailable===false
           ?'—'
           :number(sales.distributedThisMonth),
         sales.monthAvailable===false
-          ?'لا تملك هذه الجلسة صلاحية قراءة مؤشرات CRM الشهرية'
-          :`${number(sales.paidFromDistributedThisMonth)} دفعوا خلال الشهر · ${sales.closingRate==null?'—':percent(sales.closingRate)} تقفيل`,
+          ?'لا تملك هذه الجلسة صلاحية قراءة مؤشرات CRM للفترة'
+          :`${number(sales.paidFromDistributedThisMonth)} دفعوا داخل الفترة · ${sales.closingRate==null?'—':percent(sales.closingRate)} تقفيل`,
         'cyan'
       ),
       metric(
-        'دفعات التسجيل المؤكدة هذا الشهر',
-        moneyMinorCurrencyExact(executive.wonRevenueMinor,'SAR',2),
-        `${number(executive.verifiedAdmissionsThisMonth)} عميلًا بتحقق دفع داخل المنصة؛ منفصلة عن WooCommerce لمنع الازدواج`,
-        'green'
+        'دفعات التسجيل المؤكدة خلال الفترة',
+        trainingAvailable
+          ?moneyMinorCurrencyExact(
+            executive.wonRevenueMinor,
+            executive.revenueCurrency||'SAR',
+            executive.revenueMinorDigits??2
+          )
+          :'—',
+        trainingAvailable
+          ?`${number(executive.verifiedAdmissionsThisMonth)} عميلًا بتحقق دفع داخل المنصة؛ منفصلة عن WooCommerce لمنع الازدواج`
+          :'لا تملك هذه الجلسة صلاحية قراءة دفعات التسجيل والتدريب للفترة',
+        trainingAvailable?'green':'amber'
       ),
       metric(
-        'مكالمات هذا الشهر',
+        'مكالمات خلال الفترة',
         number(calls.totalCalls),
         `${number(calls.answeredCalls)} مجاب عليها · ${percent(calls.answerRate)} نسبة الرد`,
         'cyan'
       ),
       metric(
-        'إنجاز المهام المستحقة هذا الشهر',
+        'إنجاز المهام المستحقة خلال الفترة',
         Number(executive.dueTasksThisMonthToDate)<=0
           ?'—'
           :percent(executive.taskCompletionRateThisMonth),
-        `${number(executive.completedDueTasksThisMonthToDate)} مكتملة من ${number(executive.dueTasksThisMonthToDate)} مستحقة حتى اليوم`,
+        `${number(executive.completedDueTasksThisMonthToDate)} مكتملة من ${number(executive.dueTasksThisMonthToDate)} مستحقة داخل النطاق`,
         'amber'
       ),
       metric(
-        'عملاء جدد هذا الشهر',
+        'عملاء جدد خلال الفترة',
         number(executive.newContactsThisMonth),
-        `بعد استبعاد المؤرشف والمكرر · ${number(executive.activitiesThisMonth)} نشاط مبيعات خلال الشهر`,
+        `بعد استبعاد المؤرشف والمكرر · ${number(executive.activitiesThisMonth)} نشاط مبيعات خلال الفترة`,
         'pink'
       )
     );
@@ -348,7 +376,7 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
   if(SALES_ROLES.has(role)){
     return [
       metric('عملاء قيد المتابعة',number(sales.activeLeads),'داخل مسارك الحالي','blue'),
-      metric('مدفوعات مؤكدة هذا الشهر',number(sales.paidThisMonth),`${percent(sales.conversionRate)} تحويل · ${number(sales.pendingPaymentVerification)} قيد التحقق`,'green'),
+      metric('مدفوعات مؤكدة هذا الشهر',number(sales.paidThisMonth),`${percent(sales.conversionRate)} تحويل · ${number(sales.pendingPaymentVerification)} قيد التحقق حاليًا`,'green'),
       metric('أنشطة اليوم',number(sales.activitiesToday??personal.activitiesToday),'مكالمة أو متابعة مسجلة','purple'),
       metric('متابعات متأخرة',number(sales.overdueFollowUps),'تحتاج إجراء الآن','amber'),
       metric('مكالمات الشهر',number(calls.totalCalls),`${number(calls.answeredCalls)} مجاب عليها`,'cyan'),
@@ -359,7 +387,7 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
     return [
       metric('طلبات قبول معلّقة',number(training.pendingAdmissions),'تحتاج مراجعة','blue'),
       metric('تحقق دفع معلّق',number(training.pendingPaymentVerification),'حالات بانتظار الإجراء','amber'),
-      metric('مهام اليوم',number(personal.tasksToday),`${number(personal.openTasks)} مفتوحة`,'purple'),
+      metric('مهام اليوم',number(personal.tasksToday),`${number(personal.openTasks)} مفتوحة حاليًا`,'purple'),
       metric('مكالمات الشهر',number(calls.totalCalls),`${number(calls.missedCalls)} فائتة`,'cyan'),
       metric('نسبة الرد',percent(calls.answerRate),duration(calls.averageTalkSeconds),'green'),
       metric('مهام متأخرة',number(personal.overdueTasks),'تحتاج إغلاقًا أو إعادة جدولة','pink')
@@ -382,7 +410,7 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
       metric('متدربون نشطون',number(training.activeEnrollments),'مسجلون ومؤكدون','green'),
       metric('نسبة الحضور',percent(training.attendanceRate),'حاضر أو متأخر','cyan'),
       metric('متوسط التقييم',percent(training.averageAssessmentRate),'لكل النتائج المسجلة','amber'),
-      metric('شهادات الشهر',number(training.issuedCertificatesThisMonth),`${number(training.failedAutomationJobs)} إخفاق آلي`,'pink')
+      metric('شهادات الشهر',number(training.issuedCertificatesThisMonth),`${number(training.failedAutomationJobs)} إخفاق آلي حاليًا`,'pink')
     ];
   }
   return [
@@ -393,7 +421,7 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
   ];
 }
 
-function quickActions(slug,permissions){
+function quickActions(slug,permissions,period){
   const allowed=new Set(permissions||[]);
   const actions=[
     ['إدارة مهام اليوم',`/tenant/${slug}/tasks`,'tenant.work.read'],
@@ -404,7 +432,69 @@ function quickActions(slug,permissions){
     ['التسجيل والقبول',`/tenant/${slug}/admissions`,'tenant.admissions.read'],
     ['الأهداف والحوافز',`/tenant/${slug}/incentives`,'tenant.incentives.read']
   ];
-  return actions.filter(([, ,permission])=>allowed.has(permission));
+  return actions
+    .filter(([, ,permission])=>allowed.has(permission))
+    .map(([label,href,permission])=>[
+      label,
+      rangeHref(href,period),
+      permission
+    ]);
+}
+
+function DashboardDateFilter({slug,range,period}){
+  const maxDate=period?.today||period?.to||range?.to;
+  return <form
+    className={styles.dateFilter}
+    method="get"
+    aria-label="تصفية لوحة القيادة حسب التاريخ"
+  >
+    <div className={styles.dateFilterIntro}>
+      <span>نطاق التحليل</span>
+      <b>خصص الفترة الزمنية</b>
+      <small>يُعاد حساب المؤشرات والرسوم من مصادرها الفعلية.</small>
+    </div>
+    <div className={styles.datePresets} aria-label="فترات جاهزة">
+      {REPORT_DATE_PRESETS.map(preset=><button
+        key={preset.key}
+        type="submit"
+        name="period"
+        value={preset.key}
+        className={range?.period===preset.key?styles.activePreset:''}
+        aria-pressed={range?.period===preset.key}
+      >{preset.label}</button>)}
+    </div>
+    <div className={styles.dateInputs}>
+      <label>
+        <span>من تاريخ</span>
+        <input
+          type="date"
+          name="from"
+          defaultValue={range?.from}
+          max={maxDate}
+          required
+        />
+      </label>
+      <span className={styles.dateArrow} aria-hidden="true">←</span>
+      <label>
+        <span>إلى تاريخ</span>
+        <input
+          type="date"
+          name="to"
+          defaultValue={range?.to}
+          max={maxDate}
+          required
+        />
+      </label>
+      <button className={styles.applyDate} type="submit">تطبيق</button>
+      <Link href={`/tenant/${encodeURIComponent(slug)}?period=this_month`}>
+        إعادة الضبط
+      </Link>
+    </div>
+    <p className={styles.dateFilterHint} role="status">
+      <b>{periodLabel(period)}</b>
+      <span>المهام الأقرب والتنبيهات والحالات المعلّقة تبقى لحظية حتى لا تختفي الأولويات الحالية.</span>
+    </p>
+  </form>;
 }
 
 function MetricCards({items}){
@@ -435,21 +525,51 @@ function ExecutiveMetricSection({items,period}){
   >
     <header className={styles.metricSectionHead}>
       <div>
-        <span>من أول الشهر حتى الآن</span>
-        <h3 id="month-performance-heading">أداء الشهر الحالي</h3>
+        <span>قراءة موحّدة للنطاق المختار</span>
+        <h3 id="month-performance-heading">أداء الفترة المحددة</h3>
       </div>
-      <p>{periodLabel(period)} · مؤشرات المنصة بتوقيت المنشأة، وWooCommerce حسب تقرير المتجر الرسمي للشهر نفسه.</p>
+      <p>{periodLabel(period)} · كل رقم محسوب بتوقيت المنشأة ومن مصدره الفعلي، دون استبدال البيانات غير المتاحة بأصفار.</p>
     </header>
     <MetricCards items={items}/>
   </section>;
 }
 
+function trendBuckets(rows=[],maxBuckets=14){
+  if(rows.length<=maxBuckets)return rows.map(row=>({...row,label:null}));
+  const size=Math.ceil(rows.length/maxBuckets);
+  const buckets=[];
+  for(let index=0;index<rows.length;index+=size){
+    const items=rows.slice(index,index+size);
+    const first=items[0];
+    const last=items.at(-1);
+    const short=value=>new Intl.DateTimeFormat('ar-EG',{
+      day:'numeric',month:'short'
+    }).format(new Date(`${value}T12:00:00Z`));
+    const average=key=>Math.round(
+      items.reduce((sum,item)=>sum+(Number(item[key])||0),0)
+        /items.length*10
+    )/10;
+    buckets.push({
+      date:first.date,
+      label:items.length===1
+        ?short(first.date)
+        :`${short(first.date)}–${short(last.date)}`,
+      activities:average('activities'),
+      calls:average('calls'),
+      paid:average('paid')
+    });
+  }
+  return buckets;
+}
+
 function Trend({daily=[],period}){
-  const monthFrom=String(period?.from||'');
-  const scopedDaily=daily.filter(day=>
-    !/^\d{4}-\d{2}-\d{2}$/.test(monthFrom)
-    ||String(day.date||'')>=monthFrom
-  );
+  const from=String(period?.from||'');
+  const to=String(period?.to||'');
+  const scopedDaily=trendBuckets(daily.filter(day=>{
+    const date=String(day.date||'');
+    return (!/^\d{4}-\d{2}-\d{2}$/.test(from)||date>=from)
+      &&(!/^\d{4}-\d{2}-\d{2}$/.test(to)||date<=to);
+  }));
   const max=Math.max(1,...scopedDaily.flatMap(day=>[
     Number(day.activities)||0,
     Number(day.calls)||0,
@@ -457,7 +577,7 @@ function Trend({daily=[],period}){
   ]));
   return <article className={styles.panel}>
     <header className={styles.panelHead}>
-      <div><span>{periodLabel(period)}</span><h3>اتجاه آخر 7 أيام داخل الشهر</h3></div>
+      <div><span>{periodLabel(period)}</span><h3>اتجاه الأداء خلال الفترة</h3></div>
       <div className={styles.legend}>
         <i className={styles.activities}/> أنشطة
         <i className={styles.calls}/> مكالمات
@@ -467,18 +587,18 @@ function Trend({daily=[],period}){
     <div className={styles.chart}>
       {scopedDaily.map(day=><div className={styles.chartDay} key={day.date}>
         <div className={styles.bars} role="img" aria-label={`${day.date}: ${day.activities} نشاط، ${day.calls} مكالمة، ${day.paid} دفع`}>
-          <i className={styles.activities} style={{height:`${Math.max(4,(Number(day.activities)||0)/max*100)}%`}}/>
-          <i className={styles.calls} style={{height:`${Math.max(4,(Number(day.calls)||0)/max*100)}%`}}/>
-          <i className={styles.paid} style={{height:`${Math.max(4,(Number(day.paid)||0)/max*100)}%`}}/>
+          <i className={styles.activities} style={{height:`${Number(day.activities)>0?Math.max(4,Number(day.activities)/max*100):0}%`}}/>
+          <i className={styles.calls} style={{height:`${Number(day.calls)>0?Math.max(4,Number(day.calls)/max*100):0}%`}}/>
+          <i className={styles.paid} style={{height:`${Number(day.paid)>0?Math.max(4,Number(day.paid)/max*100):0}%`}}/>
         </div>
-        <small>{new Intl.DateTimeFormat('ar-EG',{weekday:'short'}).format(new Date(`${day.date}T12:00:00`))}</small>
+        <small>{day.label||new Intl.DateTimeFormat('ar-EG',{weekday:'short'}).format(new Date(`${day.date}T12:00:00Z`))}</small>
       </div>)}
       {!scopedDaily.length&&<div className={styles.empty}>ستظهر حركة الأداء بعد تسجيل أول نشاط.</div>}
     </div>
   </article>;
 }
 
-function TaskList({tasks=[],slug}){
+function TaskList({tasks=[],slug,period=null}){
   const open=tasks
     .filter(task=>OPEN_TASK_STATUSES.has(task.status))
     .sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt))
@@ -486,7 +606,7 @@ function TaskList({tasks=[],slug}){
   return <article className={styles.panel}>
     <header className={styles.panelHead}>
       <div><span>الأولوية الآن</span><h3>المهام الأقرب</h3></div>
-      <Link href={`/tenant/${slug}/tasks`}>كل المهام</Link>
+      <Link href={rangeHref(`/tenant/${slug}/tasks`,period)}>كل المهام</Link>
     </header>
     <div className={styles.list}>
       {open.map(task=><div className={styles.listRow} key={task.id}>
@@ -495,7 +615,7 @@ function TaskList({tasks=[],slug}){
           <small>{task.contactName||task.contactCourseName||'مهمة تشغيلية'}</small>
         </div>
         <time className={new Date(task.dueAt)<new Date()?styles.late:''}>
-          {when(task.dueAt)}
+          {when(task.dueAt,period?.timeZone||period?.timezone)}
         </time>
       </div>)}
       {!open.length&&<div className={styles.empty}>لا توجد مهام مفتوحة حاليًا.</div>}
@@ -503,13 +623,16 @@ function TaskList({tasks=[],slug}){
   </article>;
 }
 
-function CallsPanel({telephony={},slug,showSettings=false}){
+function CallsPanel({telephony={},slug,showSettings=false,period}){
   const configured=Boolean(telephony.configured);
   const mapped=Boolean(telephony.mapped);
   return <article className={`${styles.panel} ${styles.callsPanel}`}>
     <header className={styles.panelHead}>
-      <div><span>Yeastar P550 · الشهر الحالي</span><h3>تحليل المكالمات</h3></div>
-      {configured&&mapped&&<Link href={`/tenant/${slug}/call-reports`}>التقرير الكامل</Link>}
+      <div><span>Yeastar P550 · {periodLabel(period)}</span><h3>تحليل المكالمات</h3></div>
+      {configured&&mapped&&<Link href={rangeHref(
+        `/tenant/${slug}/call-reports`,
+        period
+      )}>التقرير الكامل</Link>}
     </header>
     {!configured?<div className={styles.integrationState}>
       <i>☎</i>
@@ -530,7 +653,7 @@ function CallsPanel({telephony={},slug,showSettings=false}){
   </article>;
 }
 
-function TeamTable({team=[],slug}){
+function TeamTable({team=[],slug,period=null}){
   return <article className={`${styles.panel} ${styles.teamPanel}`}>
     <header className={styles.panelHead}>
       <div><span>تفاصيل الفريق</span><h3>أداء الموظفين</h3></div>
@@ -541,16 +664,19 @@ function TeamTable({team=[],slug}){
         <thead><tr>
           <th>الموظف</th>
           <th>التحويلة</th>
-          <th>عملاء نشطون</th>
-          <th>أنشطة اليوم</th>
-          <th>دفع الشهر</th>
+          <th>{period?'عملاء مسندون خلال الفترة':'عملاء نشطون'}</th>
+          <th>أنشطة الفترة</th>
+          <th>دفع الفترة</th>
           <th>المكالمات</th>
           <th>نسبة الرد</th>
           <th>مهام متأخرة</th>
         </tr></thead>
         <tbody>
           {team.map(member=><tr key={member.staffId}>
-            <td><Link href={`/tenant/${slug}/reports/employees/${member.staffId}`}><b>{member.name}</b><small>{member.jobTitle||ROLE_LABELS[member.roleKey]||'موظف'}</small></Link></td>
+            <td><Link href={rangeHref(
+              `/tenant/${slug}/reports/employees/${member.staffId}`,
+              period
+            )}><b>{member.name}</b><small>{member.jobTitle||ROLE_LABELS[member.roleKey]||'موظف'}</small></Link></td>
             <td>{member.extension||<span className={styles.muted}>غير مربوط</span>}</td>
             <td>{number(member.activeLeads)}</td>
             <td>{number(member.activitiesToday)}</td>
@@ -566,11 +692,11 @@ function TeamTable({team=[],slug}){
   </article>;
 }
 
-function SourcesPanel({sources=[],monthToDate=false}){
+function SourcesPanel({sources=[],period}){
   const max=Math.max(1,...sources.map(item=>Number(item.total)||0));
   return <article className={styles.panel}>
     <header className={styles.panelHead}>
-      <div><span>{monthToDate?'عملاء الشهر الحالي':'جودة القنوات'}</span><h3>مصادر العملاء والتحويل</h3></div>
+      <div><span>{period?periodLabel(period):'جودة القنوات'}</span><h3>مصادر العملاء والتحويل</h3></div>
     </header>
     <div className={styles.sourceList}>
       {sources.map(item=><div key={item.source}>
@@ -624,15 +750,16 @@ function SystemPillars({dashboard,marketing,slug,canReadMarketing}){
     &&Number.isFinite(Number(marketingSummary.spendMinor));
   const marketingDegraded=marketingDataNeedsAttention(marketing);
   const returnValue=commercialReturn(woo,marketing);
+  const trainingAvailable=executive.trainingMonthAvailable!==false;
   const closingRate=sales.closingRate==null
     ?null
     :normalizedPercent(sales.closingRate);
   const pillars=[
     ...(woo.connected?[{
       key:'commerce',icon:'◈',title:'مبيعات WooCommerce',tone:'emerald',
-      href:`/tenant/${slug}/reports`,
+      href:rangeHref(`/tenant/${slug}/reports`,dashboard.period),
       headline:hasWooRevenue?wooMoney(wooTotals.netSalesMinor):'—',
-      headlineLabel:hasWooRevenue?'صافي المبيعات هذا الشهر':'التقرير غير متاح',
+      headlineLabel:hasWooRevenue?'صافي المبيعات خلال الفترة':'التقرير غير متاح للفترة',
       stats:[
         ['الطلبات',number(orderCount)],
         ['الإجمالي',hasWooRevenue?wooMoney(wooTotals.grossSalesMinor):'—'],
@@ -643,7 +770,7 @@ function SystemPillars({dashboard,marketing,slug,canReadMarketing}){
     }]:[]),
     ...(canReadMarketing?[{
       key:'marketing',icon:'◎',title:'الإعلانات',tone:'violet',
-      href:`/tenant/${slug}/marketing`,
+      href:rangeHref(`/tenant/${slug}/marketing`,dashboard.period),
       headline:hasMarketing
         ?moneyMinorCurrency(
           marketingSummary.spendMinor,
@@ -653,7 +780,7 @@ function SystemPillars({dashboard,marketing,slug,canReadMarketing}){
       headlineLabel:hasMarketing
         ?marketingDegraded
           ?'إنفاق مسجل؛ البيانات جزئية أو قديمة'
-          :'الإنفاق الفعلي هذا الشهر'
+          :'الإنفاق الفعلي خلال الفترة'
         :'البيانات غير متاحة الآن',
       stats:hasMarketing?[
         ['نتائج المنصات',number(marketingSummary.platformLeads)],
@@ -667,44 +794,44 @@ function SystemPillars({dashboard,marketing,slug,canReadMarketing}){
     }]:[]),
     {
       key:'sales',icon:'↗',title:'التأهيل والمبيعات',tone:'blue',
-      href:`/tenant/${slug}/sales`,
+      href:rangeHref(`/tenant/${slug}/sales`,dashboard.period),
       headline:number(sales.qualifiedEnteredThisMonth),
-      headlineLabel:'عميلًا دخل التأهيل للمرة الأولى هذا الشهر',
+      headlineLabel:'عميلًا دخل التأهيل للمرة الأولى خلال الفترة',
       stats:[
         ['ما زالت مفتوحة',number(sales.qualifiedOpenFromMonth)],
         ['أُغلقت ناجحًا',number(sales.qualifiedWonFromMonth)],
-        ['تقفيل موزعي الشهر',closingRate==null?'—':percent(closingRate)]
+        ['تقفيل موزعي الفترة',closingRate==null?'—':percent(closingRate)]
       ]
     },
     {
       key:'calls',icon:'☎',title:'المكالمات',tone:'cyan',
-      href:`/tenant/${slug}/call-reports`,
-      headline:number(calls.totalCalls),headlineLabel:'مكالمة هذا الشهر',
+      href:rangeHref(`/tenant/${slug}/call-reports`,dashboard.period),
+      headline:number(calls.totalCalls),headlineLabel:'مكالمة خلال الفترة',
       stats:[
         ['نسبة الرد',percent(calls.answerRate)],
         ['مكالمات فائتة',number(calls.missedCalls)],
         ['وقت الحديث',duration(calls.talkSeconds)]
       ]
     },
-    {
+    ...(trainingAvailable?[{
       key:'training',icon:'◫',title:'الطلاب والتدريب',tone:'green',
-      href:`/tenant/${slug}/admissions`,
-      headline:number(training.newEnrollmentsThisMonth),headlineLabel:'تسجيلات جديدة هذا الشهر',
+      href:rangeHref(`/tenant/${slug}/admissions`,dashboard.period),
+      headline:number(training.newEnrollmentsThisMonth),headlineLabel:'تسجيلات جديدة خلال الفترة',
       stats:[
-        ['جلسات بدأت هذا الشهر',number(training.sessionsThisMonth)],
+        ['جلسات بدأت خلال الفترة',number(training.sessionsThisMonth)],
         ['شهادات صادرة',number(training.issuedCertificatesThisMonth)],
-        ['حضور الشهر',Number(training.attendanceRecordsThisMonth)>0
+        ['حضور الفترة',Number(training.attendanceRecordsThisMonth)>0
           ?percent(training.attendanceRateThisMonth)
           :'—']
       ]
-    },
+    }]:[]),
     {
       key:'operations',icon:'◆',title:'التشغيل والفريق',tone:'amber',
-      href:`/tenant/${slug}/tasks`,
+      href:rangeHref(`/tenant/${slug}/tasks`,dashboard.period),
       headline:Number(executive.dueTasksThisMonthToDate)<=0
         ?'—'
         :percent(executive.taskCompletionRateThisMonth),
-      headlineLabel:'إنجاز المهام المستحقة حتى اليوم',
+      headlineLabel:'إنجاز المهام المستحقة داخل الفترة',
       stats:[
         ['مكتملة',number(executive.completedDueTasksThisMonthToDate)],
         ['مستحقة',number(executive.dueTasksThisMonthToDate)],
@@ -715,8 +842,8 @@ function SystemPillars({dashboard,marketing,slug,canReadMarketing}){
 
   return <section className={styles.systemSection} aria-label="خريطة أداء المنشأة">
     <header className={styles.sectionHeading}>
-      <div><span>{periodLabel(dashboard.period)}</span><h3>خريطة أداء الشهر</h3></div>
-      <p>كل محور يعرض الشهر الحالي حسب مصدره الفعلي، مع فصل مبيعات المتجر عن دفعات القبول لمنع الازدواج.</p>
+      <div><span>{periodLabel(dashboard.period)}</span><h3>خريطة أداء الفترة</h3></div>
+      <p>كل محور يعرض النطاق المختار حسب مصدره الفعلي، مع فصل مبيعات المتجر عن دفعات القبول لمنع الازدواج.</p>
     </header>
     <div className={`${styles.pillarGrid} ${
       pillars.length===5
@@ -775,7 +902,7 @@ function buildExecutiveActions(dashboard,marketing,operations){
     add('watch','طلبات قبول لم تُغلق',`${number(executive.pendingAdmissions)} طلب قبول ما زال معلّقًا أو قيد المراجعة.`);
   }
   if(Number(calls.missedCalls)>0){
-    add('watch','مكالمات تحتاج استردادًا',`${number(calls.missedCalls)} مكالمة فائتة هذا الشهر وفق سجل Yeastar.`);
+    add('watch','مكالمات تحتاج استردادًا',`${number(calls.missedCalls)} مكالمة فائتة خلال الفترة وفق سجل Yeastar.`);
   }
   if(Number(leads.awaitingDistribution)>0){
     add('setup','بيانات جاهزة ولم تُوزع',`${number(leads.awaitingDistribution)} عميلًا صالحًا ما زال في قائمة الانتظار.`);
@@ -790,9 +917,9 @@ function buildExecutiveActions(dashboard,marketing,operations){
   if(marketing&&Number(marketingSummary.spendMinor)>0){
     const returnValue=commercialReturn(woo,marketing);
     if(returnValue===0&&Number(woo.totals?.orderCount)<=0){
-      add('watch','إنفاق إعلاني بلا طلبات WooCommerce مكتملة','راجع الحملات ومسار إكمال الطلب قبل زيادة الإنفاق خلال الشهر.');
+      add('watch','إنفاق إعلاني بلا طلبات WooCommerce مكتملة','راجع الحملات ومسار إكمال الطلب قبل زيادة الإنفاق.');
     }else if(returnValue!=null&&returnValue<1){
-      add('watch','الإنفاق أعلى من صافي مبيعات المتجر',`مضاعف صافي WooCommerce إلى الإنفاق = ${ratio(returnValue)} هذا الشهر. لا يقيس هذا المؤشر الربحية أو إسناد حملة بعينها.`);
+      add('watch','الإنفاق أعلى من صافي مبيعات المتجر',`مضاعف صافي WooCommerce إلى الإنفاق = ${ratio(returnValue)} خلال الفترة. لا يقيس هذا المؤشر الربحية أو إسناد حملة بعينها.`);
     }
   }
   if(!actions.length){
@@ -839,13 +966,13 @@ function marketingVerdict(marketing,woo){
     return {tone:'neutral',label:'بانتظار بيانات كافية',text:'لا يوجد إنفاق مسجل في الفترة الحالية؛ راجع المزامنة أو نطاق التاريخ داخل مركز الحملات.'};
   }
   if(returnValue!=null&&returnValue>=1){
-    return {tone:'good',label:'صافي المبيعات أعلى من الإنفاق الإعلاني',text:`مضاعف صافي WooCommerce إلى الإنفاق ${ratio(returnValue)} هذا الشهر. لا يقيس الربحية ولا ينسب المبيعات إلى حملة بعينها.`};
+    return {tone:'good',label:'صافي المبيعات أعلى من الإنفاق الإعلاني',text:`مضاعف صافي WooCommerce إلى الإنفاق ${ratio(returnValue)} خلال الفترة. لا يقيس الربحية ولا ينسب المبيعات إلى حملة بعينها.`};
   }
   if(returnValue!=null&&returnValue<1){
-    return {tone:'risk',label:'الإنفاق أعلى من صافي مبيعات المتجر',text:`مضاعف صافي WooCommerce إلى الإنفاق ${ratio(returnValue)} هذا الشهر. راجع الكفاءة، مع مراعاة أن المؤشر لا يقيس الربحية.`};
+    return {tone:'risk',label:'الإنفاق أعلى من صافي مبيعات المتجر',text:`مضاعف صافي WooCommerce إلى الإنفاق ${ratio(returnValue)} خلال الفترة. راجع الكفاءة، مع مراعاة أن المؤشر لا يقيس الربحية.`};
   }
   if(platformLeads>0){
-    return {tone:'watch',label:'المنصات تسجل نتائج هذا الشهر',text:'تظهر نتائج إعلانية، لكن لا يمكن حساب العائد التجاري الإجمالي حتى يتوفر تقرير WooCommerce بنفس العملة.'};
+    return {tone:'watch',label:'المنصات تسجل نتائج خلال الفترة',text:'تظهر نتائج إعلانية، لكن لا يمكن حساب العائد التجاري الإجمالي حتى يتوفر تقرير WooCommerce للنطاق نفسه وبالعملة نفسها.'};
   }
   return {tone:'risk',label:'إنفاق دون نتائج مسجلة',text:'يوجد إنفاق بلا نتائج حتى على مستوى المنصة؛ راجع التتبع والاستهداف فورًا.'};
 }
@@ -856,7 +983,10 @@ function MarketingPulse({marketing,dashboard,slug,canRead}){
     return <article className={`${styles.panel} ${styles.marketingPulse}`}>
       <header className={styles.panelHead}>
         <div><span>الإعلانات والإسناد</span><h3>نبض الحملات</h3></div>
-        <Link href={`/tenant/${slug}/marketing`}>فتح مركز الحملات</Link>
+        <Link href={rangeHref(
+          `/tenant/${slug}/marketing`,
+          dashboard?.period
+        )}>فتح مركز الحملات</Link>
       </header>
       <div className={styles.integrationState}>
         <i>◎</i>
@@ -883,7 +1013,7 @@ function MarketingPulse({marketing,dashboard,slug,canRead}){
     ['الإنفاق المسجل',moneyMinorCurrency(summary.spendMinor,currency),
       marketingDataNeedsAttention(marketing)
         ?'قد يكون جزئيًا؛ راجع صحة الربط والعملات'
-        :'الإنفاق الفعلي من بيانات المنصات خلال الشهر'],
+        :'الإنفاق الفعلي من بيانات المنصات خلال الفترة'],
     ['نتائج المنصات',number(summary.platformLeads),'قبل التحقق داخل CRM'],
     ['النقرات',number(summary.clicks),'النقرات المسجلة في المنصات'],
     ['مرات الظهور',number(summary.impressions),'الظهور المسجل في المنصات'],
@@ -898,8 +1028,11 @@ function MarketingPulse({marketing,dashboard,slug,canRead}){
       <div><span>{periodLabel({
         ...marketing.range,
         timeZone:marketing.range?.timeZone||marketing.settings?.timezone
-      })}</span><h3>نبض الإعلانات هذا الشهر</h3></div>
-      <Link href={`/tenant/${slug}/marketing`}>التحليل الكامل</Link>
+      })}</span><h3>نبض الإعلانات خلال الفترة</h3></div>
+      <Link href={rangeHref(
+        `/tenant/${slug}/marketing`,
+        dashboard?.period
+      )}>التحليل الكامل</Link>
     </header>
     <div className={styles.marketingBody}>
       <div className={styles.marketingMetrics}>
@@ -942,7 +1075,7 @@ function ExecutiveHealth({dashboard}){
       value:dueTasks>0
         ?normalizedPercent(executive.taskCompletionRateThisMonth)
         :null,
-      note:`${number(executive.completedDueTasksThisMonthToDate)} من ${number(executive.dueTasksThisMonthToDate)} مهمة حتى اليوم`
+      note:`${number(executive.completedDueTasksThisMonthToDate)} من ${number(executive.dueTasksThisMonthToDate)} مهمة داخل الفترة`
     },
     {
       label:'الرد على المكالمات',
@@ -961,7 +1094,7 @@ function ExecutiveHealth({dashboard}){
       value:distributed>0&&sales.closingRate!=null
         ?normalizedPercent(sales.closingRate)
         :null,
-      note:`${number(sales.paidFromDistributedThisMonth)} دفعوا من ${number(sales.distributedThisMonth)} موزعين هذا الشهر`
+      note:`${number(sales.paidFromDistributedThisMonth)} دفعوا من ${number(sales.distributedThisMonth)} موزعين خلال الفترة`
     }
   ];
 
@@ -969,9 +1102,9 @@ function ExecutiveHealth({dashboard}){
     <header className={styles.healthHead}>
       <div>
         <span>{periodLabel(dashboard.period)}</span>
-        <h3>صحة أداء الشهر</h3>
+        <h3>صحة أداء الفترة</h3>
       </div>
-      <p>أربع نسب تشغيلية محسوبة على الشهر الحالي فقط، من مصادرها المسجلة.</p>
+      <p>أربع نسب تشغيلية محسوبة على النطاق المختار فقط، من مصادرها المسجلة.</p>
     </header>
     <div className={styles.healthGrid}>
       {items.map(item=>{
@@ -1032,12 +1165,15 @@ export default function RoleDashboard({
   marketing=null,
   canReadMarketing=false,
   permissions=[],
-  fallbackRoleKey='tenant_user'
+  fallbackRoleKey='tenant_user',
+  range=null
 }){
   const role=dashboard?.viewer?.roleKey||fallbackRoleKey||'tenant_user';
   const copy=ROLE_COPY[role]||ROLE_COPY.tenant_user;
   const viewer=dashboard?.viewer||{};
-  const actions=quickActions(slug,permissions);
+  const actions=quickActions(slug,permissions,range);
+  const canFilterDate=EXECUTIVE_ROLES.has(role)
+    &&dashboard?.permissions?.crm!==false;
 
   if(dashboard?.unavailable){
     return <div className={styles.dashboard}>
@@ -1048,10 +1184,15 @@ export default function RoleDashboard({
           <p>{copy.description}</p>
         </div>
       </section>
+      {canFilterDate&&<DashboardDateFilter
+        slug={slug}
+        range={range}
+        period={range}
+      />}
       <div className={styles.fallbackNote} role="alert">
         تعذر تحميل مؤشرات الأداء الموثوقة الآن. لم نعرض أرقامًا بديلة حتى لا تظهر بيانات غير دقيقة؛ أعد المحاولة بعد قليل.
       </div>
-      <TaskList tasks={operations?.tasks||[]} slug={slug}/>
+      <TaskList tasks={operations?.tasks||[]} slug={slug} period={range}/>
     </div>;
   }
 
@@ -1091,9 +1232,18 @@ export default function RoleDashboard({
       <div className={styles.heroAside}>
         <span>نطاق مؤشرات اللوحة</span>
         <b>{periodLabel(dashboard?.period)}</b>
-        <small>آخر تحديث {when(dashboard?.generatedAt)}</small>
+        <small>آخر تحديث {when(
+          dashboard?.generatedAt,
+          dashboard?.period?.timeZone||dashboard?.period?.timezone
+        )}</small>
       </div>
     </section>
+
+    {canFilterDate&&<DashboardDateFilter
+      slug={slug}
+      range={range}
+      period={dashboard?.period}
+    />}
 
     <ReadinessAlerts role={role} dashboard={dashboard||{}}/>
     {EXECUTIVE_ROLES.has(role)
@@ -1124,7 +1274,11 @@ export default function RoleDashboard({
 
     <section className={styles.grid}>
       <Trend daily={dashboard?.daily||[]} period={dashboard?.period}/>
-      <TaskList tasks={operations?.tasks||[]} slug={slug}/>
+      <TaskList
+        tasks={operations?.tasks||[]}
+        slug={slug}
+        period={dashboard?.period}
+      />
     </section>
 
     {showMarketing&&<MarketingPulse
@@ -1138,12 +1292,13 @@ export default function RoleDashboard({
       telephony={dashboard?.telephony||{}}
       slug={slug}
       showSettings={permissions.includes('tenant.settings.manage')}
+      period={dashboard?.period}
     />}
 
     {showSources&&<section className={styles.grid}>
       <SourcesPanel
         sources={dashboard?.sources||[]}
-        monthToDate={EXECUTIVE_ROLES.has(role)}
+        period={EXECUTIVE_ROLES.has(role)?dashboard?.period:null}
       />
       <article className={styles.panel}>
         <header className={styles.panelHead}>
@@ -1152,13 +1307,17 @@ export default function RoleDashboard({
         <div className={styles.callStats}>
           <div><span>متوسط أول رد</span><b>{number((dashboard?.leadOperations||{}).averageFirstResponseMinutes||(dashboard?.sales||{}).averageFirstResponseMinutes)} د</b></div>
           <div><span>الالتزام بالمهلة</span><b>{percent((dashboard?.leadOperations||{}).firstResponseSlaRate||(dashboard?.sales||{}).firstResponseSlaRate)}</b></div>
-          <div><span>وُزعوا هذا الشهر</span><b>{number((dashboard?.sales||{}).distributedThisMonth)}</b></div>
-          <div><span>دفعوا من موزعي الشهر</span><b>{number((dashboard?.sales||{}).paidFromDistributedThisMonth)}</b></div>
+          <div><span>وُزعوا خلال الفترة</span><b>{number((dashboard?.sales||{}).distributedThisMonth)}</b></div>
+          <div><span>دفعوا من موزعي الفترة</span><b>{number((dashboard?.sales||{}).paidFromDistributedThisMonth)}</b></div>
         </div>
       </article>
     </section>}
 
-    {showTeam&&<TeamTable team={dashboard?.team||[]} slug={slug}/>}
+    {showTeam&&<TeamTable
+      team={dashboard?.team||[]}
+      slug={slug}
+      period={EXECUTIVE_ROLES.has(role)?dashboard?.period:null}
+    />}
 
     {role==='sales_user'&&<section className={styles.personalStrip}>
       <div><span>حافز مستحق أو قيد المراجعة</span><b>{money((dashboard?.personal||{}).pendingIncentive)}</b></div>

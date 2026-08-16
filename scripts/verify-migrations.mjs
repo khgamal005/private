@@ -113,7 +113,8 @@ const required=[
   '20260812131000_tenant_accounting_zatca_addon_v1.sql',
   '20260812132000_tenant_accounting_fk_indexes_v1.sql',
   '20260813123327_calendar_task_lifecycle_v3.sql',
-  '20260813123957_calendar_task_history_hardening_v1.sql'
+  '20260813123957_calendar_task_history_hardening_v1.sql',
+  '20260816132000_dashboard_date_range_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -169,6 +170,7 @@ for(const pattern of [
   /v3_assignment_events/,
   /v2_tenant_role_dashboard_snapshot_v3/,
   /v2_tenant_role_dashboard_snapshot_v4/,
+  /v2_tenant_role_dashboard_snapshot_v7/,
   /v2_tenant_employee_achievement_snapshot_v2/,
   /v3_tenant_yeastar_access_snapshot/,
   /v3_tenant_yeastar_reports_snapshot/,

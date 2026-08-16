@@ -8,13 +8,22 @@ import {
   getTenantRoleDashboard
 } from '../../../lib/api';
 import {getTenantEmployeeAchievement} from '../../../lib/achievement';
+import {resolveDashboardRange} from '../../../lib/reporting';
 import {requireTenantPermission} from '../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
+const EXECUTIVE_ROLES=new Set([
+  'tenant_owner',
+  'tenant_admin',
+  'executive_manager'
+]);
 
-async function getOptionalMarketing(slug){
+async function getOptionalMarketing(slug,range){
   try{
-    return await getTenantMarketingHub(slug,{monthToDate:true});
+    return await getTenantMarketingHub(slug,{
+      from:range.from,
+      to:range.to
+    });
   }catch(error){
     unstable_rethrow(error);
     return null;
@@ -34,12 +43,13 @@ function unavailableDashboard(membership){
   };
 }
 
-export default async function TenantOverview({params}){
-  const {slug}=await params;
-  const context=await requireTenantPermission(
-    slug,
-    'tenant.workspace.read'
-  );
+export default async function TenantOverview({params,searchParams}){
+  const [{slug},query]=await Promise.all([params,searchParams]);
+  const [context,data]=await Promise.all([
+    requireTenantPermission(slug,'tenant.workspace.read'),
+    getTenant(slug)
+  ]);
+  if(!data)return notFound();
   const membership=context.memberships?.find(
     item=>item.tenantSlug===slug
   );
@@ -51,23 +61,26 @@ export default async function TenantOverview({params}){
   const canReadMarketing=Boolean(
     context.platformAccess||permissions.includes('tenant.marketing.read')
   );
-  const shouldLoadAchievement=membershipRole!=='tenant_owner';
-  const [data,operations,dashboard,achievement,marketing]=await Promise.all([
-    getTenant(slug),
+  const timeZone=data.tenant?.timezone||data.timezone||'UTC';
+  const requestedRange=resolveDashboardRange(query,{timeZone});
+  const range=canReadCrm
+    ?requestedRange
+    :resolveDashboardRange({period:'this_month'},{timeZone});
+  const shouldLoadAchievement=!EXECUTIVE_ROLES.has(membershipRole);
+  const [operations,dashboard,achievement,marketing]=await Promise.all([
     getTenantOperations(slug,{includeSales:canReadCrm}),
-    getTenantRoleDashboard(slug).catch(()=>null),
+    getTenantRoleDashboard(slug,range.from,range.to).catch(()=>null),
     shouldLoadAchievement
       ?getTenantEmployeeAchievement(slug).catch(()=>null)
       :Promise.resolve(null),
     canReadMarketing
-      ?getOptionalMarketing(slug)
+      ?getOptionalMarketing(slug,range)
       :Promise.resolve(null)
   ]);
-  if(!data)return notFound();
   const resolvedRole=dashboard?.viewer?.roleKey
     ||achievement?.viewer?.roleKey
     ||membershipRole;
-  const showAchievement=resolvedRole!=='tenant_owner';
+  const showAchievement=!EXECUTIVE_ROLES.has(resolvedRole);
 
   return <>
     {showAchievement&&<AchievementBoard achievement={achievement}/>}
@@ -88,6 +101,7 @@ export default async function TenantOverview({params}){
         ]
         :permissions}
       fallbackRoleKey={membershipRole}
+      range={range}
     />
   </>;
 }

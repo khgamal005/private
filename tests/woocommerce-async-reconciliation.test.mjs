@@ -238,9 +238,11 @@ test('dashboard separates Woo Analytics revenue from verified registrations',()=
   assert.match(resultsMigration,/'orders' = any\(run\.scope\)/);
   assert.doesNotMatch(resultsMigration,/reef-skills/);
   assert.match(dashboardMigration,/v2_tenant_role_dashboard_snapshot_v5\(p_slug\)/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v6/);
-  assert.match(dashboard,/صافي مبيعات WooCommerce هذا الشهر/);
-  assert.match(dashboard,/دفعات التسجيل المؤكدة هذا الشهر/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v7/);
+  assert.match(api,/p_from:from/);
+  assert.match(api,/p_to:to/);
+  assert.match(dashboard,/صافي مبيعات WooCommerce خلال الفترة/);
+  assert.match(dashboard,/دفعات التسجيل المؤكدة خلال الفترة/);
   assert.match(dashboard,/منع الازدواج/);
 });
 
@@ -255,3 +257,4 @@ test('integration results remain visible while users stay on provider cards',()=
   assert.match(hub,/onProgress:run/);
   assert.match(legacyPanel,/onProgress:run/);
 });
+

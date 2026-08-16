@@ -22,6 +22,10 @@ test('report date presets resolve on the server and survive report navigation',a
     {from:'2026-08-13',to:'2026-08-13',period:'today',staffId:null,page:1,limit:50}
   );
   assert.deepEqual(
+    resolveReportRange({},{today:'2026-08-13'}),
+    {from:'2026-07-15',to:'2026-08-13',period:'last30',staffId:null,page:1,limit:50}
+  );
+  assert.deepEqual(
     resolveReportRange({period:'last7'},{today:'2026-08-13'}),
     {from:'2026-08-07',to:'2026-08-13',period:'last7',staffId:null,page:1,limit:50}
   );
@@ -43,6 +47,74 @@ test('report date presets resolve on the server and survive report navigation',a
   const params=new URLSearchParams(query);
   assert.equal(params.get('period'),'last7');
   assert.equal(params.get('staffId'),'f5066ef2-3f3b-470a-a92f-7253b01eeae7');
+});
+
+test('dashboard dates default to month-to-date and reject unsafe ranges',async()=>{
+  const {resolveDashboardRange}=await importReporting();
+  assert.deepEqual(
+    resolveDashboardRange({},{today:'2026-08-13'}),
+    {
+      from:'2026-08-01',
+      to:'2026-08-13',
+      period:'this_month',
+      staffId:null,
+      page:1,
+      limit:50,
+      today:'2026-08-13'
+    }
+  );
+  assert.deepEqual(
+    resolveDashboardRange(
+      {period:'previous_month'},
+      {today:'2026-03-05'}
+    ),
+    {
+      from:'2026-02-01',
+      to:'2026-02-28',
+      period:'previous_month',
+      staffId:null,
+      page:1,
+      limit:50,
+      today:'2026-03-05'
+    }
+  );
+  assert.deepEqual(
+    resolveDashboardRange(
+      {from:'2024-01-01',to:'2027-01-01'},
+      {today:'2026-08-13'}
+    ),
+    {
+      from:'2025-08-13',
+      to:'2026-08-13',
+      period:'custom',
+      staffId:null,
+      page:1,
+      limit:50,
+      today:'2026-08-13'
+    }
+  );
+  assert.equal(
+    resolveDashboardRange(
+      {period:'unknown'},
+      {today:'2026-08-13'}
+    ).period,
+    'this_month'
+  );
+  assert.deepEqual(
+    resolveDashboardRange(
+      {from:'2026-08-20',to:'2026-08-10'},
+      {today:'2026-08-13'}
+    ),
+    {
+      from:'2026-07-12',
+      to:'2026-08-10',
+      period:'custom',
+      staffId:null,
+      page:1,
+      limit:50,
+      today:'2026-08-13'
+    }
+  );
 });
 
 test('the overview employee filter is explicit and feeds the global report snapshot',async()=>{

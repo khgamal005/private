@@ -108,7 +108,7 @@ test('management dashboard prioritizes commercial KPIs and entity health',async(
   ]);
 
   assert.match(dashboard,/function ExecutiveHealth/);
-  assert.match(dashboard,/صحة أداء الشهر/);
+  assert.match(dashboard,/صحة أداء الفترة/);
   assert.match(dashboard,/إنجاز المهام المستحقة/);
   assert.match(dashboard,/تحويل العملاء للدفع/);
   assert.match(dashboard,/\|\|EXECUTIVE_ROLES\.has\(role\)/);

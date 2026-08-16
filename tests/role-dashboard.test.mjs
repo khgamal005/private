@@ -91,10 +91,10 @@ test('each operational role receives a dedicated dashboard presentation',async()
   assert.match(component,/أداء الموظفين/);
   assert.match(component,/مصادر العملاء والتحويل/);
   assert.match(component,/نطاقي الشخصي فقط/);
-  assert.match(component,/خريطة أداء الشهر/);
+  assert.match(component,/خريطة أداء الفترة/);
   assert.match(component,/أهم ما يحتاج إجراء الآن/);
-  assert.match(component,/نبض الإعلانات هذا الشهر/);
-  assert.match(component,/تسجيلات جديدة هذا الشهر/);
+  assert.match(component,/نبض الإعلانات خلال الفترة/);
+  assert.match(component,/تسجيلات جديدة خلال الفترة/);
 });
 
 test('owner gets the executive command center without the personal achievement board',async()=>{
@@ -105,10 +105,13 @@ test('owner gets the executive command center without the personal achievement b
   ]);
 
   assert.match(page,/getTenantMarketingHub/);
-  assert.match(page,/monthToDate:true/);
+  assert.match(page,/resolveDashboardRange/);
+  assert.match(page,/from:range\.from/);
+  assert.match(page,/to:range\.to/);
   assert.match(page,/unstable_rethrow\(error\)/);
-  assert.match(page,/getOptionalMarketing\(slug\)/);
-  assert.match(page,/showAchievement=resolvedRole!=='tenant_owner'/);
+  assert.match(page,/getOptionalMarketing\(slug,range\)/);
+  assert.match(page,/showAchievement=!EXECUTIVE_ROLES\.has\(resolvedRole\)/);
+  assert.match(page,/shouldLoadAchievement=!EXECUTIVE_ROLES\.has\(membershipRole\)/);
   assert.match(page,/showAchievement&&<AchievementBoard/);
   assert.match(page,/marketing=\{marketing\}/);
   assert.match(component,/function SystemPillars/);
@@ -121,42 +124,52 @@ test('owner gets the executive command center without the personal achievement b
   assert.match(styles,/\.marketingMetrics/);
 });
 
-test('executive dashboard uses one tenant-local month and qualified flow',async()=>{
+test('executive dashboard uses one tenant-local selected range and qualified flow',async()=>{
   const [component,styles,api,marketingApi,page,migration]=await Promise.all([
     read('components/role-dashboard.js'),
     read('components/role-dashboard.module.css'),
     read('lib/api.js'),
     read('lib/marketing-api.js'),
     read('app/tenant/[slug]/page.js'),
-    read('supabase/migrations/20260812165221_dashboard_month_to_date_v1.sql')
+    read('supabase/migrations/20260816132000_dashboard_date_range_v1.sql')
   ]);
 
-  assert.match(component,/أداء الشهر الحالي/);
-  assert.match(component,/الإنفاق الإعلاني الفعلي هذا الشهر/);
-  assert.match(component,/عملاء تأهلوا هذا الشهر/);
-  assert.match(component,/إنجاز المهام المستحقة هذا الشهر/);
+  assert.match(component,/أداء الفترة المحددة/);
+  assert.match(component,/الإنفاق الإعلاني الفعلي خلال الفترة/);
+  assert.match(component,/عملاء تأهلوا خلال الفترة/);
+  assert.match(component,/إنجاز المهام المستحقة خلال الفترة/);
   assert.match(component,/مضاعف المبيعات إلى الإنفاق/);
   assert.doesNotMatch(component,/قيمة المسار/);
   assert.doesNotMatch(component,/آخر 30 يومًا/);
+  assert.doesNotMatch(component,/اتجاه آخر 7 أيام داخل الشهر/);
   assert.doesNotMatch(component,/title:'الإيراد المتوقع'/);
   assert.match(styles,/grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
   assert.match(styles,/\.pillar\{[\s\S]*grid-column:span 2/);
   assert.match(styles,/\.metricSection/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v6/);
-  assert.match(marketingApi,/v3_tenant_marketing_month_snapshot/);
-  assert.match(page,/monthToDate:true/);
-  assert.match(migration,/v2_tenant_role_dashboard_snapshot_v6/);
-  assert.match(migration,/v3_tenant_marketing_month_snapshot/);
+  assert.match(styles,/\.dateFilter/);
+  assert.match(styles,/\.activePreset/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v7/);
+  assert.match(api,/p_from:from/);
+  assert.match(api,/p_to:to/);
+  assert.match(marketingApi,/rangeMode:monthToDate\?'month_to_date':'date_range'/);
+  assert.match(page,/resolveDashboardRange/);
+  assert.match(page,/getTenantRoleDashboard\(slug,range\.from,range\.to\)/);
+  assert.match(migration,/v2_tenant_role_dashboard_snapshot_v7/);
+  assert.match(migration,/v4_tenant_reports_snapshot/);
   assert.match(migration,/now\(\) at time zone v_timezone/);
-  assert.match(migration,/'mode', 'month_to_date'/);
+  assert.match(migration,/'mode', case/);
+  assert.match(migration,/v_from_at := v_from_date::timestamp at time zone v_timezone/);
+  assert.match(migration,/v_to_at := \(v_to_date \+ 1\)::timestamp at time zone v_timezone/);
   assert.match(migration,/with first_qualified as/);
-  assert.match(migration,/qualifiedEnteredThisMonth/);
+  assert.match(migration,/'qualifiedEnteredThisMonth'/);
   assert.match(migration,/with assignment_cohort as/);
   assert.match(migration,/min\(assignment\.assigned_at\) as first_assigned_at/);
   assert.match(migration,/handoff\.paid_at >= assignment\.first_assigned_at/);
   assert.match(migration,/paidFromDistributedThisMonth/);
-  assert.match(migration,/handoff\.paid_at >= v_month_start/);
+  assert.match(migration,/handoff\.paid_at < v_to_at/);
   assert.match(migration,/taskCompletionRateThisMonth/);
+  assert.match(migration,/woocommerce_range_not_cached/);
+  assert.match(migration,/'rangeAvailable', false/);
   assert.match(migration,/security definer/);
   assert.match(migration,/set search_path = ''/);
   assert.match(migration,/revoke all on function[\s\S]*from public, anon/);
@@ -171,15 +184,18 @@ test('tenant overview never substitutes stale metrics when the canonical RPC fai
     read('components/workspace-shell.js'),
     read('app/tenant/[slug]/layout.js')
   ]);
-  assert.match(page,/getTenantRoleDashboard\(slug\)\.catch\(\(\)=>null\)/);
+  assert.match(
+    page,
+    /getTenantRoleDashboard\(slug,range\.from,range\.to\)\.catch\(\(\)=>null\)/
+  );
   assert.match(page,/unavailable:true/);
   assert.doesNotMatch(page,/task\.status!=='completed'/);
   assert.match(page,/Promise\.all/);
   assert.match(page,/RoleDashboard/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v6/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v7/);
   assert.doesNotMatch(
     api,
-    /v2_tenant_role_dashboard_snapshot_v6'[\s\S]*v2_tenant_role_dashboard_snapshot_v5/
+    /v2_tenant_role_dashboard_snapshot_v7'[\s\S]*v2_tenant_role_dashboard_snapshot_v6/
   );
   assert.match(shell,/لوحة القيادة/);
   assert.match(layout,/training_manager:'مدير التدريب'/);

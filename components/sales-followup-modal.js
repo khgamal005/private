@@ -1,6 +1,12 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import {useMemo,useState} from 'react';
+
+const CustomerHistoryDrawer=dynamic(
+  ()=>import('./customer-history-drawer'),
+  {ssr:false}
+);
 
 const EMPTY=[];
 
@@ -118,6 +124,7 @@ export default function SalesFollowupModal({
   );
   const [selectedCourseId,setSelectedCourseId]=useState(contact?.interestCourseId||'');
   const [contactName,setContactName]=useState(contact?.name||'');
+  const [historyOpen,setHistoryOpen]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
 
@@ -126,7 +133,10 @@ export default function SalesFollowupModal({
   ),[courseRuns,selectedCourseId]);
 
   function close(){
-    if(!busy)onClose();
+    if(!busy){
+      setHistoryOpen(false);
+      onClose();
+    }
   }
 
   async function submit(event){
@@ -181,12 +191,32 @@ export default function SalesFollowupModal({
     }
   }
 
-  return <div className="mt-modal-layer" dir="rtl">
+  return <div
+    className={`mt-modal-layer mt-followup-modal-layer ${historyOpen?'is-split':''}`}
+    dir="rtl"
+  >
     <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={close}/>
-    <form className="mt-modal" onSubmit={submit}>
+    <form className="mt-modal mt-followup-modal" onSubmit={submit}>
       <header>
         <h3>نتيجة المتابعة · {contactName||contact.name}</h3>
-        <button type="button" onClick={close}>×</button>
+        <div className="mt-followup-head-actions">
+          <button
+            type="button"
+            className={`mt-button soft mt-followup-history-button ${historyOpen?'active':''}`}
+            onClick={()=>setHistoryOpen(current=>!current)}
+            aria-expanded={historyOpen}
+            aria-controls="customer-history-title"
+          >
+            <span aria-hidden="true">☷</span>
+            {historyOpen?'إخفاء سجل العميل':'سجل العميل'}
+          </button>
+          <button
+            type="button"
+            className="mt-followup-close"
+            onClick={close}
+            aria-label="إغلاق"
+          >×</button>
+        </div>
       </header>
       <div className="mt-customer-summary">
         <div><span>الجوال</span><b>{contact.phone||'—'}</b></div>
@@ -253,5 +283,12 @@ export default function SalesFollowupModal({
         </button>
       </footer>
     </form>
+
+    {historyOpen&&<CustomerHistoryDrawer
+      slug={slug}
+      contact={contact}
+      canEdit={false}
+      onClose={()=>setHistoryOpen(false)}
+    />}
   </div>;
 }

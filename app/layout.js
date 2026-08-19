@@ -4,6 +4,7 @@ import './rebuild.css';
 import './action-feedback.css';
 import './tenant-shell-polish.css';
 import './data-pagination.css';
+import './followup-split-history.css';
 import SystemActionFeedback from '../components/system-action-feedback';
 import SystemDataPagination from '../components/system-data-pagination';
 

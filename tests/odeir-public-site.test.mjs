@@ -49,7 +49,8 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(landing,/زد/);
   assert.match(landing,/WooCommerce/);
   assert.match(landing,/بيانات منشأتك/);
-  assert.match(styles,/@scope \(\.odeir-experience\)/);
+  assert.match(styles,/\.odeir-experience \.hero-shell/);
+  assert.doesNotMatch(styles,/@scope/);
   assert.doesNotMatch(landing,/ريف|reef/i);
 });
 

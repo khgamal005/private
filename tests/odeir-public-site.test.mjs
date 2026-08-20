@@ -33,6 +33,26 @@ test('ODEIR registration and authentication entry points carry the new identity'
   assert.match(brand,/أودير ODEIR/);
 });
 
+test('ODEIR production homepage uses the interactive, builder-backed landing experience',async()=>{
+  const [page,landing,styles]=await Promise.all([
+    read('app/page.js'),
+    read('components/odeir-landing-experience.tsx'),
+    read('app/odeir-landing-experience.css')
+  ]);
+  assert.match(page,/OdeirLandingExperience/);
+  assert.match(page,/landingCms\(snapshot,home\)/);
+  for(const blockId of ['odeir-home-hero','odeir-capabilities','odeir-trust','odeir-faq','odeir-final-cta']){
+    assert.match(page,new RegExp(blockId));
+  }
+  assert.match(landing,/تجربة توضيحية · بيانات افتراضية/);
+  assert.match(landing,/سلة/);
+  assert.match(landing,/زد/);
+  assert.match(landing,/WooCommerce/);
+  assert.match(landing,/بيانات منشأتك/);
+  assert.match(styles,/@scope \(\.odeir-experience\)/);
+  assert.doesNotMatch(landing,/ريف|reef/i);
+});
+
 test('builder runtime renders the ODEIR product preview without changing generic tenant heroes',async()=>{
   const renderer=await read('components/page-builder-module-view.js');
   assert.match(renderer,/includes\('odeir-product-hero'\)/);

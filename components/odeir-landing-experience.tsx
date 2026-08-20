@@ -1,0 +1,656 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+
+const APP_ORIGIN = "";
+
+type CmsItem = { title?: string; description?: string };
+type CmsSection = {
+  eyebrow?: string;
+  title?: string;
+  body?: string;
+  items?: CmsItem[];
+};
+type LandingCms = {
+  hero?: {
+    eyebrow?: string;
+    title?: string;
+    body?: string;
+    primaryLabel?: string;
+    primaryHref?: string;
+    secondaryLabel?: string;
+    secondaryHref?: string;
+  };
+  capabilities?: CmsSection;
+  trust?: CmsSection;
+  faq?: CmsSection;
+  cta?: {
+    eyebrow?: string;
+    title?: string;
+    body?: string;
+    buttonLabel?: string;
+    buttonHref?: string;
+  };
+  settings?: {
+    customerLoginLabel?: string;
+    customerLoginUrl?: string;
+  };
+};
+
+const LEGACY_HERO = {
+  eyebrow: "منصة تشغيل وإدارة للمنشآت التعليمية والتدريبية",
+  title: "كل منشأتك في مكان واحد. واضحة، مترابطة، وتحت السيطرة.",
+  body: "أودير يوحّد العملاء والمبيعات، التسجيل والدورات، المهام، الفوترة، الفريق والتقارير في مسار واحد. ابدأ مجانًا دون بطاقة بنكية.",
+  secondaryLabel: "تسجيل دخول المنشآت",
+  secondaryHref: "/login",
+};
+
+const LEGACY_CAPABILITIES = [
+  ["العملاء والمبيعات", "من مصدر العميل والتوزيع إلى المتابعة والتحويل والتسجيل."],
+  ["المهام والتقويم", "أولويات واضحة، مواعيد، تنبيهات وتسليم موثق بين أعضاء الفريق."],
+  ["التسجيل والقبول", "ملف منظم للمتدرب وربط مباشر بالبرنامج والدفعة المطلوبة."],
+  ["البرامج والدورات", "إدارة البرامج والأسعار والدفعات والجداول من مصدر واحد."],
+] as const;
+
+const LEGACY_TRUST = [
+  ["عزل بيانات كل منشأة", "سياق مستقل يمنع ظهور بيانات منشأة داخل مساحة منشأة أخرى."],
+  ["صلاحيات حسب الدور", "كل مستخدم يصل إلى ما يحتاجه لأداء عمله فقط."],
+  ["سجل واضح للأنشطة", "تتبع للإجراءات الحساسة لدعم المراجعة والمساءلة."],
+  ["ضوابط ومراجعة", "طبقات حماية وإدارة وصول وتحديثات تُراجع مع تطور الخدمة."],
+] as const;
+
+const LEGACY_FAQ = [
+  ["هل التسجيل المجاني يحتاج بطاقة بنكية؟", "لا. الحساب الأساسي لا يتطلب بطاقة بنكية، وقد تتوفر إضافات أو سعات أو خدمات اختيارية مدفوعة عند الحاجة."],
+  ["هل يجب نقل بياناتنا الحالية فورًا؟", "لا. يمكنك البدء بالتهيئة الأساسية، ثم تحديد ما يلزم نقله أو ربطه وفق جاهزية المنشأة."],
+  ["هل بيانات المنشآت منفصلة؟", "نعم. الوصول مصمم حول سياق المنشأة وصلاحيات الدور لتقليل الوصول غير المصرح به ومنع اختلاط البيانات."],
+  ["هل يمكن تعديل الموقع من أودير؟", "نعم. صفحات الموقع والقوائم والسياسات قابلة للإدارة والنشر من لوحة الموقع والبيلدر المرئي."],
+] as const;
+
+function cmsText(value: string | undefined, legacy: string, polished: string) {
+  const text = String(value ?? "").trim();
+  return !text || text === legacy ? polished : text;
+}
+
+function cmsHref(value: string | undefined, legacy: string, polished: string) {
+  const href = String(value ?? "").trim();
+  return !href || href === legacy ? polished : href;
+}
+
+const demoViews = {
+  overview: {
+    label: "لوحة المدير",
+    eyebrow: "صباحك يبدأ من هنا",
+    title: "الصورة كاملة قبل ما تتحول الملاحظة إلى مشكلة.",
+    metrics: [
+      ["العملاء الجدد", "184", "+12%"],
+      ["طلبات التسجيل", "63", "+8"],
+      ["مهام تحتاج تدخلك", "12", "الآن"],
+      ["مبيعات الشهر", "126,450", "ر.س"],
+    ],
+    bars: [58, 41, 27, 13, 9],
+  },
+  sales: {
+    label: "المبيعات",
+    eyebrow: "كل فرصة لها خطوة جاية",
+    title: "اعرف مين تواصل، ومين تأخر، ووين توقف العميل.",
+    metrics: [
+      ["فرص اليوم", "47", "+9"],
+      ["متوسط الاستجابة", "04:18", "دقيقة"],
+      ["بانتظار الدفع", "13", "فرصة"],
+      ["قيمة متوقعة", "84,600", "ر.س"],
+    ],
+    bars: [72, 55, 38, 26, 18],
+  },
+  operations: {
+    label: "التشغيل",
+    eyebrow: "المهمة تتحرك، والسجل يبقى",
+    title: "كل موظف يعرف وش عليه، وكل إجراء محفوظ في مكانه.",
+    metrics: [
+      ["مهام اليوم", "36", "مهمة"],
+      ["اكتملت", "24", "67%"],
+      ["مواعيد قريبة", "7", "اليوم"],
+      ["تنبيهات حرجة", "2", "تحتاج قرار"],
+    ],
+    bars: [67, 52, 44, 31, 20],
+  },
+  reports: {
+    label: "التقارير",
+    eyebrow: "أرقام تقود القرار",
+    title: "شوف وين يتعطل المسار، وأي برنامج يتحرك، ومن يحتاج دعمًا.",
+    metrics: [
+      ["نسبة التحويل", "18.7%", "+2.4"],
+      ["المضاف يدويًا", "29", "عميل"],
+      ["غير مهتم", "16", "8.6%"],
+      ["مكالمات الفريق", "126", "4س 32د"],
+    ],
+    bars: [84, 64, 78, 48, 69],
+  },
+} as const;
+
+type DemoViewKey = keyof typeof demoViews;
+
+const journeyEvents = [
+  { time: "09:03", source: "Meta", text: "وصل استفسار جديد عن برنامج إدارة المشاريع" },
+  { time: "09:04", source: "أودير", text: "توزّع تلقائيًا على الموظفة نورة" },
+  { time: "09:08", source: "Yeastar", text: "تمت المكالمة وحُفظت النتيجة في سجل العميل" },
+  { time: "09:12", source: "التقويم", text: "تحددت متابعة اليوم الساعة 1:30" },
+  { time: "13:42", source: "التسجيل", text: "انتقل الطلب إلى بانتظار الدفع" },
+] as const;
+
+function ArrowMark() {
+  return <span className="arrow-mark" aria-hidden="true" />;
+}
+
+function Brand({ compact = false }: { compact?: boolean }) {
+  return (
+    <span className={compact ? "brand brand--compact" : "brand"} aria-label="أودير ODEIR">
+      <Image
+        className="brand-logo"
+        src="/odeir/odeir-logo-transparent.webp"
+        width={1126}
+        height={522}
+        alt="أودير ODEIR — أدر على بيّنة"
+      />
+    </span>
+  );
+}
+
+function useReveal() {
+  useEffect(() => {
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      nodes.forEach((node) => node.classList.add("is-visible"));
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      }),
+      { threshold: 0.14 },
+    );
+    nodes.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, []);
+}
+
+function Header({ cms }: { cms: LandingCms }) {
+  const [open, setOpen] = useState(false);
+  const primaryLabel = cms.hero?.primaryLabel || "سجّل منشأتك مجانًا";
+  const primaryHref = cms.hero?.primaryHref || "/free-trial/apply";
+  const loginLabel = cms.settings?.customerLoginLabel || "دخول المنشآت";
+  const loginHref = cms.settings?.customerLoginUrl || "/login";
+  return (
+    <header className="site-header">
+      <a className="brand-link" href="#top" aria-label="أودير - الرئيسية"><Brand /></a>
+      <nav className={open ? "main-nav is-open" : "main-nav"} aria-label="التنقل الرئيسي">
+        <a href="#story" onClick={() => setOpen(false)}>كيف يعمل</a>
+        <a href="#product" onClick={() => setOpen(false)}>جولة داخل أودير</a>
+        <a href="#integrations" onClick={() => setOpen(false)}>التكاملات</a>
+        <a href="#security" onClick={() => setOpen(false)}>الحماية</a>
+        <a className="mobile-nav-only" href={`${APP_ORIGIN}${loginHref}`} onClick={() => setOpen(false)}>{loginLabel}</a>
+        <a className="mobile-nav-only mobile-nav-cta" href={`${APP_ORIGIN}${primaryHref}`} onClick={() => setOpen(false)}>{primaryLabel}</a>
+      </nav>
+      <div className="header-actions">
+        <a className="login-link" href={`${APP_ORIGIN}${loginHref}`}>{loginLabel}</a>
+        <a className="button button--small" href={`${APP_ORIGIN}${primaryHref}`}>{primaryLabel.replace("منشأتك ", "")} <ArrowMark /></a>
+      </div>
+      <button className={open ? "menu-toggle is-open" : "menu-toggle"} type="button" aria-label={open ? "إغلاق القائمة" : "فتح القائمة"} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+        <span /><span /><span />
+      </button>
+    </header>
+  );
+}
+
+function MiniChart({ values }: { values: readonly number[] }) {
+  const points = values.map((value, index) => `${index * 130},${155 - value}`).join(" ");
+  return (
+    <div className="mini-chart" aria-label="رسم بياني توضيحي">
+      <div className="chart-grid" aria-hidden="true" />
+      <svg viewBox="0 0 520 170" role="img" aria-label="اتجاه المؤشر خلال الفترة">
+        <defs><linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#12d6c7" stopOpacity=".34" /><stop offset="100%" stopColor="#12d6c7" stopOpacity="0" /></linearGradient></defs>
+        <path className="chart-area" d={`M0 170 L${points.replaceAll(",", " ").replaceAll(" ", " L")} L520 170 Z`} />
+        <polyline className="chart-line" points={points} />
+        {values.map((value, index) => <circle key={`${value}-${index}`} cx={index * 130} cy={155 - value} r="5" />)}
+      </svg>
+      <div className="chart-labels"><span>الأسبوع 1</span><span>الأسبوع 2</span><span>الأسبوع 3</span><span>اليوم</span></div>
+    </div>
+  );
+}
+
+function DashboardWindow({ activeView = "overview", hero = false }: { activeView?: DemoViewKey; hero?: boolean }) {
+  const view = demoViews[activeView];
+  const activeIndex = activeView === "overview" ? 0 : activeView === "sales" ? 1 : activeView === "operations" ? 2 : 4;
+  return (
+    <div className={hero ? "dashboard-window dashboard-window--hero" : "dashboard-window"}>
+      <div className="window-bar"><span className="window-brand"><Brand compact /></span><span className="window-search">ابحث عن عميل أو طلب...</span><span className="window-user">م ك</span></div>
+      <div className="window-body">
+        <aside className="window-sidebar" aria-label="قائمة توضيحية">
+          <span className="sidebar-logo"><span /></span>
+          {["home", "sales", "calendar", "courses", "chart", "settings"].map((item, index) => <i key={item} className={index === activeIndex ? "active" : ""} />)}
+        </aside>
+        <div className="window-content">
+          <div className="demo-heading"><div><small>{view.eyebrow}</small><h3>{view.label}</h3></div><span className="live-pill"><i /> مباشر</span></div>
+          <div className="metric-grid">
+            {view.metrics.map(([label, value, delta], index) => (
+              <article key={label} className={index === 0 ? "metric-card is-primary" : "metric-card"}><small>{label}</small><strong>{value}</strong><span>{delta}</span></article>
+            ))}
+          </div>
+          <div className="dashboard-lower">
+            <div className="chart-card"><div className="card-title"><b>حركة المسار</b><span>آخر 30 يومًا</span></div><MiniChart values={view.bars} /></div>
+            <div className="activity-card">
+              <div className="card-title"><b>يحتاج انتباهك</b><span>الآن</span></div>
+              <ul>
+                <li><i className="status-dot status-dot--yellow" /><span><b>3 فرص</b><small>بانتظار التوزيع</small></span><em>الآن</em></li>
+                <li><i className="status-dot status-dot--teal" /><span><b>7 متابعات</b><small>خلال ساعتين</small></span><em>اليوم</em></li>
+                <li><i className="status-dot status-dot--blue" /><span><b>طلبان</b><small>بانتظار الاعتماد</small></span><em>جديد</em></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <span className="demo-watermark">تجربة توضيحية · بيانات افتراضية</span>
+    </div>
+  );
+}
+
+function Hero({ cms }: { cms: LandingCms }) {
+  const [activeEvent, setActiveEvent] = useState(0);
+  const eyebrow = cmsText(cms.hero?.eyebrow, LEGACY_HERO.eyebrow, "منصة تشغيل وإدارة للمنشآت التدريبية الأهلية المعتمدة");
+  const title = cmsText(cms.hero?.title, LEGACY_HERO.title, "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك.");
+  const body = cmsText(cms.hero?.body, LEGACY_HERO.body, "أودير يجمع المبيعات والتسجيل والقبول والبرامج والمهام والتقارير في مساحة واحدة؛ حتى يعمل فريقك بوضوح، وتتخذ إدارتك القرار في وقته.");
+  const primaryLabel = cms.hero?.primaryLabel || "سجّل منشأتك مجانًا";
+  const primaryHref = cms.hero?.primaryHref || "/free-trial/apply";
+  const secondaryLabel = cmsText(cms.hero?.secondaryLabel, LEGACY_HERO.secondaryLabel, "جرّب أودير بنفسك");
+  const secondaryHref = cmsHref(cms.hero?.secondaryHref, LEGACY_HERO.secondaryHref, "#product");
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => setActiveEvent((value) => (value + 1) % journeyEvents.length), 2600);
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <section className="hero" id="top">
+      <div className="hero-glow hero-glow--one" aria-hidden="true" /><div className="hero-glow hero-glow--two" aria-hidden="true" />
+      <div className="hero-copy" data-reveal>
+        <div className="eyebrow"><span /> {eyebrow}</div>
+        <h1>{title === "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك." ? <>من أول استفسار…<br /><span>إلى مقعد مكتمل،</span><br />كل خطوة تحت عينك.</> : title}</h1>
+        <p>{body}</p>
+        <div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${primaryHref}`}>{primaryLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${secondaryHref}`}>{secondaryLabel}</a></div>
+        <ul className="hero-trust" aria-label="مزايا البداية"><li><i /> بدون بطاقة بنكية</li><li><i /> إعداد بخطوات واضحة</li><li><i /> بيانات مستقلة لكل منشأة</li></ul>
+      </div>
+      <div className="hero-visual" data-reveal>
+        <div className="hero-orbit hero-orbit--one" aria-hidden="true" /><div className="hero-orbit hero-orbit--two" aria-hidden="true" />
+        <DashboardWindow hero />
+        <div className="floating-event" aria-live="polite"><span className="event-time">{journeyEvents[activeEvent].time}</span><span className="event-icon"><i /></span><span><b>{journeyEvents[activeEvent].source}</b><small>{journeyEvents[activeEvent].text}</small></span></div>
+        <div className="floating-result"><i /><span><small>نسبة التحويل</small><b>18.7%</b></span><em>+2.4%</em></div>
+      </div>
+      <a href="#story" className="scroll-cue" aria-label="انتقل للمحتوى"><span /> اكتشف الرحلة</a>
+    </section>
+  );
+}
+
+function StoryStrip() {
+  const [active, setActive] = useState(0);
+  const items = [
+    ["وصل العميل", "من إعلان، واتساب أو متجرك"],
+    ["اتوزّع بوضوح", "على الموظف المناسب وفي وقته"],
+    ["اتسجل كل تواصل", "مكالمة، ملاحظة، وموعد متابعة"],
+    ["اكتمل التسجيل", "والإدارة شايفة الرحلة كاملة"],
+  ] as const;
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => setActive((value) => (value + 1) % items.length), 2300);
+    return () => window.clearInterval(timer);
+  }, [items.length]);
+  return (
+    <section className="story-section section" id="story">
+      <div className="section-kicker" data-reveal><span>01</span> المشكلة مو في فريقك</div>
+      <div className="story-head" data-reveal><h2>المشكلة في رحلة متفرقة<br />بين خمس شاشات.</h2><p>عميل في الواتساب، طلب في المتجر، مكالمة في السنترال، وموعد داخل ملف موظف. أودير يجمع الرحلة بدل ما يضيف عليك شاشة جديدة.</p></div>
+      <div className="story-flow" data-reveal>
+        <div className="source-stack" aria-label="مصادر العملاء">
+          <span className="source source--meta"><i>∞</i><b>Meta</b></span><span className="source source--wa"><i>☎</i><b>WhatsApp</b></span><span className="source source--salla"><i>س</i><b>سلة</b></span><span className="source source--zid"><i>ز</i><b>زد</b></span><span className="source source--woo"><i>Woo</i><b>WooCommerce</b></span>
+        </div>
+        <div className="flow-lines" aria-hidden="true"><span /><span /><span /></div>
+        <div className="odeir-core"><Brand compact /><small>مسار واحد</small><b>عميل واضح.<br />خطوة واضحة.</b></div>
+        <div className="flow-lines flow-lines--out" aria-hidden="true"><span /><span /><span /></div>
+        <div className="outcomes">
+          {items.map(([title, copy], index) => <button key={title} type="button" className={active === index ? "outcome is-active" : "outcome"} onClick={() => setActive(index)}><i>{String(index + 1).padStart(2, "0")}</i><span><b>{title}</b><small>{copy}</small></span></button>)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProductDemo() {
+  const [activeView, setActiveView] = useState<DemoViewKey>("overview");
+  const view = demoViews[activeView];
+  return (
+    <section className="product-section section" id="product">
+      <div className="section-kicker section-kicker--light" data-reveal><span>02</span> مو مجرد كلام</div>
+      <div className="product-intro" data-reveal><div><h2>خذ جولة داخل أودير.<br /><span>وشوف كيف يصير الوضوح.</span></h2></div><p>بدّل بين الشاشات. الأرقام افتراضية، لكن المنطق هو نفس منطق يوم منشأتك: مسؤول، حالة، موعد، وقرار.</p></div>
+      <div className="demo-tabs" role="tablist" aria-label="شاشات أودير" data-reveal>
+        {(Object.entries(demoViews) as [DemoViewKey, typeof demoViews[DemoViewKey]][]).map(([key, item]) => <button key={key} type="button" role="tab" aria-selected={activeView === key} className={activeView === key ? "is-active" : ""} onClick={() => setActiveView(key)}><span>{item.label}</span><small>{item.eyebrow}</small></button>)}
+      </div>
+      <div className="product-stage" data-reveal>
+        <div className="product-copy-card"><span className="step-number">{String((Object.keys(demoViews) as DemoViewKey[]).indexOf(activeView) + 1).padStart(2, "0")}</span><div><small>{view.eyebrow}</small><h3>{view.title}</h3><p>كل رقم قابل للتفصيل، وكل حالة مرتبطة بصاحبها وخطوتها التالية.</p></div></div>
+        <DashboardWindow activeView={activeView} />
+      </div>
+    </section>
+  );
+}
+
+const operationalStories = [
+  {
+    number: "01",
+    tag: "المبيعات والعملاء",
+    title: "العميل استفسر… وما عاد يضيع بين الموظفين.",
+    copy: "كل عميل له مسؤول، نتيجة تواصل، موعد واضح وخطوة جاية. ولو تغيّر المسؤول، يبقى التاريخ كاملًا داخل المنشأة.",
+    accent: "teal",
+    visual: "client",
+  },
+  {
+    number: "02",
+    tag: "المهام والتقويم",
+    title: "المهمة تتحرك مع الإجراء، والسجل يبقى محفوظًا.",
+    copy: "ما تشوف المهمة مرتين ولا تحسب متابعة قديمة كأنها فائتة. الموعد النشط ينتقل، وكل حركة سابقة تظل في سجل العميل.",
+    accent: "yellow",
+    visual: "calendar",
+  },
+  {
+    number: "03",
+    tag: "التسجيل والقبول",
+    title: "من الاهتمام إلى المقعد المسجّل، بدون انقطاع.",
+    copy: "القبول والوثائق والسداد والدورة والدفعة في مسار واحد؛ حتى يعرف الموظف حالة الطلب وتعرف الإدارة أين يتعطل.",
+    accent: "blue",
+    visual: "admission",
+  },
+  {
+    number: "04",
+    tag: "التقارير والقرار",
+    title: "نفس الرقم في كل شاشة. ونفس الحقيقة لكل إدارة.",
+    copy: "فلترة بالتاريخ والموظف والمصدر والبرنامج، مع مؤشرات مفهومة تكشف الفرصة قبل ما تتحول إلى مشكلة.",
+    accent: "mint",
+    visual: "report",
+  },
+] as const;
+
+function FeatureVisual({ type }: { type: string }) {
+  if (type === "client") {
+    return (
+      <div className="feature-ui feature-ui--client">
+        <div className="ui-toolbar"><span>سجل العميل</span><i /><i /></div>
+        <div className="lead-profile"><span>ن م</span><div><b>نورة محمد</b><small>برنامج إدارة المشاريع</small></div><em>مهتم</em></div>
+        <div className="lead-timeline">
+          <p><i /><span><b>تم استلام العميل</b><small>من حملة Meta · 09:03</small></span></p>
+          <p><i /><span><b>مكالمة ناجحة</b><small>مدة التحدث 04:22 · 09:08</small></span></p>
+          <p className="is-current"><i /><span><b>متابعة اليوم</b><small>الساعة 01:30 · نورة</small></span></p>
+        </div>
+      </div>
+    );
+  }
+  if (type === "calendar") {
+    return (
+      <div className="feature-ui feature-ui--calendar">
+        <div className="calendar-head"><b>أغسطس 2026</b><span>اليوم</span></div>
+        <div className="week-row"><span>الأحد<small>16</small></span><span>الإثنين<small>17</small></span><span className="is-today">الثلاثاء<small>18</small></span><span>الأربعاء<small>19</small></span><span>الخميس<small>20</small></span></div>
+        <div className="calendar-task"><i /><span><b>متابعة طلب التسجيل</b><small>نورة محمد · 01:30 م</small></span><em>اليوم</em></div>
+        <div className="calendar-history"><span /><p><b>الموعد السابق محفوظ في السجل</b><small>تم تغيير الموعد بعد التواصل</small></p></div>
+      </div>
+    );
+  }
+  if (type === "admission") {
+    return (
+      <div className="feature-ui feature-ui--admission">
+        <div className="admission-head"><span>طلب #1048</span><em>قيد الإكمال</em></div>
+        <div className="admission-person"><i>س</i><span><b>سارة أحمد</b><small>دبلوم الموارد البشرية</small></span></div>
+        <div className="admission-steps"><span className="done"><i />الطلب</span><span className="done"><i />القبول</span><span className="active"><i />السداد</span><span><i />التسجيل</span></div>
+        <div className="admission-footer"><span><small>القيمة</small><b>2,490 ر.س</b></span><button type="button">إكمال الطلب</button></div>
+      </div>
+    );
+  }
+  return (
+    <div className="feature-ui feature-ui--report">
+      <div className="report-filters"><span>هذا الشهر</span><span>كل الموظفين</span></div>
+      <div className="report-metric"><span><small>معدل التحويل</small><b>18.7%</b><em>+2.4%</em></span><div className="donut"><i>19%</i></div></div>
+      <div className="report-bars"><i style={{ height: "42%" }} /><i style={{ height: "63%" }} /><i style={{ height: "51%" }} /><i style={{ height: "78%" }} /><i style={{ height: "68%" }} /><i style={{ height: "91%" }} /></div>
+    </div>
+  );
+}
+
+function OperationalStories({ cms }: { cms: LandingCms }) {
+  const stories = operationalStories.map((story, index) => {
+    const item = cms.capabilities?.items?.[index];
+    const legacy = LEGACY_CAPABILITIES[index];
+    if (!legacy) return story;
+    return {
+      ...story,
+      title: cmsText(item?.title, legacy[0], story.title),
+      copy: cmsText(item?.description, legacy[1], story.copy),
+    };
+  });
+  const kicker = cmsText(cms.capabilities?.eyebrow, "منصة واحدة", "حلول تشبه يومك");
+  const title = cmsText(cms.capabilities?.title, "ما تحتاجه لتشغيل منشأتك — بلا تشتيت", "كل فقرة هنا تحل موقفًا مرّ عليك فعلًا.");
+  const body = cmsText(cms.capabilities?.body, "وحدات مترابطة تعطي كل دور شاشته، وتُبقي الإدارة على صورة واحدة للعمل.", "أودير ما يبدأ من قائمة مميزات؛ يبدأ من اللحظة التي يقول فيها المدير: وين وصلنا؟ ومن المسؤول؟ وش الخطوة الجاية؟");
+  return (
+    <section className="features-section section" id="capabilities">
+      <div className="section-kicker" data-reveal><span>03</span> {kicker}</div>
+      <div className="features-heading" data-reveal><h2>{title}</h2><p>{body}</p></div>
+      <div className="feature-stories">
+        {stories.map((story, index) => (
+          <article className={`feature-story feature-story--${story.accent}`} key={story.title} data-reveal>
+            <div className="feature-copy"><span className="feature-number">{story.number}</span><small>{story.tag}</small><h3>{story.title}</h3><p>{story.copy}</p><span className="story-proof"><i /> واجهة توضيحية من منطق أودير</span></div>
+            <div className="feature-visual"><FeatureVisual type={story.visual} /></div>
+            <span className="feature-index">{String(index + 1).padStart(2, "0")}</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const journeySources = [
+  { key: "meta", label: "Meta", mark: "∞", status: "قيد التفعيل" },
+  { key: "whatsapp", label: "WhatsApp", mark: "WA", status: "قيد التفعيل" },
+  { key: "salla", label: "سلة", mark: "س", status: "قريبًا" },
+  { key: "zid", label: "زد", mark: "زد", status: "قريبًا" },
+  { key: "woo", label: "WooCommerce", mark: "Woo", status: "متاح" },
+] as const;
+
+const journeySteps = [
+  ["وصل الطلب", "حُفظ المصدر والحملة"],
+  ["دخل قائمة التوزيع", "بانتظار الموظف المناسب"],
+  ["تم الإسناد", "إشعار مباشر للموظفة نورة"],
+  ["تم التواصل", "مكالمة Yeastar محفوظة"],
+  ["انتقل للتسجيل", "الخطوة التالية: السداد"],
+] as const;
+
+function JourneyLab() {
+  const [source, setSource] = useState("meta");
+  const [step, setStep] = useState(0);
+  const [runId, setRunId] = useState(0);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (step >= journeySteps.length - 1) return;
+    const timer = window.setTimeout(() => setStep((value) => value + 1), 1050);
+    return () => window.clearTimeout(timer);
+  }, [step, runId]);
+
+  const currentSource = journeySources.find((item) => item.key === source) ?? journeySources[0];
+  const restart = (nextSource = source) => {
+    setSource(nextSource);
+    setStep(0);
+    setRunId((value) => value + 1);
+  };
+
+  return (
+    <section className="journey-section" id="integrations">
+      <div className="journey-inner section">
+        <div className="section-kicker section-kicker--light" data-reveal><span>04</span> تكاملات تحرّك العمل</div>
+        <div className="journey-heading" data-reveal><h2>الإشعار ما يكفي.<br /><span>خلّه يصير إجراء.</span></h2><p>اختر نقطة دخول تجريبية وشاهد كيف يتحول الطلب إلى عميل، ثم مهمة، ثم متابعة واضحة داخل أودير.</p></div>
+        <div className="source-picker" role="tablist" aria-label="اختر مصدر العميل" data-reveal>
+          {journeySources.map((item) => <button key={item.key} type="button" role="tab" aria-selected={source === item.key} className={source === item.key ? `source-choice source-choice--${item.key} is-active` : `source-choice source-choice--${item.key}`} onClick={() => restart(item.key)}><i>{item.mark}</i><span><b>{item.label}</b><small>{item.status}</small></span></button>)}
+        </div>
+        <div className="journey-console" data-reveal>
+          <div className="journey-topbar"><span className="demo-label"><i /> تجربة توضيحية · بيانات افتراضية</span><button type="button" onClick={() => restart()}>أعد الرحلة</button></div>
+          <div className="journey-lead">
+            <div className={`journey-source-logo journey-source-logo--${currentSource.key}`}>{currentSource.mark}</div>
+            <span><small>عميل تجريبي من {currentSource.label}</small><b>ريم عبدالله</b><em>برنامج تحليل البيانات</em></span>
+            <strong>{step === 4 ? "بانتظار السداد" : step >= 2 ? "قيد المتابعة" : "جديد"}</strong>
+          </div>
+          <div className="journey-track">
+            {journeySteps.map(([title, copy], index) => <button key={title} type="button" className={index < step ? "journey-step is-done" : index === step ? "journey-step is-active" : "journey-step"} onClick={() => setStep(index)}><i>{index < step ? "✓" : String(index + 1).padStart(2, "0")}</i><span><b>{title}</b><small>{copy}</small></span></button>)}
+          </div>
+          <div className="journey-metrics"><span><small>استفسارات اليوم</small><b>{47 + step}</b></span><span><small>بانتظار التوزيع</small><b>{Math.max(0, 3 - step)}</b></span><span><small>متوسط الاستجابة</small><b>{step >= 3 ? "04:18" : "05:02"}</b></span><span><small>تسجيلات جديدة</small><b>{17 + (step === 4 ? 1 : 0)}</b></span></div>
+        </div>
+        <div className="integration-rail" data-reveal>
+          <span className="integration-wordmark integration-wordmark--yeastar"><i>Y</i> Yeastar <small>متاح</small></span>
+          <span className="integration-wordmark integration-wordmark--google"><i>G</i> Google <small>قيد التفعيل</small></span>
+          <span className="integration-wordmark integration-wordmark--meta"><i>∞</i> Meta <small>قيد التفعيل</small></span>
+          <span className="integration-wordmark integration-wordmark--woo"><i>Woo</i> WooCommerce <small>متاح</small></span>
+          <span className="integration-wordmark integration-wordmark--salla"><i>س</i> سلة <small>قريبًا</small></span>
+          <span className="integration-wordmark integration-wordmark--zid"><i>ز</i> زد <small>قريبًا</small></span>
+        </div>
+        <p className="brand-disclaimer">أسماء وشعارات المنصات مملوكة لأصحابها، وعرضها يوضح مسار التكامل ولا يعني وجود شراكة رسمية.</p>
+      </div>
+    </section>
+  );
+}
+
+const roleViews = {
+  management: { label: "الإدارة", title: "الصورة كاملة، بدون انتظار تقرير.", stats: [["مبيعات الشهر", "126,450 ر.س"], ["نسبة التحويل", "18.7%"], ["مهام حرجة", "2"]], tasks: ["مراجعة تراجع برنامج Power BI", "اعتماد عرض سعر جديد", "متابعة أداء الحملة الحالية"] },
+  sales: { label: "المبيعات", title: "أولوياتي واضحة، وعملائي قدامي.", stats: [["متابعات اليوم", "12"], ["فرص ساخنة", "7"], ["قيمة متوقعة", "32,800 ر.س"]], tasks: ["الاتصال بريم عبدالله", "إرسال رابط السداد لسارة", "متابعة 3 عملاء جدد"] },
+  data: { label: "مسؤول البيانات", title: "التوزيع منظم، والجودة قابلة للقياس.", stats: [["بانتظار التوزيع", "3"], ["موزع اليوم", "47"], ["صفوف تحتاج مراجعة", "5"]], tasks: ["مراجعة أرقام غير صالحة", "توزيع طلبات المتجر", "تدقيق مصدر 8 عملاء"] },
+  operations: { label: "التشغيل", title: "الدورات والدفعات والمواعيد في مسار واحد.", stats: [["دفعات نشطة", "6"], ["محاضرات اليوم", "9"], ["طلبات ناقصة", "4"]], tasks: ["تأكيد قاعة الدفعة 18", "استكمال وثائق 4 متدربين", "إرسال تذكير المحاضرة"] },
+} as const;
+
+type RoleKey = keyof typeof roleViews;
+
+function RoleSwitcher() {
+  const [role, setRole] = useState<RoleKey>("management");
+  const view = roleViews[role];
+  return (
+    <section className="roles-section section">
+      <div className="section-kicker" data-reveal><span>05</span> كل دور له وضوحه</div>
+      <div className="roles-heading" data-reveal><h2>كل موظف يشوف اللي يحتاجه.<br /><span>والإدارة تشوف الصورة كلها.</span></h2><p>صلاحيات حسب الدور، وأولوية يومية واضحة، بدون ما تغرق الموظف في شاشات ما تخصّه.</p></div>
+      <div className="role-switcher" data-reveal>
+        <div className="role-tabs" role="tablist" aria-label="اختر دور الموظف">{(Object.entries(roleViews) as [RoleKey, typeof roleViews[RoleKey]][]).map(([key, item]) => <button key={key} type="button" role="tab" aria-selected={role === key} className={role === key ? "is-active" : ""} onClick={() => setRole(key)}><i /><span>{item.label}</span></button>)}</div>
+        <div className="role-screen">
+          <div className="role-screen-head"><span><small>مساحة العمل</small><h3>{view.title}</h3></span><em>عرض {view.label}</em></div>
+          <div className="role-stats">{view.stats.map(([label, value]) => <article key={label}><small>{label}</small><b>{value}</b><i /></article>)}</div>
+          <div className="priority-panel"><div className="card-title"><b>أولويات اليوم</b><span>مرتبة تلقائيًا</span></div>{view.tasks.map((task, index) => <p key={task}><i>{index + 1}</i><span><b>{task}</b><small>{index === 0 ? "تحتاج إجراء الآن" : "اليوم"}</small></span><button type="button">فتح</button></p>)}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SecuritySection({ cms }: { cms: LandingCms }) {
+  const defaults = [
+    ["عزل بيانات كل منشأة", "مساحة وسياق مستقلان يمنعان اختلاط بيانات منشأة بغيرها."],
+    ["صلاحيات حسب الدور", "كل مستخدم يرى وينفذ ما يحتاجه لأداء عمله فقط."],
+    ["سجل واضح للأنشطة", "أثر للإجراءات الحساسة يدعم المتابعة والمساءلة."],
+    ["مراجعة مستمرة", "ضوابط وصول وتحديثات تتطور مع الخدمة ومتطلباتها."],
+  ] as const;
+  const cards = defaults.map(([title, description], index) => ({
+    title: cmsText(cms.trust?.items?.[index]?.title, LEGACY_TRUST[index][0], title),
+    description: cmsText(cms.trust?.items?.[index]?.description, LEGACY_TRUST[index][1], description),
+  }));
+  const kicker = cmsText(cms.trust?.eyebrow, "حماية ووضوح", "ثقة بدون شعارات مبهمة");
+  const title = cmsText(cms.trust?.title, "بيانات منشأتك لا تختلط بغيرها", "بيانات منشأتك تبقى منشأتك.");
+  const body = cmsText(cms.trust?.body, "ضوابط عملية للصلاحيات والوصول والمتابعة، دون ادعاءات أو شعارات أمنية مبهمة.", "أودير يضع الصلاحيات والعزل وسجل الأنشطة في صلب التشغيل؛ حتى يصل كل شخص لما يحتاجه فقط، وتبقى الحركة الحساسة قابلة للمراجعة.");
+  return (
+    <section className="security-section" id="security">
+      <div className="security-inner section">
+        <div className="security-copy" data-reveal><div className="section-kicker section-kicker--light"><span>06</span> {kicker}</div><h2>{title === "بيانات منشأتك تبقى منشأتك." ? <>بيانات منشأتك<br /><span>تبقى منشأتك.</span></> : title}</h2><p>{body}</p><a href={`${APP_ORIGIN}/p/information-security`}>اقرأ عن أمن المعلومات <ArrowMark /></a></div>
+        <div className="security-grid" data-reveal>
+          <article><span className="security-icon security-icon--layers"><i /><i /><i /></span><b>{cards[0].title}</b><p>{cards[0].description}</p></article>
+          <article><span className="security-icon security-icon--key"><i /></span><b>{cards[1].title}</b><p>{cards[1].description}</p></article>
+          <article><span className="security-icon security-icon--history"><i /></span><b>{cards[2].title}</b><p>{cards[2].description}</p></article>
+          <article><span className="security-icon security-icon--shield"><i /></span><b>{cards[3].title}</b><p>{cards[3].description}</p></article>
+        </div>
+        <p className="independence-note">أودير منتج تقني مستقل مصمم لواقع المنشآت التدريبية الأهلية، ولا يمثل جهة اعتماد حكومية.</p>
+      </div>
+    </section>
+  );
+}
+
+function FAQ({ cms }: { cms: LandingCms }) {
+  const defaults = [
+    ["هل أحتاج بطاقة بنكية للتسجيل؟", "لا. يمكنك بدء التسجيل المجاني دون إدخال بطاقة بنكية، ثم تهيئة بيانات المنشأة والفريق بخطوات واضحة."],
+    ["هل لازم أنقل كل بياناتي من أول يوم؟", "لا. ابدأ بالمسار الأكثر إلحاحًا عندك، مثل العملاء والمتابعات، ثم وسّع الاستخدام تدريجيًا وفق احتياج منشأتك."],
+    ["هل كل موظف يشوف كل شيء؟", "لا. الوصول يعتمد على الدور والصلاحيات التي تحددها المنشأة، ليشاهد كل مستخدم ما يحتاجه فقط."],
+    ["هل التكاملات كلها متاحة الآن؟", "نعرض حالة كل تكامل بوضوح داخل الصفحة: متاح، قيد التفعيل، أو قريبًا. لن نصف تكاملًا بأنه متاح قبل جاهزيته للاستخدام."],
+    ["هل أقدر أعدل موقع أودير من البيلدر؟", "صفحات الموقع الأساسية والسياسات محفوظة داخل نظام إدارة المحتوى، ويمكن تعديلها ونشرها من بيلدر الموقع حسب الصلاحيات."],
+  ] as const;
+  const cmsSlots = [0, 1, 2, -1, 3];
+  const questions = defaults.map(([question, answer], index) => {
+    const cmsIndex = cmsSlots[index];
+    if (cmsIndex < 0) return [question, answer] as const;
+    return [
+      cmsText(cms.faq?.items?.[cmsIndex]?.title, LEGACY_FAQ[cmsIndex][0], question),
+      cmsText(cms.faq?.items?.[cmsIndex]?.description, LEGACY_FAQ[cmsIndex][1], answer),
+    ] as const;
+  });
+  const kicker = cmsText(cms.faq?.eyebrow, "أسئلة سريعة", "قبل ما تبدأ");
+  const title = cmsText(cms.faq?.title, "قبل أن تبدأ", "أسئلة واضحة. إجابات أوضح.");
+  const body = cmsText(cms.faq?.body, "إجابات مباشرة على أكثر الأسئلة شيوعًا.", "بدون شروط مخفية ولا وعود أكبر من المرحلة.");
+  return (
+    <section className="faq-section section">
+      <div className="faq-heading" data-reveal><div className="section-kicker"><span>07</span> {kicker}</div><h2>{title === "أسئلة واضحة. إجابات أوضح." ? <>أسئلة واضحة.<br />إجابات أوضح.</> : title}</h2><p>{body}</p></div>
+      <div className="faq-list" data-reveal>{questions.map(([question, answer], index) => <details key={question} open={index === 0}><summary><span>{question}</span><i /></summary><p>{answer}</p></details>)}</div>
+    </section>
+  );
+}
+
+function FinalCTA({ cms }: { cms: LandingCms }) {
+  const eyebrow = cmsText(cms.cta?.eyebrow, "جاهز للبدء؟", "جاهز تشوف منشأتك بشكل أوضح؟");
+  const title = cmsText(cms.cta?.title, "سجّل منشأتك، واترك الباقي لمسار واضح.", "خلّ منشأتك تمشي بنظام واضح من اليوم.");
+  const body = cmsText(cms.cta?.body, "ابدأ بالحساب الأساسي، ثم وسّع أودير مع احتياج منشأتك.", "ابدأ مجانًا، أضف فريقك، وشاهد كيف تنتقل رحلة العميل من استفسار متفرق إلى عملية يمكن إدارتها وقياسها.");
+  const buttonLabel = cms.cta?.buttonLabel || "سجّل منشأتك مجانًا";
+  const buttonHref = cms.cta?.buttonHref || "/free-trial/apply";
+  const loginLabel = cms.settings?.customerLoginLabel || "دخول المنشآت";
+  const loginHref = cms.settings?.customerLoginUrl || "/login";
+  return (
+    <section className="final-cta">
+      <div className="final-cta-orbit" aria-hidden="true" />
+      <div className="final-cta-inner section" data-reveal><div className="eyebrow"><span /> {eyebrow}</div><h2>{title === "خلّ منشأتك تمشي بنظام واضح من اليوم." ? <>خلّ منشأتك تمشي<br /><span>بنظام واضح من اليوم.</span></> : title}</h2><p>{body}</p><div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${buttonHref}`}>{buttonLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${loginHref}`}>{loginLabel}</a></div><ul className="hero-trust"><li><i /> بدون بطاقة بنكية</li><li><i /> تبدأ بخطوات بسيطة</li><li><i /> بيانات منشأتك مستقلة</li></ul></div>
+    </section>
+  );
+}
+
+export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms }) {
+  useReveal();
+  const [showMobileCta, setShowMobileCta] = useState(false);
+  const observerAnchor = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const anchor = observerAnchor.current;
+    if (!anchor) return;
+    const observer = new IntersectionObserver(([entry]) => setShowMobileCta(!entry.isIntersecting), { threshold: 0 });
+    observer.observe(anchor);
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <main className="odeir-experience" dir="rtl">
+      <div className="hero-shell"><Header cms={cms} /><Hero cms={cms} /></div>
+      <div ref={observerAnchor} className="cta-observer" aria-hidden="true" />
+      <StoryStrip />
+      <ProductDemo />
+      <OperationalStories cms={cms} />
+      <JourneyLab />
+      <RoleSwitcher />
+      <SecuritySection cms={cms} />
+      <FAQ cms={cms} />
+      <FinalCTA cms={cms} />
+      <footer className="site-footer">
+        <div className="footer-brand"><Brand /><p>تشغيل أوضح وإدارة مترابطة للمنشآت التدريبية.</p></div>
+        <nav aria-label="روابط السياسات"><a href={`${APP_ORIGIN}/p/privacy-policy`}>الخصوصية</a><a href={`${APP_ORIGIN}/p/information-security`}>أمن المعلومات</a><a href={`${APP_ORIGIN}/p/terms-of-use`}>شروط الاستخدام</a><a href={`${APP_ORIGIN}/p/data-rights`}>حقوق البيانات</a></nav>
+        <span>© {new Date().getFullYear()} أودير. جميع الحقوق محفوظة.</span>
+      </footer>
+      <a className={showMobileCta ? "mobile-cta is-visible" : "mobile-cta"} href={`${APP_ORIGIN}${cms.hero?.primaryHref || "/free-trial/apply"}`}>{cms.hero?.primaryLabel || "سجّل منشأتك مجانًا"} <ArrowMark /></a>
+    </main>
+  );
+}

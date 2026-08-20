@@ -33,6 +33,7 @@
     ".next/types/**/*.ts",
     "app/**/*.js",
     "components/**/*.js",
+    "components/**/*.tsx",
     "lib/**/*.js",
     "lib/**/*.ts",
     "proxy.js",

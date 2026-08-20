@@ -12,6 +12,16 @@ type CmsSection = {
   body?: string;
   items?: CmsItem[];
 };
+type LandingArticle = {
+  slug?: string;
+  title?: string;
+  excerpt?: string;
+  category?: string;
+  coverUrl?: string;
+  featured?: boolean;
+  readingMinutes?: number | null;
+  publishedAt?: string | null;
+};
 type LandingCms = {
   hero?: {
     eyebrow?: string;
@@ -36,6 +46,7 @@ type LandingCms = {
     customerLoginLabel?: string;
     customerLoginUrl?: string;
   };
+  articles?: LandingArticle[];
 };
 
 const LEGACY_HERO = {
@@ -158,11 +169,20 @@ function Brand({ compact = false }: { compact?: boolean }) {
 
 function useReveal() {
   useEffect(() => {
-    const nodes = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>(".odeir-experience [data-reveal]"));
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       nodes.forEach((node) => node.classList.add("is-visible"));
       return;
     }
+    if (!("IntersectionObserver" in window)) {
+      nodes.forEach((node) => node.classList.add("is-visible"));
+      return;
+    }
+    const revealNearViewport = () => nodes.forEach((node) => {
+      const rect = node.getBoundingClientRect();
+      if (rect.top < window.innerHeight * 1.08 && rect.bottom > -80) node.classList.add("is-visible");
+    });
+    revealNearViewport();
     const observer = new IntersectionObserver(
       (entries) => entries.forEach((entry) => {
         if (entry.isIntersecting) {
@@ -170,10 +190,16 @@ function useReveal() {
           observer.unobserve(entry.target);
         }
       }),
-      { threshold: 0.14 },
+      { threshold: 0.05, rootMargin: "0px 0px -6% 0px" },
     );
-    nodes.forEach((node) => observer.observe(node));
-    return () => observer.disconnect();
+    nodes.filter((node) => !node.classList.contains("is-visible")).forEach((node) => observer.observe(node));
+    const fallback = window.setInterval(revealNearViewport, 900);
+    const stopFallback = window.setTimeout(() => window.clearInterval(fallback), 45000);
+    return () => {
+      window.clearInterval(fallback);
+      window.clearTimeout(stopFallback);
+      observer.disconnect();
+    };
   }, []);
 }
 
@@ -187,6 +213,7 @@ function Header({ cms }: { cms: LandingCms }) {
     <header className="site-header">
       <a className="brand-link" href="#top" aria-label="أودير - الرئيسية"><Brand /></a>
       <nav className={open ? "main-nav is-open" : "main-nav"} aria-label="التنقل الرئيسي">
+        <a href="#morning-brief" onClick={() => setOpen(false)}>أول فنجان</a>
         <a href="#story" onClick={() => setOpen(false)}>كيف يعمل</a>
         <a href="#product" onClick={() => setOpen(false)}>جولة داخل أودير</a>
         <a href="#integrations" onClick={() => setOpen(false)}>التكاملات</a>
@@ -257,6 +284,30 @@ function DashboardWindow({ activeView = "overview", hero = false }: { activeView
   );
 }
 
+function MobileHeroSnapshot({ activeEvent }: { activeEvent: number }) {
+  const event = journeyEvents[activeEvent];
+  return (
+    <div className="mobile-hero-snapshot" data-reveal aria-label="لوحة تشغيل توضيحية للجوال">
+      <div className="mobile-snapshot-head">
+        <span><small>لوحة اليوم</small><b>منشأتك في نظرة واحدة</b></span>
+        <em><i /> مباشر</em>
+      </div>
+      <div className="mobile-snapshot-kpis">
+        <span><small>طلبات جديدة</small><b>63</b><em>+8 اليوم</em></span>
+        <span><small>متابعات قريبة</small><b>7</b><em>خلال ساعتين</em></span>
+        <span><small>نسبة التحويل</small><b>18.7%</b><em>+2.4%</em></span>
+      </div>
+      <div className="mobile-snapshot-event" key={event.time} aria-live="polite">
+        <span className="mobile-event-mark"><i /></span>
+        <span><small>{event.source} · {event.time}</small><b>{event.text}</b></span>
+        <em>تم</em>
+      </div>
+      <div className="mobile-snapshot-progress" aria-hidden="true"><span /><span /><span /><span /><span /></div>
+      <p><i /> تجربة توضيحية بأرقام وبيانات افتراضية</p>
+    </div>
+  );
+}
+
 function Hero({ cms }: { cms: LandingCms }) {
   const [activeEvent, setActiveEvent] = useState(0);
   const eyebrow = cmsText(cms.hero?.eyebrow, LEGACY_HERO.eyebrow, "منصة تشغيل وإدارة للمنشآت التدريبية الأهلية المعتمدة");
@@ -276,18 +327,106 @@ function Hero({ cms }: { cms: LandingCms }) {
       <div className="hero-glow hero-glow--one" aria-hidden="true" /><div className="hero-glow hero-glow--two" aria-hidden="true" />
       <div className="hero-copy" data-reveal>
         <div className="eyebrow"><span /> {eyebrow}</div>
-        <h1>{title === "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك." ? <>من أول استفسار…<br /><span>إلى مقعد مكتمل،</span><br />كل خطوة تحت عينك.</> : title}</h1>
+        <h1>{title === "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك." ? <>
+          <span className="hero-title-desktop">من أول استفسار…<br /><span className="hero-title-accent">إلى مقعد مكتمل،</span><br />كل خطوة تحت عينك.</span>
+          <span className="hero-title-mobile">من أول استفسار،<br /><span className="hero-title-accent">حتى مقعد مكتمل.</span></span>
+        </> : title}</h1>
         <p>{body}</p>
         <div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${primaryHref}`}>{primaryLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${secondaryHref}`}>{secondaryLabel}</a></div>
         <ul className="hero-trust" aria-label="مزايا البداية"><li><i /> بدون بطاقة بنكية</li><li><i /> إعداد بخطوات واضحة</li><li><i /> بيانات مستقلة لكل منشأة</li></ul>
       </div>
+      <MobileHeroSnapshot activeEvent={activeEvent} />
       <div className="hero-visual" data-reveal>
         <div className="hero-orbit hero-orbit--one" aria-hidden="true" /><div className="hero-orbit hero-orbit--two" aria-hidden="true" />
         <DashboardWindow hero />
         <div className="floating-event" aria-live="polite"><span className="event-time">{journeyEvents[activeEvent].time}</span><span className="event-icon"><i /></span><span><b>{journeyEvents[activeEvent].source}</b><small>{journeyEvents[activeEvent].text}</small></span></div>
         <div className="floating-result"><i /><span><small>نسبة التحويل</small><b>18.7%</b></span><em>+2.4%</em></div>
       </div>
-      <a href="#story" className="scroll-cue" aria-label="انتقل للمحتوى"><span /> اكتشف الرحلة</a>
+      <a href="#morning-brief" className="scroll-cue" aria-label="انتقل للمحتوى"><span /> اكتشف أودير</a>
+    </section>
+  );
+}
+
+const morningFallback = [
+  {
+    category: "أخبار السوق",
+    title: "زبدة ما يستجد في قطاع التدريب.",
+    excerpt: "أبرز التحديثات العامة التي تهم صاحب القرار، باختصار وبدون ضجيج.",
+    mark: "نبض",
+  },
+  {
+    category: "فرص ومنافسات",
+    title: "فرص تستحق أن تكون على رادارك.",
+    excerpt: "مساحة للفرص العامة والمنافسات بعد مراجعتها ونشرها من إدارة أودير.",
+    mark: "فرصة",
+  },
+  {
+    category: "معرفة عملية",
+    title: "فكرة واحدة تحسّن قرار اليوم.",
+    excerpt: "ممارسات تشغيل ومبيعات وبيانات تقدر تناقشها مع فريقك من الصباح.",
+    mark: "فكرة",
+  },
+] as const;
+
+function briefDate(value?: string | null) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return "مختارات أودير";
+  const months = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+  return `${Number(match[3])} ${months[Number(match[2]) - 1] || ""}`.trim();
+}
+
+function safeBriefCover(value?: string | null) {
+  const url = String(value || "").trim();
+  return (/^(https:\/\/|\/(?!\/))/i.test(url) && !/["'()]/.test(url)) ? url : "";
+}
+
+function MorningBriefing({ articles = [] }: { articles?: LandingArticle[] }) {
+  const published = articles
+    .filter((article) => String(article.slug || "").trim() && String(article.title || "").trim())
+    .slice(0, 3)
+    .map((article) => ({
+      category: article.category || "رؤى أودير",
+      title: article.title || "",
+      excerpt: article.excerpt || "اقرأ المادة المنشورة واكتشف التفاصيل.",
+      mark: article.featured ? "مميز" : "جديد",
+      meta: article.readingMinutes ? `${article.readingMinutes} دقائق · ${briefDate(article.publishedAt)}` : briefDate(article.publishedAt),
+      href: `/articles/${encodeURIComponent(String(article.slug))}`,
+      coverUrl: safeBriefCover(article.coverUrl),
+    }));
+  const cards = [
+    ...published,
+    ...morningFallback.slice(0, Math.max(0, 3 - published.length)).map((item) => ({
+      ...item,
+      meta: "يُحدّث من إدارة الموقع",
+      href: "/articles",
+      coverUrl: "",
+    })),
+  ];
+  return (
+    <section className="morning-section" id="morning-brief">
+      <div className="morning-inner section">
+        <div className="morning-copy" data-reveal>
+          <div className="morning-kicker"><i /> أول فنجان</div>
+          <h2>قبل أول اجتماع…<br /><span>خذ زبدة السوق مع قهوتك.</span></h2>
+          <p>موجز يومي ذكي يجمع أخبار قطاع التدريب، الفرص والمنافسات، ومعرفة عملية تساعدك تبدأ يومك بقرار أوضح.</p>
+          <ul><li><i /> من المواد العامة المنشورة</li><li><i /> مختصر ومباشر لصاحب القرار</li><li><i /> بدون خلط مع بيانات أي منشأة</li></ul>
+          <a className="morning-link" href="/articles">افتح الأخبار والمعارف <ArrowMark /></a>
+        </div>
+        <div className="morning-feed" data-reveal>
+          <header><span><i /> موجز اليوم</span><small>المواد المنشورة والمعتمدة فقط</small></header>
+          <div className="morning-cards">
+            {cards.map((card, index) => (
+              <a className={`morning-card morning-card--${index + 1}`} href={card.href} key={`${card.title}-${index}`}>
+                <span className={card.coverUrl ? "morning-card-media has-cover" : "morning-card-media"} style={card.coverUrl ? { backgroundImage: `linear-gradient(145deg, rgba(2,13,32,.14), rgba(2,13,32,.72)), url(${card.coverUrl})` } : undefined}>
+                  <i>{card.mark}</i><em aria-hidden="true" />
+                </span>
+                <span className="morning-card-copy"><small>{card.category}<i />{card.meta}</small><b>{card.title}</b><p>{card.excerpt}</p><em>اقرأها الآن <ArrowMark /></em></span>
+              </a>
+            ))}
+          </div>
+          <p className="morning-note"><i /> لا تظهر هنا إلا المواد العامة التي نُشرت من إدارة موقع أودير.</p>
+        </div>
+      </div>
     </section>
   );
 }
@@ -625,18 +764,29 @@ function FinalCTA({ cms }: { cms: LandingCms }) {
 export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms }) {
   useReveal();
   const [showMobileCta, setShowMobileCta] = useState(false);
-  const observerAnchor = useRef<HTMLDivElement>(null);
+  const heroShellRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const anchor = observerAnchor.current;
-    if (!anchor) return;
-    const observer = new IntersectionObserver(([entry]) => setShowMobileCta(!entry.isIntersecting), { threshold: 0 });
-    observer.observe(anchor);
+    const hero = heroShellRef.current;
+    const finalCta = document.querySelector<HTMLElement>(".odeir-experience .final-cta");
+    if (!hero || !("IntersectionObserver" in window)) return;
+    let heroVisible = true;
+    let finalVisible = false;
+    const update = () => setShowMobileCta(!heroVisible && !finalVisible);
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.target === hero) heroVisible = entry.isIntersecting;
+        if (entry.target === finalCta) finalVisible = entry.isIntersecting;
+      });
+      update();
+    }, { threshold: 0.06, rootMargin: "-64px 0px 0px 0px" });
+    observer.observe(hero);
+    if (finalCta) observer.observe(finalCta);
     return () => observer.disconnect();
   }, []);
   return (
     <main className="odeir-experience" dir="rtl">
-      <div className="hero-shell"><Header cms={cms} /><Hero cms={cms} /></div>
-      <div ref={observerAnchor} className="cta-observer" aria-hidden="true" />
+      <div className="hero-shell" ref={heroShellRef}><Header cms={cms} /><Hero cms={cms} /></div>
+      <MorningBriefing articles={cms.articles} />
       <StoryStrip />
       <ProductDemo />
       <OperationalStories cms={cms} />
@@ -647,7 +797,7 @@ export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms 
       <FinalCTA cms={cms} />
       <footer className="site-footer">
         <div className="footer-brand"><Brand /><p>تشغيل أوضح وإدارة مترابطة للمنشآت التدريبية.</p></div>
-        <nav aria-label="روابط السياسات"><a href={`${APP_ORIGIN}/p/privacy-policy`}>الخصوصية</a><a href={`${APP_ORIGIN}/p/information-security`}>أمن المعلومات</a><a href={`${APP_ORIGIN}/p/terms-of-use`}>شروط الاستخدام</a><a href={`${APP_ORIGIN}/p/data-rights`}>حقوق البيانات</a></nav>
+        <nav aria-label="روابط السياسات والمحتوى"><a href={`${APP_ORIGIN}/articles`}>الأخبار والمعارف</a><a href={`${APP_ORIGIN}/p/privacy-policy`}>الخصوصية</a><a href={`${APP_ORIGIN}/p/information-security`}>أمن المعلومات</a><a href={`${APP_ORIGIN}/p/terms-of-use`}>شروط الاستخدام</a><a href={`${APP_ORIGIN}/p/data-rights`}>حقوق البيانات</a></nav>
         <span>© {new Date().getFullYear()} أودير. جميع الحقوق محفوظة.</span>
       </footer>
       <a className={showMobileCta ? "mobile-cta is-visible" : "mobile-cta"} href={`${APP_ORIGIN}${cms.hero?.primaryHref || "/free-trial/apply"}`}>{cms.hero?.primaryLabel || "سجّل منشأتك مجانًا"} <ArrowMark /></a>

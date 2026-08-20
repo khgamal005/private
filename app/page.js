@@ -45,6 +45,19 @@ function landingCms(snapshot,home){
     trust:props('odeir-trust'),
     faq:props('odeir-faq'),
     cta:props('odeir-final-cta'),
+    articles:(Array.isArray(snapshot?.articles)?snapshot.articles:[])
+      .filter(article=>article?.slug&&article?.title)
+      .slice(0,3)
+      .map(article=>({
+        slug:article.slug,
+        title:article.title,
+        excerpt:article.excerpt,
+        category:article.category,
+        coverUrl:article.coverUrl,
+        featured:Boolean(article.featured),
+        readingMinutes:article.readingMinutes??null,
+        publishedAt:article.publishedAt??null
+      })),
     settings:{
       customerLoginLabel:settings.customerLoginLabel||'دخول المنشآت',
       customerLoginUrl:settings.customerLoginUrl||'/login'

@@ -41,6 +41,8 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   ]);
   assert.match(page,/OdeirLandingExperience/);
   assert.match(page,/landingCms\(snapshot,home\)/);
+  assert.match(page,/snapshot\?\.articles/);
+  assert.match(page,/readingMinutes:article\.readingMinutes/);
   for(const blockId of ['odeir-home-hero','odeir-capabilities','odeir-trust','odeir-faq','odeir-final-cta']){
     assert.match(page,new RegExp(blockId));
   }
@@ -49,9 +51,16 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(landing,/زد/);
   assert.match(landing,/WooCommerce/);
   assert.match(landing,/بيانات منشأتك/);
+  assert.match(landing,/id="morning-brief"/);
+  assert.match(landing,/خذ زبدة السوق مع قهوتك/);
+  assert.match(landing,/المواد العامة المنشورة/);
+  assert.match(landing,/heroShellRef/);
   assert.match(styles,/\.odeir-experience \.hero-shell/);
+  assert.match(styles,/\.mobile-hero-snapshot/);
+  assert.match(styles,/\.morning-section/);
   assert.doesNotMatch(styles,/@scope/);
   assert.doesNotMatch(landing,/ريف|reef/i);
+  assert.doesNotMatch(page,/knowledge\/feed|tenantSlug|reef/i);
 });
 
 test('builder runtime renders the ODEIR product preview without changing generic tenant heroes',async()=>{

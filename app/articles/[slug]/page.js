@@ -10,9 +10,9 @@ export async function generateMetadata({params}){
   const {slug}=await params;
   const snapshot=await getCmsPublicSnapshot({siteKey:'marktone-main',articleSlug:slug});
   const article=snapshot?.article;
-  if(!article)return {title:'المقال غير موجود | ماركتون'};
+  if(!article)return {title:'المقال غير موجود | أودير'};
   return {
-    title:article.seoTitle||`${article.title} | ماركتون`,
+    title:article.seoTitle||`${article.title} | أودير`,
     description:article.seoDescription||article.excerpt||'',
     alternates:{canonical:article.canonicalUrl||`/articles/${slug}`},
     openGraph:{title:article.seoTitle||article.title,description:article.seoDescription||article.excerpt||'',type:'article',locale:'ar_SA',publishedTime:article.publishedAt||undefined}

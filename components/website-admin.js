@@ -53,7 +53,7 @@ export default function WebsiteAdmin({initialData}){
   return <div className={styles.workspace} dir="rtl">
     <header className={styles.hero}>
       <div>
-        <span className={styles.kicker}>إدارة حضور ماركتون الرقمي</span>
+        <span className={styles.kicker}>إدارة حضور أودير الرقمي</span>
         <h1>إدارة الموقع</h1>
         <p>تحكم في الهيدر والقائمة ومحتوى الصفحة الرئيسية والصفحات والمقالات من نفس لوحة المنصة.</p>
       </div>
@@ -271,7 +271,7 @@ function ArticleFields({row}){return <div className={styles.formGrid}>
   <Field label="عنوان المقال" name="title" defaultValue={row.title} required/>
   <Field label="الرابط المختصر" name="slug" defaultValue={row.slug} required dir="ltr" hint="مثال: sales-growth-guide"/>
   <Field label="التصنيف" name="category" defaultValue={row.category}/>
-  <Field label="اسم الكاتب" name="authorName" defaultValue={row.author_name||'فريق ماركتون'}/>
+  <Field label="اسم الكاتب" name="authorName" defaultValue={row.author_name||'فريق أودير'}/>
   <Field label="الوصف المختصر" name="excerpt" defaultValue={row.excerpt} type="textarea" wide/>
   <Field label="محتوى المقال" name="body" defaultValue={row.body} type="textarea" wide rows={16} hint="افصل بين الفقرات بسطر فارغ، واستخدم - في بداية السطر للقوائم."/>
   <Field label="رابط صورة الغلاف" name="coverUrl" defaultValue={row.cover_url} dir="ltr" wide/>
@@ -315,7 +315,7 @@ function sectionTypeLabel(value){return Object.fromEntries(sectionTypes.map(item
 function newMenu(){return {label:'',href:'#',item_kind:'anchor',sort_order:100,is_visible:true,open_in_new_tab:false,status:'published'}}
 function newSection(){return {section_key:`section-${Date.now()}`,section_type:'cards',eyebrow:'',title:'',summary:'',body:'',primary_cta:{},secondary_cta:{},items:[],media:{},style_variant:'light',sort_order:100,is_visible:true,status:'draft'}}
 function newPage(){return {slug:`page-${Date.now()}`,title:'',menu_label:'',excerpt:'',body:'',content:{},template_key:'standard',seo_title:'',seo_description:'',cover_url:'',show_in_menu:false,menu_order:100,status:'draft'}}
-function newArticle(){return {slug:`article-${Date.now()}`,title:'',excerpt:'',body:'',category:'',author_name:'فريق ماركتون',cover_url:'',seo_title:'',seo_description:'',featured:false,status:'draft'}}
+function newArticle(){return {slug:`article-${Date.now()}`,title:'',excerpt:'',body:'',category:'',author_name:'فريق أودير',cover_url:'',seo_title:'',seo_description:'',featured:false,status:'draft'}}
 
 const contentStatuses=[{value:'draft',label:'مسودة'},{value:'published',label:'منشور'}];
 const siteStatuses=[...contentStatuses,{value:'maintenance',label:'وضع الصيانة'}];

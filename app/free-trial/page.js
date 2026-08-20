@@ -10,13 +10,13 @@ export const dynamic='force-dynamic';
 export async function generateMetadata(){
   const snapshot=await getCmsPublicSnapshot({siteKey:'marktone-main',pageSlug:'free-trial'});
   const page=snapshot?.page||{};
-  const title=page.seoTitle||'برنامج ماركتون المجاني مدى الحياة';
+  const title=page.seoTitle||'سجّل منشأتك مجانًا | أودير';
   const description=page.seoDescription||'نظام تشغيل أساسي مجاني لمنشآت التدريب دون بطاقة بنكية أو مدة انتهاء.';
   return {
     title,
     description,
     alternates:{canonical:'/free-trial'},
-    openGraph:{title,description,type:'website',locale:'ar_SA',siteName:'Marktone'}
+    openGraph:{title,description,type:'website',locale:'ar_SA',siteName:'ODEIR'}
   };
 }
 

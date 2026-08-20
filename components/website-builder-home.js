@@ -5,7 +5,7 @@ export default function WebsiteBuilderHome({pages=[]}){
   const rows=Array.isArray(pages)?pages:[];
   return <div className={styles.workspace} dir="rtl">
     <header className={styles.hero}>
-      <div><span>Marktone Visual Builder</span><h1>مصمم الصفحات</h1><p>صمم صفحات ماركتون بصريًا بالسحب والترتيب، واحفظ المسودة قبل نشرها على الموقع.</p></div>
+      <div><span>ODEIR VISUAL BUILDER</span><h1>مصمم الصفحات</h1><p>صمم صفحات أودير بصريًا بالسحب والترتيب، واحفظ المسودة قبل نشرها على الموقع.</p></div>
       <div><Link href="/control/website">إدارة المحتوى</Link><Link className={styles.primary} href="/control/website">إنشاء صفحة جديدة +</Link></div>
     </header>
     <section className={styles.summary}>
@@ -20,7 +20,7 @@ export default function WebsiteBuilderHome({pages=[]}){
           <div className={styles.pagePreview}><span>{page.template_key==='visual-builder'?'Visual':'Page'}</span><i/><i/><i/></div>
           <div className={styles.pageBody}>
             <div><small dir="ltr">/p/{page.slug}</small><Status value={page.status}/></div>
-            <h3>{page.title}</h3><p>{page.excerpt||'صفحة ماركتون قابلة للتصميم المرئي.'}</p>
+            <h3>{page.title}</h3><p>{page.excerpt||'صفحة أودير قابلة للتصميم المرئي.'}</p>
             <footer><Link className={styles.design} href={`/control/website/builder/page/${page.id}`}>فتح المصمم</Link>{page.status==='published'&&<Link href={`/p/${page.slug}`} target="_blank">عرض الصفحة ↗</Link>}</footer>
           </div>
         </article>)}

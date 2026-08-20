@@ -9,13 +9,13 @@ export async function generateMetadata(){
   const snapshot=await getCmsPublicSnapshot({siteKey:'marktone-main'});
   const settings=snapshot?.site?.settings||{};
   const home=snapshot?.homePage||{};
-  const title=home.seoTitle||settings.siteTitle||'ماركتون | منصة تشغيل ونمو لمراكز التدريب';
-  const description=home.seoDescription||settings.description||'ماركتون منصة تشغيل ونمو متخصصة لمراكز ومعاهد التدريب.';
+  const title=home.seoTitle||settings.siteTitle||'أودير | منصة تشغيل وإدارة المنشآت';
+  const description=home.seoDescription||settings.description||'أودير يوحّد العملاء والمبيعات والتسجيل والمهام والفوترة والتقارير في منصة واحدة.';
   return {
     title,
     description,
     alternates:{canonical:'/'},
-    openGraph:{title,description,type:'website',locale:'ar_SA',siteName:'Marktone'}
+    openGraph:{title,description,type:'website',locale:'ar_SA',siteName:'ODEIR'}
   };
 }
 

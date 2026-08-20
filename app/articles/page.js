@@ -3,8 +3,8 @@ import {getCmsPublicSnapshot} from '../../lib/cms-public';
 
 export const dynamic='force-dynamic';
 export const metadata={
-  title:'مقالات ماركتون | التشغيل والنمو والمبيعات',
-  description:'رؤى عملية من ماركتون حول تشغيل المؤسسات ومراكز التدريب والتسويق والمبيعات والبيانات.',
+  title:'مقالات أودير | التشغيل والإدارة والنمو',
+  description:'رؤى عملية من أودير حول تشغيل المنشآت وإدارة العملاء والمبيعات والبيانات.',
   alternates:{canonical:'/articles'}
 };
 

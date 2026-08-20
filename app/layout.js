@@ -8,7 +8,7 @@ import './followup-split-history.css';
 import SystemActionFeedback from '../components/system-action-feedback';
 import SystemDataPagination from '../components/system-data-pagination';
 
-export const metadata={title:'Marktone Platform Control',description:'منصة ماركتون لإدارة المنشآت'};
+export const metadata={title:'ODEIR | أودير لإدارة المنشآت',description:'منصة أودير لتشغيل وإدارة المنشآت من مكان واحد'};
 export default function RootLayout({children}){
   return <html lang="ar" dir="rtl">
     <head>

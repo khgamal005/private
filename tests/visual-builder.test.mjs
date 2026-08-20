@@ -46,14 +46,14 @@ test('builder supports components, responsive controls, history and safe publish
   assert.match(route,/v2_platform_page_builder_action/);
 });
 
-test('published visual pages render through the public Marktone shell',async()=>{
+test('published visual pages render through the public ODEIR shell',async()=>{
   const [page,built]=await Promise.all([
     read('app/p/[slug]/page.js'),
     read('components/built-public-page.js')
   ]);
   assert.match(page,/isBuilderDocument/);
   assert.match(page,/BuiltPublicPage/);
-  assert.match(built,/marktone-logo-light\.svg/);
+  assert.match(built,/OdeirBrand/);
   assert.match(built,/PageDocumentRenderer/);
-  assert.match(built,/دخول العملاء/);
+  assert.match(built,/تسجيل دخول المنشآت/);
 });

@@ -14,7 +14,7 @@ test('public site renders from the published CMS website snapshot',()=>{
   assert.match(builtPage,/PageDocumentRenderer/);
   assert.match(publicSite,/customerLoginUrl/);
   assert.match(publicSite,/api\/public\/contact/);
-  assert.match(publicSite,/marktone-logo-light\.svg/);
+  assert.match(publicSite,/OdeirBrand/);
 });
 
 test('lifetime-free program has an editable landing page and a working application route',()=>{
@@ -26,7 +26,7 @@ test('lifetime-free program has an editable landing page and a working applicati
   assert.match(page,/pageSlug:'free-trial'/);
   assert.match(page,/BuiltPublicPage/);
   assert.match(applyPage,/LifetimeFreeApplication/);
-  assert.match(wrapper,/مجانا.*مدى الحياة|مجاني.*مدى الحياة/);
+  assert.match(wrapper,/ابدأ مع أودير مجانًا/);
   assert.match(wrapper,/FreeTrialLanding/);
   assert.match(landing,/marktone-free-trial/);
   assert.match(landing,/المؤسسة العامة للتدريب التقني والمهني/);

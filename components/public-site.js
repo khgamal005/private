@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import {useMemo,useState} from 'react';
+import OdeirBrand from './odeir-brand';
 import styles from './public-site.module.css';
 
 const ICONS=['◌','↗','◎','◇','✦','⌁','▦','↳'];
@@ -27,7 +28,7 @@ export default function PublicSite({snapshot}){
 export function PublicContentPage({snapshot,content,type='page'}){
   const settings=snapshot?.site?.settings||{};
   const menu=Array.isArray(snapshot?.menu)?snapshot.menu:[];
-  const label=type==='article'?'مقالات ماركتون':'ماركتون';
+  const label=type==='article'?'مقالات أودير':'أودير';
   return <div className={styles.site} dir="rtl" style={themeVariables(snapshot?.site?.theme)}>
     <PublicHeader menu={menu} settings={settings}/>
     <main className={styles.contentMain}>
@@ -62,7 +63,7 @@ export function ArticlesIndex({snapshot}){
       <section className={styles.articlesIndex}>
         <div className={styles.sectionHeading}>
           <p className={styles.eyebrow}>رؤى عملية</p>
-          <h1>مقالات ماركتون</h1>
+          <h1>مقالات أودير</h1>
           <p>محتوى لأصحاب القرار حول النمو والتشغيل والمبيعات والبيانات في قطاع التدريب والمؤسسات.</p>
         </div>
         <div className={styles.articleGrid}>
@@ -81,15 +82,15 @@ function PublicHeader({menu,settings}){
   const freeTrialUrl=settings.freeTrialUrl||'/free-trial';
   return <header className={styles.header}>
     <div className={styles.headerInner}>
-      <Link href="/" className={styles.brand} aria-label="ماركتون - الرئيسية">
-        <Image src="/marktone-logo-light.svg" alt="Marktone" width={802} height={221} priority/>
+      <Link href="/" className={styles.brand} aria-label="أودير - الرئيسية">
+        <OdeirBrand subtitle="منصة إدارة المنشآت"/>
       </Link>
       <nav className={`${styles.nav} ${open?styles.navOpen:''}`} aria-label="القائمة الرئيسية">
         {menu.map(item=><SmartLink key={item.id||`${item.label}-${item.href}`} href={item.href} newTab={item.openInNewTab} onClick={()=>setOpen(false)}>{item.label}</SmartLink>)}
       </nav>
       <div className={styles.headerActions}>
-        <SmartLink href={loginUrl} className={styles.loginButton}>{settings.customerLoginLabel||'دخول العملاء'}</SmartLink>
-        <SmartLink href={freeTrialUrl} className={styles.primaryButton}>{settings.freeTrialLabel||'جرّب الآن مجانًا'}<span>↗</span></SmartLink>
+        <SmartLink href={loginUrl} className={styles.loginButton}>{settings.customerLoginLabel||'تسجيل دخول المنشآت'}</SmartLink>
+        <SmartLink href={freeTrialUrl} className={styles.primaryButton}>{settings.freeTrialLabel||'سجّل منشأتك مجانًا'}<span>↗</span></SmartLink>
       </div>
       <button type="button" className={styles.menuToggle} aria-expanded={open} aria-label={open?'إغلاق القائمة':'فتح القائمة'} onClick={()=>setOpen(value=>!value)}>
         <span/><span/><span/>
@@ -102,22 +103,22 @@ function PublicFooter({menu,settings}){
   return <footer className={styles.footer}>
     <div className={styles.footerTop}>
       <div>
-        <Image src="/marktone-logo-light.svg" alt="Marktone" width={802} height={221}/>
-        <p>{settings.footerText||'ماركتون — منظومة تشغيل ونمو متخصصة.'}</p>
+        <OdeirBrand subtitle="منصة إدارة المنشآت"/>
+        <p>{settings.footerText||'أودير — تشغيل أوضح وإدارة مترابطة للمنشآت.'}</p>
       </div>
       <nav aria-label="روابط الموقع">
         {menu.map(item=><SmartLink key={item.id||`${item.label}-${item.href}`} href={item.href}>{item.label}</SmartLink>)}
-        <Link href="/free-trial">جرّب الآن مجانًا</Link>\n        <Link href="/articles">المقالات</Link>
-        <SmartLink href={settings.customerLoginUrl||'/login'}>دخول العملاء</SmartLink>
+        <Link href="/free-trial/apply">سجّل منشأتك مجانًا</Link>
+        <SmartLink href={settings.customerLoginUrl||'/login'}>تسجيل دخول المنشآت</SmartLink>
       </nav>
       <div className={styles.footerContact}>
-        <strong>تواصل مع ماركتون</strong>
+        <strong>تواصل مع أودير</strong>
         {settings.contactEmail&&<a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a>}
         {settings.contactPhone&&<a href={`tel:${settings.contactPhone}`}>{settings.contactPhone}</a>}
         {settings.country&&<span>{settings.country}</span>}
       </div>
     </div>
-    <div className={styles.footerBottom}><span>© {new Date().getFullYear()} ماركتون. جميع الحقوق محفوظة.</span><span>تشغيل ونمو مبنيان على البيانات.</span></div>
+    <div className={styles.footerBottom}><span>© {new Date().getFullYear()} أودير. جميع الحقوق محفوظة.</span><span>تشغيل أوضح للمنشآت.</span></div>
   </footer>;
 }
 
@@ -187,7 +188,7 @@ function SystemSection({section}){
     <div className={styles.sectionInner}>
       <SectionHeading section={section}/>
       <div className={styles.systemMap}>
-        <div className={styles.systemCore}><Image src="/marktone-mark.svg" alt="" width={72} height={72}/><strong>ماركتون</strong><span>منظومة النمو</span></div>
+        <div className={styles.systemCore}><Image src="/marktone-mark.svg" alt="" width={72} height={72}/><strong>أودير</strong><span>منظومة التشغيل</span></div>
         {items.map((item,index)=><article key={`${item.title}-${index}`} className={styles.systemNode} style={{'--node':index}}>
           <span>{String(index+1).padStart(2,'0')}</span><h3>{item.title}</h3><p>{item.description}</p>
         </article>)}
@@ -274,7 +275,7 @@ function Contact({section}){
         </div>
         <label><span>ما التحدي الذي ترغب في حله؟ *</span><textarea name="message" required minLength={10} maxLength={5000} rows={5}/></label>
         <label className={styles.honeypot} aria-hidden="true"><span>Website</span><input name="website" tabIndex={-1} autoComplete="off"/></label>
-        <label className={styles.consent}><input type="checkbox" name="consent" value="yes"/><span>أوافق على تواصل فريق ماركتون بخصوص هذا الطلب.</span></label>
+        <label className={styles.consent}><input type="checkbox" name="consent" value="yes"/><span>أوافق على تواصل فريق أودير بخصوص هذا الطلب.</span></label>
         <button type="submit" disabled={state.status==='loading'}>{state.status==='loading'?'جارٍ الإرسال…':'إرسال طلب التواصل'}<span>↗</span></button>
         {state.message&&<p className={state.status==='success'?styles.formSuccess:styles.formError}>{state.message}{state.reference&&<small>رقم المرجع: {state.reference}</small>}</p>}
       </form>
@@ -286,7 +287,7 @@ function ArticlesPreview({articles}){
   const visible=useMemo(()=>articles.slice(0,3),[articles]);
   return <section className={`${styles.section} ${styles.articlePreview}`}>
     <div className={styles.sectionInner}>
-      <div className={styles.sectionHeading}><p className={styles.eyebrow}>المعرفة</p><h2>أحدث رؤى ماركتون</h2><p>أفكار عملية تساعد أصحاب القرار على بناء تشغيل أكثر وضوحًا ونمو أكثر استدامة.</p></div>
+      <div className={styles.sectionHeading}><p className={styles.eyebrow}>المعرفة</p><h2>أحدث رؤى أودير</h2><p>أفكار عملية تساعد أصحاب القرار على بناء تشغيل أكثر وضوحًا ونمو أكثر استدامة.</p></div>
       <div className={styles.articleGrid}>{visible.map(article=><ArticleCard key={article.id||article.slug} article={article}/>)}</div>
       <div className={styles.centerCta}><Link className={styles.primaryButton} href="/articles">عرض جميع المقالات <span>↗</span></Link></div>
     </div>
@@ -295,7 +296,7 @@ function ArticlesPreview({articles}){
 
 function ArticleCard({article}){
   return <Link href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.articleCard}>
-    <div className={styles.articleImage} style={article.coverUrl?{backgroundImage:`url(${article.coverUrl})`}:undefined}><span>{article.category||'رؤى ماركتون'}</span></div>
+    <div className={styles.articleImage} style={article.coverUrl?{backgroundImage:`url(${article.coverUrl})`}:undefined}><span>{article.category||'رؤى أودير'}</span></div>
     <div><time>{article.publishedAt?formatDate(article.publishedAt):'مقال'}</time><h3>{article.title}</h3><p>{article.excerpt}</p><strong>اقرأ المقال ←</strong></div>
   </Link>;
 }

@@ -4,8 +4,10 @@ import Link from 'next/link';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import baseStyles from './page-document-renderer.module.css';
 import proStyles from './page-document-renderer-pro.module.css';
+import odeirStyles from './odeir-product-preview.module.css';
+import OdeirBrand from './odeir-brand';
 
-const styles={...baseStyles,...proStyles};
+const styles={...baseStyles,...proStyles,...odeirStyles};
 const ICONS=['✦','↗','◎','◇','◌','⌁','▦','↳'];
 
 export function ModuleView({block,editor=false,target,onInlineEdit,onActivate,nested=false,pageCss=''}){
@@ -14,7 +16,7 @@ export function ModuleView({block,editor=false,target,onInlineEdit,onActivate,ne
   const common={id:p.anchor||undefined,className,style:blockStyle(s),'data-builder-type':block.type,'data-animation':s.animation&&s.animation!=='none'?s.animation:undefined};
   const edit=(path)=>({editor,target,path,onInlineEdit});
 
-  if(block.type==='hero')return <section {...common} className={`${className} ${styles.hero}`}><div className={styles.heroCopy}><Edit as="p" className={styles.eyebrow} value={p.eyebrow} {...edit('props.eyebrow')}/><Edit as="h1" value={p.title||'عنوان الصفحة'} {...edit('props.title')}/><Edit as="p" className={styles.lead} value={p.body} {...edit('props.body')}/><ButtonRow p={p} editor edit={edit}/></div><Visual image={p.imageUrl} alt={p.imageAlt}/></section>;
+  if(block.type==='hero')return <section {...common} className={`${className} ${styles.hero}`}><div className={styles.heroCopy}><Edit as="p" className={styles.eyebrow} value={p.eyebrow} {...edit('props.eyebrow')}/><Edit as="h1" value={p.title||'عنوان الصفحة'} {...edit('props.title')}/><Edit as="p" className={styles.lead} value={p.body} {...edit('props.body')}/><ButtonRow p={p} editor={editor} edit={edit}/></div><Visual image={p.imageUrl} alt={p.imageAlt} product={String(s.cssClass||'').split(/\s+/).includes('odeir-product-hero')}/></section>;
 
   if(['heading','fancyHeading'].includes(block.type)){const Tag=['h1','h2','h3','h4'].includes(p.level)?p.level:'h2';return <section {...common}><div className={`${styles.headingBlock} ${block.type==='fancyHeading'?styles.fancyHeading:''}`}><Edit as="p" className={styles.eyebrow} value={p.eyebrow} {...edit('props.eyebrow')}/><Edit as={Tag} value={p.title||'عنوان القسم'} {...edit('props.title')}/>{p.accent&&<span className={styles.headingAccent}>{p.accent}</span>}<Edit as="p" value={p.body} {...edit('props.body')}/></div></section>}
   if(block.type==='text')return <section {...common}><EditableTextBlock value={p.content} columns={p.columns} editor={editor} target={target} onInlineEdit={onInlineEdit}/></section>;
@@ -199,7 +201,20 @@ function ImportedTemplate({src,p,editor}){
   return <div style={{height:`${height}px`}}>{src?<iframe ref={frameRef} src={src} title={p.title||'قالب مستورد'} sandbox="allow-scripts" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen loading="lazy" referrerPolicy="no-referrer" tabIndex={editor?-1:0} style={editor?{pointerEvents:'none'}:undefined}/>:<Placeholder p={{title:'رابط القالب غير صالح',body:'أعد استيراد ملف ZIP من شريط أدوات المصمم.'}} type="widget"/>}{editor&&<span>قالب ZIP معزول · الارتفاع يتكيف تلقائيًا</span>}</div>;
 }
 
-function Visual({image,alt}){return <div className={styles.heroVisual} style={image?{backgroundImage:`url(${safeImage(image)})`}:undefined} role={image?'img':undefined} aria-label={alt||undefined}>{!image&&<><i/><i/><i/><strong>Marktone</strong><small>Live Builder</small></>}</div>}
+function Visual({image,alt,product=false}){
+  if(product&&!image)return <div className={`${styles.heroVisual} ${styles.odeirProductVisual}`} role="img" aria-label={alt||'معاينة لوحة أودير'}>
+    <div className={styles.odeirProductShell}>
+      <aside><OdeirBrand compact subtitle="" className={styles.odeirProductMiniBrand}/><i/><i/><i/><i/></aside>
+      <div>
+        <header><span><small>مساحة المنشأة</small><b>لوحة التشغيل</b></span><em>مباشر</em></header>
+        <section className={styles.odeirKpis}><span><small>عملاء جدد</small><b>186</b><i>+12%</i></span><span><small>مهام اليوم</small><b>24</b><i>7 مكتملة</i></span><span><small>بانتظار التسجيل</small><b>19</b><i>جاهز للمتابعة</i></span></section>
+        <section className={styles.odeirPipeline}><header><b>مسار العميل</b><small>من الاهتمام إلى التسجيل</small></header><div><span style={{'--bar':'92%'}}><i>جديد</i><b>186</b></span><span style={{'--bar':'63%'}}><i>تم التواصل</i><b>124</b></span><span style={{'--bar':'31%'}}><i>مهتم</i><b>42</b></span><span style={{'--bar':'17%'}}><i>مسجّل</i><b>13</b></span></div></section>
+      </div>
+    </div>
+    <span className={styles.odeirProductNote}>بيانات توضيحية</span>
+  </div>;
+  return <div className={styles.heroVisual} style={image?{backgroundImage:`url(${safeImage(image)})`}:undefined} role={image?'img':undefined} aria-label={alt||undefined}>{!image&&<><i/><i/><i/><strong>ODEIR</strong><small>VISUAL BUILDER</small></>}</div>;
+}
 function ButtonRow({p,editor,edit}){return <div className={styles.buttonRow}>{p.primaryLabel&&<SmartLink href={p.primaryHref} editor={editor} className={styles.primaryButton}><Edit as="span" value={p.primaryLabel} {...edit('props.primaryLabel')}/><span>↗</span></SmartLink>}{p.secondaryLabel&&<SmartLink href={p.secondaryHref} editor={editor} className={styles.secondaryButton}><Edit as="span" value={p.secondaryLabel} {...edit('props.secondaryLabel')}/><span>↗</span></SmartLink>}</div>}
 function SectionHead({p,edit}){return <div className={styles.sectionHeading}><Edit as="p" className={styles.eyebrow} value={p.eyebrow} {...edit('props.eyebrow')}/><Edit as="h2" value={p.title} {...edit('props.title')}/><Edit as="p" value={p.body} {...edit('props.body')}/></div>}
 function InfoCard({type,p,editor,edit}){

@@ -1,0 +1,47 @@
+.odeirProductVisual{
+  min-height:470px!important;
+  padding:24px!important;
+  place-content:stretch!important;
+  border:1px solid rgba(255,255,255,.13)!important;
+  border-radius:30px!important;
+  background:radial-gradient(circle at 80% 8%,rgba(19,199,209,.16),transparent 34%),rgba(255,255,255,.035)!important;
+  box-shadow:0 35px 95px rgba(0,0,0,.28);
+  text-align:right!important;
+  transform:perspective(1100px) rotateY(-3deg) rotateX(1deg)
+}
+.odeirProductVisual:before,.odeirProductVisual:after{display:none!important}
+.odeirProductShell{height:100%;min-height:392px;display:grid;grid-template-columns:62px minmax(0,1fr);overflow:hidden;border:1px solid rgba(255,255,255,.14);border-radius:20px;background:#f7f9fc;box-shadow:0 25px 60px rgba(0,0,0,.26);direction:ltr}
+.odeirProductShell>aside{display:flex;flex-direction:column;align-items:center;gap:17px;padding:16px 11px;background:linear-gradient(180deg,#06182e,#0b2949)}
+.odeirProductMiniBrand{margin:-6px 0 -2px;transform:scale(.72)}
+.odeirProductShell>aside i{width:22px;height:7px;border-radius:6px;background:rgba(255,255,255,.14)}
+.odeirProductShell>aside i:first-of-type{background:#f0c534;box-shadow:0 0 0 7px rgba(240,197,52,.09)}
+.odeirProductShell>div{min-width:0;padding:19px 18px;color:#06182e;direction:rtl}
+.odeirProductShell>div>header{display:flex;justify-content:space-between;align-items:center;padding-bottom:15px;border-bottom:1px solid #dce4ec}
+.odeirProductShell header span{display:grid;gap:4px}
+.odeirProductShell header small{color:#708096;font-size:8px}
+.odeirProductShell header b{font-size:14px}
+.odeirProductShell header em{padding:6px 9px;border-radius:999px;background:#daf7f8;color:#087c84;font-size:8px;font-style:normal;font-weight:800}
+.odeirKpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:17px}
+.odeirKpis>span{display:grid;gap:7px;min-width:0;padding:13px;border:1px solid #dce4ec;border-radius:13px;background:#fff;box-shadow:0 8px 20px rgba(6,24,46,.04)}
+.odeirKpis small{color:#728096;font-size:7px}
+.odeirKpis b{font:900 20px Arial;color:#06182e}
+.odeirKpis i{color:#087c84;font-size:7px;font-style:normal}
+.odeirPipeline{margin-top:11px;padding:15px;border:1px solid #dce4ec;border-radius:14px;background:#fff}
+.odeirPipeline>header{display:grid!important;justify-content:start!important;gap:3px;padding:0 0 12px!important;border:0!important}
+.odeirPipeline>header b{font-size:11px}
+.odeirPipeline>header small{color:#7d8b9e;font-size:7px}
+.odeirPipeline>div{display:grid;gap:11px}
+.odeirPipeline>div>span{position:relative;display:grid;grid-template-columns:1fr auto;gap:8px;padding-bottom:7px;color:#586b82}
+.odeirPipeline>div>span:after{content:"";position:absolute;right:0;bottom:0;width:var(--bar);height:5px;border-radius:5px;background:linear-gradient(90deg,#08b8b1,#13c7d1)}
+.odeirPipeline i{font-size:7px;font-style:normal}
+.odeirPipeline b{font:800 8px Arial}
+.odeirProductNote{position:absolute!important;z-index:3;left:38px;bottom:34px;padding:5px 8px;border-radius:999px;background:#06182e;color:#f0c534!important;font-size:7px;letter-spacing:0!important}
+@media(max-width:700px){
+  .odeirProductVisual{min-height:385px!important;padding:13px!important;transform:none}
+  .odeirProductShell{grid-template-columns:46px minmax(0,1fr);min-height:340px}
+  .odeirProductShell>aside{padding-inline:7px}
+  .odeirProductShell>div{padding:14px 11px}
+  .odeirKpis{grid-template-columns:1fr 1fr}
+  .odeirKpis>span:last-child{display:none}
+  .odeirProductNote{left:23px;bottom:21px}
+}

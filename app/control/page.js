@@ -14,7 +14,7 @@ const AREAS=[
   {capability:'billing',title:'اشتراكات المنشآت',description:'دورة حياة الاشتراكات والتجارب والتجديد والإيقاف.',href:'/control/subscriptions',icon:'◫'},
   {capability:'billing',title:'المدفوعات والتحصيل',description:'العمليات المالية والطلبات غير المحصلة والتحقق من الدفع.',href:'/control/payments',icon:'◉'},
   {capability:'content',title:'المحتوى والمعارف',description:'تحرير الأخبار والمعارف وإدارة مصادر المحتوى.',href:'/control/content',icon:'✦'},
-  {capability:'website',title:'الموقع الإلكتروني',description:'إدارة صفحات ماركتون والمقالات والقوائم والبيلدر.',href:'/control/website',icon:'◇'},
+  {capability:'website',title:'الموقع الإلكتروني',description:'إدارة صفحات أودير والمقالات والقوائم والبيلدر.',href:'/control/website',icon:'◇'},
   {capability:'access',title:'فريق المنصة والصلاحيات',description:'إضافة الموظفين وبناء الأدوار وتحديد الصلاحيات.',href:'/control/team',icon:'♙'},
   {capability:'settings',title:'إعدادات المنصة',description:'إدارة التكاملات والإعدادات المركزية.',href:'/control/settings',icon:'⚙'}
 ];

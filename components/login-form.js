@@ -41,11 +41,11 @@ export default function LoginForm(){
 
   return <form className="auth-form" onSubmit={submit}>
     {invitationToken&&<div className="form-success">سجّل الدخول بالبريد المدعو وسيتم ربط حسابك بالمنشأة تلقائيًا.</div>}
-    {platformInvitationToken&&<div className="form-success">سجّل الدخول بالبريد المدعو وسيتم ربط حسابك بفريق إدارة منصة ماركتون حسب الدور المحدد.</div>}
+    {platformInvitationToken&&<div className="form-success">سجّل الدخول بالبريد المدعو وسيتم ربط حسابك بفريق إدارة أودير حسب الدور المحدد.</div>}
     <label>البريد الإلكتروني<input name="email" type="email" defaultValue={hasInvitation?'':'admin@marktone.sa'} autoComplete="email" required/></label>
     <label>كلمة المرور<input name="password" type="password" autoComplete="current-password" required/></label>
     {error&&<div className="form-error">{error}</div>}
     <button disabled={loading}>{loading?'جارٍ التحقق...':hasInvitation?'تسجيل الدخول وقبول الدعوة':'تسجيل الدخول'}</button>
-    <small>الدخول محمي ومربوط بصلاحيات ماركتون الدقيقة على مستوى المنصة والمنشآت.</small>
+    <small>الدخول محمي ومربوط بصلاحيات أودير الدقيقة على مستوى المنصة والمنشآت.</small>
   </form>;
 }

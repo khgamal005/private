@@ -7,7 +7,7 @@ export default async function ControlLayout({children}){
   const context=await requirePlatform();
   return <WorkspaceShell
     kind="platform"
-    title="Marktone Platform Control"
+    title="ODEIR Platform Control"
     email={context.subject.email}
     userName={context.subject.fullName}
     permissions={context.platformPermissions||[]}

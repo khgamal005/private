@@ -134,16 +134,16 @@ function FreeTrialLanding() {
   }
   return <main dir="rtl" className="free-trial-route site-shell">
       <header className="site-header">
-        <a className="brand" href="/" aria-label="ماركتون - الصفحة الرئيسية">
-          <span className="brand-mark">M</span>
+        <a className="brand" href="/" aria-label="أودير - الصفحة الرئيسية">
+          <span className="brand-mark">O</span>
           <span>
-            <b>ماركتون <em className="flow-name">FLOW</em></b>
-            <small>نظام تشغيل منشآت التدريب</small>
+            <b>أودير <em className="flow-name">ODEIR</em></b>
+            <small>منصة إدارة المنشآت</small>
           </span>
         </a>
         <nav aria-label="التنقل الرئيسي">
           <a href="/">الرئيسية</a>
-          <a href="#platform">لماذا فلو؟</a>
+          <a href="#platform">لماذا أودير؟</a>
           <a href="#journey">رحلة العمل</a>
           <a href="#modules">المزايا</a>
           <a href="#guide">دليل وظيفتي</a>
@@ -156,15 +156,15 @@ function FreeTrialLanding() {
       <section id="top" className="hero">
         <div className="hero-copy">
           <span className="eyebrow"><SparkIcon /> صُمم خصيصًا لمنشآت التدريب في السعودية</span>
-          <div className="product-name" aria-label="ماركتون فلو">
-            <span>MARKTONE</span><b>FLOW</b><i>منصة التشغيل والنمو</i>
+          <div className="product-name" aria-label="منصة أودير">
+            <span>ODEIR</span><b>ONE</b><i>منصة التشغيل والإدارة</i>
           </div>
           <h1>
             من أول إعلان إلى متدرب مسجّل.
             <span>كل الرحلة في مسار واحد.</span>
           </h1>
           <p className="hero-lead">
-            ماركتون فلو يوحّد التسويق والمبيعات والتسجيل والدورات والفوترة والتقارير،
+            أودير يوحّد التسويق والمبيعات والتسجيل والدورات والفوترة والتقارير،
             ويجعل كل موظف يعرف مهمته التالية دون أن يضيع عميل أو تتكرر البيانات.
           </p>
           <div className="trust-row">
@@ -178,7 +178,7 @@ function FreeTrialLanding() {
           </div>
         </div>
 
-        <section id="trial-card" className="trial-card" aria-label="طلب تجربة ماركتون">
+        <section id="trial-card" className="trial-card" aria-label="تسجيل منشأة في أودير">
           <div className="stepper" aria-label={`الخطوة ${activeStep} من 4`}>
             {["ابحث", "تأكد", "بياناتك", "تم"].map((label, index) => <div key={label} className={activeStep >= index + 1 ? "step active" : "step"}>
                 <i>{activeStep > index + 1 ? "✓" : index + 1}</i>
@@ -244,7 +244,7 @@ function FreeTrialLanding() {
 
               <button type="button" className="new-institution" onClick={startNew}>
                 <span><PlusIcon /></span>
-                <span><b>منشأتك جديدة أو غير موجودة؟</b><small>أضفها للمراجعة وابدأ طلب التجربة</small></span>
+                <span><b>منشأتك جديدة أو غير موجودة؟</b><small>أضفها للمراجعة وابدأ التسجيل المجاني</small></span>
                 <ArrowIcon />
               </button>
               <p className="privacy-line"><LockIcon /> لا نعرض بيانات اتصال كاملة قبل التحقق من ملكية المنشأة.</p>
@@ -274,7 +274,7 @@ function FreeTrialLanding() {
                   </div> : <div className="responsible-missing">
                     <InfoIcon /> لا يوجد مسؤول معتمد في السجل بعد؛ سنأخذ بياناتك للمراجعة.
                   </div>}
-                <footer><DatabaseIcon /><span>مصدر البيانات: Marktone CRM</span><i>قراءة فقط</i></footer>
+                <footer><DatabaseIcon /><span>سجل المنشآت في أودير</span><i>قراءة فقط</i></footer>
               </article>
               <div className="alert info"><ShieldIcon /> البيانات الحساسة مقنّعة لحماية المنشأة، وسيتم التحقق منها عند مراجعة الطلب.</div>
               <div className="form-actions">
@@ -286,7 +286,7 @@ function FreeTrialLanding() {
           {step === "form" && <form className="trial-body contact-form" onSubmit={submit}>
               <div className="card-heading">
                 <span className="heading-icon"><UserIcon /></span>
-                <div><small>بيانات مسؤول الطلب</small><h2>{isNew ? "أضف منشأة جديدة" : "جهّز التجربة المجانية"}</h2></div>
+                <div><small>بيانات مسؤول الطلب</small><h2>{isNew ? "أضف منشأة جديدة" : "جهّز حساب منشأتك"}</h2></div>
               </div>
               {isNew && <div className="field-grid">
                   <Field label="اسم المنشأة الرسمي" required value={form.institutionName} onChange={(value) => update("institutionName", value)} placeholder="اسم المركز أو المعهد" />
@@ -315,13 +315,13 @@ function FreeTrialLanding() {
               </div>
               <label className="consent-row">
                 <input type="checkbox" checked={form.privacyConsent} onChange={(event) => update("privacyConsent", event.target.checked)} />
-                <span>أوافق على استخدام البيانات للتحقق من المنشأة وتجهيز الطلب والتواصل بشأن التجربة.</span>
+                <span>أوافق على <a href="/p/privacy-policy" target="_blank" rel="noreferrer">سياسة الخصوصية</a> واستخدام البيانات للتحقق من المنشأة وتجهيز الحساب والتواصل بشأن التفعيل.</span>
               </label>
               {error && <div className="alert error" role="alert">{error}</div>}
               <div className="form-actions">
                 <button type="button" className="secondary-button" onClick={() => setStep(isNew ? "search" : "details")}>رجوع</button>
                 <button className="primary-button" disabled={busy === "submit" || !form.tvtcAcknowledged || !form.privacyConsent}>
-                  {busy === "submit" ? <><Spinner /> جارٍ إرسال الطلب…</> : <>إرسال طلب التجربة <ArrowIcon /></>}
+                  {busy === "submit" ? <><Spinner /> جارٍ إرسال الطلب…</> : <>إرسال طلب التسجيل <ArrowIcon /></>}
                 </button>
               </div>
             </form>}
@@ -329,7 +329,7 @@ function FreeTrialLanding() {
           {step === "success" && <div className="trial-body success-state">
               <span className="success-orbit"><CheckIcon /></span>
               <small>تم استلام طلبك بنجاح</small>
-              <h2>مرحبًا بك في بداية تجربة ماركتون</h2>
+              <h2>مرحبًا بمنشأتك في أودير</h2>
               <p>وصل تنبيه لفريق المراجعة، وسنراجع بيانات المنشأة ثم نرد على بريدك خلال يوم عمل.</p>
               <div className="reference-box"><span>رقم الطلب</span><b>{reference}</b><small>احتفظ به للمتابعة</small></div>
               <div className="next-steps">
@@ -357,7 +357,7 @@ function FreeTrialLanding() {
 
       <section id="platform" className="platform-section">
         <div className="platform-copy">
-          <span className="section-kicker">لماذا ماركتون فلو؟</span>
+          <span className="section-kicker">لماذا أودير؟</span>
           <h2>المشكلة ليست في نقص التطبيقات.<br />المشكلة أن رحلة العميل مقطّعة.</h2>
           <p>
             إعلان في منصة، عميل في ملف، متابعة في واتساب، فاتورة في نظام آخر،
@@ -372,7 +372,7 @@ function FreeTrialLanding() {
         <div className="flow-map" aria-label="رحلة البيانات الموحدة">
           <div className="flow-map-head">
             <span className="live-dot" />
-            <div><small>MARKTONE FLOW</small><b>مركز تشغيل المنشأة</b></div>
+            <div><small>ODEIR</small><b>مركز تشغيل المنشأة</b></div>
             <em>متصل</em>
           </div>
           <div className="flow-lanes">
@@ -394,9 +394,9 @@ function FreeTrialLanding() {
           <h2>لوحة قيادة لا تكتفي بعرض الأرقام؛ بل تقود الإجراء التالي</h2>
           <p>كل بطاقة قابلة للفتح، وكل مؤشر يقود لتفاصيله، وكل رقم مرتبط بسجل حقيقي داخل رحلة العمل.</p>
         </div>
-        <div className="product-window" aria-label="معاينة توضيحية للوحة ماركتون فلو">
+        <div className="product-window" aria-label="معاينة توضيحية للوحة أودير">
           <aside className="preview-sidebar">
-            <div className="preview-brand"><span>M</span><b>FLOW</b></div>
+            <div className="preview-brand"><span>O</span><b>ODEIR</b></div>
             {[
     ["لوحة القيادة", "active"],
     ["تقويم المهام", ""],
@@ -494,7 +494,7 @@ function FreeTrialLanding() {
           </ul>
         </div>
         <div className="guide-demo" aria-label="معاينة دليل وظيفتي">
-          <header><span><GuideIcon /></span><div><small>MARKTONE ROLE GUIDE</small><b>وظيفتي</b><p>رحلة تسليم المهام</p></div><i>×</i></header>
+          <header><span><GuideIcon /></span><div><small>ODEIR ROLE GUIDE</small><b>وظيفتي</b><p>رحلة تسليم المهام</p></div><i>×</i></header>
           <div className="guide-tabs"><button>دوري</button><button>مهام اليوم</button><button className="active">تسليم المهام</button></div>
           <div className="handoff-flow">
             {[
@@ -537,11 +537,11 @@ function FreeTrialLanding() {
           <span className="section-kicker">أسئلة قبل أن تبدأ</span>
           <h2>تجربة واضحة بلا مفاجآت.</h2>
           <p>نجهز مساحة تناسب عملك فعلًا، لا حسابًا فارغًا يتركك وحدك أمام القوائم.</p>
-          <a href="#trial-card">ابدأ طلب التجربة <ArrowIcon /></a>
+          <a href="#trial-card">سجّل منشأتك <ArrowIcon /></a>
         </div>
         <div className="faq-list">
-          <details open><summary>هل التجربة المجانية تحتاج بطاقة بنكية؟<PlusIcon /></summary><p>لا. التجربة لمدة 14 يومًا ولا تتطلب بطاقة أو التزامًا بالشراء.</p></details>
-          <details><summary>هل يجب نقل بياناتنا الحالية لبدء التجربة؟<PlusIcon /></summary><p>لا. نبدأ ببيانات توضيحية ومسار يشبه عملكم، ثم نضع خطة النقل والربط بعد اعتمادكم.</p></details>
+          <details open><summary>هل التسجيل المجاني يحتاج بطاقة بنكية؟<PlusIcon /></summary><p>لا. الحساب الأساسي لا يتطلب بطاقة أو التزامًا بالشراء، وقد تُتاح إضافات اختيارية عند الحاجة.</p></details>
+          <details><summary>هل يجب نقل بياناتنا الحالية عند التسجيل؟<PlusIcon /></summary><p>لا. تبدأ بمساحة منظمتك، ثم تحدد خطة النقل والربط فقط عندما تكون جاهزًا.</p></details>
           <details><summary>هل يناسب مركزًا صغيرًا ومعهدًا متعدد الفروع؟<PlusIcon /></summary><p>نعم. الوحدات والصلاحيات ومسارات الاعتماد قابلة للتهيئة حسب حجم المنشأة وهيكل الفريق.</p></details>
           <details><summary>ماذا يحدث بعد إرسال الطلب؟<PlusIcon /></summary><p>نراجع صفة المنشأة وبيانات المسؤول، ثم نتواصل خلال يوم عمل لتجهيز المساحة والأدوار المناسبة.</p></details>
           <details><summary>هل يمكن ربط المتجر والإعلانات والاتصالات؟<PlusIcon /></summary><p>فلو مهيأ للتكامل عبر الواجهات الرسمية، ويُحدد الربط المتاح بعد مراجعة مزودي حسابات منشأتك.</p></details>
@@ -549,15 +549,15 @@ function FreeTrialLanding() {
       </section>
 
       <section className="closing-cta">
-        <div className="cta-orbit"><span>M</span><i /><i /><i /></div>
-        <div><small>14 يومًا — دون بطاقة بنكية</small><h2>اجعل منشأتك تتحرك في مسار واحد.</h2><p>ابحث عن منشأتك، وسنجهز فلو وفق أدوار فريقك.</p></div>
-        <a href="#trial-card">ابدأ التجربة المجانية <ArrowIcon /></a>
+        <div className="cta-orbit"><span>O</span><i /><i /><i /></div>
+        <div><small>حساب أساسي — دون بطاقة بنكية</small><h2>اجعل منشأتك تتحرك في مسار واحد.</h2><p>ابحث عن منشأتك، وسنجهز أودير وفق أدوار فريقك.</p></div>
+        <a href="#trial-card">سجّل منشأتك مجانًا <ArrowIcon /></a>
       </section>
 
       <footer className="site-footer">
-        <div className="brand"><span className="brand-mark">M</span><span><b>ماركتون <em className="flow-name">FLOW</em></b><small>نظام تشغيل منشآت التدريب</small></span></div>
+        <div className="brand"><span className="brand-mark">O</span><span><b>أودير <em className="flow-name">ODEIR</em></b><small>منصة إدارة المنشآت</small></span></div>
         <p>بيانات المنشآت محمية، وتُعرض تفاصيل الاتصال بصيغة مقنّعة حتى التحقق.</p>
-        <span>© 2026 Marktone</span>
+        <span>© 2026 ODEIR</span>
       </footer>
     </main>;
 }

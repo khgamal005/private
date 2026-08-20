@@ -1,9 +1,9 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import PageDocumentRenderer from './page-document-renderer';
+import OdeirBrand from './odeir-brand';
 import {buildMenuTree,formatCmsDate} from '../lib/cms';
 import publicStyles from './public-site.module.css';
 import styles from './built-public-page.module.css';
@@ -57,8 +57,8 @@ function Header({menu,settings,site}){
         {tree.map(item=><MenuNode key={item.id||`${item.label}-${item.href}`} item={item} tenantPrefix={tenantPrefix} expanded={expanded} setExpanded={setExpanded} close={()=>setOpen(false)}/>)}
       </nav>
       <div className={publicStyles.headerActions}>
-        <SmartLink href={settings.customerLoginUrl||'/login'} className={publicStyles.loginButton}>{settings.customerLoginLabel||'دخول العملاء'}</SmartLink>
-        <SmartLink href={settings.contactCtaUrl||'#contact'} className={publicStyles.primaryButton}>{settings.contactCtaLabel||'تواصل معنا'}<span>↗</span></SmartLink>
+        <SmartLink href={settings.customerLoginUrl||'/login'} className={publicStyles.loginButton}>{settings.customerLoginLabel||'تسجيل دخول المنشآت'}</SmartLink>
+        <SmartLink href={settings.contactCtaUrl||'/free-trial/apply'} className={publicStyles.primaryButton}>{settings.contactCtaLabel||'سجّل منشأتك مجانًا'}<span>↗</span></SmartLink>
       </div>
       <button type="button" className={publicStyles.menuToggle} aria-expanded={open} aria-label={open?'إغلاق القائمة':'فتح القائمة'} onClick={()=>setOpen(value=>!value)}><span/><span/><span/></button>
     </div>
@@ -106,18 +106,18 @@ function Footer({menu,settings,site}){
   return <footer className={publicStyles.footer}>
     <div className={publicStyles.footerTop}>
       <div><SiteLogo site={site} settings={settings}/><p>{settings.footerText||`${site.nameAr||'الموقع'} — تجربة رقمية متكاملة.`}</p></div>
-      <nav aria-label="روابط الموقع">{tree.slice(0,10).map(item=><SmartLink key={item.id} href={rewriteHref(item.href,prefix)}>{item.label}</SmartLink>)}<SmartLink href={`${prefix}/articles`}>المقالات</SmartLink><SmartLink href={settings.customerLoginUrl||'/login'}>دخول العملاء</SmartLink></nav>
+      <nav aria-label="روابط الموقع">{tree.slice(0,10).map(item=><SmartLink key={item.id} href={rewriteHref(item.href,prefix)}>{item.label}</SmartLink>)}<SmartLink href={settings.customerLoginUrl||'/login'}>تسجيل دخول المنشآت</SmartLink></nav>
       <div className={publicStyles.footerContact}><strong>تواصل معنا</strong>{settings.contactEmail&&<a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a>}{settings.contactPhone&&<a href={`tel:${settings.contactPhone}`}>{settings.contactPhone}</a>}{settings.country&&<span>{settings.country}</span>}</div>
     </div>
-    <div className={publicStyles.footerBottom}><span>© {new Date().getFullYear()} {site.nameAr||'Marktone'}. جميع الحقوق محفوظة.</span><span>مدعوم بواسطة Marktone CMS.</span></div>
+    <div className={publicStyles.footerBottom}><span>© {new Date().getFullYear()} {site.nameAr||'أودير'}. جميع الحقوق محفوظة.</span><span>ODEIR — تشغيل أوضح للمنشآت.</span></div>
   </footer>;
 }
 
-function SiteBrand({site,settings}){const prefix=sitePrefix(site);return <Link href={prefix||'/'} className={`${publicStyles.brand} ${styles.siteBrand}`} aria-label={`${site.nameAr||'الموقع'} - الرئيسية`}><SiteLogo site={site} settings={settings}/></Link>}
+function SiteBrand({site,settings}){const prefix=sitePrefix(site);return <Link href={settings.homeUrl||prefix||'/'} className={`${publicStyles.brand} ${styles.siteBrand}`} aria-label={`${site.nameAr||'الموقع'} - الرئيسية`}><SiteLogo site={site} settings={settings}/></Link>}
 function SiteLogo({site,settings}){
   if(settings.logoUrl)return <img src={safeImage(settings.logoUrl)} alt={site.nameAr||site.nameEn||'Logo'} className={styles.customLogo}/>;
-  if(site.key==='marktone-main')return <Image src="/marktone-logo-light.svg" alt="Marktone" width={802} height={221} priority/>;
-  return <span className={styles.textLogo}><b>{site.nameAr||'الموقع'}</b><small>Powered by Marktone</small></span>;
+  if(site.key==='marktone-main'||settings.brandKey==='odeir')return <OdeirBrand subtitle="منصة إدارة المنشآت"/>;
+  return <span className={styles.textLogo}><b>{site.nameAr||'الموقع'}</b><small>Powered by ODEIR</small></span>;
 }
 function ArticleCard({article,site}){const prefix=sitePrefix(site);return <Link href={`${prefix}/articles/${encodeURIComponent(article.slug)}`} className={styles.articleCard}><div className={styles.articleCover} style={article.coverUrl?{backgroundImage:`url(${safeImage(article.coverUrl)})`}:undefined}><span>{article.category||'مقال'}</span>{article.featured&&<b>مميز</b>}</div><div><small>{formatCmsDate(article.publishedAt,{time:false})}{article.readingMinutes?` · ${article.readingMinutes} دقائق`:''}</small><h2>{article.title}</h2><p>{article.excerpt||'اقرأ المقال الكامل واكتشف التفاصيل.'}</p><strong>قراءة المقال ←</strong></div></Link>}
 function SmartLink({href='#',children,className='',newTab=false,onClick}){const target=safeHref(href)||'#';const external=/^https?:\/\//i.test(target);if(external||target.startsWith('#')||target.startsWith('mailto:')||target.startsWith('tel:'))return <a href={target} className={className} target={newTab?'_blank':undefined} rel={newTab?'noreferrer':undefined} onClick={onClick}>{children}</a>;return <Link href={target} className={className} target={newTab?'_blank':undefined} rel={newTab?'noreferrer':undefined} onClick={onClick}>{children}</Link>}

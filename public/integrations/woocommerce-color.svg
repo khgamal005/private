@@ -1,0 +1,5 @@
+<svg role="img" aria-labelledby="woo-title" viewBox="0 0 88 64" xmlns="http://www.w3.org/2000/svg">
+  <title id="woo-title">WooCommerce</title>
+  <path d="M8 8h72a8 8 0 0 1 8 8v27a8 8 0 0 1-8 8H47L35 60l3-9H8a8 8 0 0 1-8-8V16a8 8 0 0 1 8-8Z" fill="#9654D4"/>
+  <text x="44" y="38" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="22" font-style="italic" font-weight="900" text-anchor="middle">Woo</text>
+</svg>

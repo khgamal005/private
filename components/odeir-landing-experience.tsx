@@ -431,32 +431,76 @@ function MorningBriefing({ articles = [] }: { articles?: LandingArticle[] }) {
   );
 }
 
+const JOURNEY_SOURCES = [
+  { key: "meta", label: "Meta", description: "إعلانات ورسائل", logo: "/integrations/meta-color.svg" },
+  { key: "whatsapp", label: "WhatsApp", description: "التواصل مع العملاء", logo: "/integrations/whatsapp-color.svg" },
+  { key: "salla", label: "سلة", description: "التجارة الإلكترونية", logo: "/integrations/salla-color.svg" },
+  { key: "zid", label: "زد", description: "إدارة المتاجر", logo: "/integrations/zid-color.svg" },
+  { key: "woo", label: "WooCommerce", description: "التجارة الإلكترونية", logo: "/integrations/woocommerce-color.svg" },
+] as const;
+
 function StoryStrip() {
   const [active, setActive] = useState(0);
-  const items = [
-    ["وصل العميل", "من إعلان، واتساب أو متجرك"],
-    ["اتوزّع بوضوح", "على الموظف المناسب وفي وقته"],
-    ["اتسجل كل تواصل", "مكالمة، ملاحظة، وموعد متابعة"],
-    ["اكتمل التسجيل", "والإدارة شايفة الرحلة كاملة"],
-  ] as const;
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(() => setActive((value) => (value + 1) % items.length), 2300);
+    const timer = window.setInterval(() => setActive((value) => (value + 1) % JOURNEY_SOURCES.length), 2200);
     return () => window.clearInterval(timer);
-  }, [items.length]);
+  }, []);
   return (
     <section className="story-section section" id="story">
       <div className="section-kicker" data-reveal><span>01</span> المشكلة مو في فريقك</div>
       <div className="story-head" data-reveal><h2>المشكلة في رحلة متفرقة<br />بين خمس شاشات.</h2><p>عميل في الواتساب، طلب في المتجر، مكالمة في السنترال، وموعد داخل ملف موظف. أودير يجمع الرحلة بدل ما يضيف عليك شاشة جديدة.</p></div>
       <div className="story-flow" data-reveal>
         <div className="source-stack" aria-label="مصادر العملاء">
-          <span className="source source--meta"><i>∞</i><b>Meta</b></span><span className="source source--wa"><i>☎</i><b>WhatsApp</b></span><span className="source source--salla"><i>س</i><b>سلة</b></span><span className="source source--zid"><i>ز</i><b>زد</b></span><span className="source source--woo"><i>Woo</i><b>WooCommerce</b></span>
+          {JOURNEY_SOURCES.map((source, index) => (
+            <button
+              className={`source source--${source.key}${active === index ? " is-active" : ""}`}
+              type="button"
+              aria-pressed={active === index}
+              onClick={() => setActive(index)}
+              onFocus={() => setActive(index)}
+              onPointerEnter={() => setActive(index)}
+              key={source.key}
+            >
+              <span className="source-logo"><Image src={source.logo} width={64} height={64} alt="" /></span>
+              <span className="source-copy"><b dir="auto">{source.label}</b><small dir="auto">{source.description}</small></span>
+              <span className="source-signal" aria-hidden="true" />
+            </button>
+          ))}
         </div>
-        <div className="flow-lines" aria-hidden="true"><span /><span /><span /></div>
-        <div className="odeir-core"><Brand compact /><small>مسار واحد</small><b>عميل واضح.<br />خطوة واضحة.</b></div>
-        <div className="flow-lines flow-lines--out" aria-hidden="true"><span /><span /><span /></div>
-        <div className="outcomes">
-          {items.map(([title, copy], index) => <button key={title} type="button" className={active === index ? "outcome is-active" : "outcome"} onClick={() => setActive(index)}><i>{String(index + 1).padStart(2, "0")}</i><span><b>{title}</b><small>{copy}</small></span></button>)}
+        <div className="journey-network" aria-label="تجميع قنوات العميل في مسار واحد داخل أودير">
+          <svg className="journey-network-map" viewBox="0 0 760 520" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="journey-line-gradient" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#9af8f4" stopOpacity=".15" /><stop offset=".52" stopColor="#22d9d0" stopOpacity=".95" /><stop offset="1" stopColor="#61e9ff" stopOpacity=".3" /></linearGradient>
+              <filter id="journey-line-glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+            </defs>
+            <path className="journey-spine" d="M380 48V168" />
+            <path className={`journey-line${active === 0 ? " is-active" : ""}`} d="M100 78C210 78 232 172 292 214" />
+            <path className={`journey-line${active === 1 ? " is-active" : ""}`} d="M660 78C550 78 528 172 468 214" />
+            <path className={`journey-line${active === 2 ? " is-active" : ""}`} d="M86 234C177 234 215 257 246 278" />
+            <path className={`journey-line${active === 3 ? " is-active" : ""}`} d="M674 234C583 234 545 257 514 278" />
+            <path className={`journey-line${active === 4 ? " is-active" : ""}`} d="M120 406C202 406 220 365 252 350" />
+            <path className={`journey-line-trace${active === 0 ? " is-active" : ""}`} d="M100 78C210 78 232 172 292 214" />
+            <path className={`journey-line-trace${active === 1 ? " is-active" : ""}`} d="M660 78C550 78 528 172 468 214" />
+            <path className={`journey-line-trace${active === 2 ? " is-active" : ""}`} d="M86 234C177 234 215 257 246 278" />
+            <path className={`journey-line-trace${active === 3 ? " is-active" : ""}`} d="M674 234C583 234 545 257 514 278" />
+            <path className={`journey-line-trace${active === 4 ? " is-active" : ""}`} d="M120 406C202 406 220 365 252 350" />
+          </svg>
+          <span className="network-beacon" aria-hidden="true"><i /></span>
+          {JOURNEY_SOURCES.map((source, index) => (
+            <span className={`network-node network-node--${source.key}${active === index ? " is-active" : ""}`} aria-hidden="true" key={`node-${source.key}`}>
+              <Image src={source.logo} width={70} height={70} alt="" />
+            </span>
+          ))}
+          <div className="odeir-core">
+            <span className="core-orbit core-orbit--outer" aria-hidden="true" />
+            <span className="core-orbit core-orbit--inner" aria-hidden="true" />
+            <Brand compact />
+            <small>مسار واحد</small>
+            <b>عميل واضح.<br />خطوة واحدة.</b>
+            <span className="core-pulse" aria-hidden="true" />
+          </div>
+          <span className="network-platform" aria-hidden="true" />
         </div>
       </div>
     </section>

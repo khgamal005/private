@@ -34,10 +34,11 @@ test('ODEIR registration and authentication entry points carry the new identity'
 });
 
 test('ODEIR production homepage uses the interactive, builder-backed landing experience',async()=>{
-  const [page,landing,styles]=await Promise.all([
+  const [page,landing,styles,...journeyLogos]=await Promise.all([
     read('app/page.js'),
     read('components/odeir-landing-experience.tsx'),
-    read('app/odeir-landing-experience.css')
+    read('app/odeir-landing-experience.css'),
+    ...['meta-color.svg','whatsapp-color.svg','salla-color.svg','zid-color.svg','woocommerce-color.svg'].map(name=>read(`public/integrations/${name}`))
   ]);
   assert.match(page,/OdeirLandingExperience/);
   assert.match(page,/landingCms\(snapshot,home\)/);
@@ -57,6 +58,17 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(landing,/heroShellRef/);
   assert.match(landing,/className="odeir-home-hero"/);
   assert.doesNotMatch(landing,/className="hero"/);
+  for(const logo of ['/integrations/meta-color.svg','/integrations/whatsapp-color.svg','/integrations/salla-color.svg','/integrations/zid-color.svg','/integrations/woocommerce-color.svg']){
+    assert.match(landing,new RegExp(logo.replaceAll('/','\\/')));
+  }
+  for(const asset of journeyLogos) assert.match(asset,/<svg[^>]+viewBox=/);
+  assert.match(landing,/className="journey-network"/);
+  assert.match(landing,/className="journey-network-map"/);
+  assert.match(landing,/className="core-orbit core-orbit--outer"/);
+  assert.match(landing,/إعلانات ورسائل/);
+  assert.match(landing,/التواصل مع العملاء/);
+  assert.match(landing,/إدارة المتاجر/);
+  assert.doesNotMatch(landing,/<i>☎<\/i>|source--wa(?:[\s"'])/);
   assert.match(styles,/\.odeir-experience \.hero-shell/);
   assert.match(styles,/\.odeir-experience \.odeir-home-hero/);
   assert.match(styles,/\.hero-copy h1 \.hero-title-mobile/);
@@ -65,6 +77,10 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(styles,/\.site-header \.brand \{ padding: 0 !important; gap: 0 !important; \}/);
   assert.match(styles,/\.mobile-hero-snapshot/);
   assert.match(styles,/\.morning-section/);
+  assert.match(styles,/\.journey-network-map/);
+  assert.match(styles,/@keyframes network-signal/);
+  assert.match(styles,/@keyframes core-breathe/);
+  assert.match(styles,/\.network-node--whatsapp/);
   assert.doesNotMatch(styles,/@scope/);
   assert.doesNotMatch(landing,/ريف|reef/i);
   assert.doesNotMatch(page,/knowledge\/feed|tenantSlug|reef/i);

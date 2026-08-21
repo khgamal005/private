@@ -301,35 +301,68 @@
 .odeir-experience .story-head { margin-top: 28px; display: grid; grid-template-columns: 1.1fr .75fr; align-items: end; gap: 90px; }
 .odeir-experience .story-head h2, .odeir-experience .product-intro h2 { margin: 0; color: var(--ink); font-size: clamp(42px, 4.8vw, 70px); line-height: 1.18; letter-spacing: -.05em; }
 .odeir-experience .story-head p, .odeir-experience .product-intro p { margin: 0; color: var(--ink-soft); font-size: 17px; line-height: 1.95; }
-.odeir-experience .story-flow { margin-top: 78px; padding: 44px; display: grid; grid-template-columns: 1fr 100px .72fr 100px 1.12fr; align-items: center; gap: 16px; border: 1px solid var(--line-light); border-radius: var(--radius-xl); background: #fff; box-shadow: 0 28px 90px rgba(18,37,65,.07); }
-.odeir-experience .source-stack { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; direction: ltr; }
-.odeir-experience .source { min-height: 64px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; border: 1px solid #e6eaef; border-radius: 14px; background: #fafbfd; color: #26384f; }
-.odeir-experience .source:last-child { grid-column: 1 / -1; }
-.odeir-experience .source i { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 10px; font-size: 12px; font-style: normal; font-weight: 900; }
-.odeir-experience .source b { font-size: 11px; }
-.odeir-experience .source--meta i { color: #087cf0; background: #edf5ff; font-size: 22px; }
-.odeir-experience .source--wa i { color: #fff; background: #22c76b; }
-.odeir-experience .source--salla i { color: #6137a0; background: #f0eafd; }
-.odeir-experience .source--zid i { color: #132019; background: #d7f0d6; }
-.odeir-experience .source--woo i { width: 44px; color: #fff; background: #8954c4; font-size: 9px; }
-.odeir-experience .flow-lines { position: relative; height: 160px; }
-.odeir-experience .flow-lines span { position: absolute; right: 0; width: 100%; height: 1px; background: linear-gradient(90deg, rgba(8,200,187,.1), rgba(8,200,187,.75)); transform-origin: right; }
-.odeir-experience .flow-lines span::after { content: ""; position: absolute; top: -3px; left: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 6px rgba(8,200,187,.12); animation: flow-dot 2.5s ease-in-out infinite; }
-.odeir-experience .flow-lines span:nth-child(1) { top: 25%; transform: rotate(16deg); }
-.odeir-experience .flow-lines span:nth-child(2) { top: 50%; }
-.odeir-experience .flow-lines span:nth-child(3) { top: 75%; transform: rotate(-16deg); }
-.odeir-experience .flow-lines--out { transform: scaleX(-1); }
-.odeir-experience .odeir-core { aspect-ratio: 1; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1px solid rgba(8,200,187,.25); border-radius: 50%; background: radial-gradient(circle at 50% 35%, #0b3152, #04172e 70%); box-shadow: 0 20px 50px rgba(3,22,45,.22), inset 0 0 0 12px rgba(255,255,255,.025); }
-.odeir-experience .odeir-core small { margin-top: 16px; color: #7fa3b9; font-size: 8px; }
-.odeir-experience .odeir-core > b { margin-top: 5px; color: #fff; font-size: 17px; line-height: 1.45; }
-.odeir-experience .outcomes { display: grid; gap: 8px; }
-.odeir-experience .outcome { width: 100%; min-height: 67px; padding: 10px 13px; display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 10px; text-align: right; border: 1px solid #e4e9ee; border-radius: 14px; background: #fafbfd; cursor: pointer; transition: .28s ease; }
-.odeir-experience .outcome > i { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 8px; color: #8694a5; background: #eef2f5; font-size: 8px; font-style: normal; font-weight: 900; }
-.odeir-experience .outcome > span { display: grid; }
-.odeir-experience .outcome b { color: #21334a; font-size: 12px; }
-.odeir-experience .outcome small { margin-top: 4px; color: #8390a0; font-size: 9px; }
-.odeir-experience .outcome.is-active { transform: translateX(-7px); border-color: rgba(8,200,187,.32); background: #effcf9; box-shadow: 0 12px 26px rgba(8,130,121,.09); }
-.odeir-experience .outcome.is-active > i { color: #056b65; background: var(--teal-soft); }
+.odeir-experience .story-section .story-flow { position: relative; overflow: hidden; max-width: 1030px; margin: 78px auto 0; padding: 48px 58px 0; border: 1px solid rgba(22,49,69,.11); border-radius: 38px; background: radial-gradient(circle at 50% 84%, rgba(41,224,221,.085), transparent 34%), linear-gradient(180deg, #fff 0%, #fcfefe 62%, #f7fbfb 100%); box-shadow: 0 34px 100px rgba(18,37,65,.09); isolation: isolate; }
+.odeir-experience .story-flow::before { content: ""; position: absolute; z-index: -1; width: 620px; height: 620px; left: 50%; bottom: -430px; border-radius: 50%; background: rgba(74,224,220,.08); filter: blur(5px); transform: translateX(-50%); }
+.odeir-experience .source-stack { position: relative; z-index: 5; max-width: 820px; margin-inline: auto; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; direction: ltr; }
+.odeir-experience .source-stack .source { position: relative; overflow: hidden; min-height: 86px; padding: 14px 18px; display: flex; align-items: center; gap: 15px; appearance: none; text-align: left; border: 1px solid rgba(23,48,70,.1); border-radius: 20px; color: #20344b; background: rgba(255,255,255,.92); box-shadow: 0 12px 28px rgba(14,42,62,.08), inset 0 1px 0 #fff; cursor: pointer; transition: transform .35s cubic-bezier(.2,.8,.2,1), border-color .35s ease, box-shadow .35s ease, background .35s ease; }
+.odeir-experience .source-stack .source::before { content: ""; position: absolute; inset: 0; opacity: 0; background: linear-gradient(115deg, transparent 18%, rgba(68,230,224,.09) 47%, transparent 72%); transform: translateX(-110%); transition: opacity .3s ease; }
+.odeir-experience .source-stack .source:hover,
+.odeir-experience .source-stack .source:focus-visible,
+.odeir-experience .source-stack .source.is-active { z-index: 2; transform: translateY(-3px); border-color: rgba(18,200,191,.38); background: #fff; box-shadow: 0 18px 38px rgba(16,83,91,.13), 0 0 0 3px rgba(32,219,209,.055); outline: none; }
+.odeir-experience .source-stack .source.is-active::before { opacity: 1; animation: source-shimmer 2.2s ease-in-out infinite; }
+.odeir-experience .source-stack .source:last-child { grid-column: 1 / -1; }
+.odeir-experience .source-logo { position: relative; z-index: 1; width: 54px; height: 54px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 16px; background: #fff; box-shadow: 0 6px 18px rgba(17,42,61,.065); }
+.odeir-experience .source-logo img { display: block; width: 44px; height: 44px; object-fit: contain; }
+.odeir-experience .source--meta .source-logo img { width: 47px; }
+.odeir-experience .source--woo .source-logo { width: 64px; }
+.odeir-experience .source--woo .source-logo img { width: 56px; }
+.odeir-experience .source-copy { position: relative; z-index: 1; min-width: 0; display: grid; gap: 4px; text-align: left; }
+.odeir-experience .source-copy b { overflow: hidden; color: #20334b; font-size: 15px; font-weight: 850; white-space: nowrap; text-overflow: ellipsis; }
+.odeir-experience .source-copy small { overflow: hidden; color: #758497; font-size: 11px; line-height: 1.5; white-space: nowrap; text-overflow: ellipsis; }
+.odeir-experience .source-signal { position: absolute; z-index: 2; top: 13px; right: 13px; width: 7px; height: 7px; border-radius: 50%; background: #dce8ec; transition: background .3s ease, box-shadow .3s ease; }
+.odeir-experience .source.is-active .source-signal { background: var(--teal); box-shadow: 0 0 0 5px rgba(8,200,187,.1), 0 0 18px rgba(8,200,187,.5); animation: network-beat 1.6s ease-in-out infinite; }
+
+.odeir-experience .journey-network { position: relative; z-index: 2; width: min(840px,100%); height: 580px; margin: 18px auto 0; isolation: isolate; }
+.odeir-experience .journey-network::before { content: ""; position: absolute; z-index: -2; width: 520px; height: 520px; left: 50%; top: 59%; border: 1px solid rgba(44,214,211,.16); border-radius: 50%; background: repeating-radial-gradient(circle, transparent 0 46px, rgba(43,202,199,.055) 47px 48px); box-shadow: 0 0 80px rgba(37,213,210,.08); transform: translate(-50%,-50%); }
+.odeir-experience .journey-network::after { content: ""; position: absolute; z-index: -3; inset: 0; opacity: .34; background-image: linear-gradient(rgba(18,182,180,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(18,182,180,.055) 1px, transparent 1px); background-size: 34px 34px; mask-image: radial-gradient(circle at 50% 66%, #000 5%, transparent 65%); }
+.odeir-experience .journey-network-map { position: absolute; z-index: -1; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.odeir-experience .journey-line,
+.odeir-experience .journey-line-trace,
+.odeir-experience .journey-spine { fill: none; vector-effect: non-scaling-stroke; }
+.odeir-experience .journey-line { stroke: url(#journey-line-gradient); stroke-width: 1.35; opacity: .56; transition: opacity .35s ease, stroke-width .35s ease; }
+.odeir-experience .journey-line.is-active { stroke-width: 2.25; opacity: 1; filter: url(#journey-line-glow); }
+.odeir-experience .journey-line-trace { stroke: #7cfff8; stroke-width: 1.35; stroke-linecap: round; stroke-dasharray: 1 13; opacity: .55; animation: network-signal 2.7s linear infinite; }
+.odeir-experience .journey-line-trace.is-active { stroke-width: 2.2; stroke-dasharray: 2 10; opacity: 1; filter: url(#journey-line-glow); animation-duration: 1.5s; }
+.odeir-experience .journey-spine { stroke: #3cdfd7; stroke-width: 1.15; stroke-dasharray: 3 7; opacity: .38; animation: network-signal 3s linear infinite; }
+.odeir-experience .network-beacon { position: absolute; z-index: 2; left: 50%; top: 9%; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid rgba(74,241,235,.32); border-radius: 50%; background: rgba(255,255,255,.72); box-shadow: 0 0 24px rgba(39,223,217,.28); transform: translate(-50%,-50%); animation: beacon-hover 3s ease-in-out infinite; }
+.odeir-experience .network-beacon::before,
+.odeir-experience .network-beacon::after { content: ""; position: absolute; inset: 5px; border: 1px solid rgba(41,215,209,.26); border-radius: inherit; animation: beacon-ring 2s ease-out infinite; }
+.odeir-experience .network-beacon::after { animation-delay: 1s; }
+.odeir-experience .network-beacon i { width: 8px; height: 8px; border-radius: 50%; background: #65fff7; box-shadow: 0 0 5px #fff, 0 0 18px #25ddd4; }
+.odeir-experience .network-node { position: absolute; z-index: 4; width: 78px; height: 78px; display: grid; place-items: center; border: 1px solid rgba(21,68,88,.08); border-radius: 50%; background: rgba(255,255,255,.96); box-shadow: 0 16px 36px rgba(20,75,89,.13), 0 0 0 6px rgba(255,255,255,.56); transform: translate(-50%,-50%); transition: width .35s ease, height .35s ease, border-color .35s ease, box-shadow .35s ease; animation: node-float 4.6s ease-in-out infinite; }
+.odeir-experience .network-node::after { content: ""; position: absolute; inset: -8px; border: 1px solid rgba(40,222,215,0); border-radius: inherit; transition: border-color .35s ease, transform .35s ease; }
+.odeir-experience .network-node.is-active { width: 84px; height: 84px; border-color: rgba(26,213,204,.42); box-shadow: 0 18px 42px rgba(20,102,111,.17), 0 0 0 7px rgba(255,255,255,.7), 0 0 34px rgba(39,224,216,.3); }
+.odeir-experience .network-node.is-active::after { border-color: rgba(40,222,215,.28); transform: scale(1.08); animation: node-ring 1.7s ease-out infinite; }
+.odeir-experience .network-node img { display: block; width: 54px; height: 54px; object-fit: contain; }
+.odeir-experience .network-node--meta { left: 13.16%; top: 15%; }
+.odeir-experience .network-node--whatsapp { left: 86.84%; top: 15%; animation-delay: -.7s; }
+.odeir-experience .network-node--salla { left: 11.32%; top: 45%; animation-delay: -1.4s; }
+.odeir-experience .network-node--zid { left: 88.68%; top: 45%; animation-delay: -2.1s; }
+.odeir-experience .network-node--woo { left: 15.79%; top: 78%; animation-delay: -2.8s; }
+.odeir-experience .network-node--meta img { width: 57px; }
+.odeir-experience .network-node--woo img { width: 62px; }
+.odeir-experience .journey-network .odeir-core { position: absolute; z-index: 3; left: 50%; top: 59%; width: 310px; aspect-ratio: 1; padding: 54px 34px 38px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1px solid rgba(77,246,238,.68); border-radius: 50%; background: radial-gradient(circle at 50% 26%, #0c4160 0%, #072945 27%, #041b35 63%, #03172f 100%); box-shadow: 0 30px 70px rgba(2,27,50,.34), 0 0 0 10px rgba(7,47,70,.95), 0 0 0 12px rgba(50,226,219,.28), 0 0 45px rgba(34,218,211,.28), inset 0 0 0 20px rgba(2,14,35,.22), inset 0 0 45px rgba(25,171,171,.13); transform: translate(-50%,-50%); animation: core-breathe 4s ease-in-out infinite; }
+.odeir-experience .journey-network .odeir-core::before { content: ""; position: absolute; inset: 20px; border: 1px solid rgba(75,242,234,.16); border-radius: inherit; box-shadow: inset 0 0 30px rgba(35,213,207,.09); }
+.odeir-experience .journey-network .odeir-core::after { content: ""; position: absolute; inset: -24px; border: 1px dashed rgba(34,209,203,.18); border-radius: inherit; animation: core-ring-spin 22s linear infinite; }
+.odeir-experience .odeir-core .brand { position: relative; z-index: 2; min-width: 0; }
+.odeir-experience .odeir-core .brand-logo { width: 142px; }
+.odeir-experience .odeir-core small { position: relative; z-index: 2; margin-top: 22px; color: #55ded5; font-size: 11px; }
+.odeir-experience .odeir-core > b { position: relative; z-index: 2; margin-top: 8px; color: #fff; font-size: 22px; line-height: 1.45; text-shadow: 0 2px 18px rgba(255,255,255,.13); }
+.odeir-experience .core-orbit { position: absolute; z-index: 1; border-radius: 50%; pointer-events: none; }
+.odeir-experience .core-orbit--outer { inset: 8px; border: 1px solid rgba(57,232,224,.16); border-left-color: rgba(83,255,246,.8); animation: core-ring-spin 8s linear infinite; }
+.odeir-experience .core-orbit--inner { inset: 31px; border: 1px dashed rgba(255,255,255,.11); border-right-color: rgba(79,246,238,.7); animation: core-ring-spin 12s linear infinite reverse; }
+.odeir-experience .core-pulse { position: absolute; z-index: 4; left: 50%; top: -4px; width: 8px; height: 8px; border: 2px solid #eaffff; border-radius: 50%; background: #2ae0d7; box-shadow: 0 0 8px #fff, 0 0 22px #28e3da; transform-origin: 50% calc(155px + 4px); animation: core-spark 7s linear infinite; }
+.odeir-experience .network-platform { position: absolute; z-index: 1; left: 50%; bottom: 9px; width: 380px; height: 58px; border: 1px solid rgba(52,225,218,.24); border-radius: 50%; background: radial-gradient(ellipse, rgba(31,218,210,.2), rgba(255,255,255,.4) 42%, transparent 72%); box-shadow: 0 15px 25px rgba(21,145,143,.09), inset 0 4px 15px rgba(53,229,221,.12); transform: translateX(-50%); animation: platform-glow 3.6s ease-in-out infinite; }
 
 .odeir-experience .product-section { width: 100%; max-width: none; padding: 135px max(32px, calc((100vw - 1320px) / 2)) 155px; color: #fff; background: linear-gradient(150deg, #04152c, #061e3c 57%, #031329); }
 .odeir-experience .product-intro { margin-top: 28px; display: grid; grid-template-columns: 1.1fr .65fr; align-items: end; gap: 90px; }
@@ -600,6 +633,17 @@
 @keyframes dashboard-float { 0%,100% { transform: rotateY(-7deg) rotateX(3deg) rotateZ(-1deg) translateY(0); } 50% { transform: rotateY(-7deg) rotateX(3deg) rotateZ(-1deg) translateY(-8px); } }
 @keyframes scroll-line { 0% { transform: translateY(0); } 65%,100% { transform: translateY(200%); } }
 @keyframes flow-dot { 0%,100% { transform: translateX(10px); opacity: 0; } 20% { opacity: 1; } 70% { opacity: 1; } 90% { transform: translateX(95px); opacity: 0; } }
+@keyframes source-shimmer { 0%,28% { transform: translateX(-110%); } 72%,100% { transform: translateX(110%); } }
+@keyframes network-signal { to { stroke-dashoffset: -52; } }
+@keyframes network-beat { 0%,100% { transform: scale(.85); opacity: .65; } 50% { transform: scale(1.15); opacity: 1; } }
+@keyframes beacon-hover { 0%,100% { transform: translate(-50%,-50%) translateY(0); } 50% { transform: translate(-50%,-50%) translateY(-7px); } }
+@keyframes beacon-ring { 0% { opacity: .9; transform: scale(.6); } 100% { opacity: 0; transform: scale(2.05); } }
+@keyframes node-float { 0%,100% { transform: translate(-50%,-50%) translateY(0); } 50% { transform: translate(-50%,-50%) translateY(-8px); } }
+@keyframes node-ring { 0% { opacity: .8; transform: scale(.85); } 100% { opacity: 0; transform: scale(1.32); } }
+@keyframes core-breathe { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.018); } }
+@keyframes core-ring-spin { to { transform: rotate(360deg); } }
+@keyframes core-spark { to { transform: translateX(-50%) rotate(360deg); } }
+@keyframes platform-glow { 0%,100% { opacity: .65; transform: translateX(-50%) scaleX(.94); } 50% { opacity: 1; transform: translateX(-50%) scaleX(1.04); } }
 @keyframes morning-pulse { 0%,100% { box-shadow: 0 0 0 4px rgba(8,200,187,.08); } 50% { box-shadow: 0 0 0 8px rgba(8,200,187,.16); } }
 @keyframes mobile-event-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -981,6 +1025,68 @@
   .odeir-experience .final-cta-inner > p { font-size: 13.5px; }
   .odeir-experience .site-footer { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   .odeir-experience .mobile-cta { z-index: 60; right: 12px; left: 12px; bottom: calc(10px + env(safe-area-inset-bottom)); min-height: 54px; border-radius: 15px; }
+}
+
+@media (max-width: 920px) {
+  .odeir-experience .story-section .story-flow { padding: 34px 30px 0; border-radius: 32px; }
+  .odeir-experience .journey-network { height: 540px; margin-top: 12px; }
+  .odeir-experience .journey-network .odeir-core { width: 286px; }
+  .odeir-experience .odeir-core .brand-logo { width: 132px; }
+  .odeir-experience .core-pulse { transform-origin: 50% calc(143px + 4px); }
+}
+
+@media (max-width: 620px) {
+  .odeir-experience .story-head { text-align: center; }
+  .odeir-experience .story-head p { max-width: 430px; margin-inline: auto; }
+  .odeir-experience .story-section .story-flow { margin-top: 34px; padding: 15px 11px 0; border-radius: 27px; box-shadow: 0 24px 65px rgba(18,37,65,.1); }
+  .odeir-experience .story-flow::before { width: 390px; height: 390px; bottom: -285px; }
+  .odeir-experience .source-stack { max-width: none; gap: 9px; }
+  .odeir-experience .source-stack .source { min-height: 68px; padding: 9px 9px; gap: 8px; border-radius: 16px; box-shadow: 0 8px 20px rgba(14,42,62,.075), inset 0 1px 0 #fff; }
+  .odeir-experience .source-stack .source:hover,
+  .odeir-experience .source-stack .source:focus-visible,
+  .odeir-experience .source-stack .source.is-active { transform: translateY(-2px); box-shadow: 0 12px 25px rgba(16,83,91,.12), 0 0 0 2px rgba(32,219,209,.045); }
+  .odeir-experience .source-logo { width: 45px; height: 45px; border-radius: 13px; }
+  .odeir-experience .source-logo img { width: 37px; height: 37px; }
+  .odeir-experience .source--meta .source-logo img { width: 40px; }
+  .odeir-experience .source--woo .source-logo { width: 52px; }
+  .odeir-experience .source--woo .source-logo img { width: 47px; }
+  .odeir-experience .source-copy { gap: 2px; }
+  .odeir-experience .source-copy b { font-size: 11.5px; }
+  .odeir-experience .source-copy small { font-size: 8px; }
+  .odeir-experience .source-signal { display: none; }
+  .odeir-experience .journey-network { height: 400px; margin-top: 3px; }
+  .odeir-experience .journey-network::before { width: 365px; height: 365px; background: repeating-radial-gradient(circle, transparent 0 32px, rgba(43,202,199,.06) 33px 34px); }
+  .odeir-experience .journey-network::after { background-size: 25px 25px; }
+  .odeir-experience .network-beacon { width: 27px; height: 27px; }
+  .odeir-experience .network-beacon i { width: 6px; height: 6px; }
+  .odeir-experience .network-node { width: 58px; height: 58px; box-shadow: 0 10px 25px rgba(20,75,89,.13), 0 0 0 4px rgba(255,255,255,.62); }
+  .odeir-experience .network-node.is-active { width: 63px; height: 63px; box-shadow: 0 13px 28px rgba(20,102,111,.17), 0 0 0 5px rgba(255,255,255,.72), 0 0 25px rgba(39,224,216,.28); }
+  .odeir-experience .network-node img { width: 41px; height: 41px; }
+  .odeir-experience .network-node--meta img { width: 44px; }
+  .odeir-experience .network-node--woo img { width: 48px; }
+  .odeir-experience .journey-network .odeir-core { width: 232px; padding: 43px 27px 30px; box-shadow: 0 23px 55px rgba(2,27,50,.32), 0 0 0 7px rgba(7,47,70,.95), 0 0 0 9px rgba(50,226,219,.26), 0 0 34px rgba(34,218,211,.24), inset 0 0 0 15px rgba(2,14,35,.22), inset 0 0 35px rgba(25,171,171,.13); }
+  .odeir-experience .journey-network .odeir-core::before { inset: 15px; }
+  .odeir-experience .journey-network .odeir-core::after { inset: -17px; }
+  .odeir-experience .odeir-core .brand-logo { width: 112px; }
+  .odeir-experience .odeir-core small { margin-top: 16px; font-size: 9px; }
+  .odeir-experience .odeir-core > b { margin-top: 6px; font-size: 17px; line-height: 1.48; }
+  .odeir-experience .core-orbit--inner { inset: 23px; }
+  .odeir-experience .core-pulse { width: 7px; height: 7px; transform-origin: 50% calc(116px + 3px); }
+  .odeir-experience .network-platform { bottom: 3px; width: 278px; height: 42px; }
+}
+
+@media (max-width: 370px) {
+  .odeir-experience .story-section .story-flow { padding-inline: 9px; }
+  .odeir-experience .source-stack { gap: 7px; }
+  .odeir-experience .source-stack .source { min-height: 64px; padding-inline: 7px; gap: 6px; }
+  .odeir-experience .source-logo { width: 41px; height: 41px; }
+  .odeir-experience .source-logo img { width: 34px; height: 34px; }
+  .odeir-experience .source--woo .source-logo { width: 47px; }
+  .odeir-experience .source-copy b { font-size: 10.5px; }
+  .odeir-experience .source-copy small { font-size: 7.2px; }
+  .odeir-experience .journey-network { height: 374px; }
+  .odeir-experience .journey-network .odeir-core { width: 216px; }
+  .odeir-experience .core-pulse { transform-origin: 50% calc(108px + 3px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

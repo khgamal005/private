@@ -23,6 +23,7 @@ export default async function TasksPage({params}){
     slug={slug}
     initialData={await getTenantOperations(slug,{includeSales})}
     initialFocus={SALES_TASK_ROLES.has(roleKey)?'today':'calendar'}
+    showTodayDistribution={SALES_TASK_ROLES.has(roleKey)}
     embedded
   />;
 }

@@ -13,6 +13,7 @@ const DAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء',
 const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const FILTERS=[
   ['all','الكل'],
+  ['distributed_today','توزيع اليوم'],
   ['customer_followups','المتابعة فقط'],
   ['interested','مهتم'],
   ['very_interested','مهتم جدًا'],
@@ -21,6 +22,12 @@ const FILTERS=[
   ['overdue','متأخرة']
 ];
 const EMPTY=[];
+const EMPTY_DAILY_DISTRIBUTION={
+  total:0,
+  taskIds:EMPTY,
+  byStaff:EMPTY,
+  items:EMPTY
+};
 const DAY_TASK_PAGE_SIZE=30;
 const OPEN_TASK_STATUSES=new Set(['todo','in_progress']);
 const LEAD_STATUS={
@@ -70,6 +77,11 @@ function calendarDays(value){
 function sameDay(a,b){return new Date(a).toDateString()===new Date(b).toDateString()}
 function isTodayTask(task,today=new Date()){
   return OPEN_TASK_STATUSES.has(task.status)&&sameDay(task.dueAt,today);
+}
+function calendarDate(task,filter){
+  return filter==='distributed_today'
+    ?task.distributedAt||task.createdAt||task.dueAt
+    :task.dueAt;
 }
 function state(task){
   if(task.status==='completed')return 'completed';
@@ -138,7 +150,8 @@ export default function TaskCalendarPage({
   slug,
   initialData,
   embedded=false,
-  initialFocus='calendar'
+  initialFocus='calendar',
+  showTodayDistribution=false
 }){
   const router=useRouter();
   const startsInTodayFocus=initialFocus==='today';
@@ -178,6 +191,33 @@ export default function TaskCalendarPage({
   const canWrite=Boolean(data.viewer?.canWriteWork);
   const canWriteCrm=Boolean(data.viewer?.canWriteCrm);
   const viewTeam=Boolean(data.viewer?.viewTeam);
+  const dailyLeadDistribution=data.dailyLeadDistribution
+    ||EMPTY_DAILY_DISTRIBUTION;
+
+  const dailyDistributionSelection=useMemo(()=>{
+    if(!showTodayDistribution)return 0;
+    if(assignee==='all'){
+      return {
+        count:Number(dailyLeadDistribution.total)||0,
+        taskIds:dailyLeadDistribution.taskIds||EMPTY
+      };
+    }
+    const staffDistribution=(dailyLeadDistribution.byStaff||EMPTY)
+      .find(item=>item.staffId===assignee);
+    return {
+      count:Number(staffDistribution?.count)||0,
+      taskIds:staffDistribution?.taskIds||EMPTY
+    };
+  },[assignee,dailyLeadDistribution,showTodayDistribution]);
+  const distributedCustomersToday=Number(
+    dailyDistributionSelection?.count
+  )||0;
+  const dailyDistributionTasks=useMemo(()=>{
+    const taskIds=new Set(dailyDistributionSelection?.taskIds||EMPTY);
+    return (dailyLeadDistribution.items||EMPTY).filter(task=>
+      taskIds.has(task.id)
+    );
+  },[dailyDistributionSelection,dailyLeadDistribution]);
 
   const summary=useMemo(()=>({
     open:tasks.filter(task=>OPEN_TASK_STATUSES.has(task.status)).length,
@@ -188,10 +228,15 @@ export default function TaskCalendarPage({
     ).length
   }),[tasks]);
 
-  const filtered=useMemo(()=>tasks.filter(task=>{
+  const filtered=useMemo(()=>{
+    const sourceTasks=filter==='distributed_today'
+      ?dailyDistributionTasks
+      :tasks;
+    return sourceTasks.filter(task=>{
     const matchesAssignee=assignee==='all'||task.assignedStaffId===assignee;
     if(!matchesAssignee)return false;
     if(filter==='all')return true;
+    if(filter==='distributed_today')return true;
     if(filter==='customer_followups'){
       return Boolean(task.contactId)&&task.status!=='completed';
     }
@@ -200,16 +245,17 @@ export default function TaskCalendarPage({
     }
     if(filter==='today')return isTodayTask(task);
     return state(task)===filter;
-  }),[tasks,filter,assignee]);
+    });
+  },[tasks,dailyDistributionTasks,filter,assignee]);
 
   const days=useMemo(()=>calendarDays(month),[month]);
   const grouped=useMemo(()=>days.map(day=>({
     day,
-    tasks:filtered.filter(task=>sameDay(task.dueAt,day))
-  })),[days,filtered]);
+    tasks:filtered.filter(task=>sameDay(calendarDate(task,filter),day))
+  })),[days,filtered,filter]);
   const agenda=useMemo(()=>[...filtered].sort(
-    (a,b)=>new Date(a.dueAt)-new Date(b.dueAt)
-  ),[filtered]);
+    (a,b)=>new Date(calendarDate(a,filter))-new Date(calendarDate(b,filter))
+  ),[filtered,filter]);
 
   async function call(action,body){
     const response=await fetch(`/api/tenant/${action}`,{
@@ -225,6 +271,12 @@ export default function TaskCalendarPage({
   function focusToday(){
     setMonth(new Date());
     setFilter('today');
+    setMode('agenda');
+  }
+
+  function focusDistributedToday(){
+    setMonth(new Date());
+    setFilter('distributed_today');
     setMode('agenda');
   }
 
@@ -344,8 +396,11 @@ export default function TaskCalendarPage({
 
   async function openDay(day){
     const key=inputDate(day);
-    const dayTasks=tasks.filter(task=>
-      sameDay(task.dueAt,day)
+    const sourceTasks=filter==='distributed_today'
+      ?dailyDistributionTasks
+      :tasks;
+    const dayTasks=sourceTasks.filter(task=>
+      sameDay(calendarDate(task,filter),day)
       &&(assignee==='all'||task.assignedStaffId===assignee)
     );
     setDayPanel({
@@ -411,6 +466,15 @@ export default function TaskCalendarPage({
     {notice&&<div className="calendar-alert success">{notice}</div>}
 
     <section className="calendar-summary-grid">
+      {showTodayDistribution&&<button
+        type="button"
+        className={`calendar-distribution-card ${filter==='distributed_today'?'active':''}`}
+        onClick={focusDistributedToday}
+      >
+        <span>إجمالي توزيع اليوم</span>
+        <b>{number(distributedCustomersToday)}</b>
+        <small>تلقائي + يدوي · بدون مهام المتابعة</small>
+      </button>}
       <button onClick={()=>setFilter('all')} className={filter==='all'?'active':''}><span>المهام المفتوحة</span><b>{summary.open}</b><small>جميع المهام الجارية</small></button>
       <button onClick={()=>setFilter('overdue')} className={`danger ${filter==='overdue'?'active':''}`}><span>المتأخرة</span><b>{summary.overdue}</b><small>تحتاج إجراءً الآن</small></button>
       <button onClick={focusToday} className={`warning ${filter==='today'?'active':''}`}><span>مهام اليوم</span><b>{summary.today}</b><small>تشمل المتأخر منها اليوم</small></button>
@@ -440,7 +504,11 @@ export default function TaskCalendarPage({
       {FILTERS.map(([key,label])=><button
         key={key}
         className={filter===key?'active':''}
-        onClick={()=>key==='today'?focusToday():setFilter(key)}
+        onClick={()=>key==='today'
+          ?focusToday()
+          :key==='distributed_today'
+            ?focusDistributedToday()
+            :setFilter(key)}
       >{label}</button>)}
     </section>
 
@@ -461,7 +529,7 @@ export default function TaskCalendarPage({
               onClick={()=>openTask(task)}
             >
               <strong>{task.title}</strong>
-              <small>{formatTime(task.dueAt)} · {task.contactName||task.assigneeName||'مهمة تشغيلية'}</small>
+              <small>{formatTime(calendarDate(task,filter))} · {task.contactName||task.assigneeName||'مهمة تشغيلية'}</small>
             </button>)}
             {dayTasks.length>4&&<button
               type="button"
@@ -474,7 +542,7 @@ export default function TaskCalendarPage({
       </section>
     </>:<section className="role-calendar-agenda">
       {agenda.map(task=><article className={state(task)} key={task.id} onClick={()=>openTask(task)}>
-        <time><span>{formatDate(task.dueAt)}</span><b>{formatTime(task.dueAt)}</b></time>
+        <time><span>{formatDate(calendarDate(task,filter))}</span><b>{formatTime(calendarDate(task,filter))}</b></time>
         <div className="agenda-main">
           <strong>{task.title}</strong>
           <p>{task.description||task.contactCourseName||'مهمة تشغيلية'}</p>
@@ -488,7 +556,11 @@ export default function TaskCalendarPage({
             <span>{LEAD_QUALITY[task.contactQuality]||'غير مقيم'}</span>
           </div>}
         </div>
-        <div className="agenda-badges"><span className={`timing ${state(task)}`}>{timingText(task)}</span></div>
+        <div className="agenda-badges"><span className={`timing ${filter==='distributed_today'?'today':state(task)}`}>
+          {filter==='distributed_today'
+            ?task.distributionStrategy==='selected'?'توزيع يدوي':'توزيع تلقائي'
+            :timingText(task)}
+        </span></div>
         {task.status!=='completed'&&canWrite&&<button
           className="complete-inline"
           onClick={event=>{event.stopPropagation();updateStatus(task,'completed')}}

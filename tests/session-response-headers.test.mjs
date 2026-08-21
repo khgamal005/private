@@ -53,3 +53,11 @@ test('every session-creating auth response explicitly disables caching',async()=
     );
   }
 });
+
+test('login HTML is rendered dynamically so the CDN cannot reuse a stale shell',async()=>{
+  const content=await readFile(
+    new URL('../app/login/page.js',import.meta.url),
+    'utf8'
+  );
+  assert.match(content,/export const dynamic='force-dynamic'/);
+});

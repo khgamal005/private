@@ -1,12 +1,12 @@
 'use client';
 
 import {useState} from 'react';
-import {useRouter,useSearchParams} from 'next/navigation';
+import {useSearchParams} from 'next/navigation';
+import {replaceDocument} from '../lib/full-document-navigation.mjs';
 
 export default function LoginForm(){
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
-  const router=useRouter();
   const search=useSearchParams();
   const invitationToken=search.get('invite');
   const platformInvitationToken=search.get('platformInvite');
@@ -18,25 +18,29 @@ export default function LoginForm(){
     setLoading(true);
     setError('');
     const form=new FormData(event.currentTarget);
-    const response=await fetch('/api/auth/login',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        email:form.get('email'),
-        password:form.get('password'),
-        invitationToken,
-        platformInvitationToken,
-        requestedNext
-      })
-    });
-    const data=await response.json().catch(()=>({}));
-    setLoading(false);
-    if(!response.ok){
-      setError(data.error||'تعذر تسجيل الدخول');
-      return;
+    try{
+      const response=await fetch('/api/auth/login',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          email:form.get('email'),
+          password:form.get('password'),
+          invitationToken,
+          platformInvitationToken,
+          requestedNext
+        })
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok){
+        setLoading(false);
+        setError(data.error||'تعذر تسجيل الدخول');
+        return;
+      }
+      replaceDocument(data.next,{fallback:'/control'});
+    }catch{
+      setLoading(false);
+      setError('تعذر الاتصال بالخادم. تحقق من الشبكة ثم أعد المحاولة.');
     }
-    router.replace(data.next||'/control');
-    router.refresh();
   }
 
   return <form className="auth-form" onSubmit={submit}>

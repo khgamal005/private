@@ -111,7 +111,7 @@ test('the notification center polls with backoff without refreshing the dashboar
   assert.match(center,/window\.setTimeout\(runAndSchedule,delay\)/);
   assert.match(center,/document\.visibilityState==='hidden'/);
   assert.doesNotMatch(center,/router\.refresh\(\)/);
-  assert.match(center,/router\.replace\('\/login\?reason=session'\)/);
+  assert.match(center,/replaceDocument\('\/login\?reason=session'\)/);
   assert.match(center,/mt-notification-toast/);
   assert.match(center,/window\.Notification\.permission==='granted'/);
   assert.match(center,/mark_read/);

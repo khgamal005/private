@@ -6,6 +6,10 @@ import {
   resolvePostLoginPath,
   safeInternalPath
 } from '../lib/login-destination.mjs';
+import {
+  replaceDocument,
+  safeDocumentPath
+} from '../lib/full-document-navigation.mjs';
 
 const platformContext={
   platformAccess:true,
@@ -13,6 +17,10 @@ const platformContext={
   memberships:[{tenantSlug:'modaar-training-center'}],
   subject:{mustChangePassword:false}
 };
+
+async function source(path){
+  return readFile(new URL('../'+path,import.meta.url),'utf8');
+}
 
 test('platform owner always lands in platform control after a normal login',()=>{
   assert.equal(resolvePostLoginPath({context:platformContext}),'/control');
@@ -65,23 +73,80 @@ test('password-change and invitation destinations keep their priority',()=>{
 test('external and malformed next values are rejected',()=>{
   assert.equal(safeInternalPath('https://example.com/steal'),null);
   assert.equal(safeInternalPath('//example.com/steal'),null);
+  assert.equal(safeInternalPath('/..//example.com/steal'),null);
+  assert.equal(safeInternalPath('/%2e%2e//example.com/steal'),null);
   assert.equal(safeInternalPath('/control/tenants?tab=active'),'/control/tenants?tab=active');
 });
 
-test('login client obeys the server-authorized destination',async()=>{
-  const form=await readFile(
-    new URL('../components/login-form.js',import.meta.url),
-    'utf8'
+test('full-document navigation accepts only same-origin paths',()=>{
+  const calls=[];
+  const location={replace:value=>calls.push(value)};
+  assert.equal(
+    replaceDocument('/control/tenants?tab=active',{
+      fallback:'/control',
+      location
+    }),
+    '/control/tenants?tab=active'
   );
-  const route=await readFile(
-    new URL('../app/api/auth/login/route.js',import.meta.url),
-    'utf8'
+  assert.equal(
+    replaceDocument('https://example.com/steal',{
+      fallback:'/control',
+      location
+    }),
+    '/control'
   );
+  assert.equal(safeDocumentPath('//example.com/steal','/login'),'/login');
+  assert.equal(safeDocumentPath('/\\evil.example','/login'),'/login');
+  assert.equal(safeDocumentPath('/..//evil.example/x','/login'),'/login');
+  assert.equal(safeDocumentPath('/%2e%2e//evil.example/x','/login'),'/login');
+  assert.deepEqual(calls,['/control/tenants?tab=active','/control']);
+});
+
+test('all session-changing forms use a fresh document without an RSC refresh',async()=>{
+  const expectations=[
+    ['components/login-form.js',/replaceDocument\(data\.next,\{fallback:'\/control'\}\)/],
+    ['components/invitation-activation-form.js',/replaceDocument\(data\.next,\{/],
+    ['components/platform-invitation-activation-form.js',/replaceDocument\(data\.next,\{fallback:'\/control'\}\)/],
+    ['components/change-password-form.js',/replaceDocument\(data\.next,\{fallback:'\/control'\}\)/]
+  ];
+  for(const [path,pattern] of expectations){
+    const content=await source(path);
+    assert.match(content,pattern,path);
+    assert.doesNotMatch(content,/useRouter|router\.(?:replace|refresh)/,path);
+    assert.match(content,/catch\{[\s\S]*تعذر الاتصال بالخادم/,path);
+  }
+});
+
+test('login client obeys the server-authorized destination and auth responses are private',async()=>{
+  const form=await source('components/login-form.js');
+  const route=await source('app/api/auth/login/route.js');
   assert.match(form,/requestedNext/);
-  assert.match(form,/router\.replace\(data\.next\|\|'\/control'\)/);
   assert.doesNotMatch(form,/requested\|\|data\.next/);
   assert.match(route,/resolvePostLoginPath/);
-  assert.match(route,/Cache-Control','private, no-store/);
+  assert.match(route,/Cache-Control/);
+  assert.match(route,/private, no-store/);
+  assert.match(route,/CDN-Cache-Control/);
+});
+
+test('session expiry and invitation login links bypass client routing',async()=>{
+  const notificationCenter=await source('components/notification-center.js');
+  assert.match(
+    notificationCenter,
+    /error\?\.status===401[\s\S]*replaceDocument\('\/login\?reason=session'\)/
+  );
+  assert.doesNotMatch(notificationCenter,/useRouter|router\.replace/);
+
+  const linkFiles=[
+    'components/invitation-activation-form.js',
+    'components/platform-invitation-activation-form.js',
+    'app/accept-invite/page.js',
+    'app/accept-platform-invite/page.js'
+  ];
+  for(const path of linkFiles){
+    const content=await source(path);
+    assert.doesNotMatch(content,/import Link from 'next\/link'/,path);
+    assert.match(content,/<a[^>]+href=.*\/login|<a[^>]+href="\/login"/,path);
+  }
 });
 
 test('server authorization recognizes the canonical platform access flag',()=>{

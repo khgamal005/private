@@ -6,14 +6,16 @@ import {
   SUPABASE_URL
 } from '../../../../lib/config';
 
+export const dynamic='force-dynamic';
+
 export async function POST(request){
   try{
     const {token,password}=await request.json();
     if(!token||String(token).length<32){
-      return NextResponse.json({error:'رابط الدعوة غير صالح'},{status:400});
+      return json({error:'رابط الدعوة غير صالح'},{status:400});
     }
     if(!password||String(password).length<10){
-      return NextResponse.json({
+      return json({
         error:'كلمة المرور يجب ألا تقل عن 10 أحرف'
       },{status:400});
     }
@@ -38,21 +40,32 @@ export async function POST(request){
     try{data=text?JSON.parse(text):{};}catch{data={detail:text};}
 
     if(!response.ok){
-      return NextResponse.json({
+      return json({
         error:invitationError(data),
         accountExists:data?.error==='account_already_exists'
       },{status:response.status});
     }
 
-    const result=NextResponse.json({success:true,next:'/control'});
+    const result=json({success:true,next:'/control'});
     setSessionCookies(result,data.session);
     return result;
   }catch(error){
-    return NextResponse.json({
-      error:'تعذر تفعيل حساب موظف المنصة الآن',
-      detail:error instanceof Error?error.message:String(error)
+    console.error('[platform-invitation-activation-unexpected]',{
+      name:error instanceof Error?error.name:'Error',
+      message:error instanceof Error?error.message:String(error)
+    });
+    return json({
+      error:'تعذر تفعيل حساب موظف المنصة الآن'
     },{status:500});
   }
+}
+
+function json(body,init){
+  const response=NextResponse.json(body,init);
+  response.headers.set('Cache-Control','private, no-store, no-cache, max-age=0, must-revalidate');
+  response.headers.set('CDN-Cache-Control','no-store');
+  response.headers.set('Pragma','no-cache');
+  return response;
 }
 
 function setSessionCookies(response,session){

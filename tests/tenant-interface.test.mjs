@@ -6,9 +6,10 @@ const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 
 test('tenant navigation is one compact list with the supplied wordmark',async()=>{
-  const [shell,logo,layout,polish]=await Promise.all([
+  const [shell,logo,brand,layout,polish]=await Promise.all([
     read('components/workspace-shell.js'),
     read('components/marktone-logo.js'),
+    read('components/odeir-brand.js'),
     read('app/layout.js'),
     read('app/tenant-shell-polish.css')
   ]);
@@ -19,8 +20,10 @@ test('tenant navigation is one compact list with the supplied wordmark',async()=
   assert.match(shell,/mt-notification-menu/);
   assert.match(shell,/mt-account-menu/);
   assert.match(shell,/<LogoutButton\/>/);
-  assert.match(logo,/from 'next\/image'/);
-  assert.match(logo,/\/marktone-logo-light\.svg/);
+  assert.match(logo,/import OdeirBrand from '\.\/odeir-brand'/);
+  assert.match(logo,/<OdeirBrand/);
+  assert.match(brand,/from 'next\/image'/);
+  assert.match(brand,/\/odeir\/odeir-logo-dark\.png/);
   assert.match(layout,/tenant-shell-polish\.css/);
   assert.match(polish,/--mt-shell-width:246px/);
   assert.match(polish,/@media\(max-width:980px\)/);

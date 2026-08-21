@@ -45,8 +45,7 @@ export async function POST(request){
       return json({
         error:authCode==='email_not_confirmed'
           ?'الحساب لم يكتمل تفعيله؛ افتح رابط الدعوة وأنشئ كلمة المرور مرة أخرى.'
-          :'بيانات الدخول غير صحيحة',
-        detail:session?.msg||session?.message
+          :'بيانات الدخول غير صحيحة'
       },{status:401});
     }
 
@@ -126,16 +125,23 @@ export async function POST(request){
     });
     return response;
   }catch(error){
+    console.error('[auth-login-unexpected]',{
+      name:error instanceof Error?error.name:'Error',
+      message:error instanceof Error?error.message:String(error)
+    });
     return json({
-      error:'تعذر تسجيل الدخول',
-      detail:error instanceof Error?error.message:String(error)
+      error:'تعذر تسجيل الدخول'
     },{status:500});
   }
 }
 
 function json(body,init){
   const response=NextResponse.json(body,init);
-  response.headers.set('Cache-Control','private, no-store');
+  response.headers.set(
+    'Cache-Control',
+    'private, no-store, no-cache, max-age=0, must-revalidate'
+  );
+  response.headers.set('CDN-Cache-Control','no-store');
   response.headers.set('Pragma','no-cache');
   return response;
 }

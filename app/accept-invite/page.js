@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import InvitationActivationForm from '../../components/invitation-activation-form';
 import MarktoneLogo from '../../components/marktone-logo';
 import {publicRpc} from '../../lib/public-api';
@@ -20,7 +19,7 @@ export default async function AcceptInvitePage({searchParams}){
       <div className="auth-brand"><MarktoneLogo/></div>
       {invalid?<div className="auth-form">
         <div className="form-error">رابط الدعوة غير صالح أو انتهت صلاحيته.</div>
-        <Link className="mt-button primary" href="/login">العودة إلى تسجيل الدخول</Link>
+        <a className="mt-button primary" href="/login">العودة إلى تسجيل الدخول</a>
       </div>:<InvitationActivationForm token={token} invitation={invitation}/>}
     </section>
   </main>;

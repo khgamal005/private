@@ -6,6 +6,8 @@ import {
   SUPABASE_URL
 } from '../../../../lib/config';
 
+export const dynamic='force-dynamic';
+
 async function post(url,body,accessToken){
   const response=await fetch(url,{
     method:'POST',
@@ -27,10 +29,10 @@ export async function POST(request){
   try{
     const {token,password}=await request.json();
     if(!token||String(token).length<32){
-      return NextResponse.json({error:'رابط الدعوة غير صالح'},{status:400});
+      return json({error:'رابط الدعوة غير صالح'},{status:400});
     }
     if(!password||String(password).length<10){
-      return NextResponse.json({error:'كلمة المرور يجب ألا تقل عن 10 أحرف'},{status:400});
+      return json({error:'كلمة المرور يجب ألا تقل عن 10 أحرف'},{status:400});
     }
 
     const activated=await post(
@@ -38,24 +40,35 @@ export async function POST(request){
       {token:String(token).trim(),password}
     );
     if(!activated.response.ok){
-      return NextResponse.json({
+      return json({
         error:invitationError(activated.data),
         accountExists:activated.data?.error==='account_already_exists'
       },{status:activated.response.status});
     }
 
-    const response=NextResponse.json({
+    const response=json({
       success:true,
       next:`/tenant/${activated.data.invitation.tenantSlug}`
     });
     setSessionCookies(response,activated.data.session);
     return response;
   }catch(error){
-    return NextResponse.json({
-      error:'تعذر تفعيل الحساب الآن',
-      detail:error.message
+    console.error('[tenant-invitation-activation-unexpected]',{
+      name:error instanceof Error?error.name:'Error',
+      message:error instanceof Error?error.message:String(error)
+    });
+    return json({
+      error:'تعذر تفعيل الحساب الآن'
     },{status:500});
   }
+}
+
+function json(body,init){
+  const response=NextResponse.json(body,init);
+  response.headers.set('Cache-Control','private, no-store, no-cache, max-age=0, must-revalidate');
+  response.headers.set('CDN-Cache-Control','no-store');
+  response.headers.set('Pragma','no-cache');
+  return response;
 }
 
 function setSessionCookies(response,session){

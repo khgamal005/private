@@ -74,7 +74,7 @@ test('notification polling cannot trigger a full dashboard refresh storm',async(
   assert.match(center,/busyRef\.current/);
   assert.match(center,/error\?\.status===401/);
   assert.doesNotMatch(center,/router\.refresh/);
-  assert.match(center,/router\.replace\('\/login\?reason=session'\)/);
+  assert.match(center,/replaceDocument\('\/login\?reason=session'\)/);
   assert.match(route,/AbortSignal\.timeout\(6000\)/);
 });
 

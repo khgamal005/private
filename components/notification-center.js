@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import {useRouter} from 'next/navigation';
+import {replaceDocument} from '../lib/full-document-navigation.mjs';
 import {useEffect,useRef,useState} from 'react';
 
 const POLL_INTERVAL_MS=30000;
@@ -57,7 +57,6 @@ export default function NotificationCenter({
   icon,
   emptyMessage='لا توجد تنبيهات عاجلة الآن.'
 }){
-  const router=useRouter();
   const [data,setData]=useState(EMPTY_DATA);
   const [toast,setToast]=useState(null);
   const initializedRef=useRef(false);
@@ -103,7 +102,7 @@ export default function NotificationCenter({
       }catch(error){
         if(error?.status===401){
           cancelled=true;
-          router.replace('/login?reason=session');
+          replaceDocument('/login?reason=session');
         }
         // Keep the last valid state and back off before the next request.
         return false;
@@ -135,7 +134,7 @@ export default function NotificationCenter({
       window.removeEventListener('focus',handleFocus);
       document.removeEventListener('visibilitychange',handleVisibility);
     };
-  },[router,slug]);
+  },[slug]);
 
   useEffect(()=>{
     if(!toast)return undefined;

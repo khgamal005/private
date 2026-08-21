@@ -1,11 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import {useState} from 'react';
-import {useRouter} from 'next/navigation';
+import {replaceDocument} from '../lib/full-document-navigation.mjs';
 
 export default function PlatformInvitationActivationForm({token,invitation}){
-  const router=useRouter();
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [accountExists,setAccountExists]=useState(false);
@@ -16,23 +14,27 @@ export default function PlatformInvitationActivationForm({token,invitation}){
     setError('');
     setAccountExists(false);
     const form=new FormData(event.currentTarget);
-    const response=await fetch('/api/auth/register-platform-invitation',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        token,
-        password:form.get('password')
-      })
-    });
-    const data=await response.json().catch(()=>({}));
-    setLoading(false);
-    if(!response.ok){
-      setError(data.error||'تعذر تفعيل حساب موظف المنصة');
-      setAccountExists(Boolean(data.accountExists));
-      return;
+    try{
+      const response=await fetch('/api/auth/register-platform-invitation',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          token,
+          password:form.get('password')
+        })
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok){
+        setLoading(false);
+        setError(data.error||'تعذر تفعيل حساب موظف المنصة');
+        setAccountExists(Boolean(data.accountExists));
+        return;
+      }
+      replaceDocument(data.next,{fallback:'/control'});
+    }catch{
+      setLoading(false);
+      setError('تعذر الاتصال بالخادم. تحقق من الشبكة ثم أعد المحاولة.');
     }
-    router.replace(data.next||'/control');
-    router.refresh();
   }
 
   return <div className="invitation-layout">
@@ -51,7 +53,7 @@ export default function PlatformInvitationActivationForm({token,invitation}){
       <small>استخدم 10 أحرف على الأقل، ويفضل الجمع بين الحروف والأرقام والرموز.</small>
       {error&&<div className="form-error">{error}</div>}
       <button disabled={loading}>{loading?'جارٍ تفعيل الحساب…':'تفعيل الحساب والدخول'}</button>
-      <Link className="invitation-login-link" href={`/login?platformInvite=${encodeURIComponent(token)}`}>{accountExists?'سجّل الدخول بحسابك الحالي لقبول الدعوة':'لديك حساب بالفعل؟ سجّل الدخول لقبول الدعوة'}</Link>
+      <a className="invitation-login-link" href={'/login?platformInvite='+encodeURIComponent(token)}>{accountExists?'سجّل الدخول بحسابك الحالي لقبول الدعوة':'لديك حساب بالفعل؟ سجّل الدخول لقبول الدعوة'}</a>
     </form>
   </div>;
 }

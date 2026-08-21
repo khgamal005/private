@@ -1,31 +1,36 @@
 'use client';
 
-import Link from 'next/link';
 import {useState} from 'react';
-import {useRouter} from 'next/navigation';
+import {replaceDocument} from '../lib/full-document-navigation.mjs';
 
 export default function InvitationActivationForm({token,invitation}){
-  const router=useRouter();
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
 
   async function submit(event){
     event.preventDefault();
-    setLoading(true);setError('');
+    setLoading(true);
+    setError('');
     const form=new FormData(event.currentTarget);
-    const response=await fetch('/api/auth/register-invitation',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({token,password:form.get('password')})
-    });
-    const data=await response.json();
-    setLoading(false);
-    if(!response.ok){
-      setError(data.error||'تعذر تفعيل الحساب');
-      return;
+    try{
+      const response=await fetch('/api/auth/register-invitation',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({token,password:form.get('password')})
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok){
+        setLoading(false);
+        setError(data.error||'تعذر تفعيل الحساب');
+        return;
+      }
+      replaceDocument(data.next,{
+        fallback:'/tenant/'+encodeURIComponent(invitation.tenantSlug)
+      });
+    }catch{
+      setLoading(false);
+      setError('تعذر الاتصال بالخادم. تحقق من الشبكة ثم أعد المحاولة.');
     }
-    router.replace(data.next||`/tenant/${invitation.tenantSlug}`);
-    router.refresh();
   }
 
   return <div className="invitation-layout">
@@ -43,7 +48,7 @@ export default function InvitationActivationForm({token,invitation}){
       <small>استخدم 10 أحرف على الأقل، ويفضل الجمع بين الحروف والأرقام والرموز.</small>
       {error&&<div className="form-error">{error}</div>}
       <button disabled={loading}>{loading?'جارٍ تفعيل الحساب…':'تفعيل الحساب والدخول'}</button>
-      <Link className="invitation-login-link" href={`/login?invite=${encodeURIComponent(token)}`}>لديك حساب بالفعل؟ سجّل الدخول لقبول الدعوة</Link>
+      <a className="invitation-login-link" href={'/login?invite='+encodeURIComponent(token)}>لديك حساب بالفعل؟ سجّل الدخول لقبول الدعوة</a>
     </form>
   </div>;
 }

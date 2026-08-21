@@ -323,7 +323,7 @@ function Hero({ cms }: { cms: LandingCms }) {
     return () => window.clearInterval(timer);
   }, []);
   return (
-    <section className="hero" id="top">
+    <section className="odeir-home-hero" id="top">
       <div className="hero-glow hero-glow--one" aria-hidden="true" /><div className="hero-glow hero-glow--two" aria-hidden="true" />
       <div className="hero-copy" data-reveal>
         <div className="eyebrow"><span /> {eyebrow}</div>

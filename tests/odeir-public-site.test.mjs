@@ -55,7 +55,14 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(landing,/خذ زبدة السوق مع قهوتك/);
   assert.match(landing,/المواد العامة المنشورة/);
   assert.match(landing,/heroShellRef/);
+  assert.match(landing,/className="odeir-home-hero"/);
+  assert.doesNotMatch(landing,/className="hero"/);
   assert.match(styles,/\.odeir-experience \.hero-shell/);
+  assert.match(styles,/\.odeir-experience \.odeir-home-hero/);
+  assert.match(styles,/\.hero-copy h1 \.hero-title-mobile/);
+  assert.match(styles,/font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; letter-spacing: inherit/);
+  assert.match(styles,/\.site-header \.brand-link \{ padding: 12px; \}/);
+  assert.match(styles,/\.site-header \.brand \{ padding: 0 !important; gap: 0 !important; \}/);
   assert.match(styles,/\.mobile-hero-snapshot/);
   assert.match(styles,/\.morning-section/);
   assert.doesNotMatch(styles,/@scope/);

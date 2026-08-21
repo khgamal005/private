@@ -22,6 +22,7 @@ const FILTERS=[
 ];
 const EMPTY=[];
 const DAY_TASK_PAGE_SIZE=30;
+const OPEN_TASK_STATUSES=new Set(['todo','in_progress']);
 const LEAD_STATUS={
   new:'جديد',
   no_answer:'لم يرد',
@@ -67,6 +68,9 @@ function calendarDays(value){
   });
 }
 function sameDay(a,b){return new Date(a).toDateString()===new Date(b).toDateString()}
+function isTodayTask(task,today=new Date()){
+  return OPEN_TASK_STATUSES.has(task.status)&&sameDay(task.dueAt,today);
+}
 function state(task){
   if(task.status==='completed')return 'completed';
   if(new Date(task.dueAt)<new Date())return 'overdue';
@@ -130,12 +134,18 @@ function duration(value){
   return `${number(hours)} س${remainingMinutes?` ${number(remainingMinutes)} د`:''}`;
 }
 
-export default function TaskCalendarPage({slug,initialData,embedded=false}){
+export default function TaskCalendarPage({
+  slug,
+  initialData,
+  embedded=false,
+  initialFocus='calendar'
+}){
   const router=useRouter();
+  const startsInTodayFocus=initialFocus==='today';
   const [data,setData]=useState(initialData);
   const [month,setMonth]=useState(()=>new Date());
-  const [filter,setFilter]=useState('all');
-  const [mode,setMode]=useState('month');
+  const [filter,setFilter]=useState(()=>startsInTodayFocus?'today':'all');
+  const [mode,setMode]=useState(()=>startsInTodayFocus?'agenda':'month');
   const [assignee,setAssignee]=useState('all');
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState('');
@@ -170,9 +180,9 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
   const viewTeam=Boolean(data.viewer?.viewTeam);
 
   const summary=useMemo(()=>({
-    open:tasks.filter(task=>['todo','in_progress'].includes(task.status)).length,
+    open:tasks.filter(task=>OPEN_TASK_STATUSES.has(task.status)).length,
     overdue:tasks.filter(task=>state(task)==='overdue').length,
-    today:tasks.filter(task=>state(task)==='today').length,
+    today:tasks.filter(task=>isTodayTask(task)).length,
     completedLate:tasks.filter(task=>
       task.status==='completed'&&task.completionTiming==='late'
     ).length
@@ -188,6 +198,7 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
     if(['interested','awaiting_payment','very_interested'].includes(filter)){
       return task.contactStatus===filter&&task.status!=='completed';
     }
+    if(filter==='today')return isTodayTask(task);
     return state(task)===filter;
   }),[tasks,filter,assignee]);
 
@@ -209,6 +220,12 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
     const payload=await response.json();
     if(!response.ok)throw new Error(payload.error||'تعذر تنفيذ العملية');
     return payload.data;
+  }
+
+  function focusToday(){
+    setMonth(new Date());
+    setFilter('today');
+    setMode('agenda');
   }
 
   async function createTask(event){
@@ -375,8 +392,13 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
         <h2>المهام والتقويم</h2>
         <p>{viewTeam?'متابعة مهام الفريق كاملة':'مهامك المسندة'} · اضغط متابعة العميل لتسجيل النتيجة وتحديد الإجراء التالي مباشرة.</p>
       </div>
-      {canWrite&&<div className="mt-page-actions">
-        <button type="button" className="mt-button primary" onClick={()=>setShowForm(true)}>+ مهمة جديدة</button>
+      {(startsInTodayFocus||canWrite)&&<div className="mt-page-actions">
+        {startsInTodayFocus&&<button
+          type="button"
+          className={`mt-button ${filter==='today'&&mode==='agenda'?'primary':''}`}
+          onClick={focusToday}
+        >مهام اليوم ({number(summary.today)})</button>}
+        {canWrite&&<button type="button" className="mt-button primary" onClick={()=>setShowForm(true)}>+ مهمة جديدة</button>}
       </div>}
     </header>
 
@@ -391,7 +413,7 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
     <section className="calendar-summary-grid">
       <button onClick={()=>setFilter('all')} className={filter==='all'?'active':''}><span>المهام المفتوحة</span><b>{summary.open}</b><small>جميع المهام الجارية</small></button>
       <button onClick={()=>setFilter('overdue')} className={`danger ${filter==='overdue'?'active':''}`}><span>المتأخرة</span><b>{summary.overdue}</b><small>تحتاج إجراءً الآن</small></button>
-      <button onClick={()=>setFilter('today')} className={`warning ${filter==='today'?'active':''}`}><span>مهام اليوم</span><b>{summary.today}</b><small>مطلوبة قبل نهاية اليوم</small></button>
+      <button onClick={focusToday} className={`warning ${filter==='today'?'active':''}`}><span>مهام اليوم</span><b>{summary.today}</b><small>تشمل المتأخر منها اليوم</small></button>
       <button onClick={()=>setFilter('completed')} className={filter==='completed'?'active':''}><span>اكتملت متأخرًا</span><b>{summary.completedLate}</b><small>مسجلة لقياس الأداء</small></button>
     </section>
 
@@ -418,7 +440,7 @@ export default function TaskCalendarPage({slug,initialData,embedded=false}){
       {FILTERS.map(([key,label])=><button
         key={key}
         className={filter===key?'active':''}
-        onClick={()=>setFilter(key)}
+        onClick={()=>key==='today'?focusToday():setFilter(key)}
       >{label}</button>)}
     </section>
 

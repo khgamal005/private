@@ -2,7 +2,7 @@ import {Suspense} from 'react';
 import LoginForm from '../../components/login-form';
 import MarktoneLogo from '../../components/marktone-logo';
 
-export const dynamic='force-dynamic';
+export const revalidate=300;
 export const metadata={title:'تسجيل دخول المنشآت | أودير'};
 
 export default function Login(){

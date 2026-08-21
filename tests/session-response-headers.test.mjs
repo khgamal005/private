@@ -7,10 +7,9 @@ function valueFor(route,key){
   return route.headers.find(header=>header.key===key)?.value;
 }
 
-test('auth and protected pages disable proxy buffering and shared caching',async()=>{
+test('protected pages disable proxy buffering and shared caching',async()=>{
   const routes=await nextConfig.headers();
   const protectedSources=[
-    '/login',
     '/change-password',
     '/accept-invite',
     '/accept-platform-invite',
@@ -22,6 +21,16 @@ test('auth and protected pages disable proxy buffering and shared caching',async
     assert.ok(route,'missing headers for '+source);
     assert.match(valueFor(route,'Cache-Control'),/private, no-store/);
     assert.equal(valueFor(route,'CDN-Cache-Control'),'no-store');
+    assert.equal(valueFor(route,'X-Accel-Buffering'),'no');
+  }
+
+  const publicAuthSources=['/login','/forgot-password','/reset-password'];
+  for(const source of publicAuthSources){
+    const route=routes.find(candidate=>candidate.source===source);
+    assert.ok(route,'missing headers for '+source);
+    assert.match(valueFor(route,'Cache-Control'),/public/);
+    assert.match(valueFor(route,'Cache-Control'),/s-maxage=300/);
+    assert.match(valueFor(route,'Cache-Control'),/stale-if-error/);
     assert.equal(valueFor(route,'X-Accel-Buffering'),'no');
   }
 
@@ -39,7 +48,9 @@ test('every session-creating auth response explicitly disables caching',async()=
     'app/api/auth/login/route.js',
     'app/api/auth/register-invitation/route.js',
     'app/api/auth/register-platform-invitation/route.js',
-    'app/api/auth/change-password/route.js'
+    'app/api/auth/change-password/route.js',
+    'app/api/auth/request-password-reset/route.js',
+    'app/api/auth/reset-password/route.js'
   ];
   for(const path of paths){
     const content=await readFile(new URL('../'+path,import.meta.url),'utf8');
@@ -54,10 +65,11 @@ test('every session-creating auth response explicitly disables caching',async()=
   }
 });
 
-test('login HTML is rendered dynamically so the CDN cannot reuse a stale shell',async()=>{
+test('public login shell is prerendered while the auth API stays private',async()=>{
   const content=await readFile(
     new URL('../app/login/page.js',import.meta.url),
     'utf8'
   );
-  assert.match(content,/export const dynamic='force-dynamic'/);
+  assert.match(content,/export const revalidate=300/);
+  assert.doesNotMatch(content,/force-dynamic/);
 });

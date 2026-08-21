@@ -11,6 +11,7 @@ export default function LoginForm(){
   const invitationToken=search.get('invite');
   const platformInvitationToken=search.get('platformInvite');
   const requestedNext=search.get('next');
+  const passwordReset=search.get('reset')==='success';
   const hasInvitation=Boolean(invitationToken||platformInvitationToken);
 
   async function submit(event){
@@ -28,7 +29,8 @@ export default function LoginForm(){
           invitationToken,
           platformInvitationToken,
           requestedNext
-        })
+        }),
+        cache:'no-store'
       });
       const data=await response.json().catch(()=>({}));
       if(!response.ok){
@@ -44,12 +46,29 @@ export default function LoginForm(){
   }
 
   return <form className="auth-form" onSubmit={submit}>
+    {passwordReset&&<div className="form-success">تم حفظ كلمة المرور الجديدة. يمكنك تسجيل الدخول الآن.</div>}
     {invitationToken&&<div className="form-success">سجّل الدخول بالبريد المدعو وسيتم ربط حسابك بالمنشأة تلقائيًا.</div>}
     {platformInvitationToken&&<div className="form-success">سجّل الدخول بالبريد المدعو وسيتم ربط حسابك بفريق إدارة أودير حسب الدور المحدد.</div>}
-    <label>البريد الإلكتروني<input name="email" type="email" defaultValue={hasInvitation?'':'admin@marktone.sa'} autoComplete="email" required/></label>
+    <label>البريد الإلكتروني<input
+      name="email"
+      type="email"
+      autoComplete="email"
+      autoCapitalize="none"
+      spellCheck="false"
+      required
+    /></label>
     <label>كلمة المرور<input name="password" type="password" autoComplete="current-password" required/></label>
     {error&&<div className="form-error">{error}</div>}
     <button disabled={loading}>{loading?'جارٍ التحقق...':hasInvitation?'تسجيل الدخول وقبول الدعوة':'تسجيل الدخول'}</button>
+    <a href="/forgot-password" style={helpLinkStyle}>نسيت كلمة المرور؟</a>
     <small>الدخول محمي ومربوط بصلاحيات أودير الدقيقة على مستوى المنصة والمنشآت.</small>
   </form>;
 }
+
+const helpLinkStyle={
+  color:'#315769',
+  display:'inline-block',
+  fontWeight:700,
+  textAlign:'center',
+  textDecoration:'none'
+};

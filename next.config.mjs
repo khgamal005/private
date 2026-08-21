@@ -18,6 +18,18 @@ const noStoreHeaders=[
   {key:'Expires',value:'0'}
 ];
 
+const publicAuthPageHeaders=[
+  {
+    key:'Cache-Control',
+    value:'public, max-age=0, s-maxage=300, must-revalidate, stale-if-error=86400'
+  },
+  {
+    key:'CDN-Cache-Control',
+    value:'public, s-maxage=300, must-revalidate, stale-if-error=86400'
+  },
+  ...streamingHeaders
+];
+
 const protectedPageHeaders=[...noStoreHeaders,...streamingHeaders];
 
 const nextConfig={
@@ -25,7 +37,9 @@ const nextConfig={
   reactStrictMode:true,
   async headers(){
     return [
-      {source:'/login',headers:protectedPageHeaders},
+      {source:'/login',headers:publicAuthPageHeaders},
+      {source:'/forgot-password',headers:publicAuthPageHeaders},
+      {source:'/reset-password',headers:publicAuthPageHeaders},
       {source:'/change-password',headers:protectedPageHeaders},
       {source:'/accept-invite',headers:protectedPageHeaders},
       {source:'/accept-platform-invite',headers:protectedPageHeaders},

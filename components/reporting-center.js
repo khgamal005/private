@@ -228,7 +228,7 @@ function EmployeeTable({employees=[],slug,range,compact=false,canExport=false,ex
       <tbody>{rows.map(employee=>{
         const employeeScore=score(employee);
         return <tr key={employee.staffId}>
-          <td><Link className={styles.employeeLink} href={`/tenant/${encodeURIComponent(slug)}/reports/employees/${employee.staffId}?${reportQuery(range)}`}><b>{employee.name}</b><small>{employee.jobTitle||employee.roleLabel||'موظف'}</small></Link></td>
+          <td><Link prefetch={false} className={styles.employeeLink} href={`/tenant/${encodeURIComponent(slug)}/reports/employees/${employee.staffId}?${reportQuery(range)}`}><b>{employee.name}</b><small>{employee.jobTitle||employee.roleLabel||'موظف'}</small></Link></td>
           <td>{employeeScore===null?<span className={styles.muted}>لا توجد عينة</span>:<span className={styles.score}>{number(employeeScore)}٪</span>}</td>
           <td><b>{number(employee.leadsAssigned)}</b><small>{number(employee.activities)} متابعة</small></td>
           <td><b>{number(employee.paidContacts)}</b><small>{percent(employee.conversionRate)}</small></td>

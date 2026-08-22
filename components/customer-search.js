@@ -258,7 +258,7 @@ function CustomerCard({slug,result}){
     </dl>
 
     <footer>
-      {result.canOpen&&result.id&&<Link className="mt-button primary" href={`/tenant/${encodeURIComponent(slug)}/sales?contact=${encodeURIComponent(result.id)}`}>فتح العميل في المبيعات</Link>}
+      {result.canOpen&&result.id&&<Link prefetch={false} className="mt-button primary" href={`/tenant/${encodeURIComponent(slug)}/sales?contact=${encodeURIComponent(result.id)}`}>فتح العميل في المبيعات</Link>}
       {result.canOpen&&phoneDigits&&<a className="mt-button" href={`tel:${phoneDigits}`}>اتصال</a>}
       {result.canOpen&&whatsappDigits&&<a className="mt-button" href={`https://wa.me/${whatsappDigits}`} target="_blank" rel="noreferrer">واتساب</a>}
     </footer>

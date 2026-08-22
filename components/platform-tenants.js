@@ -142,7 +142,7 @@ export default function PlatformTenants({initialData}){
           <td><select value={tenant.planKey||''} disabled={busy} onChange={event=>updatePlan(tenant.id,event.target.value)}>
             <option value="">بدون باقة</option>{plans.map(plan=><option value={plan.key} key={plan.key}>{plan.nameAr}</option>)}
           </select></td>
-          <td><Link className="mt-button soft" href={`/tenant/${tenant.slug}`}>فتح</Link></td>
+          <td><Link prefetch={false} className="mt-button soft" href={`/tenant/${tenant.slug}`}>فتح</Link></td>
         </tr>)}</tbody>
       </table>{!shown.length&&<div className="mt-empty">لا توجد منشآت مطابقة.</div>}</div>
     </section>

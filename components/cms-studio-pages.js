@@ -75,10 +75,10 @@ export function PagesPanel({context,pages,query,setQuery,setEditor,call,archive}
           <small dir="ltr">{pagePath}</small><h2>{page.title}</h2><p>{page.excerpt||'أضف وصفًا مختصرًا يساعد فريقك ومحركات البحث.'}</p>
           <div className={styles.builderState}><span>{page.builder?.blockCount||0} عنصر</span><span>{page.builder?.hasUnpublishedChanges?'تعديلات غير منشورة':page.builder?.hasPublished?'متزامنة مع الموقع':'مسودة جديدة'}</span></div>
           <footer>
-            <Link href={cmsBuilderPath(context,'page',page.id)} className={styles.designButton}>تصميم الصفحة</Link>
+            <Link prefetch={false} href={cmsBuilderPath(context,'page',page.id)} className={styles.designButton}>تصميم الصفحة</Link>
             <button type="button" onClick={()=>setEditor({type:'page',value:page})}>البيانات</button>
-            <Link href={cmsPreviewPath(context,'page',page.id)} target="_blank">معاينة المسودة</Link>
-            <Link href={pagePath} target="_blank">فتح المنشور</Link>
+            <Link prefetch={false} href={cmsPreviewPath(context,'page',page.id)} target="_blank">معاينة المسودة</Link>
+            <Link prefetch={false} href={pagePath} target="_blank">فتح المنشور</Link>
             <MenuActions items={[
               !page.isHome&&{label:'تعيين كرئيسية',onClick:()=>window.confirm('تعيين هذه الصفحة كرئيسية ونشرها؟')&&call('set-home-page',{id:page.id},{message:'تم تعيين الصفحة الرئيسية'})},
               {label:'إنشاء نسخة',onClick:()=>call('duplicate-page',{id:page.id},{message:'تم إنشاء نسخة كمسودة'})},

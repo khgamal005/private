@@ -185,6 +185,7 @@ export default function NotificationCenter({
         >تحديد إشعارات النظام كمقروءة</button>}
         <div className="mt-notification-list">
           {systemItems.map(item=><Link
+            prefetch={false}
             key={item.id}
             href={item.actionUrl||`/tenant/${encodeURIComponent(slug)}/sales`}
             className={item.readAt?'':'is-unread'}
@@ -198,6 +199,7 @@ export default function NotificationCenter({
             </span>
           </Link>)}
           {operationalItems.map(item=><Link
+            prefetch={false}
             key={`${item.href}-${item.title}`}
             href={item.href}
           >

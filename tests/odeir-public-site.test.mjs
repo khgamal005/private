@@ -34,11 +34,18 @@ test('ODEIR registration and authentication entry points carry the new identity'
 });
 
 test('ODEIR production homepage uses the interactive, builder-backed landing experience',async()=>{
+  const integrationLogoNames=[
+    'salla-color.svg','zid-color.svg','shopify.svg','woocommerce-color.svg','other-stores.svg',
+    'meta-color.svg','instagram-color.svg','google-ads-color.svg','snapchat-color.svg','tiktok-color.svg','x-color.svg',
+    'yeastar-color.svg','salesforce-color.svg','hubspot-color.svg','zoho-crm-color.svg',
+    'tvtc-color.svg','mnar-color.svg','nelc-color.svg','zatca-color.svg',
+    'zoom-color.svg','google-meet-color.svg','whatsapp-color.svg','lms.svg','certified-instructors.svg'
+  ];
   const [page,landing,styles,...journeyLogos]=await Promise.all([
     read('app/page.js'),
     read('components/odeir-landing-experience.tsx'),
     read('app/odeir-landing-experience.css'),
-    ...['meta-color.svg','whatsapp-color.svg','salla-color.svg','zid-color.svg','woocommerce-color.svg'].map(name=>read(`public/integrations/${name}`))
+    ...integrationLogoNames.map(name=>read(`public/integrations/${name}`))
   ]);
   assert.match(page,/OdeirLandingExperience/);
   assert.match(page,/landingCms\(snapshot,home\)/);
@@ -58,16 +65,20 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(landing,/heroShellRef/);
   assert.match(landing,/className="odeir-home-hero"/);
   assert.doesNotMatch(landing,/className="hero"/);
-  for(const logo of ['/integrations/meta-color.svg','/integrations/whatsapp-color.svg','/integrations/salla-color.svg','/integrations/zid-color.svg','/integrations/woocommerce-color.svg']){
+  for(const logo of integrationLogoNames.map(name=>`/integrations/${name}`)){
     assert.match(landing,new RegExp(logo.replaceAll('/','\\/')));
   }
   for(const asset of journeyLogos) assert.match(asset,/<svg[^>]+viewBox=/);
-  assert.match(landing,/className="journey-network"/);
+  for(const category of ['commerce','ads','sales','admissions','trainees']) assert.match(landing,new RegExp(`key: "${category}"`));
+  for(const platform of ['Shopify','Google Ads','Snapchat','TikTok','Yeastar','Salesforce','HubSpot','Zoho CRM','منصة منار','المركز الوطني للتعليم الإلكتروني','هيئة الزكاة والضريبة والجمارك','Google Meet','WhatsApp Business','محاضرون معتمدون']) assert.match(landing,new RegExp(platform));
+  assert.match(landing,/role="tablist" aria-label="أقسام التكامل"/);
+  assert.match(landing,/className={`journey-network journey-network--\${activeCategory\.sources\.length}`}/);
   assert.match(landing,/className="journey-network-map"/);
   assert.match(landing,/className="core-orbit core-orbit--outer"/);
-  assert.match(landing,/إعلانات ورسائل/);
-  assert.match(landing,/التواصل مع العملاء/);
-  assert.match(landing,/إدارة المتاجر/);
+  assert.match(landing,/onPointerEnter=\{\(\) => setActiveNode\(index\)\}/);
+  assert.match(landing,/عرض الجهات يوضح مواءمة مسارات التشغيل مع متطلباتها/);
+  assert.match(landing,/لا يعني شراكة أو اعتمادًا رسميًا/);
+  assert.match(landing,/أسماء وشعارات المنصات مملوكة لأصحابها/);
   assert.doesNotMatch(landing,/<i>☎<\/i>|source--wa(?:[\s"'])/);
   assert.match(styles,/\.odeir-experience \.hero-shell/);
   assert.match(styles,/\.odeir-experience \.odeir-home-hero/);
@@ -78,9 +89,14 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(styles,/\.mobile-hero-snapshot/);
   assert.match(styles,/\.morning-section/);
   assert.match(styles,/\.journey-network-map/);
+  assert.match(styles,/\.journey-category-tabs/);
+  assert.match(styles,/scroll-snap-type: x mandatory/);
+  assert.match(styles,/touch-action: manipulation/);
   assert.match(styles,/@keyframes network-signal/);
   assert.match(styles,/@keyframes core-breathe/);
-  assert.match(styles,/\.network-node--whatsapp/);
+  assert.match(styles,/@keyframes node-swap-in/);
+  assert.match(styles,/\.network-node--position-5/);
+  assert.match(styles,/\.network-node-label/);
   assert.doesNotMatch(styles,/@scope/);
   assert.doesNotMatch(landing,/ريف|reef/i);
   assert.doesNotMatch(page,/knowledge\/feed|tenantSlug|reef/i);

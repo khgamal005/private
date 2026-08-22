@@ -431,77 +431,232 @@ function MorningBriefing({ articles = [] }: { articles?: LandingArticle[] }) {
   );
 }
 
-const JOURNEY_SOURCES = [
-  { key: "meta", label: "Meta", description: "إعلانات ورسائل", logo: "/integrations/meta-color.svg" },
-  { key: "whatsapp", label: "WhatsApp", description: "التواصل مع العملاء", logo: "/integrations/whatsapp-color.svg" },
-  { key: "salla", label: "سلة", description: "التجارة الإلكترونية", logo: "/integrations/salla-color.svg" },
-  { key: "zid", label: "زد", description: "إدارة المتاجر", logo: "/integrations/zid-color.svg" },
-  { key: "woo", label: "WooCommerce", description: "التجارة الإلكترونية", logo: "/integrations/woocommerce-color.svg" },
+type JourneyCategoryKey = "commerce" | "ads" | "sales" | "admissions" | "trainees";
+
+type JourneySource = {
+  key: string;
+  label: string;
+  nodeLabel?: string;
+  description: string;
+  logo: string;
+  logoClass?: string;
+};
+
+type JourneyCategory = {
+  key: JourneyCategoryKey;
+  label: string;
+  shortLabel: string;
+  caption: string;
+  description: string;
+  coreKicker: string;
+  coreTitle: string;
+  coreSecond: string;
+  sources: readonly JourneySource[];
+  notice?: string;
+};
+
+const JOURNEY_CATEGORIES: readonly JourneyCategory[] = [
+  {
+    key: "commerce",
+    label: "المتاجر والتجارة الإلكترونية",
+    shortLabel: "المتاجر",
+    caption: "طلبات ومدفوعات",
+    description: "استقبل الطلب بحالته ومصدره، واربطه بالعميل والسداد والتسجيل بدون إعادة إدخال.",
+    coreKicker: "الطلبات مترابطة",
+    coreTitle: "كل طلب واضح.",
+    coreSecond: "في مسار واحد.",
+    sources: [
+      { key: "salla", label: "سلة", description: "طلبات المتجر", logo: "/integrations/salla-color.svg" },
+      { key: "zid", label: "زد", description: "إدارة المتجر", logo: "/integrations/zid-color.svg" },
+      { key: "shopify", label: "Shopify", description: "التجارة العالمية", logo: "/integrations/shopify.svg", logoClass: "is-wide" },
+      { key: "woo", label: "WooCommerce", description: "متجر ووردبريس", logo: "/integrations/woocommerce-color.svg", logoClass: "is-wide" },
+      { key: "other-stores", label: "متاجر أخرى", description: "واجهات وربط مرن", logo: "/integrations/other-stores.svg" },
+    ],
+  },
+  {
+    key: "ads",
+    label: "الإعلانات ومصادر العملاء",
+    shortLabel: "الإعلانات",
+    caption: "حملات ومصادر",
+    description: "اعرف أي حملة جابت العميل، ووصل الاستفسار بفريق المبيعات قبل ما تبرد الفرصة.",
+    coreKicker: "المصدر محفوظ",
+    coreTitle: "من النقرة للفرصة.",
+    coreSecond: "بدون حلقة ضايعة.",
+    sources: [
+      { key: "meta", label: "Meta", description: "إعلانات ورسائل", logo: "/integrations/meta-color.svg", logoClass: "is-wide" },
+      { key: "instagram", label: "Instagram", description: "إعلانات ومحادثات", logo: "/integrations/instagram-color.svg" },
+      { key: "google-ads", label: "Google Ads", description: "بحث وحملات", logo: "/integrations/google-ads-color.svg" },
+      { key: "snapchat", label: "Snapchat", description: "حملات سناب", logo: "/integrations/snapchat-color.svg" },
+      { key: "tiktok", label: "TikTok", description: "حملات المحتوى", logo: "/integrations/tiktok-color.svg" },
+      { key: "x", label: "منصة X", nodeLabel: "X", description: "حملات ومحادثات", logo: "/integrations/x-color.svg" },
+    ],
+  },
+  {
+    key: "sales",
+    label: "المبيعات وإدارة العملاء",
+    shortLabel: "المبيعات والعملاء",
+    caption: "CRM واتصالات",
+    description: "المكالمة والمحادثة والمرحلة القادمة في ملف واحد؛ حتى ما يبدأ الموظف من الصفر.",
+    coreKicker: "السياق كامل",
+    coreTitle: "كل عميل واضح.",
+    coreSecond: "وخطوته جاية.",
+    sources: [
+      { key: "yeastar", label: "Yeastar", description: "الاتصالات والسنترال", logo: "/integrations/yeastar-color.svg" },
+      { key: "salesforce", label: "Salesforce", description: "إدارة علاقات العملاء", logo: "/integrations/salesforce-color.svg" },
+      { key: "hubspot", label: "HubSpot", description: "مبيعات وتسويق", logo: "/integrations/hubspot-color.svg" },
+      { key: "zoho", label: "Zoho CRM", description: "إدارة العملاء", logo: "/integrations/zoho-crm-color.svg" },
+    ],
+  },
+  {
+    key: "admissions",
+    label: "التسجيل والقبول",
+    shortLabel: "التسجيل والقبول",
+    caption: "متطلبات الجهات",
+    description: "رتّب الطلب والوثائق والبرنامج والفاتورة في مسار يساعدك على مواءمة التشغيل مع المتطلبات ذات الصلة.",
+    coreKicker: "الملف مكتمل",
+    coreTitle: "قبول منظم.",
+    coreSecond: "ومتطلبات أوضح.",
+    sources: [
+      { key: "tvtc", label: "المؤسسة العامة للتدريب التقني والمهني", nodeLabel: "التدريب التقني", description: "متطلبات منشآت التدريب", logo: "/integrations/tvtc-color.svg" },
+      { key: "mnar", label: "منصة منار", nodeLabel: "منار", description: "بيانات البرامج والمتدربين", logo: "/integrations/mnar-color.svg" },
+      { key: "nelc", label: "المركز الوطني للتعليم الإلكتروني", nodeLabel: "التعليم الإلكتروني", description: "ضوابط التعليم الإلكتروني", logo: "/integrations/nelc-color.svg" },
+      { key: "zatca", label: "هيئة الزكاة والضريبة والجمارك (زاتكا)", nodeLabel: "زاتكا", description: "الفوترة والامتثال الضريبي", logo: "/integrations/zatca-color.svg" },
+    ],
+    notice: "عرض الجهات يوضح مواءمة مسارات التشغيل مع متطلباتها، ولا يعني شراكة أو اعتمادًا رسميًا.",
+  },
+  {
+    key: "trainees",
+    label: "تشغيل المتدربين",
+    shortLabel: "تشغيل المتدربين",
+    caption: "تعلم وتواصل",
+    description: "الجلسة والحضور والمحتوى والمحاضر وتنبيه المتدرب تتحرك من خطة تشغيل واحدة.",
+    coreKicker: "التشغيل متصل",
+    coreTitle: "من أول محاضرة.",
+    coreSecond: "كل خطوة محسوبة.",
+    sources: [
+      { key: "zoom", label: "Zoom", description: "جلسات مباشرة", logo: "/integrations/zoom-color.svg", logoClass: "is-wide" },
+      { key: "google-meet", label: "Google Meet", description: "لقاءات افتراضية", logo: "/integrations/google-meet-color.svg" },
+      { key: "whatsapp-business", label: "WhatsApp Business", description: "تنبيهات وتواصل", logo: "/integrations/whatsapp-color.svg" },
+      { key: "lms", label: "نظام إدارة التعلم (LMS)", nodeLabel: "LMS", description: "محتوى وحضور", logo: "/integrations/lms.svg" },
+      { key: "certified-instructors", label: "محاضرون معتمدون", description: "توزيع وجدولة", logo: "/integrations/certified-instructors.svg" },
+    ],
+  },
 ] as const;
 
+const JOURNEY_PATHS = [
+  "M100 78C210 78 232 172 292 214",
+  "M660 78C550 78 528 172 468 214",
+  "M86 234C177 234 215 257 246 278",
+  "M674 234C583 234 545 257 514 278",
+  "M120 406C202 406 220 365 252 350",
+  "M640 406C558 406 540 365 508 350",
+] as const;
+
+function JourneyCategoryIcon({ type }: { type: JourneyCategoryKey }) {
+  if (type === "commerce") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2l2 10h10l2-7H7M9 19a1 1 0 1 0 0 .01M17 19a1 1 0 1 0 0 .01" /></svg>;
+  if (type === "ads") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 13 12-5v9L4 13Zm0 0v4h4l2 3M19 9l2-2M20 13h3M19 17l2 2" /></svg>;
+  if (type === "sales") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-6 9c.5-4 2.5-6 6-6s5.5 2 6 6M16 8h6M16 12h5M16 16h4" /></svg>;
+  if (type === "admissions") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Zm9 0v5h4M9 12h7M9 16h5" /><path d="m8 8 1 1 2-2" /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 9 10-5 10 5-10 5L2 9Zm4 3v5c4 3 8 3 12 0v-5M22 9v7" /></svg>;
+}
+
 function StoryStrip() {
-  const [active, setActive] = useState(0);
+  const [activeCategoryKey, setActiveCategoryKey] = useState<JourneyCategoryKey>("commerce");
+  const [activeNode, setActiveNode] = useState(0);
+  const activeCategory = JOURNEY_CATEGORIES.find((category) => category.key === activeCategoryKey) ?? JOURNEY_CATEGORIES[0];
+
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(() => setActive((value) => (value + 1) % JOURNEY_SOURCES.length), 2200);
+    const timer = window.setInterval(() => setActiveNode((value) => (value + 1) % activeCategory.sources.length), 2400);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [activeCategory.key, activeCategory.sources.length]);
+
+  function selectCategory(key: JourneyCategoryKey) {
+    setActiveCategoryKey(key);
+    setActiveNode(0);
+  }
+
   return (
     <section className="story-section section" id="story">
-      <div className="section-kicker" data-reveal><span>01</span> المشكلة مو في فريقك</div>
-      <div className="story-head" data-reveal><h2>المشكلة في رحلة متفرقة<br />بين خمس شاشات.</h2><p>عميل في الواتساب، طلب في المتجر، مكالمة في السنترال، وموعد داخل ملف موظف. أودير يجمع الرحلة بدل ما يضيف عليك شاشة جديدة.</p></div>
+      <div className="section-kicker" data-reveal><span>01</span> كل تكامل في مكانه</div>
+      <div className="story-head" data-reveal><h2>خمس منظومات حول منشأتك.<br />أودير يجمعها في مسار واحد.</h2><p>اختر القسم، وشاهد كيف تتحول المنصات المتفرقة إلى رحلة تشغيل مفهومة للمدير والموظف—بدون شاشة إضافية تزيد التعقيد.</p></div>
       <div className="story-flow" data-reveal>
-        <div className="source-stack" aria-label="مصادر العملاء">
-          {JOURNEY_SOURCES.map((source, index) => (
+        <div className="journey-category-tabs" role="tablist" aria-label="أقسام التكامل">
+          {JOURNEY_CATEGORIES.map((category, index) => (
             <button
-              className={`source source--${source.key}${active === index ? " is-active" : ""}`}
+              className={`journey-category-tab${activeCategory.key === category.key ? " is-active" : ""}`}
               type="button"
-              aria-pressed={active === index}
-              onClick={() => setActive(index)}
-              onFocus={() => setActive(index)}
-              onPointerEnter={() => setActive(index)}
-              key={source.key}
+              role="tab"
+              id={`journey-tab-${category.key}`}
+              aria-controls="journey-category-panel"
+              aria-selected={activeCategory.key === category.key}
+              tabIndex={activeCategory.key === category.key ? 0 : -1}
+              onClick={() => selectCategory(category.key)}
+              key={category.key}
             >
-              <span className="source-logo"><Image src={source.logo} width={64} height={64} alt="" /></span>
-              <span className="source-copy"><b dir="auto">{source.label}</b><small dir="auto">{source.description}</small></span>
-              <span className="source-signal" aria-hidden="true" />
+              <span className="journey-category-icon"><JourneyCategoryIcon type={category.key} /></span>
+              <span><b>{category.shortLabel}</b><small>{category.caption}</small></span>
+              <em>{String(index + 1).padStart(2, "0")}</em>
             </button>
           ))}
         </div>
-        <div className="journey-network" aria-label="تجميع قنوات العميل في مسار واحد داخل أودير">
+        <div
+          className="journey-category-panel"
+          id="journey-category-panel"
+          role="tabpanel"
+          aria-labelledby={`journey-tab-${activeCategory.key}`}
+          aria-live="polite"
+          key={`panel-${activeCategory.key}`}
+        >
+          <div className="journey-category-summary">
+            <span><i /> المسار الحالي</span>
+            <h3>{activeCategory.label}</h3>
+            <p>{activeCategory.description}</p>
+          </div>
+          <div className="journey-platform-list" aria-label={`منصات ${activeCategory.shortLabel}`}>
+            {activeCategory.sources.map((source) => <span dir="auto" key={`legend-${source.key}`}>{source.label}</span>)}
+          </div>
+          {activeCategory.notice ? <p className="journey-category-notice"><i aria-hidden="true">!</i>{activeCategory.notice}</p> : null}
+        </div>
+        <div className={`journey-network journey-network--${activeCategory.sources.length}`} aria-label={`ربط ${activeCategory.label} داخل أودير`}>
           <svg className="journey-network-map" viewBox="0 0 760 520" preserveAspectRatio="none" aria-hidden="true">
             <defs>
               <linearGradient id="journey-line-gradient" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#9af8f4" stopOpacity=".15" /><stop offset=".52" stopColor="#22d9d0" stopOpacity=".95" /><stop offset="1" stopColor="#61e9ff" stopOpacity=".3" /></linearGradient>
               <filter id="journey-line-glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
             </defs>
             <path className="journey-spine" d="M380 48V168" />
-            <path className={`journey-line${active === 0 ? " is-active" : ""}`} d="M100 78C210 78 232 172 292 214" />
-            <path className={`journey-line${active === 1 ? " is-active" : ""}`} d="M660 78C550 78 528 172 468 214" />
-            <path className={`journey-line${active === 2 ? " is-active" : ""}`} d="M86 234C177 234 215 257 246 278" />
-            <path className={`journey-line${active === 3 ? " is-active" : ""}`} d="M674 234C583 234 545 257 514 278" />
-            <path className={`journey-line${active === 4 ? " is-active" : ""}`} d="M120 406C202 406 220 365 252 350" />
-            <path className={`journey-line-trace${active === 0 ? " is-active" : ""}`} d="M100 78C210 78 232 172 292 214" />
-            <path className={`journey-line-trace${active === 1 ? " is-active" : ""}`} d="M660 78C550 78 528 172 468 214" />
-            <path className={`journey-line-trace${active === 2 ? " is-active" : ""}`} d="M86 234C177 234 215 257 246 278" />
-            <path className={`journey-line-trace${active === 3 ? " is-active" : ""}`} d="M674 234C583 234 545 257 514 278" />
-            <path className={`journey-line-trace${active === 4 ? " is-active" : ""}`} d="M120 406C202 406 220 365 252 350" />
+            {activeCategory.sources.map((source, index) => <path className={`journey-line${activeNode === index ? " is-active" : ""}`} d={JOURNEY_PATHS[index]} key={`line-${activeCategory.key}-${source.key}`} />)}
+            {activeCategory.sources.map((source, index) => <path className={`journey-line-trace${activeNode === index ? " is-active" : ""}`} d={JOURNEY_PATHS[index]} key={`trace-${activeCategory.key}-${source.key}`} />)}
           </svg>
           <span className="network-beacon" aria-hidden="true"><i /></span>
-          {JOURNEY_SOURCES.map((source, index) => (
-            <span className={`network-node network-node--${source.key}${active === index ? " is-active" : ""}`} aria-hidden="true" key={`node-${source.key}`}>
-              <Image src={source.logo} width={70} height={70} alt="" />
-            </span>
+          {activeCategory.sources.map((source, index) => (
+            <button
+              className={`network-node network-node--position-${index + 1}${activeNode === index ? " is-active" : ""}`}
+              type="button"
+              aria-label={`${source.label}: ${source.description}`}
+              aria-pressed={activeNode === index}
+              onClick={() => setActiveNode(index)}
+              onFocus={() => setActiveNode(index)}
+              onPointerEnter={() => setActiveNode(index)}
+              key={`node-${activeCategory.key}-${source.key}`}
+            >
+              <Image className={source.logoClass ?? ""} src={source.logo} width={70} height={70} alt="" />
+              <span className="network-node-label" dir="auto"><b>{source.nodeLabel ?? source.label}</b><small>{source.description}</small></span>
+            </button>
           ))}
           <div className="odeir-core">
             <span className="core-orbit core-orbit--outer" aria-hidden="true" />
             <span className="core-orbit core-orbit--inner" aria-hidden="true" />
             <Brand compact />
-            <small>مسار واحد</small>
-            <b>عميل واضح.<br />خطوة واحدة.</b>
+            <span className="core-message" key={`core-${activeCategory.key}`}>
+              <small>{activeCategory.coreKicker}</small>
+              <b>{activeCategory.coreTitle}<br />{activeCategory.coreSecond}</b>
+            </span>
             <span className="core-pulse" aria-hidden="true" />
           </div>
           <span className="network-platform" aria-hidden="true" />
         </div>
+        <p className="journey-trademark-note"><i /> أسماء وشعارات المنصات مملوكة لأصحابها. عرضها يشرح مسارات الربط ولا يعني شراكة رسمية؛ والتوفر يعتمد على الخطة وجاهزية واجهة المنصة.</p>
       </div>
     </section>
   );

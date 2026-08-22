@@ -1,6 +1,7 @@
 import TaskCalendarPage from '../../../../components/task-calendar-page';
 import {getTenantTaskCalendar} from '../../../../lib/api';
 import {requireTenantPermission} from '../../../../lib/server-auth';
+import {buildTaskCalendarInitialWindow} from '../../../../lib/task-calendar-initial-window.mjs';
 import {resolveTenantRoleKey} from '../../../../lib/tenant-role-policy';
 
 export const dynamic='force-dynamic';
@@ -20,12 +21,15 @@ export default async function TasksPage({params}){
     ||membership?.permissions?.includes('tenant.crm.read')
   );
   const salesTaskScope=SALES_TASK_ROLES.has(roleKey);
+  const calendar=await getTenantTaskCalendar(slug,{
+    includeSales,
+    taskScope:salesTaskScope?'sales':'all'
+  });
   return <TaskCalendarPage
     slug={slug}
-    initialData={await getTenantTaskCalendar(slug,{
-      includeSales,
-      taskScope:salesTaskScope?'sales':'all'
-    })}
+    initialData={salesTaskScope
+      ?buildTaskCalendarInitialWindow(calendar)
+      :calendar}
     initialFocus={SALES_TASK_ROLES.has(roleKey)?'today':'calendar'}
     showTodayDistribution={SALES_TASK_ROLES.has(roleKey)}
     embedded

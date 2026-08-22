@@ -12,6 +12,7 @@ test('sales roles open directly on the team daily task list',async()=>{
   ]);
 
   assert.match(page,/resolveTenantRoleKey/);
+  assert.match(page,/buildTaskCalendarInitialWindow/);
   assert.match(page,/const SALES_TASK_ROLES=new Set/);
   assert.match(page,/'sales_manager'/);
   assert.match(page,/'sales_supervisor'/);
@@ -46,4 +47,5 @@ test('today keeps earlier open tasks visible after their due time',async()=>{
   assert.match(calendar,/today:tasks\.filter\(task=>isTodayTask\(task,new Date\(\),timeZone\)\)\.length/);
   assert.match(calendar,/if\(filter==='today'\)return isTodayTask\(task,new Date\(\),timeZone\)/);
   assert.match(calendar,/الساعة للترتيب ولا تُحسب تأخيرًا/);
+  assert.match(calendar,/data\.partial&&data\.calendarSummary/);
 });

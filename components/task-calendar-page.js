@@ -7,6 +7,7 @@ import {
   toCustomerDialNumber
 } from '../lib/customer-phone.mjs';
 import {
+  businessDateKey,
   isCustomerFollowupTask,
   isSameBusinessDay,
   isTaskOverdue
@@ -176,8 +177,34 @@ export default function TaskCalendarPage({
   const [selected,setSelected]=useState(null);
   const [followupTarget,setFollowupTarget]=useState(null);
   const [dayPanel,setDayPanel]=useState(null);
+  const [completeLoading,setCompleteLoading]=useState(false);
+  const dataRef=useRef(initialData);
+  const completeRequestRef=useRef(null);
+  const completeAbortRef=useRef(null);
+  const completeRequestVersionRef=useRef(0);
+  const completeActionRef=useRef(0);
+  const currentSlugRef=useRef(slug);
+  currentSlugRef.current=slug;
 
-  useEffect(()=>setData(initialData),[initialData]);
+  useEffect(()=>{
+    completeRequestVersionRef.current+=1;
+    completeAbortRef.current?.abort();
+    completeAbortRef.current=null;
+    dataRef.current=initialData;
+    completeRequestRef.current=null;
+    setCompleteLoading(false);
+    setData(initialData);
+    if(initialData?.partial){
+      setFilter(current=>current==='distributed_today'
+        ?'distributed_today'
+        :'today');
+      setMode('agenda');
+    }
+  },[initialData]);
+  useEffect(()=>()=>{
+    completeRequestVersionRef.current+=1;
+    completeAbortRef.current?.abort();
+  },[]);
   useEffect(()=>{
     if(!dayPanel)return undefined;
     const previousOverflow=document.body.style.overflow;
@@ -229,7 +256,7 @@ export default function TaskCalendarPage({
     );
   },[dailyDistributionSelection,dailyLeadDistribution]);
 
-  const summary=useMemo(()=>({
+  const localSummary=useMemo(()=>({
     open:tasks.filter(task=>OPEN_TASK_STATUSES.has(task.status)).length,
     overdue:tasks.filter(task=>state(task,timeZone)==='overdue').length,
     today:tasks.filter(task=>isTodayTask(task,new Date(),timeZone)).length,
@@ -237,6 +264,9 @@ export default function TaskCalendarPage({
       task.status==='completed'&&task.completionTiming==='late'
     ).length
   }),[tasks,timeZone]);
+  const summary=data.partial&&data.calendarSummary
+    ?data.calendarSummary
+    :localSummary;
 
   const filtered=useMemo(()=>{
     const sourceTasks=filter==='distributed_today'
@@ -260,14 +290,20 @@ export default function TaskCalendarPage({
   },[tasks,dailyDistributionTasks,filter,assignee,timeZone]);
 
   const days=useMemo(()=>calendarDays(month),[month]);
-  const grouped=useMemo(()=>days.map(day=>({
-    day,
-    tasks:filtered.filter(task=>sameDay(
-      calendarDate(task,filter),
+  const grouped=useMemo(()=>{
+    const tasksByDay=new Map();
+    for(const task of filtered){
+      const key=businessDateKey(calendarDate(task,filter),timeZone);
+      if(!key)continue;
+      const dayTasks=tasksByDay.get(key)||[];
+      dayTasks.push(task);
+      tasksByDay.set(key,dayTasks);
+    }
+    return days.map(day=>({
       day,
-      timeZone
-    ))
-  })),[days,filtered,filter,timeZone]);
+      tasks:tasksByDay.get(businessDateKey(day,timeZone))||EMPTY
+    }));
+  },[days,filtered,filter,timeZone]);
   const agenda=useMemo(()=>[...filtered].sort(
     (a,b)=>new Date(calendarDate(a,filter))-new Date(calendarDate(b,filter))
   ),[filtered,filter]);
@@ -283,13 +319,99 @@ export default function TaskCalendarPage({
     return payload.data;
   }
 
+  async function ensureCompleteCalendar({force=false}={}){
+    if(!force&&!dataRef.current?.partial)return dataRef.current;
+    if(completeRequestRef.current){
+      if(!force)return completeRequestRef.current;
+      completeRequestVersionRef.current+=1;
+      completeAbortRef.current?.abort();
+      completeRequestRef.current=null;
+    }
+    setCompleteLoading(true);
+    setError('');
+    const requestVersion=++completeRequestVersionRef.current;
+    const requestSlug=slug;
+    const controller=new AbortController();
+    completeAbortRef.current=controller;
+    const request=(async()=>{
+      const response=await fetch('/api/tenant/task-calendar',{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({tenantSlug:requestSlug}),
+        cache:'no-store',
+        signal:controller.signal
+      });
+      if(response.redirected){
+        throw new Error('انتهت الجلسة؛ أعد تحميل الصفحة');
+      }
+      const payload=await response.json().catch(()=>null);
+      if(!response.ok||!payload?.data){
+        throw new Error(payload?.error||'تعذر تحميل بقية التقويم');
+      }
+      if(
+        controller.signal.aborted
+        ||requestVersion!==completeRequestVersionRef.current
+        ||requestSlug!==currentSlugRef.current
+      ){
+        throw new DOMException('Aborted','AbortError');
+      }
+      dataRef.current=payload.data;
+      setData(payload.data);
+      return payload.data;
+    })();
+    completeRequestRef.current=request;
+    try{
+      return await request;
+    }catch(err){
+      if(err?.name!=='AbortError'){
+        setError(err instanceof Error?err.message:'تعذر تحميل بقية التقويم');
+      }
+      throw err;
+    }finally{
+      if(completeRequestRef.current===request){
+        completeRequestRef.current=null;
+        completeAbortRef.current=null;
+        setCompleteLoading(false);
+      }
+    }
+  }
+
+  async function refreshCalendar(){
+    if(dataRef.current?.partial){
+      completeRequestVersionRef.current+=1;
+      completeAbortRef.current?.abort();
+      completeAbortRef.current=null;
+      completeRequestRef.current=null;
+      setCompleteLoading(false);
+      router.refresh();
+      return;
+    }
+    try{
+      await ensureCompleteCalendar({force:true});
+    }catch{
+      // Optimistic task state remains visible if reloading fails.
+    }
+  }
+
+  async function withCompleteCalendar(action){
+    const actionId=++completeActionRef.current;
+    try{
+      await ensureCompleteCalendar();
+      if(actionId===completeActionRef.current)action();
+    }catch{
+      // The visible error is set by ensureCompleteCalendar.
+    }
+  }
+
   function focusToday(){
+    completeActionRef.current+=1;
     setMonth(new Date());
     setFilter('today');
     setMode('agenda');
   }
 
   function focusDistributedToday(){
+    completeActionRef.current+=1;
     setMonth(new Date());
     setFilter('distributed_today');
     setMode('agenda');
@@ -314,7 +436,7 @@ export default function TaskCalendarPage({
       });
       setNotice('تم إنشاء المهمة وإسنادها');
       setShowForm(false);
-      router.refresh();
+      void refreshCalendar();
     }catch(err){
       setError(err.message);
     }finally{
@@ -357,7 +479,7 @@ export default function TaskCalendarPage({
           :'تم تحديث حالة المهمة'
       );
       setSelected(null);
-      router.refresh();
+      void refreshCalendar();
     }catch(err){
       setError(err.message);
     }finally{
@@ -407,7 +529,7 @@ export default function TaskCalendarPage({
       }));
       setNotice('تم نقل المهمة نفسها إلى الموعد الجديد وحفظ الموعد السابق في السجل');
       setSelected(null);
-      router.refresh();
+      void refreshCalendar();
     }catch(err){
       setError(err.message);
     }finally{
@@ -476,17 +598,25 @@ export default function TaskCalendarPage({
           className={`mt-button ${filter==='today'&&mode==='agenda'?'primary':''}`}
           onClick={focusToday}
         >مهام اليوم ({number(summary.today)})</button>}
-        {canWrite&&<button type="button" className="mt-button primary" onClick={()=>setShowForm(true)}>+ مهمة جديدة</button>}
+        {canWrite&&<button
+          type="button"
+          className="mt-button primary"
+          onClick={()=>void withCompleteCalendar(()=>setShowForm(true))}
+          disabled={completeLoading}
+        >+ مهمة جديدة</button>}
       </div>}
     </header>
 
-    {tasks.some(item=>item.demo)&&<section className="mt-data-note warning">
+    {(data.hasDemoTasks||tasks.some(item=>item.demo))&&<section className="mt-data-note warning">
       <div><b>المهام الحالية تشمل بيانات تجريبية</b><p>هي مهام مرتبطة بفرص ريف التجريبية، ومميزة داخل قاعدة البيانات.</p></div>
       <span>DEMO</span>
     </section>}
 
     {error&&<div className="calendar-alert error">{error}</div>}
     {notice&&<div className="calendar-alert success">{notice}</div>}
+    {completeLoading&&<div className="calendar-alert" aria-live="polite">
+      جارٍ تحميل بقية التقويم…
+    </div>}
 
     <section className="calendar-summary-grid">
       {showTodayDistribution&&<button
@@ -498,17 +628,17 @@ export default function TaskCalendarPage({
         <b>{number(distributedCustomersToday)}</b>
         <small>تلقائي + يدوي · بدون مهام المتابعة</small>
       </button>}
-      <button onClick={()=>setFilter('all')} className={filter==='all'?'active':''}><span>المهام المفتوحة</span><b>{summary.open}</b><small>جميع المهام الجارية</small></button>
-      <button onClick={()=>setFilter('overdue')} className={`danger ${filter==='overdue'?'active':''}`}><span>المتأخرة</span><b>{summary.overdue}</b><small>انتهى يومها دون إجراء</small></button>
+      <button onClick={()=>void withCompleteCalendar(()=>setFilter('all'))} className={filter==='all'?'active':''}><span>المهام المفتوحة</span><b>{summary.open}</b><small>جميع المهام الجارية</small></button>
+      <button onClick={()=>void withCompleteCalendar(()=>setFilter('overdue'))} className={`danger ${filter==='overdue'?'active':''}`}><span>المتأخرة</span><b>{summary.overdue}</b><small>انتهى يومها دون إجراء</small></button>
       <button onClick={focusToday} className={`warning ${filter==='today'?'active':''}`}><span>مهام اليوم</span><b>{summary.today}</b><small>الساعة للترتيب ولا تُحسب تأخيرًا</small></button>
-      <button onClick={()=>setFilter('completed')} className={filter==='completed'?'active':''}><span>اكتملت متأخرًا</span><b>{summary.completedLate}</b><small>مسجلة لقياس الأداء</small></button>
+      <button onClick={()=>void withCompleteCalendar(()=>setFilter('completed'))} className={filter==='completed'?'active':''}><span>اكتملت متأخرًا</span><b>{summary.completedLate}</b><small>مسجلة لقياس الأداء</small></button>
     </section>
 
     <section className="calendar-controlbar">
       <div className="calendar-month-switch">
-        <button onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1))}>‹</button>
-        <button onClick={()=>setMonth(new Date())}>اليوم</button>
-        <button onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1))}>›</button>
+        <button onClick={()=>void withCompleteCalendar(()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1)))}>‹</button>
+        <button onClick={()=>void withCompleteCalendar(()=>setMonth(new Date()))}>اليوم</button>
+        <button onClick={()=>void withCompleteCalendar(()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1)))}>›</button>
       </div>
       <h2>{MONTHS[month.getMonth()]} {month.getFullYear()}</h2>
       <div className="calendar-view-controls">
@@ -517,7 +647,7 @@ export default function TaskCalendarPage({
           {staff.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}
         </select>}
         <div className="calendar-mode-toggle">
-          <button className={mode==='month'?'active':''} onClick={()=>setMode('month')}>الشهر</button>
+          <button className={mode==='month'?'active':''} onClick={()=>void withCompleteCalendar(()=>setMode('month'))}>الشهر</button>
           <button className={mode==='agenda'?'active':''} onClick={()=>setMode('agenda')}>القائمة</button>
         </div>
       </div>
@@ -531,7 +661,7 @@ export default function TaskCalendarPage({
           ?focusToday()
           :key==='distributed_today'
             ?focusDistributedToday()
-            :setFilter(key)}
+            :void withCompleteCalendar(()=>setFilter(key))}
       >{label}</button>)}
     </section>
 
@@ -721,7 +851,7 @@ export default function TaskCalendarPage({
         }
         setNotice(followupMessage);
         setFollowupTarget(null);
-        router.refresh();
+        void refreshCalendar();
       }}
     />}
   </main>;

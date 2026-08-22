@@ -95,10 +95,20 @@ export function StatusSelect(props){
   </select>;
 }
 
-export function QualitySelect({defaultValue='unrated',...props}){
+export function QualitySelect({
+  defaultValue='unrated',
+  value,
+  allowUnqualified=true,
+  ...props
+}){
+  const selection=value===undefined
+    ?{defaultValue:defaultValue||'unrated'}
+    :{value};
   return <div className="mt-quality-control">
-    <select defaultValue={defaultValue||'unrated'} {...props}>
-      {Object.entries(QUALITY).map(([key,item])=><option value={key} key={key}>{item.label}</option>)}
+    <select {...selection} {...props}>
+      {Object.entries(QUALITY)
+        .filter(([key])=>allowUnqualified||key!=='unqualified')
+        .map(([key,item])=><option value={key} key={key}>{item.label}</option>)}
     </select>
     <small>غير مؤهل: لا تنطبق الشروط · مؤهل: تنطبق الشروط · ممتاز: مستعد للتسجيل</small>
   </div>;
@@ -119,9 +129,13 @@ export default function SalesFollowupModal({
   onClose,
   onSaved
 }){
+  const initialQuality=contact?.leadQuality||'unrated';
   const [followupStatus,setFollowupStatus]=useState(
-    OPEN_STATUSES.has(contact?.leadStatus)?contact.leadStatus:'follow_up'
+    initialQuality==='unqualified'
+      ?'unqualified'
+      :OPEN_STATUSES.has(contact?.leadStatus)?contact.leadStatus:'follow_up'
   );
+  const [followupQuality,setFollowupQuality]=useState(initialQuality);
   const [selectedCourseId,setSelectedCourseId]=useState(contact?.interestCourseId||'');
   const [contactName,setContactName]=useState(contact?.name||'');
   const [historyOpen,setHistoryOpen]=useState(false);
@@ -131,6 +145,20 @@ export default function SalesFollowupModal({
   const availableRuns=useMemo(()=>courseRuns.filter(run=>
     !selectedCourseId||run.courseId===selectedCourseId
   ),[courseRuns,selectedCourseId]);
+
+  function changeStatus(nextStatus){
+    setFollowupStatus(nextStatus);
+    if(nextStatus==='unqualified'){
+      setFollowupQuality('unqualified');
+    }else if(OPEN_STATUSES.has(nextStatus)&&followupQuality==='unqualified'){
+      setFollowupQuality('unrated');
+    }
+  }
+
+  function changeQuality(nextQuality){
+    setFollowupQuality(nextQuality);
+    if(nextQuality==='unqualified')setFollowupStatus('unqualified');
+  }
 
   function close(){
     if(!busy){
@@ -240,7 +268,11 @@ export default function SalesFollowupModal({
           autoComplete="name"
         /></label>
         <label className="mt-field">وسيلة التواصل<select name="activity_type"><option value="call">مكالمة</option><option value="whatsapp">واتساب</option><option value="meeting">اجتماع</option><option value="email">بريد إلكتروني</option><option value="note">ملاحظة</option></select></label>
-        <label className="mt-field">حالة العميل<StatusSelect name="lead_status" value={followupStatus} onChange={event=>setFollowupStatus(event.target.value)}/></label>
+        <label className="mt-field">حالة العميل<StatusSelect
+          name="lead_status"
+          value={followupStatus}
+          onChange={event=>changeStatus(event.target.value)}
+        /></label>
         <label className="mt-field">الدورة المهتم بها<select
           name="course_id"
           value={selectedCourseId}
@@ -250,7 +282,11 @@ export default function SalesFollowupModal({
           <option value="">لم تحدد الدورة بعد</option>
           {courses.map(item=><option value={item.id} key={item.id}>{item.nameAr}</option>)}
         </select></label>
-        <label className="mt-field">جودة الليد<QualitySelect name="lead_quality" defaultValue={contact.leadQuality}/></label>
+        <label className="mt-field">جودة الليد<QualitySelect
+          name="lead_quality"
+          value={followupQuality}
+          onChange={event=>changeQuality(event.target.value)}
+        /></label>
         <label className="mt-field wide">ما الذي حدث؟<textarea name="summary" rows="4" required placeholder="اكتب ملخصًا واضحًا لنتيجة التواصل"/></label>
 
         {OPEN_STATUSES.has(followupStatus)&&<>

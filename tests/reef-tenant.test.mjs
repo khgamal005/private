@@ -131,7 +131,7 @@ test('employee tenant routes do not eagerly load administrator-only settings',as
   assert.match(data,/includeSales\s*\?authRpc\('v3_tenant_sales_pipeline_snapshot'/);
   assert.match(overview,/getTenantDashboardLive\(slug\)/);
   assert.doesNotMatch(overview,/getTenantOperations|includeSales/);
-  assert.match(tasks,/getTenantOperations\(slug,\{includeSales\}\)/);
+  assert.match(tasks,/getTenantOperations\(slug,\{\s*includeSales,\s*taskScope:salesTaskScope\?'sales':'all'\s*\}\)/);
 });
 
 test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()=>{

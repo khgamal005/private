@@ -19,9 +19,13 @@ export default async function TasksPage({params}){
     context.platformAccess
     ||membership?.permissions?.includes('tenant.crm.read')
   );
+  const salesTaskScope=SALES_TASK_ROLES.has(roleKey);
   return <TaskCalendarPage
     slug={slug}
-    initialData={await getTenantOperations(slug,{includeSales})}
+    initialData={await getTenantOperations(slug,{
+      includeSales,
+      taskScope:salesTaskScope?'sales':'all'
+    })}
     initialFocus={SALES_TASK_ROLES.has(roleKey)?'today':'calendar'}
     showTodayDistribution={SALES_TASK_ROLES.has(roleKey)}
     embedded

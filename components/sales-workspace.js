@@ -414,7 +414,7 @@ export default function SalesWorkspace({
           <label className="mt-field">رقم واتساب<input name="whatsapp"/></label>
           <label className="mt-field">الجهة<input name="organization_name"/></label>
           <label className="mt-field">البريد<input name="email" type="email"/></label>
-          <label className="mt-field">جودة الليد<QualitySelect name="lead_quality"/></label>
+          <label className="mt-field">جودة الليد<QualitySelect name="lead_quality" allowUnqualified={false}/></label>
           <label className="mt-field">المصدر<select name="source"><option value="manual">إدخال يدوي</option><option value="meta">Meta</option><option value="google">Google</option><option value="tiktok">TikTok</option><option value="snapchat">Snapchat</option><option value="website">الموقع</option><option value="whatsapp">واتساب</option><option value="referral">ترشيح</option></select></label>
           <label className="mt-field">اسم الحملة<input name="campaign_name"/></label>
           <label className="mt-field">اسم الإعلان<input name="ad_name"/></label>

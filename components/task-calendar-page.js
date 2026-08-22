@@ -6,7 +6,7 @@ import {
   formatCustomerPhone,
   toCustomerDialNumber
 } from '../lib/customer-phone.mjs';
-import SalesFollowupModal from './sales-followup-modal';
+import SalesFollowupModal,{SalesQualityBadge} from './sales-followup-modal';
 import dayStyles from './task-calendar-day.module.css';
 
 const DAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
@@ -85,6 +85,7 @@ function calendarDate(task,filter){
 }
 function state(task){
   if(task.status==='completed')return 'completed';
+  if(!OPEN_TASK_STATUSES.has(task.status))return task.status;
   if(new Date(task.dueAt)<new Date())return 'overdue';
   if(sameDay(task.dueAt,new Date()))return 'today';
   return 'upcoming';
@@ -238,10 +239,11 @@ export default function TaskCalendarPage({
     if(filter==='all')return true;
     if(filter==='distributed_today')return true;
     if(filter==='customer_followups'){
-      return Boolean(task.contactId)&&task.status!=='completed';
+      return Boolean(task.contactId)&&OPEN_TASK_STATUSES.has(task.status);
     }
     if(['interested','awaiting_payment','very_interested'].includes(filter)){
-      return task.contactStatus===filter&&task.status!=='completed';
+      return task.contactStatus===filter
+        &&OPEN_TASK_STATUSES.has(task.status);
     }
     if(filter==='today')return isTodayTask(task);
     return state(task)===filter;
@@ -445,7 +447,9 @@ export default function TaskCalendarPage({
       <div>
         <small>V2 TASKS & CALENDAR</small>
         <h2>المهام والتقويم</h2>
-        <p>{viewTeam?'متابعة مهام الفريق كاملة':'مهامك المسندة'} · اضغط متابعة العميل لتسجيل النتيجة وتحديد الإجراء التالي مباشرة.</p>
+        <p>{viewTeam
+          ?showTodayDistribution?'متابعة مهام فريق المبيعات':'متابعة مهام الفريق كاملة'
+          :'مهامك المسندة'} · اضغط متابعة العميل لتسجيل النتيجة وتحديد الإجراء التالي مباشرة.</p>
       </div>
       {(startsInTodayFocus||canWrite)&&<div className="mt-page-actions">
         {startsInTodayFocus&&<button
@@ -524,12 +528,13 @@ export default function TaskCalendarPage({
           <header><b>{day.getDate()}</b>{dayTasks.length>0&&<span>{dayTasks.length}</span>}</header>
           <div>
             {dayTasks.slice(0,4).map(task=><button
-              className={`role-calendar-task ${state(task)}`}
+              className={`role-calendar-task ${state(task)} ${task.contactQuality==='excellent'?'has-excellent-quality':''}`}
               key={task.id}
               onClick={()=>openTask(task)}
             >
               <strong>{task.title}</strong>
               <small>{formatTime(calendarDate(task,filter))} · {task.contactName||task.assigneeName||'مهمة تشغيلية'}</small>
+              {task.contactQuality==='excellent'&&<SalesQualityBadge value="excellent"/>}
             </button>)}
             {dayTasks.length>4&&<button
               type="button"
@@ -553,7 +558,9 @@ export default function TaskCalendarPage({
           </small>
           {task.contactStatus&&<div className="agenda-lead-context">
             <span>{LEAD_STATUS[task.contactStatus]||task.contactStatus}</span>
-            <span>{LEAD_QUALITY[task.contactQuality]||'غير مقيم'}</span>
+            {task.contactQuality==='excellent'
+              ?<SalesQualityBadge value="excellent"/>
+              :<span>{LEAD_QUALITY[task.contactQuality]||'غير مقيم'}</span>}
           </div>}
         </div>
         <div className="agenda-badges"><span className={`timing ${filter==='distributed_today'?'today':state(task)}`}>
@@ -561,7 +568,7 @@ export default function TaskCalendarPage({
             ?task.distributionStrategy==='selected'?'توزيع يدوي':'توزيع تلقائي'
             :timingText(task)}
         </span></div>
-        {task.status!=='completed'&&canWrite&&<button
+        {OPEN_TASK_STATUSES.has(task.status)&&canWrite&&<button
           className="complete-inline"
           onClick={event=>{event.stopPropagation();updateStatus(task,'completed')}}
           disabled={saving}
@@ -723,7 +730,7 @@ function CalendarDayDetails({
       const taskState=state(task);
       const matchesFilter=taskFilter==='all'
         ||(taskFilter==='completed'&&task.status==='completed')
-        ||(taskFilter==='open'&&['todo','in_progress'].includes(task.status))
+        ||(taskFilter==='open'&&OPEN_TASK_STATUSES.has(task.status))
         ||(taskFilter==='overdue'&&taskState==='overdue');
       if(!matchesFilter)return false;
       if(!needle)return true;
@@ -939,7 +946,9 @@ function DayTaskRow({task,canWriteCrm,onOpen}){
       </small>
       {task.contactStatus&&<div className={dayStyles.context}>
         <span>{LEAD_STATUS[task.contactStatus]||task.contactStatus}</span>
-        <span>{LEAD_QUALITY[task.contactQuality]||'غير مقيم'}</span>
+        {task.contactQuality==='excellent'
+          ?<SalesQualityBadge value="excellent"/>
+          :<span>{LEAD_QUALITY[task.contactQuality]||'غير مقيم'}</span>}
         {task.contactCourseName&&<span>{task.contactCourseName}</span>}
       </div>}
     </div>

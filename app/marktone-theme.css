@@ -1699,3 +1699,10 @@ body {
   .mt-card-actions{width:100%}
   .mt-card-actions .mt-button{flex:1}
 }
+
+.mt-quality-badge{display:inline-flex;align-items:center;width:max-content;border:1px solid transparent;border-radius:999px;padding:3px 7px;font-size:8.5px;font-weight:600;line-height:1.2;background:#edf3f8;color:#51657d}
+.mt-quality-badge.excellent{border-color:#e3c365;background:#fff6d8;color:#866000;box-shadow:0 2px 8px rgba(134,96,0,.12)}
+.role-calendar-task.has-excellent-quality{padding-left:58px}
+.role-calendar-task>.mt-quality-badge{position:absolute;left:5px;top:5px}
+.agenda-lead-context{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:6px}
+.agenda-lead-context>span{display:inline-flex;border-radius:999px;padding:3px 7px;background:#edf3f8;color:#51657d;font-size:8.5px}

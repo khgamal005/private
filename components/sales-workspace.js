@@ -7,6 +7,7 @@ import {
   toCustomerDialNumber,
   toWhatsAppNumber
 } from '../lib/customer-phone.mjs';
+import {isPastBusinessDay} from '../lib/task-timing.mjs';
 import CustomerHistoryDrawer from './customer-history-drawer';
 import CustomerEditModal from './customer-edit-modal';
 import SalesFollowupModal,{
@@ -114,6 +115,7 @@ export default function SalesWorkspace({
   const courses=data.courses||EMPTY;
   const courseRuns=data.courseRuns||EMPTY;
   const summary=data.summary||{};
+  const timeZone=data.timezone||data.tenant?.timezone||'UTC';
   const canWrite=Boolean(data.viewer?.canWriteCrm);
   const canReassign=Boolean(data.viewer?.canReassign);
   const paymentSubmittedCount=contacts.filter(
@@ -131,7 +133,8 @@ export default function SalesWorkspace({
     const filterMatches=quickFilter==='all'
       ||(quickFilter==='excellent'&&contact.leadQuality==='excellent')
       ||(quickFilter==='unqualified'&&(contact.leadQuality==='unqualified'||contact.leadStatus==='unqualified'))
-      ||(quickFilter==='overdue'&&contact.nextActionAt&&new Date(contact.nextActionAt)<new Date())
+      ||(quickFilter==='overdue'
+        &&isPastBusinessDay(contact.nextActionAt,{timeZone}))
       ||(quickFilter==='closed'&&isClosed(contact.leadStatus))
       ||contact.leadStatus===quickFilter;
     if(!filterMatches)return false;
@@ -141,7 +144,7 @@ export default function SalesWorkspace({
     if(dateBounds.start&&nextAction<dateBounds.start)return false;
     if(dateBounds.end&&nextAction>dateBounds.end)return false;
     return true;
-  }),[contacts,query,quickFilter,dateBounds]);
+  }),[contacts,query,quickFilter,dateBounds,timeZone]);
 
   function openModal(type,record=null){
     setError('');
@@ -253,7 +256,7 @@ export default function SalesWorkspace({
       <button className={`mt-kpi ${summary.overdueFollowups?'danger':''}`} onClick={()=>activateFilter('overdue')}>
         <span>متابعات متأخرة</span>
         <b>{summary.overdueFollowups||0}</b>
-        <small>تحتاج إجراءً الآن</small>
+        <small>مرّ يوم المتابعة دون إجراء</small>
       </button>
     </section>
 

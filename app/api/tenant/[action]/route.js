@@ -38,9 +38,9 @@ const RPC={
   'move-opportunity':'v2_tenant_move_opportunity',
   'log-activity':'v2_tenant_log_activity',
   'create-task':'v2_tenant_create_task',
-  'update-task-status':'v2_tenant_update_task_status',
-  'transition-task':'v3_tenant_transition_task',
-  'calendar-day':'v5_tenant_calendar_day_snapshot'
+  'update-task-status':'v3_tenant_update_task_status',
+  'transition-task':'v4_tenant_transition_task',
+  'calendar-day':'v6_tenant_calendar_day_snapshot'
 };
 
 const ACTION_ADDONS=Object.freeze({

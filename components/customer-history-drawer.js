@@ -59,6 +59,13 @@ function dateTime(value){
 function delayCopy(event){
   const minutes=Number(event.delayMinutes);
   if(!Number.isFinite(minutes)||event.timingStatus==='not_scheduled')return '';
+  const followsDayPolicy=['task','activity'].includes(event.type);
+  if(followsDayPolicy){
+    if(event.timingStatus==='early')return 'نُفّذ قبل يوم المتابعة';
+    if(event.timingStatus==='late')return 'نُفّذ بعد يوم المتابعة';
+    if(event.timingStatus==='on_time')return 'نُفّذ خلال يوم المتابعة المحدد';
+    return '';
+  }
   const absolute=Math.abs(minutes);
   const hours=Math.floor(absolute/60);
   const rest=absolute%60;
@@ -204,9 +211,9 @@ export default function CustomerHistoryDrawer({
 
         <section className="mt-customer-history-summary">
           <article><span>كل الإجراءات</span><b>{summary.totalEvents||0}</b><small>من جميع الأقسام</small></article>
-          <article className="good"><span>في الموعد</span><b>{summary.completedOnTime||0}</b><small>يشمل المنفّذ مبكرًا</small></article>
-          <article className="late"><span>تم متأخرًا</span><b>{summary.completedLate||0}</b><small>بعد الموعد المحدد</small></article>
-          <article className="danger"><span>متجاوز الآن</span><b>{summary.overdue||0}</b><small>لم يُنفّذ حتى الآن</small></article>
+          <article className="good"><span>خلال اليوم المحدد</span><b>{summary.completedOnTime||0}</b><small>يشمل المنفّذ في يوم أبكر</small></article>
+          <article className="late"><span>تم متأخرًا</span><b>{summary.completedLate||0}</b><small>بعد يوم المتابعة المحدد</small></article>
+          <article className="danger"><span>تجاوز يوم المتابعة</span><b>{summary.overdue||0}</b><small>انتهى اليوم دون تنفيذ</small></article>
           <article className="rate"><span>نسبة الالتزام</span><b>{Number(summary.adherencePercent)||0}%</b><small>من الإجراءات المنفذة</small></article>
         </section>
 

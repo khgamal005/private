@@ -238,7 +238,7 @@ test('dashboard separates Woo Analytics revenue from verified registrations',()=
   assert.match(resultsMigration,/'orders' = any\(run\.scope\)/);
   assert.doesNotMatch(resultsMigration,/reef-skills/);
   assert.match(dashboardMigration,/v2_tenant_role_dashboard_snapshot_v5\(p_slug\)/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v7/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v8/);
   assert.match(api,/p_from:from/);
   assert.match(api,/p_to:to/);
   assert.match(dashboard,/صافي مبيعات WooCommerce خلال الفترة/);

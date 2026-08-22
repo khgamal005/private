@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import {REPORT_DATE_PRESETS} from '../lib/reporting';
+import {isTaskOverdue} from '../lib/task-timing.mjs';
 import DashboardDateRangePicker from './dashboard-date-range-picker';
 import styles from './role-dashboard.module.css';
 
@@ -379,7 +380,7 @@ function roleMetrics(role,dashboard,marketing,canReadMarketing){
       metric('عملاء قيد المتابعة',number(sales.activeLeads),'داخل مسارك الحالي','blue'),
       metric('مدفوعات مؤكدة هذا الشهر',number(sales.paidThisMonth),`${percent(sales.conversionRate)} تحويل · ${number(sales.pendingPaymentVerification)} قيد التحقق حاليًا`,'green'),
       metric('أنشطة اليوم',number(sales.activitiesToday??personal.activitiesToday),'مكالمة أو متابعة مسجلة','purple'),
-      metric('متابعات متأخرة',number(sales.overdueFollowUps),'تحتاج إجراء الآن','amber'),
+      metric('متابعات متأخرة',number(sales.overdueFollowUps),'انتهى يوم متابعتها دون إجراء','amber'),
       metric('مكالمات الشهر',number(calls.totalCalls),`${number(calls.answeredCalls)} مجاب عليها`,'cyan'),
       metric('الالتزام بأول رد',percent(sales.firstResponseSlaRate),`${number(sales.averageFirstResponseMinutes)} د متوسط`,'pink')
     ];
@@ -584,7 +585,11 @@ function Trend({daily=[],period}){
   </article>;
 }
 
-function TaskList({tasks=[],slug,period=null}){
+function TaskList({tasks=[],slug,period=null,timeZone=null}){
+  const businessTimeZone=timeZone
+    ||period?.timeZone
+    ||period?.timezone
+    ||'UTC';
   const open=tasks
     .filter(task=>OPEN_TASK_STATUSES.has(task.status))
     .sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt))
@@ -600,7 +605,7 @@ function TaskList({tasks=[],slug,period=null}){
           <b>{task.title}</b>
           <small>{task.contactName||task.contactCourseName||'مهمة تشغيلية'}</small>
         </div>
-        <time className={new Date(task.dueAt)<new Date()?styles.late:''}>
+        <time className={isTaskOverdue(task,{timeZone:businessTimeZone})?styles.late:''}>
           {when(task.dueAt,period?.timeZone||period?.timezone)}
         </time>
       </div>)}
@@ -698,12 +703,11 @@ function normalizedPercent(value){
   return Math.min(100,Math.max(0,Number(value)||0));
 }
 
-function taskSnapshot(source={}){
+function taskSnapshot(source={},timeZone='UTC'){
   const tasks=Array.isArray(source)
     ?source
     :Array.isArray(source?.tasks)?source.tasks:[];
   const summary=Array.isArray(source)?{}:source?.summary||{};
-  const now=Date.now();
   const open=tasks.filter(task=>OPEN_TASK_STATUSES.has(task.status));
   const countedOpen=Number(summary.openTasks);
   const countedOverdue=Number(summary.overdueTasks);
@@ -712,10 +716,7 @@ function taskSnapshot(source={}){
     open:Number.isFinite(countedOpen)?countedOpen:open.length,
     overdue:Number.isFinite(countedOverdue)
       ?countedOverdue
-      :open.filter(task=>{
-        const due=new Date(task.dueAt).getTime();
-        return Number.isFinite(due)&&due<now;
-      }).length,
+      :open.filter(task=>isTaskOverdue(task,{timeZone})).length,
     completed:Number.isFinite(countedCompleted)
       ?countedCompleted
       :tasks.filter(task=>task.status==='completed').length
@@ -879,7 +880,10 @@ function buildExecutiveActions(dashboard,marketing,operations){
   const training=dashboard.training||{};
   const marketingSummary=marketing?.summary||{};
   const woo=executive.woocommerceRevenue||{};
-  const tasks=taskSnapshot(operations);
+  const timeZone=dashboard?.period?.timeZone
+    ||operations?.timezone
+    ||'UTC';
+  const tasks=taskSnapshot(operations,timeZone);
   const actions=[];
   const add=(tone,title,note)=>actions.push({tone,title,note});
 
@@ -887,10 +891,10 @@ function buildExecutiveActions(dashboard,marketing,operations){
     add('urgent','تعطل في أتمتة التدريب',`${number(training.failedAutomationJobs)} عمليات آلية فشلت وتحتاج إعادة معالجة.`);
   }
   if(tasks.overdue>0){
-    add('urgent','مهام تشغيلية متأخرة',`${number(tasks.overdue)} مهمة مفتوحة تجاوزت موعدها الحالي.`);
+    add('urgent','مهام تشغيلية متأخرة',`${number(tasks.overdue)} مهمة مفتوحة تجاوزت يومها المحدد.`);
   }
   if(Number(sales.overdueFollowUps)>0){
-    add('urgent','عملاء بلا متابعة في موعدهم',`${number(sales.overdueFollowUps)} عميلًا تجاوز موعد الإجراء التالي.`);
+    add('urgent','عملاء بلا متابعة في يومهم',`${number(sales.overdueFollowUps)} عميلًا انتهى يوم متابعته دون إجراء.`);
   }
   if(Number(executive.pendingPaymentVerification)>0){
     add('watch','مبالغ بانتظار التحقق',`${number(executive.pendingPaymentVerification)} حالة دفع تحتاج مراجعة قبل احتسابها كإيراد.`);
@@ -1189,7 +1193,12 @@ export default function RoleDashboard({
       <div className={styles.fallbackNote} role="alert">
         تعذر تحميل مؤشرات الأداء الموثوقة الآن. لم نعرض أرقامًا بديلة حتى لا تظهر بيانات غير دقيقة؛ أعد المحاولة بعد قليل.
       </div>
-      <TaskList tasks={operations?.tasks||[]} slug={slug} period={range}/>
+      <TaskList
+        tasks={operations?.tasks||[]}
+        slug={slug}
+        period={range}
+        timeZone={operations?.timezone}
+      />
     </div>;
   }
 
@@ -1275,6 +1284,7 @@ export default function RoleDashboard({
         tasks={operations?.tasks||[]}
         slug={slug}
         period={dashboard?.period}
+        timeZone={operations?.timezone}
       />
     </section>
 

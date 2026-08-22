@@ -133,7 +133,7 @@ test('the overview employee filter is explicit and feeds the global report snaps
   assert.match(center,/جميع المؤشرات والرسوم البيانية والجداول حسب الموظف/);
   assert.match(styles,/\.activePreset/);
   assert.match(styles,/\.filterHint/);
-  assert.match(api,/v4_tenant_reports_snapshot/);
+  assert.match(api,/v5_tenant_reports_snapshot/);
   assert.match(api,/p_staff_id:staffId\|\|null/);
   assert.match(
     migration,

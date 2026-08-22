@@ -101,7 +101,7 @@ test('toolbar notifications use a bounded live snapshot',async()=>{
   assert.match(layout,/tasksToday:summary\.tasksToday/);
   assert.match(layout,/pendingAdmissions:summary\.pendingAdmissions/);
   assert.match(api,/cache\(async function getTenantDashboardLive/);
-  assert.match(api,/v1_tenant_dashboard_live_snapshot/);
+  assert.match(api,/v2_tenant_dashboard_live_snapshot/);
   assert.match(shell,/notificationItems\(notificationSummary,slug\)/);
   assert.match(shell,/لا توجد مهام أو تنبيهات عاجلة الآن/);
 });

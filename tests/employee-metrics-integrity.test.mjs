@@ -72,11 +72,11 @@ test('metric RPCs are hardened and stale client fallbacks are disabled',async()=
   assert.match(sql,/from public, anon/);
   assert.match(sql,/to authenticated/);
   assert.doesNotMatch(sql,/service_role|SUPABASE_SECRET/i);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v7/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v8/);
   assert.match(api,/p_from:from/);
   assert.match(api,/p_to:to/);
-  assert.match(api,/v4_tenant_reports_snapshot/);
-  assert.match(achievement,/v2_tenant_employee_achievement_snapshot_v2/);
+  assert.match(api,/v5_tenant_reports_snapshot/);
+  assert.match(achievement,/v2_tenant_employee_achievement_snapshot_v3/);
   assert.match(page,/unavailable:true/);
   assert.doesNotMatch(page,/task\.status!=='completed'/);
   assert.match(dashboard,/OPEN_TASK_STATUSES\.has\(task\.status\)/);

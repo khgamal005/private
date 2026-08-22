@@ -38,12 +38,12 @@ test('today keeps earlier open tasks visible after their due time',async()=>{
   const calendar=await read('components/task-calendar-page.js');
 
   assert.match(calendar,/const OPEN_TASK_STATUSES=new Set/);
-  assert.match(calendar,/function isTodayTask\(task,today=new Date\(\)\)/);
+  assert.match(calendar,/function isTodayTask\(task,today=new Date\(\),timeZone='UTC'\)/);
   assert.match(
     calendar,
-    /OPEN_TASK_STATUSES\.has\(task\.status\)&&sameDay\(task\.dueAt,today\)/
+    /OPEN_TASK_STATUSES\.has\(task\.status\)[\s\S]*sameDay\(task\.dueAt,today,timeZone\)/
   );
-  assert.match(calendar,/today:tasks\.filter\(task=>isTodayTask\(task\)\)\.length/);
-  assert.match(calendar,/if\(filter==='today'\)return isTodayTask\(task\)/);
-  assert.match(calendar,/تشمل المتأخر منها اليوم/);
+  assert.match(calendar,/today:tasks\.filter\(task=>isTodayTask\(task,new Date\(\),timeZone\)\)\.length/);
+  assert.match(calendar,/if\(filter==='today'\)return isTodayTask\(task,new Date\(\),timeZone\)/);
+  assert.match(calendar,/الساعة للترتيب ولا تُحسب تأخيرًا/);
 });

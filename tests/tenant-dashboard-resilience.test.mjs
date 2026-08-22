@@ -14,13 +14,13 @@ test('tenant shell and overview share one bounded live snapshot',async()=>{
   ]);
 
   assert.match(api,/getTenantDashboardLive=cache/);
-  assert.match(api,/v1_tenant_dashboard_live_snapshot/);
+  assert.match(api,/v2_tenant_dashboard_live_snapshot/);
   assert.match(page,/getTenantDashboardLive\(slug\)/);
   assert.match(layout,/getTenantDashboardLive\(slug\)/);
   assert.doesNotMatch(page,/getTenantOperations|getTenant\(/);
   assert.doesNotMatch(layout,/getTenantRoleDashboard|getTenant\(/);
   assert.equal((page.match(/getTenantRoleDashboard\(/g)||[]).length,1);
-  assert.match(component,/taskSnapshot\(operations\)/);
+  assert.match(component,/taskSnapshot\(operations,timeZone\)/);
   assert.match(component,/Number\(summary\.openTasks\)/);
 });
 

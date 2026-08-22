@@ -82,7 +82,7 @@ test('report pages share date filters and employee drill-down',async()=>{
   assert.match(styles,/\.metric small\{color:#526a7f/);
   assert.match(styles,/grid-template-columns:minmax\(0,1fr\) auto/);
   assert.match(styles,/@media\(max-width:620px\)/);
-  assert.match(api,/v4_tenant_reports_snapshot/);
+  assert.match(api,/v5_tenant_reports_snapshot/);
   assert.match(range,/inclusiveDays\(from,to\)>366/);
   assert.match(employeePage,/if\(!isUuid\(staffId\)\)notFound\(\)/);
   assert.match(employeePage,/report:'employee'/);

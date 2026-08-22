@@ -45,10 +45,10 @@ test('sales task page requests a server-scoped sales calendar',async()=>{
 test('excellent quality stays overdue and has a clear badge in every calendar view',async()=>{
   const calendar=await read('components/task-calendar-page.js');
   const stateBody=calendar.match(
-    /function state\(task\)\{([\s\S]*?)\n\}/
+    /function state\(task,timeZone='UTC',now=new Date\(\)\)\{([\s\S]*?)\n\}/
   )?.[1]||'';
 
-  assert.match(stateBody,/task\.dueAt/);
+  assert.match(stateBody,/isTaskOverdue\(task,\{now,timeZone\}\)/);
   assert.doesNotMatch(stateBody,/excellent|contactQuality|leadQuality/);
   assert.match(calendar,/SalesQualityBadge/);
 

@@ -37,7 +37,7 @@ test('achievement board is database-driven and ranks within the direct team',asy
   assert.match(metricFix,/v2_tenant_employee_achievement_snapshot_v2/);
   assert.match(metricFix,/handoff\.payment_status = 'verified'/);
   assert.match(metricFix,/peer\.supervisor_staff_id = v_supervisor_id/);
-  assert.match(api,/v2_tenant_employee_achievement_snapshot_v2/);
+  assert.match(api,/v2_tenant_employee_achievement_snapshot_v3/);
   assert.match(board,/ترتيبك في المبيعات/);
   assert.match(board,/مبيعات مؤكدة هذا الشهر/);
   assert.match(page,/getTenantEmployeeAchievement/);

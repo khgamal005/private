@@ -148,7 +148,7 @@ test('executive dashboard uses one tenant-local selected range and qualified flo
   assert.match(styles,/\.metricSection/);
   assert.match(styles,/\.dateFilter/);
   assert.match(styles,/\.activePreset/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v7/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v8/);
   assert.match(api,/p_from:from/);
   assert.match(api,/p_to:to/);
   assert.match(marketingApi,/rangeMode:monthToDate\?'month_to_date':'date_range'/);
@@ -192,13 +192,13 @@ test('tenant overview never substitutes stale metrics when the canonical RPC fai
   assert.doesNotMatch(page,/task\.status!=='completed'/);
   assert.match(page,/Promise\.all/);
   assert.match(page,/RoleDashboard/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v7/);
-  assert.match(api,/v1_tenant_dashboard_live_snapshot/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v8/);
+  assert.match(api,/v2_tenant_dashboard_live_snapshot/);
   assert.doesNotMatch(page,/getTenantOperations|getTenant\(/);
   assert.doesNotMatch(layout,/getTenantRoleDashboard|getTenant\(/);
   assert.doesNotMatch(
     api,
-    /v2_tenant_role_dashboard_snapshot_v7'[\s\S]*v2_tenant_role_dashboard_snapshot_v6/
+    /v2_tenant_role_dashboard_snapshot_v8'[\s\S]*v2_tenant_role_dashboard_snapshot_v7/
   );
   assert.match(shell,/لوحة القيادة/);
   assert.match(layout,/training_manager:'مدير التدريب'/);

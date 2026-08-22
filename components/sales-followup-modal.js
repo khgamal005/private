@@ -291,7 +291,7 @@ export default function SalesFollowupModal({
 
         {OPEN_STATUSES.has(followupStatus)&&<>
           <label className="mt-field">الإجراء التالي<ActionSelect name="next_action_type" preferred={followupStatus==='awaiting_payment'?'payment_followup':'follow_up'}/></label>
-          <label className="mt-field">موعد الإجراء التالي<input name="next_action_at" type="datetime-local" required/></label>
+          <label className="mt-field">موعد الإجراء التالي<input name="next_action_at" type="datetime-local" required/><small>الساعة للتنظيم والترتيب فقط؛ تُعد المتابعة متأخرة بعد انتهاء اليوم كاملًا.</small></label>
         </>}
 
         {followupStatus==='payment_submitted'&&<>

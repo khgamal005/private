@@ -58,7 +58,7 @@ test('calendar customer actions bind the exact open follow-up task id',async()=>
   assert.match(migration,/p_task_id uuid default null/);
   assert.match(migration,/v_result_task_id is distinct from p_task_id/);
   assert.match(route,/'record-sales-followup':'v2_tenant_record_sales_followup_v5'/);
-  assert.match(route,/'transition-task':'v3_tenant_transition_task'/);
+  assert.match(route,/'transition-task':'v4_tenant_transition_task'/);
   assert.match(calendar,/SALES_TASK_SOURCES\.has\(task\.taskSource\)/);
   assert.match(calendar,/call\('transition-task'/);
   assert.match(calendar,/p_task_id:task\.id/);
@@ -82,8 +82,8 @@ test('old dates stay in customer history and not as a second calendar card',asyn
   assert.match(migration,/'task-history:' \|\| history\.id::text/);
   assert.match(migration,/'previousDueAt', history\.previous_due_at/);
   assert.match(migration,/'nextDueAt', history\.next_due_at/);
-  assert.match(api,/authRpc\('v3_tenant_operations_snapshot'/);
-  assert.match(historyRoute,/v3_tenant_customer_history_snapshot/);
+  assert.match(api,/authRpc\('v4_tenant_operations_snapshot'/);
+  assert.match(historyRoute,/v4_tenant_customer_history_snapshot/);
   assert.match(calendar,/تم نقل المهمة نفسها إلى الموعد الجديد/);
   assert.match(css,/\.calendar-task-transition/);
 });

@@ -6,6 +6,11 @@ import {
   formatCustomerPhone,
   toCustomerDialNumber
 } from '../lib/customer-phone.mjs';
+import {
+  isCustomerFollowupTask,
+  isSameBusinessDay,
+  isTaskOverdue
+} from '../lib/task-timing.mjs';
 import SalesFollowupModal,{SalesQualityBadge} from './sales-followup-modal';
 import dayStyles from './task-calendar-day.module.css';
 
@@ -74,28 +79,31 @@ function calendarDays(value){
     return date;
   });
 }
-function sameDay(a,b){return new Date(a).toDateString()===new Date(b).toDateString()}
-function isTodayTask(task,today=new Date()){
-  return OPEN_TASK_STATUSES.has(task.status)&&sameDay(task.dueAt,today);
+function sameDay(a,b,timeZone='UTC'){
+  return isSameBusinessDay(a,b,timeZone);
+}
+function isTodayTask(task,today=new Date(),timeZone='UTC'){
+  return OPEN_TASK_STATUSES.has(task.status)
+    &&sameDay(task.dueAt,today,timeZone);
 }
 function calendarDate(task,filter){
   return filter==='distributed_today'
     ?task.distributedAt||task.createdAt||task.dueAt
     :task.dueAt;
 }
-function state(task){
+function state(task,timeZone='UTC',now=new Date()){
   if(task.status==='completed')return 'completed';
   if(!OPEN_TASK_STATUSES.has(task.status))return task.status;
-  if(new Date(task.dueAt)<new Date())return 'overdue';
-  if(sameDay(task.dueAt,new Date()))return 'today';
+  if(isTaskOverdue(task,{now,timeZone}))return 'overdue';
+  if(sameDay(task.dueAt,now,timeZone))return 'today';
   return 'upcoming';
 }
-function timingText(task){
+function timingText(task,timeZone='UTC'){
   if(task.status==='completed'){
     return task.completionTiming==='late'?'اكتملت متأخرًا':'مكتملة';
   }
-  if(state(task)==='overdue')return 'متأخرة';
-  if(state(task)==='today')return 'اليوم';
+  if(state(task,timeZone)==='overdue')return 'متأخرة';
+  if(state(task,timeZone)==='today')return 'اليوم';
   return 'قادمة';
 }
 function formatDate(value){
@@ -194,6 +202,7 @@ export default function TaskCalendarPage({
   const viewTeam=Boolean(data.viewer?.viewTeam);
   const dailyLeadDistribution=data.dailyLeadDistribution
     ||EMPTY_DAILY_DISTRIBUTION;
+  const timeZone=data.timezone||data.tenant?.timezone||'UTC';
 
   const dailyDistributionSelection=useMemo(()=>{
     if(!showTodayDistribution)return 0;
@@ -222,12 +231,12 @@ export default function TaskCalendarPage({
 
   const summary=useMemo(()=>({
     open:tasks.filter(task=>OPEN_TASK_STATUSES.has(task.status)).length,
-    overdue:tasks.filter(task=>state(task)==='overdue').length,
-    today:tasks.filter(task=>isTodayTask(task)).length,
+    overdue:tasks.filter(task=>state(task,timeZone)==='overdue').length,
+    today:tasks.filter(task=>isTodayTask(task,new Date(),timeZone)).length,
     completedLate:tasks.filter(task=>
       task.status==='completed'&&task.completionTiming==='late'
     ).length
-  }),[tasks]);
+  }),[tasks,timeZone]);
 
   const filtered=useMemo(()=>{
     const sourceTasks=filter==='distributed_today'
@@ -245,16 +254,20 @@ export default function TaskCalendarPage({
       return task.contactStatus===filter
         &&OPEN_TASK_STATUSES.has(task.status);
     }
-    if(filter==='today')return isTodayTask(task);
-    return state(task)===filter;
+    if(filter==='today')return isTodayTask(task,new Date(),timeZone);
+    return state(task,timeZone)===filter;
     });
-  },[tasks,dailyDistributionTasks,filter,assignee]);
+  },[tasks,dailyDistributionTasks,filter,assignee,timeZone]);
 
   const days=useMemo(()=>calendarDays(month),[month]);
   const grouped=useMemo(()=>days.map(day=>({
     day,
-    tasks:filtered.filter(task=>sameDay(calendarDate(task,filter),day))
-  })),[days,filtered,filter]);
+    tasks:filtered.filter(task=>sameDay(
+      calendarDate(task,filter),
+      day,
+      timeZone
+    ))
+  })),[days,filtered,filter,timeZone]);
   const agenda=useMemo(()=>[...filtered].sort(
     (a,b)=>new Date(calendarDate(a,filter))-new Date(calendarDate(b,filter))
   ),[filtered,filter]);
@@ -327,14 +340,20 @@ export default function TaskCalendarPage({
           status:result.status,
           dueAt:result.dueAt||item.dueAt,
           completionTiming:result.completionTiming||null,
-          completedAt:result.status==='completed'?new Date().toISOString():null
+          completedAt:result.status==='completed'
+            ?result.completedAt||new Date().toISOString()
+            :null
         }:item)
       }));
       setNotice(
         status==='completed'
           ?result.completionTiming==='late'
-            ?'تم إتمام المهمة وتسجيلها بعد الموعد'
-            :'تم إتمام المهمة في الموعد'
+            ?isCustomerFollowupTask(task)
+              ?'تم إتمام المتابعة بعد يومها المحدد'
+              :'تم إتمام المهمة بعد موعدها المحدد'
+            :isCustomerFollowupTask(task)
+              ?'تم إتمام المتابعة خلال يومها المحدد'
+              :'تم إتمام المهمة في موعدها'
           :'تم تحديث حالة المهمة'
       );
       setSelected(null);
@@ -402,7 +421,7 @@ export default function TaskCalendarPage({
       ?dailyDistributionTasks
       :tasks;
     const dayTasks=sourceTasks.filter(task=>
-      sameDay(calendarDate(task,filter),day)
+      sameDay(calendarDate(task,filter),day,timeZone)
       &&(assignee==='all'||task.assignedStaffId===assignee)
     );
     setDayPanel({
@@ -480,8 +499,8 @@ export default function TaskCalendarPage({
         <small>تلقائي + يدوي · بدون مهام المتابعة</small>
       </button>}
       <button onClick={()=>setFilter('all')} className={filter==='all'?'active':''}><span>المهام المفتوحة</span><b>{summary.open}</b><small>جميع المهام الجارية</small></button>
-      <button onClick={()=>setFilter('overdue')} className={`danger ${filter==='overdue'?'active':''}`}><span>المتأخرة</span><b>{summary.overdue}</b><small>تحتاج إجراءً الآن</small></button>
-      <button onClick={focusToday} className={`warning ${filter==='today'?'active':''}`}><span>مهام اليوم</span><b>{summary.today}</b><small>تشمل المتأخر منها اليوم</small></button>
+      <button onClick={()=>setFilter('overdue')} className={`danger ${filter==='overdue'?'active':''}`}><span>المتأخرة</span><b>{summary.overdue}</b><small>انتهى يومها دون إجراء</small></button>
+      <button onClick={focusToday} className={`warning ${filter==='today'?'active':''}`}><span>مهام اليوم</span><b>{summary.today}</b><small>الساعة للترتيب ولا تُحسب تأخيرًا</small></button>
       <button onClick={()=>setFilter('completed')} className={filter==='completed'?'active':''}><span>اكتملت متأخرًا</span><b>{summary.completedLate}</b><small>مسجلة لقياس الأداء</small></button>
     </section>
 
@@ -522,13 +541,13 @@ export default function TaskCalendarPage({
       </section>
       <section className="role-calendar-grid">
         {grouped.map(({day,tasks:dayTasks})=><article
-          className={`${day.getMonth()!==month.getMonth()?'outside':''} ${sameDay(day,new Date())?'today':''}`}
+          className={`${day.getMonth()!==month.getMonth()?'outside':''} ${sameDay(day,new Date(),timeZone)?'today':''}`}
           key={day.toISOString()}
         >
           <header><b>{day.getDate()}</b>{dayTasks.length>0&&<span>{dayTasks.length}</span>}</header>
           <div>
             {dayTasks.slice(0,4).map(task=><button
-              className={`role-calendar-task ${state(task)} ${task.contactQuality==='excellent'?'has-excellent-quality':''}`}
+              className={`role-calendar-task ${state(task,timeZone)} ${task.contactQuality==='excellent'?'has-excellent-quality':''}`}
               key={task.id}
               onClick={()=>openTask(task)}
             >
@@ -546,7 +565,7 @@ export default function TaskCalendarPage({
         </article>)}
       </section>
     </>:<section className="role-calendar-agenda">
-      {agenda.map(task=><article className={state(task)} key={task.id} onClick={()=>openTask(task)}>
+      {agenda.map(task=><article className={state(task,timeZone)} key={task.id} onClick={()=>openTask(task)}>
         <time><span>{formatDate(calendarDate(task,filter))}</span><b>{formatTime(calendarDate(task,filter))}</b></time>
         <div className="agenda-main">
           <strong>{task.title}</strong>
@@ -563,10 +582,10 @@ export default function TaskCalendarPage({
               :<span>{LEAD_QUALITY[task.contactQuality]||'غير مقيم'}</span>}
           </div>}
         </div>
-        <div className="agenda-badges"><span className={`timing ${filter==='distributed_today'?'today':state(task)}`}>
+        <div className="agenda-badges"><span className={`timing ${filter==='distributed_today'?'today':state(task,timeZone)}`}>
           {filter==='distributed_today'
             ?task.distributionStrategy==='selected'?'توزيع يدوي':'توزيع تلقائي'
-            :timingText(task)}
+            :timingText(task,timeZone)}
         </span></div>
         {OPEN_TASK_STATUSES.has(task.status)&&canWrite&&<button
           className="complete-inline"
@@ -604,7 +623,7 @@ export default function TaskCalendarPage({
       <button className="calendar-modal-backdrop" onClick={()=>setSelected(null)} aria-label="إغلاق"/>
       <section className="calendar-task-details">
         <header>
-          <div><span className={`timing ${state(selected)}`}>{timingText(selected)}</span><h2>{selected.title}</h2></div>
+          <div><span className={`timing ${state(selected,timeZone)}`}>{timingText(selected,timeZone)}</span><h2>{selected.title}</h2></div>
           <button onClick={()=>setSelected(null)}>×</button>
         </header>
         <dl>
@@ -723,11 +742,12 @@ function CalendarDayDetails({
   useEffect(()=>closeButtonRef.current?.focus(),[]);
   const summary=panel.insight?.summary;
   const yeastar=panel.insight?.yeastar;
+  const timeZone=panel.insight?.timezone||'UTC';
   const tasks=panel.tasks||EMPTY;
   const visibleTasks=useMemo(()=>{
     const needle=query.trim().toLocaleLowerCase('ar');
     return tasks.filter(task=>{
-      const taskState=state(task);
+      const taskState=state(task,timeZone);
       const matchesFilter=taskFilter==='all'
         ||(taskFilter==='completed'&&task.status==='completed')
         ||(taskFilter==='open'&&OPEN_TASK_STATUSES.has(task.status))
@@ -742,7 +762,7 @@ function CalendarDayDetails({
         task.contactCourseName
       ].some(value=>String(value||'').toLocaleLowerCase('ar').includes(needle));
     });
-  },[tasks,taskFilter,query]);
+  },[tasks,taskFilter,query,timeZone]);
   const pageCount=Math.max(1,Math.ceil(visibleTasks.length/DAY_TASK_PAGE_SIZE));
   const currentPage=Math.min(taskPage,pageCount);
   const pageStart=(currentPage-1)*DAY_TASK_PAGE_SIZE;
@@ -886,6 +906,7 @@ function CalendarDayDetails({
             {pageTasks.map(task=><DayTaskRow
               key={task.id}
               task={task}
+              timeZone={timeZone}
               canWriteCrm={canWriteCrm}
               onOpen={()=>onOpenTask(task)}
             />)}
@@ -928,15 +949,15 @@ function DayMetric({label,value,note,tone}){
   </article>;
 }
 
-function DayTaskRow({task,canWriteCrm,onOpen}){
-  const taskState=state(task);
+function DayTaskRow({task,timeZone,canWriteCrm,onOpen}){
+  const taskState=state(task,timeZone);
   const talkSeconds=Number(task.yeastarTalkSeconds)||0;
   return <article className={`${dayStyles.taskRow} ${dayStyles[`task_${taskState}`]}`}>
     <span className={dayStyles.statusIcon}>{task.status==='completed'?'✓':taskState==='overdue'?'!':'•'}</span>
     <div className={dayStyles.taskMain}>
       <div>
         <strong>{task.title}</strong>
-        <span className={dayStyles.status}>{dayTaskStatusText(task)}</span>
+        <span className={dayStyles.status}>{dayTaskStatusText(task,timeZone)}</span>
       </div>
       <p>{task.contactName||task.description||'مهمة تشغيلية غير مرتبطة بعميل'}</p>
       <small>
@@ -963,10 +984,10 @@ function DayTaskRow({task,canWriteCrm,onOpen}){
   </article>;
 }
 
-function dayTaskStatusText(task){
+function dayTaskStatusText(task,timeZone){
   if(task.status==='cancelled')return 'ملغاة';
-  if(task.status==='completed')return timingText(task);
-  if(state(task)==='overdue')return 'لم تكتمل · متأخرة';
+  if(task.status==='completed')return timingText(task,timeZone);
+  if(state(task,timeZone)==='overdue')return 'لم تكتمل · متأخرة';
   if(task.status==='in_progress')return 'قيد التنفيذ';
   return 'لم تكتمل';
 }

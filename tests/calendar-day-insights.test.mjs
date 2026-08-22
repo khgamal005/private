@@ -39,7 +39,7 @@ test('the daily dialog loads verified server metrics without guessed fallbacks',
   assert.match(calendar,/لن نعرض أرقامًا تقريبية/);
   assert.match(calendar,/insight\?\.summary/);
   assert.match(calendar,/insight\?\.yeastar/);
-  assert.match(api,/'calendar-day':'v5_tenant_calendar_day_snapshot'/);
+  assert.match(api,/'calendar-day':'v6_tenant_calendar_day_snapshot'/);
   assert.match(api,/invalid_calendar_day/);
   assert.match(api,/too_many_calendar_tasks/);
 });

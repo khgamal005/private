@@ -80,7 +80,7 @@ test('one selected range reaches dashboard and marketing RPCs',async()=>{
   ]);
 
   assert.match(api,/getTenantRoleDashboard\(\s*slug,\s*from=null,\s*to=null/);
-  assert.match(api,/v2_tenant_role_dashboard_snapshot_v7/);
+  assert.match(api,/v2_tenant_role_dashboard_snapshot_v8/);
   assert.match(api,/p_from:from/);
   assert.match(api,/p_to:to/);
   assert.match(marketing,/v2_tenant_marketing_hub_snapshot/);

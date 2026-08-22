@@ -103,7 +103,7 @@ function reportDataKeys(data,section){
 
 async function loadCallContext(payload,rpcParams,first){
   const [performance,dashboard,departments]=await Promise.all([
-    authRpc('v4_tenant_reports_snapshot',{
+    authRpc('v5_tenant_reports_snapshot',{
       p_slug:payload.slug,
       p_from:payload.from||null,
       p_to:payload.to||null,
@@ -185,7 +185,7 @@ async function loadGeneralReport(payload){
     p_limit:GENERAL_PAGE_SIZE,
     p_offset:0
   };
-  const first=await authRpc('v4_tenant_reports_snapshot',params);
+  const first=await authRpc('v5_tenant_reports_snapshot',params);
   const section=payload.section||'all';
   if(payload.report!=='employee'||!['all','details'].includes(section))return first;
 
@@ -197,7 +197,7 @@ async function loadGeneralReport(payload){
   let offset=GENERAL_PAGE_SIZE;
 
   while(needsMore&&offset<DETAIL_EXPORT_LIMIT){
-    const page=await authRpc('v4_tenant_reports_snapshot',{
+    const page=await authRpc('v5_tenant_reports_snapshot',{
       ...params,
       p_offset:offset
     });

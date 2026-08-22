@@ -104,10 +104,10 @@ test('screen, reports, and XLSX route consume the reconciled contract',async()=>
   );
   assert.match(component,/أساس الفترة في هذا التبويب/);
   assert.match(route,/v3_tenant_lead_intake_export_v1/);
-  assert.match(route,/v4_tenant_reports_snapshot/);
+  assert.match(route,/v5_tenant_reports_snapshot/);
   assert.match(route,/metricContract/);
-  assert.match(api,/v4_tenant_reports_snapshot/);
-  assert.match(yeastar,/v4_tenant_reports_snapshot/);
+  assert.match(api,/v5_tenant_reports_snapshot/);
+  assert.match(yeastar,/v5_tenant_reports_snapshot/);
   assert.match(reporting,/عمليات الإسناد/);
   assert.match(reporting,/الصالحون بعد المعالجة/);
 });

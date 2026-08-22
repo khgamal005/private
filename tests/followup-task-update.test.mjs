@@ -75,7 +75,7 @@ test('calendar and follow-up dialogs show the exact latest customer note',async(
   assert.match(migration,/v3_tenant_sales_pipeline_snapshot/);
   assert.match(migration,/'latestNote'/);
   assert.match(migration,/order by activity\.occurred_at desc, activity\.id desc/);
-  assert.match(api,/authRpc\('v3_tenant_sales_pipeline_snapshot'/);
+  assert.match(api,/authRpc\('v4_tenant_sales_pipeline_snapshot'/);
   assert.match(api,/contactLatestNote:contact\.latestNote\|\|contact\.notes/);
   assert.match(calendar,/dayTasksById/);
   assert.match(calendar,/calendar-customer-latest-note/);

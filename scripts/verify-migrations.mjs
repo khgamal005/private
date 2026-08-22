@@ -116,7 +116,8 @@ const required=[
   '20260813123957_calendar_task_history_hardening_v1.sql',
   '20260816132000_dashboard_date_range_v1.sql',
   '20260816160000_tenant_dashboard_resilience_v1.sql',
-  '20260822050000_task_day_overdue_policy_v1.sql'
+  '20260822050000_task_day_overdue_policy_v1.sql',
+  '20260822105500_tenant_runtime_load_hotfix_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();

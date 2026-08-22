@@ -1,5 +1,5 @@
 import TaskCalendarPage from '../../../../components/task-calendar-page';
-import {getTenantOperations} from '../../../../lib/api';
+import {getTenantTaskCalendar} from '../../../../lib/api';
 import {requireTenantPermission} from '../../../../lib/server-auth';
 import {resolveTenantRoleKey} from '../../../../lib/tenant-role-policy';
 
@@ -22,7 +22,7 @@ export default async function TasksPage({params}){
   const salesTaskScope=SALES_TASK_ROLES.has(roleKey);
   return <TaskCalendarPage
     slug={slug}
-    initialData={await getTenantOperations(slug,{
+    initialData={await getTenantTaskCalendar(slug,{
       includeSales,
       taskScope:salesTaskScope?'sales':'all'
     })}

@@ -14,7 +14,9 @@ test('sales task page requests a server-scoped sales calendar',async()=>{
   ]);
 
   assert.match(page,/taskScope[\s\S]{0,100}'sales'/);
-  assert.match(page,/getTenantOperations\(slug,\{[\s\S]{0,120}taskScope/);
+  assert.match(page,/getTenantTaskCalendar\(slug,\{[\s\S]{0,120}taskScope/);
+  assert.doesNotMatch(page,/getTenantOperations/);
+  assert.match(api,/v1_tenant_task_calendar_snapshot/);
   assert.match(api,/getTenantOperations\(slug,\{[\s\S]{0,120}taskScope\s*=\s*'all'/);
   assert.match(api,/taskScope\s*===\s*'sales'/);
 

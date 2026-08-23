@@ -93,6 +93,10 @@ test('registration modal renders the form directly without weakening frame prote
   assert.match(modal,/FreeTrialLanding/);
   assert.match(modal,/<FreeTrialLanding registrationOnly \/>/);
   assert.doesNotMatch(modal,/<iframe|SAMEORIGIN/);
+  assert.match(modal,/styles\.dialog/);
   assert.match(styles,/\.form :global\(\.trial-card\)/);
+  assert.match(styles,/\.dialog\.dialog/);
+  assert.match(styles,/scrollbar-width:\s*none/);
+  assert.doesNotMatch(styles,/#(?:ead49a|fff9e9|84630e|876717)/i);
   assert.match(styles,/@media \(max-width: 650px\)/);
 });

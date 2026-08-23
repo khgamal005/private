@@ -46,7 +46,15 @@ test('ODEIR registration and authentication entry points carry the new identity'
   assert.match(modal,/FreeTrialLanding/);
   assert.match(modal,/<FreeTrialLanding registrationOnly \/>/);
   assert.doesNotMatch(modal,/<iframe|\/free-trial\/apply\?embedded=1/);
+  assert.match(modal,/styles\.layer/);
+  assert.match(modal,/styles\.dialog/);
+  assert.match(modal,/styles\.footer/);
   assert.match(modalStyles,/\.form :global\(\.trial-card\)/);
+  assert.match(modalStyles,/\.dialog\.dialog/);
+  assert.match(modalStyles,/overflow:\s*visible\s*!important/);
+  assert.match(modalStyles,/scrollbar-width:\s*none/);
+  assert.match(modalStyles,/--trial-accent:\s*#0b8f8b/);
+  assert.doesNotMatch(modalStyles,/#(?:d5ae58|ead49a|fff9e9|84630e|876717)/i);
   assert.match(modalStyles,/@media \(max-width: 650px\)/);
   assert.match(applyPage,/searchParams/);
   assert.match(applyPage,/embedded=\{query\?\.embedded==='1'\}/);

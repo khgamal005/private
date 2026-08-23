@@ -39,7 +39,7 @@ export default function OdeirRegistrationModal({ open, onClose }: OdeirRegistrat
   if (!mounted || !open) return null;
 
   return createPortal(
-    <div className="registration-modal-layer" data-registration-modal>
+    <div className={`registration-modal-layer ${styles.layer}`} data-registration-modal>
       <button
         className="registration-modal-backdrop"
         type="button"
@@ -47,14 +47,14 @@ export default function OdeirRegistrationModal({ open, onClose }: OdeirRegistrat
         onClick={onClose}
       />
       <section
-        className="registration-modal-dialog"
+        className={`registration-modal-dialog ${styles.dialog}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="registration-modal-title"
         aria-describedby="registration-modal-description"
       >
-        <header className="registration-modal-header">
-          <div className="registration-modal-brand" aria-hidden="true">
+        <header className={`registration-modal-header ${styles.header}`}>
+          <div className={`registration-modal-brand ${styles.brand}`} aria-hidden="true">
             <Image
               src="/odeir/odeir-logo-transparent.webp"
               width={1126}
@@ -63,14 +63,14 @@ export default function OdeirRegistrationModal({ open, onClose }: OdeirRegistrat
               priority
             />
           </div>
-          <div className="registration-modal-heading">
+          <div className={`registration-modal-heading ${styles.heading}`}>
             <span>ابدأ مع أودير</span>
             <h2 id="registration-modal-title">سجّل منشأتك مجانًا</h2>
             <p id="registration-modal-description">اعثر على منشأتك، تأكد من بياناتها، ثم أرسل طلب التفعيل بخطوات واضحة.</p>
           </div>
           <button
             ref={closeButtonRef}
-            className="registration-modal-close"
+            className={`registration-modal-close ${styles.close}`}
             type="button"
             aria-label="إغلاق نافذة التسجيل"
             onClick={onClose}
@@ -85,7 +85,7 @@ export default function OdeirRegistrationModal({ open, onClose }: OdeirRegistrat
           </div>
         </div>
 
-        <footer className="registration-modal-footer">
+        <footer className={`registration-modal-footer ${styles.footer}`}>
           <span><i aria-hidden="true" /> بيانات الاتصال تظهر مقنّعة حتى التحقق من ملكية المنشأة.</span>
           <b>بدون بطاقة بنكية</b>
         </footer>

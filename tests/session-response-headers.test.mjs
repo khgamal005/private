@@ -41,15 +41,10 @@ test('protected pages disable proxy buffering and shared caching',async()=>{
   const global=routes.find(route=>route.source==='/:path*');
   assert.equal(valueFor(global,'X-Content-Type-Options'),'nosniff');
   assert.equal(valueFor(global,'X-Frame-Options'),'DENY');
-
-  const embeddedRegistration=routes.find(
-    route=>route.source==='/free-trial/apply'
-  );
-  assert.ok(embeddedRegistration,'missing embedded registration headers');
-  assert.equal(valueFor(embeddedRegistration,'X-Frame-Options'),'SAMEORIGIN');
-  assert.ok(
-    routes.indexOf(embeddedRegistration)>routes.indexOf(global),
-    'the scoped frame override must run after the global DENY rule'
+  assert.equal(
+    routes.some(route=>route.source==='/free-trial/apply'),
+    false,
+    'registration is rendered directly and must keep the global frame denial'
   );
 });
 
@@ -82,4 +77,22 @@ test('public login shell is prerendered while the auth API stays private',async(
   );
   assert.match(content,/export const revalidate=300/);
   assert.doesNotMatch(content,/force-dynamic/);
+});
+
+test('registration modal renders the form directly without weakening frame protection',async()=>{
+  const [modal,styles]=await Promise.all([
+    readFile(
+      new URL('../components/odeir-registration-modal.tsx',import.meta.url),
+      'utf8'
+    ),
+    readFile(
+      new URL('../components/odeir-registration-modal.module.css',import.meta.url),
+      'utf8'
+    )
+  ]);
+  assert.match(modal,/FreeTrialLanding/);
+  assert.match(modal,/<FreeTrialLanding registrationOnly \/>/);
+  assert.doesNotMatch(modal,/<iframe|SAMEORIGIN/);
+  assert.match(styles,/\.form :global\(\.trial-card\)/);
+  assert.match(styles,/@media \(max-width: 650px\)/);
 });

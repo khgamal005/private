@@ -19,12 +19,13 @@ test('ODEIR launch migration publishes the concise builder-managed public site',
 });
 
 test('ODEIR registration and authentication entry points carry the new identity',async()=>{
-  const [application,trial,login,brand,modal,applyPage,trialStyles,landingStyles]=await Promise.all([
+  const [application,trial,login,brand,modal,modalStyles,applyPage,trialStyles,landingStyles]=await Promise.all([
     read('components/lifetime-free-application.js'),
     read('components/free-trial-landing.js'),
     read('app/login/page.js'),
     read('components/odeir-brand.js'),
     read('components/odeir-registration-modal.tsx'),
+    read('components/odeir-registration-modal.module.css'),
     read('app/free-trial/apply/page.js'),
     read('app/free-trial/free-trial.css'),
     read('app/odeir-landing-experience.css')
@@ -42,7 +43,11 @@ test('ODEIR registration and authentication entry points carry the new identity'
   assert.match(modal,/createPortal/);
   assert.match(modal,/role="dialog"/);
   assert.match(modal,/event\.key === "Escape"/);
-  assert.match(modal,/\/free-trial\/apply\?embedded=1/);
+  assert.match(modal,/FreeTrialLanding/);
+  assert.match(modal,/<FreeTrialLanding registrationOnly \/>/);
+  assert.doesNotMatch(modal,/<iframe|\/free-trial\/apply\?embedded=1/);
+  assert.match(modalStyles,/\.form :global\(\.trial-card\)/);
+  assert.match(modalStyles,/@media \(max-width: 650px\)/);
   assert.match(applyPage,/searchParams/);
   assert.match(applyPage,/embedded=\{query\?\.embedded==='1'\}/);
   assert.match(trialStyles,/Registration flow clarity and embedded modal surface/);

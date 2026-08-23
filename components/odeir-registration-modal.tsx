@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import FreeTrialLanding from "./free-trial-landing";
+import styles from "./odeir-registration-modal.module.css";
 
 type OdeirRegistrationModalProps = {
   open: boolean;
@@ -11,14 +13,12 @@ type OdeirRegistrationModalProps = {
 
 export default function OdeirRegistrationModal({ open, onClose }: OdeirRegistrationModalProps) {
   const [mounted, setMounted] = useState(false);
-  const [frameReady, setFrameReady] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;
-    setFrameReady(false);
     const previousOverflow = document.body.style.overflow;
     const previousOverscroll = document.body.style.overscrollBehavior;
     document.body.style.overflow = "hidden";
@@ -79,18 +79,10 @@ export default function OdeirRegistrationModal({ open, onClose }: OdeirRegistrat
           </button>
         </header>
 
-        <div className="registration-modal-content" aria-busy={!frameReady}>
-          {!frameReady && <div className="registration-modal-loading" role="status">
-            <i aria-hidden="true" />
-            <span>نجهّز نموذج التسجيل…</span>
-          </div>}
-          <iframe
-            className={frameReady ? "registration-modal-frame is-ready" : "registration-modal-frame"}
-            src="/free-trial/apply?embedded=1"
-            title="نموذج تسجيل منشأة في أودير"
-            onLoad={() => setFrameReady(true)}
-            referrerPolicy="same-origin"
-          />
+        <div className={`registration-modal-content ${styles.content}`}>
+          <div className={styles.form}>
+            <FreeTrialLanding registrationOnly />
+          </div>
         </div>
 
         <footer className="registration-modal-footer">

@@ -50,13 +50,7 @@ const nextConfig={
       {source:'/api/auth/:path*',headers:noStoreHeaders},
       {source:'/api/cms/templates/:path*',headers:noStoreHeaders},
       {source:'/api/cms/builder/:path*',headers:noStoreHeaders},
-      {source:'/:path*',headers:securityHeaders},
-      {
-        source:'/free-trial/apply',
-        headers:[
-          {key:'X-Frame-Options',value:'SAMEORIGIN'}
-        ]
-      }
+      {source:'/:path*',headers:securityHeaders}
     ];
   }
 };

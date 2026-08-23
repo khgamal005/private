@@ -157,6 +157,15 @@
     max-height: 44px !important;
   }
 
+  /* iOS Safari zooms the viewport when a focused text control is below 16px. */
+  .form :global(.free-trial-route input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])),
+  .form :global(.free-trial-route select),
+  .form :global(.free-trial-route textarea) {
+    font-size: 16px !important;
+    line-height: 1.5;
+    touch-action: manipulation;
+  }
+
   .form :global(.step > span) {
     font-size: 10px !important;
   }

@@ -1,0 +1,176 @@
+.header {
+  grid-template-columns: 150px minmax(0, 1fr) 44px !important;
+}
+
+.brand {
+  display: flex;
+  width: 150px;
+  height: 61px !important;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.brand img {
+  display: block;
+  width: 150px !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 61px !important;
+  object-fit: contain;
+  object-position: center;
+}
+
+.form {
+  --registration-font: "IBM Plex Sans Arabic", var(--font-arabic), Tahoma, Arial, sans-serif;
+  font-family: var(--registration-font) !important;
+  font-kerning: normal;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.form :global(.free-trial-route),
+.form :global(.free-trial-route *) {
+  font-family: var(--registration-font) !important;
+  font-synthesis: none;
+  letter-spacing: 0 !important;
+}
+
+.form :global(.free-trial-route button) {
+  font-weight: 600 !important;
+}
+
+.form :global(.free-trial-route input),
+.form :global(.free-trial-route select),
+.form :global(.free-trial-route textarea) {
+  font-weight: 500 !important;
+}
+
+.form :global(.free-trial-route h1),
+.form :global(.free-trial-route h2),
+.form :global(.free-trial-route h3),
+.form :global(.free-trial-route b),
+.form :global(.free-trial-route strong) {
+  font-weight: 700 !important;
+}
+
+.form :global(.step > span) {
+  font-weight: 700 !important;
+  line-height: 1.45;
+}
+
+.form :global(.step i) {
+  font-family: var(--font-latin), Manrope, Arial, sans-serif !important;
+  font-weight: 700 !important;
+}
+
+.form :global(.card-heading small) {
+  font-weight: 600 !important;
+}
+
+.form :global(.card-heading h2) {
+  font-size: 25px !important;
+  font-weight: 700 !important;
+}
+
+.form :global(.search-form > label),
+.form :global(.field > span) {
+  font-weight: 700 !important;
+}
+
+.form :global(.search-control input) {
+  font-weight: 500 !important;
+}
+
+.form :global(.search-control button),
+.form :global(.primary-button),
+.form :global(.secondary-button) {
+  font-weight: 700 !important;
+}
+
+.form :global(.results-head b) {
+  font-weight: 700 !important;
+}
+
+.form :global(.results-head > span) {
+  font-weight: 500 !important;
+}
+
+.form :global(.result-item) {
+  font-family: var(--registration-font) !important;
+}
+
+.form :global(.result-avatar),
+.form :global(.institution-logo),
+.form :global(.selected-strip > span) {
+  font-weight: 700 !important;
+}
+
+.form :global(.result-copy b) {
+  overflow: visible !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.65;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+
+.form :global(.result-copy small) {
+  font-weight: 500 !important;
+  line-height: 1.6;
+}
+
+.form :global(.result-copy em) {
+  font-weight: 600 !important;
+  line-height: 1.45;
+}
+
+.form :global(.result-action) {
+  font-weight: 700 !important;
+}
+
+.form :global(.institution-card h3),
+.form :global(.responsible-card b),
+.form :global(.selected-strip b),
+.form :global(.next-steps b) {
+  font-weight: 700 !important;
+}
+
+.form :global(.reference-box b) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}
+
+@media (max-width: 650px) {
+  .header {
+    grid-template-columns: 112px minmax(0, 1fr) 39px !important;
+  }
+
+  .brand {
+    width: 108px;
+    height: 44px !important;
+  }
+
+  .brand img {
+    width: 108px !important;
+    height: auto !important;
+    max-height: 44px !important;
+  }
+
+  .form :global(.step > span) {
+    font-size: 10px !important;
+  }
+
+  .form :global(.card-heading h2) {
+    font-size: 22px !important;
+  }
+
+  .form :global(.result-copy b) {
+    font-size: 13px !important;
+    line-height: 1.7;
+  }
+
+  .form :global(.result-copy small) {
+    line-height: 1.7;
+  }
+}

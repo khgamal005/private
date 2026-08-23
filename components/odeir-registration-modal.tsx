@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import FreeTrialLanding from "./free-trial-landing";
 import styles from "./odeir-registration-modal.module.css";
+import polish from "./odeir-registration-polish.module.css";
 
 type OdeirRegistrationModalProps = {
   open: boolean;
@@ -53,12 +54,12 @@ export default function OdeirRegistrationModal({ open, onClose }: OdeirRegistrat
         aria-labelledby="registration-modal-title"
         aria-describedby="registration-modal-description"
       >
-        <header className={`registration-modal-header ${styles.header}`}>
-          <div className={`registration-modal-brand ${styles.brand}`} aria-hidden="true">
+        <header className={`registration-modal-header ${styles.header} ${polish.header}`}>
+          <div className={`registration-modal-brand ${styles.brand} ${polish.brand}`} aria-hidden="true">
             <Image
               src="/odeir/odeir-logo-transparent.webp"
-              width={1126}
-              height={522}
+              width={260}
+              height={105}
               alt=""
               priority
             />
@@ -80,7 +81,7 @@ export default function OdeirRegistrationModal({ open, onClose }: OdeirRegistrat
         </header>
 
         <div className={`registration-modal-content ${styles.content}`}>
-          <div className={styles.form}>
+          <div className={`${styles.form} ${polish.form}`}>
             <FreeTrialLanding registrationOnly />
           </div>
         </div>

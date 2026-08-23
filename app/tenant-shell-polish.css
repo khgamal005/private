@@ -129,6 +129,22 @@
   line-height:1.45;
 }
 
+.mt-navigation-badge{
+  display:grid;
+  min-width:21px;
+  height:21px;
+  margin-inline-start:auto;
+  place-items:center;
+  padding:0 5px;
+  border-radius:999px;
+  background:#21c7bd;
+  box-shadow:0 0 0 3px rgba(33,199,189,.12);
+  color:#03243a;
+  font-size:9px;
+  font-style:normal;
+  font-weight:900;
+}
+
 .mt-navigation a:hover{
   border-color:rgba(255,255,255,.065)!important;
   background:rgba(255,255,255,.055)!important;
@@ -363,6 +379,47 @@
   border-radius:11px!important;
   font-size:10px!important;
   white-space:nowrap;
+}
+
+.mt-registration-alert{
+  position:relative;
+  display:grid;
+  width:40px;
+  height:40px;
+  flex:0 0 40px;
+  place-items:center;
+  border:1px solid #dfe8f0;
+  border-radius:12px;
+  background:#fff;
+  color:#365d79;
+  text-decoration:none;
+  transition:.16s ease;
+}
+.mt-registration-alert:hover{border-color:#9bdad6;background:#f0fbfa;color:#087c77}
+.mt-registration-alert svg{
+  width:19px;
+  height:19px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.mt-registration-alert>b{
+  position:absolute;
+  top:-6px;
+  left:-5px;
+  display:grid;
+  min-width:18px;
+  height:18px;
+  place-items:center;
+  padding:0 4px;
+  border:2px solid #fff;
+  border-radius:999px;
+  background:#10a7a0;
+  color:#fff;
+  font-size:8px;
+  line-height:1;
 }
 
 .mt-toolbar-menu{position:relative}

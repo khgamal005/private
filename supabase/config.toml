@@ -55,3 +55,8 @@ verify_jwt = true
 # platform.billing.manage snapshot before any service-role Vault operation.
 verify_jwt = true
 
+[functions.odeir-registration-intake]
+# Public registration uses a server-to-server ingress token. The browser never
+# receives either this token or the service-role key.
+verify_jwt = false
+

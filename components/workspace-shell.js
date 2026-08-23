@@ -12,6 +12,7 @@ import {tenantRolePolicy} from '../lib/tenant-role-policy';
 const ICON_PATHS={
   overview:['M3 10.8 12 3l9 7.8','M5.5 9.4V21h13V9.4','M9 21v-6h6v6'],
   tenants:['M4 21V8l8-5 8 5v13','M9 21v-5h6v5','M8 10h.01M12 10h.01M16 10h.01'],
+  registrations:['M5 4h14v16H5z','M8 8h8M8 12h5','m15 17 2 2 4-5'],
   subscriptions:['M4 6h16v12H4z','M4 10h16','M8 15h3'],
   plans:['M4 6h16v12H4z','M4 10h16','M8 15h3'],
   catalog:['M4 8h16l-1 13H5L4 8Z','M7 8V6a5 5 0 0 1 10 0v2'],
@@ -129,11 +130,12 @@ function tenantItems(
     .filter(item=>item.visible!==false&&(item.children?.length||canUse(item.permission)));
 }
 
-function platformItems(permissions){
+function platformItems(permissions,registrationSummary){
   const allowed=new Set(permissions||[]);
   const items=[
     {key:'overview',label:'لوحة المنصة',href:'/control',permission:'platform.control.read'},
     {key:'tenants',label:'المنشآت',href:'/control/tenants',permission:'platform.tenants.manage'},
+    {key:'registrations',label:'طلبات التسجيل',href:'/control/registration-requests',permission:'platform.tenants.manage',badge:registrationAttentionCount(registrationSummary)},
     {key:'catalog',label:'المنتجات والمتاجر',children:[
       {key:'plans',label:'الباقات وحدود الاستخدام',href:'/control/plans',permission:'platform.billing.manage'},
       {key:'addons',label:'متجر الإضافات',href:'/control/addons',permission:'platform.billing.manage'},
@@ -167,6 +169,9 @@ function isActive(pathname,href){
   return pathname===href||pathname.startsWith(`${href}/`);
 }
 function count(value){return Math.max(0,Number(value)||0);}
+function registrationAttentionCount(summary){
+  return count(summary?.pendingReview)+count(summary?.underReview)+count(summary?.trustPending);
+}
 function notificationItems(summary,slug){
   const base=`/tenant/${encodeURIComponent(slug)}`;
   const items=[];
@@ -178,7 +183,7 @@ function notificationItems(summary,slug){
   return items;
 }
 
-export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,yeastarAccess=null,addonAccess=null}){
+export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,yeastarAccess=null,addonAccess=null}){
   const pathname=usePathname();
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
@@ -200,14 +205,15 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       yeastarAccess,
       addonAccess
     )
-    :platformItems(permissions),[
+    :platformItems(permissions,platformRegistrationSummary),[
       kind,
       slug,
       permissions,
       platformAccess,
       roleKey,
       yeastarAccess,
-      addonAccess
+      addonAccess,
+      platformRegistrationSummary
     ]);
   const areaLabel=kind===WORKSPACE_KINDS.tenant?'لوحة المنشأة':'لوحة إدارة المنصة';
   const canCreateTask=platformAccess||permissions.includes('tenant.work.write');
@@ -234,7 +240,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       <div className="mt-context-card"><span className="mt-context-status">{kind===WORKSPACE_KINDS.tenant?'منشأة نشطة':'إدارة SaaS المركزية'}</span><b>{title}</b></div>
       <nav className="mt-navigation" aria-label="القائمة الرئيسية">
         {items.map(item=>{
-          if(!item.children)return <Link key={item.href||item.key} href={item.href||'#'} aria-disabled={item.disabled||undefined} tabIndex={item.disabled?-1:undefined} className={item.disabled?'disabled':isActive(pathname,item.href)?'active':''} style={item.disabled?{cursor:'default',opacity:.55}:undefined} onClick={event=>{if(item.disabled){event.preventDefault();return;}setMobileOpen(false);}}><span><ShellIcon name={item.key}/></span><b>{item.label}</b></Link>;
+          if(!item.children)return <Link key={item.href||item.key} href={item.href||'#'} aria-disabled={item.disabled||undefined} tabIndex={item.disabled?-1:undefined} className={item.disabled?'disabled':isActive(pathname,item.href)?'active':''} style={item.disabled?{cursor:'default',opacity:.55}:undefined} onClick={event=>{if(item.disabled){event.preventDefault();return;}setMobileOpen(false);}}><span><ShellIcon name={item.key}/></span><b>{item.label}</b>{item.badge>0&&<em className="mt-navigation-badge" aria-label={`${item.badge} طلب تسجيل جديد`}>{item.badge>99?'99+':item.badge}</em>}</Link>;
           const childActive=item.children.some(child=>!child.disabled&&child.href&&isActive(pathname,child.href));
           const isOpen=Boolean(openGroups[item.key]);
           return <div className={`mt-navigation-group ${childActive?'active':''}`} key={item.key}>
@@ -251,6 +257,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
         <div className="mt-topbar-tools">
           {kind===WORKSPACE_KINDS.tenant&&canCreateTask&&<Link className="mt-quick-link" href={`/tenant/${encodeURIComponent(slug)}/tasks`}>+ مهمة جديدة</Link>}
           {kind===WORKSPACE_KINDS.platform&&canManageTenants&&<Link className="mt-quick-link" href="/control/tenants">إدارة المنشآت</Link>}
+          {kind===WORKSPACE_KINDS.platform&&canManageTenants&&<Link className="mt-registration-alert" href="/control/registration-requests" aria-label={`${registrationAttentionCount(platformRegistrationSummary)} طلب تسجيل يحتاج إجراء`} title="طلبات التسجيل"><ShellIcon name="bell"/>{registrationAttentionCount(platformRegistrationSummary)>0&&<b>{registrationAttentionCount(platformRegistrationSummary)>99?'99+':registrationAttentionCount(platformRegistrationSummary)}</b>}</Link>}
           {kind===WORKSPACE_KINDS.tenant&&<NotificationCenter
             slug={slug}
             className="mt-notification-menu"

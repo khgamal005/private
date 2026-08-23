@@ -1,17 +1,26 @@
 import {getPlatformControl} from '../../../lib/platform-api';
-import {requireAnyPlatformPermission} from '../../../lib/server-auth';
+import {hasPlatformPermission,requireAnyPlatformPermission} from '../../../lib/server-auth';
 import MarketMirrorControl from '../../../components/market-mirror-control';
+import RegistrationActivationPolicy from '../../../components/registration-activation-policy';
+import {getPlatformRegistrationPolicy} from '../../../lib/platform-registration-policy';
 
 export const dynamic='force-dynamic';
 
 export default async function PlatformSettings(){
-  await requireAnyPlatformPermission([
+  const context=await requireAnyPlatformPermission([
     'platform.settings.manage',
     'platform.control.write'
   ]);
-  const data=await getPlatformControl();
+  const canManageRegistrationPolicy=hasPlatformPermission(
+    context,'platform.settings.manage'
+  );
+  const [data,registrationPolicy]=await Promise.all([
+    getPlatformControl(),
+    canManageRegistrationPolicy?getPlatformRegistrationPolicy():Promise.resolve(null)
+  ]);
   return <>
     <header className="mt-page-head"><div><small>PLATFORM SETTINGS</small><h2>إعدادات المنصة والتكاملات</h2><p>إعدادات عامة منفصلة عن إعدادات كل منشأة وتظهر للمخولين فقط.</p></div></header>
+    {registrationPolicy&&<RegistrationActivationPolicy initialPolicy={registrationPolicy}/>} 
     <section className="mt-kpis">
       <article className="mt-kpi"><span>الإضافات</span><b>{data.features?.length||0}</b><small>خصائص قابلة للتفعيل</small></article>
       <article className="mt-kpi"><span>التكاملات</span><b>{data.integrations?.length||0}</b><small>مزودو الخدمات والاتصالات</small></article>

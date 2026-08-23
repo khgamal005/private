@@ -31,7 +31,7 @@ test('ODEIR registration and authentication entry points carry the new identity'
     read('app/odeir-landing-experience.css')
   ]);
   assert.match(application,/OdeirBrand/);
-  assert.match(application,/مرحبًا بمنشأتك في أودير/);
+  assert.match(trial,/مرحبًا بمنشأتك في أودير/);
   assert.match(application,/registrationOnly=\{embedded\}/);
   assert.match(trial,/aria-label="تسجيل منشأة في أودير"/);
   assert.match(trial,/registrationOnly/);

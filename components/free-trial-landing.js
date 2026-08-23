@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 const TRIAL_API = "https://jultamrxwrgzohoktbgr.supabase.co/functions/v1/marktone-free-trial";
+const REGISTRATION_API = "/api/public/registration";
 const initialForm = {
   institutionName: "",
   commercialRegistration: "",
@@ -21,6 +22,8 @@ const ERROR_COPY = {
   consent_required: "يلزم الموافقة على الإقرار التنظيمي وسياسة الخصوصية.",
   invalid_email: "راجع صيغة البريد الإلكتروني.",
   invalid_phone: "راجع رقم الجوال وأدخله بصيغة صحيحة.",
+  email_configuration_unavailable: "تعذر إرسال رسالة التأكيد الآن. بياناتك لم تُفقد؛ حاول بعد قليل.",
+  confirmation_email_failed: "تعذر إرسال رسالة التأكيد الآن. حاول مرة أخرى بعد قليل.",
   service_unavailable: "الخدمة غير متاحة لحظيًا. حاول مرة أخرى بعد قليل."
 };
 function FreeTrialLanding({ registrationOnly = false } = {}) {
@@ -34,6 +37,8 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
   );
   const [form, setForm] = useState(initialForm);
   const [reference, setReference] = useState("");
+  const [confirmationRequired, setConfirmationRequired] = useState(false);
+  const [confirmationAlreadySent, setConfirmationAlreadySent] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
@@ -48,7 +53,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
     return 1;
   }, [step]);
   async function callApi(payload) {
-    const response = await fetch(TRIAL_API, {
+    const response = await fetch(payload.action === "submit" ? REGISTRATION_API : TRIAL_API, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...payload, startedAt: startedAt.current })
@@ -122,6 +127,8 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
         ...form
       });
       setReference(value.reference || "");
+      setConfirmationRequired(value.confirmationRequired === true);
+      setConfirmationAlreadySent(value.confirmationAlreadySent === true);
       setStep("success");
     } catch (caught) {
       setError(messageFor(caught));
@@ -326,22 +333,32 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
               </div>
             </form>}
 
-          {step === "success" && <div className="trial-body success-state">
+          {step === "success" && <div className={`trial-body success-state${confirmationRequired ? " email-confirmation" : ""}`}>
               <span className="success-orbit"><CheckIcon /></span>
-              <small>تم استلام طلبك بنجاح</small>
+              <small>{confirmationRequired ? "تم حفظ طلبك وإرسال رسالة التأكيد" : "تم استلام طلبك بنجاح"}</small>
               <h2>مرحبًا بمنشأتك في أودير</h2>
-              <p>وصل تنبيه لفريق المراجعة، وسنراجع بيانات المنشأة ثم نرد على بريدك خلال يوم عمل.</p>
+              <p>{confirmationRequired
+                ? `${confirmationAlreadySent ? "رابط التأكيد موجود في الرسالة التي أرسلناها قبل قليل." : "افتح بريدك واضغط رابط التأكيد."} بعدها تتفعّل مساحة مستقلة وفق الباقة المحددة، وتعمل بصورة طبيعية بينما نراجع موثوقية المنشأة.`
+                : "ظهر طلبك مباشرة لفريق المراجعة، وسنراجع بيانات المنشأة ثم نتواصل معك خلال يوم عمل."}</p>
               <div className="reference-box"><span>رقم الطلب</span><b>{reference}</b><small>احتفظ به للمتابعة</small></div>
               <div className="next-steps">
-                <span><i>1</i><b>مراجعة المنشأة</b><small>مطابقة البيانات الرسمية</small></span>
-                <span><i>2</i><b>رسالة التأكيد</b><small>على بريد مسؤول الطلب</small></span>
-                <span><i>3</i><b>تجهيز المساحة</b><small>أدوار ودليل تفاعلي</small></span>
+                {confirmationRequired ? <>
+                  <span><i>1</i><b>أكد البريد</b><small>من الرسالة المرسلة لك</small></span>
+                  <span><i>2</i><b>تفعيل فوري</b><small>مساحة مستقلة تعمل مباشرة</small></span>
+                  <span><i>3</i><b>مراجعة الموثوقية</b><small>دون تعطيل وظائف الباقة</small></span>
+                </> : <>
+                  <span><i>1</i><b>مراجعة المنشأة</b><small>مطابقة البيانات الرسمية</small></span>
+                  <span><i>2</i><b>رسالة التأكيد</b><small>على بريد مسؤول الطلب</small></span>
+                  <span><i>3</i><b>تجهيز المساحة</b><small>أدوار ودليل تفاعلي</small></span>
+                </>}
               </div>
               <button className="secondary-button" onClick={() => {
     setStep("search");
     setResults([]);
     setSelected(null);
     setReference("");
+    setConfirmationRequired(false);
+    setConfirmationAlreadySent(false);
     setForm(initialForm);
   }}>طلب آخر</button>
             </div>}

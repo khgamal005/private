@@ -1,0 +1,15 @@
+/*
+ * Mobile authentication controls must remain at an iOS-safe text size.
+ * Safari zooms the viewport when a focused input has a computed font size
+ * below 16px. This keeps normal pinch zoom available and changes no viewport
+ * accessibility settings.
+ */
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  .auth-page .auth-form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  .auth-page .auth-form select,
+  .auth-page .auth-form textarea {
+    font-size: 16px !important;
+    line-height: 1.5;
+    touch-action: manipulation;
+  }
+}

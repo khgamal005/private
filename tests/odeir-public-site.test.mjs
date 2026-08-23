@@ -54,6 +54,8 @@ test('ODEIR registration and authentication entry points carry the new identity'
   assert.match(modalStyles,/overflow:\s*visible\s*!important/);
   assert.match(modalStyles,/scrollbar-width:\s*none/);
   assert.match(modalStyles,/--trial-accent:\s*#0b8f8b/);
+  assert.match(modalStyles,/registration-only-hero span\)[\s\S]*color:\s*inherit\s*!important/);
+  assert.match(modalStyles,/\.close\.close:focus-visible[\s\S]*rgba\(124,\s*229,\s*223,/);
   assert.doesNotMatch(modalStyles,/#(?:d5ae58|ead49a|fff9e9|84630e|876717)/i);
   assert.match(modalStyles,/@media \(max-width: 650px\)/);
   assert.match(applyPage,/searchParams/);

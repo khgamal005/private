@@ -97,6 +97,7 @@ test('registration modal renders the form directly without weakening frame prote
   assert.match(styles,/\.form :global\(\.trial-card\)/);
   assert.match(styles,/\.dialog\.dialog/);
   assert.match(styles,/scrollbar-width:\s*none/);
+  assert.match(styles,/registration-only-hero span\)[\s\S]*color:\s*inherit\s*!important/);
   assert.doesNotMatch(styles,/#(?:ead49a|fff9e9|84630e|876717)/i);
   assert.match(styles,/@media \(max-width: 650px\)/);
 });

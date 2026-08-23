@@ -71,6 +71,10 @@
   background: rgba(255, 255, 255, .065);
 }
 
+.close.close:focus-visible {
+  outline-color: rgba(124, 229, 223, .72);
+}
+
 .content.content {
   min-height: 0;
   flex: 0 0 auto;
@@ -142,6 +146,39 @@
   padding: 0 !important;
   background: #fff !important;
   color: var(--trial-ink);
+}
+
+/* The public landing page has a legacy `.hero span` brand rule. The form is
+   rendered inside a `.hero` for layout compatibility, so neutralize that rule
+   inside the modal and then restore the intentional semantic icon colors. */
+.form :global(.registration-only-hero span) {
+  color: inherit !important;
+}
+
+.form :global(.heading-icon),
+.form :global(.new-institution > span:first-child),
+.form :global(.responsible-card > span),
+.form :global(.notice-icon),
+.form :global(.success-orbit) {
+  color: #087d7a !important;
+}
+
+.form :global(.heading-icon.success) {
+  color: #18805b !important;
+}
+
+.form :global(.result-avatar),
+.form :global(.institution-logo),
+.form :global(.selected-strip > span) {
+  color: #fff !important;
+}
+
+.form :global(.results-head > span) {
+  color: #5d7482 !important;
+}
+
+.form :global(.result-action) {
+  color: #0c8295 !important;
 }
 
 .form :global(.registration-only-hero::before) {

@@ -187,7 +187,7 @@ export default function MarketplaceStore({slug,initialData,initialTab='services'
   return <section className={styles.store}>
     <header className={styles.hero}>
       <div>
-        <span>مُدار من ماركتون</span>
+        <span>أودير من ماركتون</span>
         <h1>{tab==='services'?'متجر الخدمات المتخصصة':'متجر الإضافات الذكية'}</h1>
         <p>{tab==='services'
           ?'اطلب المحاضرين والتصميم والمحتوى والتسويق والتشغيل من شركاء يفهمون قطاع التدريب.'
@@ -331,7 +331,7 @@ function AddonCard({slug,item,canPurchase,pending,onBuy}){
   const enabled=Boolean(item.entitlement?.enabled);
   const target=ADDON_LINKS[item.key]||'settings?tab=addons';
   return <article className={[styles.card,styles.addon,enabled?styles.installed:''].join(' ')}>
-    <header><span>{ADDON_CATEGORIES[item.categoryKey]||'إضافة مُدار'}</span>{item.badge&&<b>{item.badge}</b>}</header>
+    <header><span>{ADDON_CATEGORIES[item.categoryKey]||'إضافة أودير'}</span>{item.badge&&<b>{item.badge}</b>}</header>
     <div className={styles.addonTitle}><i aria-hidden="true">+</i><h2>{item.name}</h2></div>
     <p>{item.description}</p>
     <div className={styles.details}>

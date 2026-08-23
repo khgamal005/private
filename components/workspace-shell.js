@@ -102,7 +102,7 @@ function tenantItems(
       {key:'settings',label:'إعدادات الحسابات',href:`${base}/accounting/settings`,permission:['tenant.accounting.settings.manage','tenant.accounting.read']},
       {key:'integrations',label:'زاتكا والفوترة الإلكترونية',href:`${base}/accounting/zatca`,permission:['tenant.zatca.manage','tenant.accounting.read'],visible:hasAddon('zatca')}
     ]},
-    {key:'marketplace',label:'إضافات مُدار',children:[
+    {key:'marketplace',label:'إضافات أودير',children:[
       {key:'addons',label:'الإضافات المثبتة',href:`${base}/addons`,permission:'tenant.settings.manage'},
       {key:'addonsStore',label:'إضافة جديدة',href:`${base}/addons-store`,permission:'tenant.users.manage'}
     ]},

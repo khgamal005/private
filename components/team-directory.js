@@ -290,7 +290,7 @@ export default function TeamDirectory({
     <header className="mt-page-head">
       <div>
         <small>PEOPLE & ACCESS</small>
-        <h2>فريق عمل ريف المهارات</h2>
+        <h2>فريق عمل {initialData.tenant?.name||'المنشأة'}</h2>
         <p>{yeastarEnabled
           ?'إدارة بيانات الموظفين والأدوار والمشرف المباشر وتحويلات Yeastar من ملف وظيفي واحد.'
           :'إدارة بيانات الموظفين والأدوار والمشرف المباشر وحسابات الدخول.'}

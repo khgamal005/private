@@ -58,7 +58,7 @@ export default function OnboardingForm({plans=[]}){
     <label>اسم المنشأة<input name="display_name" required/></label>
     <label>الاسم القانوني<input name="legal_name"/></label>
     <label>الرابط المختصر<input name="slug" pattern="[a-z0-9-]+" placeholder="example-institute" required/></label>
-    <label>الدومين أو Subdomain<input name="hostname" placeholder="example.marktone.sa"/></label>
+    <label>الدومين أو Subdomain<input name="hostname" placeholder="example.odeir.com"/></label>
     <label>اسم مالك المنشأة<input name="owner_name" required/></label>
     <label>بريد مالك المنشأة<input name="owner_email" type="email" required/></label>
     <label>الدولة<select name="country_code"><option value="SA">السعودية</option><option value="AE">الإمارات</option><option value="EG">مصر</option></select></label>

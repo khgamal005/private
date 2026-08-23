@@ -1,6 +1,6 @@
 begin;
 
--- Modaar SaaS commerce control v1.
+-- ODEIR SaaS commerce control v1.
 -- Additive only: no tenant, Reef, subscription, order, customer or employee data is removed.
 
 alter table catalog.plans
@@ -618,7 +618,7 @@ begin
         category_id,product_key,name_ar,description_ar,pricing_mode,amount_minor,currency,
         unit_label_ar,turnaround_days,badge_ar,status
       ) values(
-        v_category_id,p_payload->>'key',trim(p_payload->>'name'),coalesce(nullif(trim(p_payload->>'description'),''),'خدمة من مُدار'),
+        v_category_id,p_payload->>'key',trim(p_payload->>'name'),coalesce(nullif(trim(p_payload->>'description'),''),'خدمة من أودير'),
         coalesce(nullif(p_payload->>'pricingMode',''),'fixed'),v_amount,
         upper(coalesce(nullif(p_payload->>'currency',''),'SAR')),coalesce(nullif(trim(p_payload->>'unitLabel'),''),'خدمة'),
         nullif(p_payload->>'turnaroundDays','')::integer,nullif(trim(p_payload->>'badge'),''),

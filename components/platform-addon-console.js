@@ -277,7 +277,7 @@ function Catalog({rows,onPrice,onCategory}){
 function Categories({rows,onEdit}){
   return <section className={styles.providers}>{rows.map(item=><article key={item.id}>
     <header><i>{item.iconKey?.slice(0,2)||'إ'}</i><Status value={item.status}/></header>
-    <h2>{item.name}</h2><p>{item.description||'قسم إضافات مُدار'}</p>
+    <h2>{item.name}</h2><p>{item.description||'قسم إضافات أودير'}</p>
     <dl><div><dt>عدد الإضافات</dt><dd>{item.productCount||0}</dd></div><div><dt>المفتاح</dt><dd>{item.key}</dd></div></dl>
     <button type="button" onClick={()=>onEdit(item)}>تعديل القسم</button>
   </article>)}{!rows.length&&<Empty/>}</section>;

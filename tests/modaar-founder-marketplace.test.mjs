@@ -26,7 +26,7 @@ test('founder center starts on the annual free core without add-ons',()=>{
   assert.match(source.core,/interval='year'/);
   assert.match(source.core,/period_end:=new\.period_start\+interval '1 year'/);
   assert.match(source.core,/slug='modaar-training-center'/);
-  assert.match(source.core,/مركز مُدار النموذجي للتدريب/);
+  assert.match(source.core,/مركز أودير النموذجي للتدريب/);
   assert.match(source.core,/modaar_founder_center_must_start_without_addons/);
   assert.match(source.core,/addonsInitiallyEnabled',false/);
   assert.match(source.core,/if v_owner_subject_id is not null then/);

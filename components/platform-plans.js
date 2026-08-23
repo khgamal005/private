@@ -57,7 +57,7 @@ export default function PlatformPlans({initialData}){
     <div className={styles.toolbar}><div className={styles.toolbarTitle}><b>هيكل الباقات</b><small>{activePlans.length} باقة قابلة للإدارة</small></div></div>
     <section className={styles.plans}>{activePlans.map(plan=><article className={`${styles.plan} ${plan.amountMinor===0?styles.featured:''}`} key={plan.id}>
       <header><div><small>{plan.key}</small><h2>{plan.nameAr}</h2></div><span className={`${styles.status} ${styles[plan.status]||''}`}>{plan.status==='active'?'نشطة':plan.status==='draft'?'مسودة':'مؤرشفة'}</span></header>
-      <p>{plan.description||'باقة مُدار قابلة للتخصيص حسب احتياج المنشأة.'}</p>
+      <p>{plan.description||'باقة أودير قابلة للتخصيص حسب احتياج المنشأة.'}</p>
       <div className={styles.price}><b>{plan.amountMinor?money(plan.amountMinor,plan.currency):'مجانية'}</b><small>{plan.amountMinor?intervalLabel[plan.interval]:''}</small></div>
       <div className={styles.limitList}>{(plan.limits||EMPTY).slice(0,6).map(limit=><div key={limit.key}><span>{limit.name}</span><b>{limit.value==null?'غير محدود':`${limit.value} ${limit.unit}`}</b></div>)}</div>
       <footer><small>{plan.subscriberCount||0} منشأة مشتركة</small><button className={styles.ghost} onClick={()=>setEditing(plan)}>تعديل الباقة</button></footer>

@@ -7,7 +7,7 @@ const read=path=>readFile(new URL(path,root),'utf8');
 
 test('tenant menu separates core training, licensed LMS, add-ons and services',async()=>{
   const shell=await read('components/workspace-shell.js');
-  const addonsStart=shell.indexOf("label:'إضافات مُدار'");
+  const addonsStart=shell.indexOf("label:'إضافات أودير'");
   const servicesStart=shell.indexOf("label:'متجر الخدمات'",addonsStart);
   const teamStart=shell.indexOf("label:'فريق العمل'",servicesStart);
   assert.notEqual(addonsStart,-1);

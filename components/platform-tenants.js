@@ -154,8 +154,8 @@ export default function PlatformTenants({initialData}){
         <div className="mt-form">
           <label className="mt-field">اسم المنشأة<input name="display_name" required/></label>
           <label className="mt-field">الاسم القانوني<input name="legal_name"/></label>
-          <label className="mt-field">الرابط المختصر<input name="slug" required pattern="[a-z0-9-]+" placeholder="reef-skills"/></label>
-          <label className="mt-field">الدومين أو Subdomain<input name="hostname" placeholder="reef.marktone.sa"/></label>
+          <label className="mt-field">الرابط المختصر<input name="slug" required pattern="[a-z0-9-]+" placeholder="training-center"/></label>
+          <label className="mt-field">الدومين أو Subdomain<input name="hostname" placeholder="training-center.odeir.com"/></label>
           <label className="mt-field">اسم مالك المنشأة<input name="owner_name" required/></label>
           <label className="mt-field">بريد المالك<input name="owner_email" type="email" required/></label>
           <label className="mt-field">الدولة<select name="country_code" defaultValue="SA"><option value="SA">السعودية</option><option value="EG">مصر</option><option value="AE">الإمارات</option></select></label>

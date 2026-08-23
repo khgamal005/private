@@ -122,7 +122,7 @@ export default function PlatformMarketplace({initialData}){
       <p>استخدم السر في موصل بوابة الدفع لتوقيع: <code>timestamp.rawBody</code> بخوارزمية HMAC-SHA256.</p>
       <label><span>المسار</span><code>{webhookSecret.endpointPath}</code></label>
       <label><span>السر</span><code>{webhookSecret.secret}</code></label>
-      <small>عند مغادرة هذه الشاشة لن يعرض مُدار السر مرة أخرى. تدويره يبطل السر السابق فورًا.</small>
+      <small>عند مغادرة هذه الشاشة لن يعرض أودير السر مرة أخرى. تدويره يبطل السر السابق فورًا.</small>
     </section>}
 
     <section className={styles.toolbar}>

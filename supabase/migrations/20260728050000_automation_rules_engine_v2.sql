@@ -1861,7 +1861,7 @@ begin
       'time', '18:00',
       'link', 'https://example.com/training',
       'amount', '699 ر.س',
-      'certificate_number', 'REEF-DEMO-001',
+      'certificate_number', 'ODEIR-DEMO-001',
       'certificate_link', '/certificates/demo',
       'delivery_mode', 'عن بُعد',
       'center', v_tenant.name

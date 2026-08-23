@@ -177,7 +177,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   return <section className={styles.store}>
     <header className={styles.hero}>
       <div>
-        <span>مُدار من ماركتون</span>
+        <span>أودير من ماركتون</span>
         <h1>متجر الإضافات</h1>
         <p>النسخة الأساسية تعمل مستقلة. فعّل الإضافات المجانية فورًا، أو اشترك سنويًا في الإضافات المدفوعة التي تحتاجها فقط.</p>
       </div>
@@ -216,7 +216,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
         {orders.filter(order=>order.kind==='addon').map(order=>{
           const transfer=transferByOrder.get(order.id);
           return <article key={order.id}>
-            <div className={styles.orderIdentity}><b>{order.orderNumber}</b><small>{order.items?.map(item=>item.name).join('، ')||'إضافة مُدار'}</small></div>
+            <div className={styles.orderIdentity}><b>{order.orderNumber}</b><small>{order.items?.map(item=>item.name).join('، ')||'إضافة أودير'}</small></div>
             <span className={[styles.status,styles[order.status]||''].join(' ')}>{STATUS[order.status]||order.status}</span>
             <div><small>الإجمالي</small><b>{money(order.totalMinor,order.currency)}</b></div>
             <div><small>الدفع</small><b>{order.paymentProvider==='bank_transfer'?'تحويل بنكي':'—'}</b>{transfer&&<small>{TRANSFER_STATUS[transfer.status]||transfer.status}</small>}</div>
@@ -269,7 +269,7 @@ function AddonCard({slug,item,canPurchase,pending,busy,onActivateFree,onBuy}){
   const free=item.pricingMode==='free'||Number(item.amountMinor||0)===0;
   const target=ADDON_LINKS[item.key]||'settings?tab=addons';
   return <article className={[styles.card,styles.addon,enabled?styles.installed:''].join(' ')}>
-    <header><span>{ADDON_CATEGORIES[item.categoryKey]||'إضافة مُدار'}</span>{item.badge&&<b>{item.badge}</b>}</header>
+    <header><span>{ADDON_CATEGORIES[item.categoryKey]||'إضافة أودير'}</span>{item.badge&&<b>{item.badge}</b>}</header>
     <div className={styles.addonTitle}><i aria-hidden="true">+</i><h2>{item.name}</h2></div>
     <p>{item.description}</p>
     <div className={styles.details}>

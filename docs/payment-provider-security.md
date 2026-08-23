@@ -1,7 +1,7 @@
 # Payment provider security
 
 This document defines the production boundary for Tamara, Paymob, and PayPal
-payments in the Modaar marketplace. It is an implementation contract, not a
+payments in the ODEIR marketplace. It is an implementation contract, not a
 claim that any provider is currently live.
 
 The existing `marktone_hmac` webhook may remain an internal service-to-service

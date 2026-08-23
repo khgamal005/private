@@ -186,7 +186,7 @@ export default function AddonCenter({slug,initialData}){
   return <section className={styles.center} aria-busy={Boolean(busy)}>
     <header className={styles.hero}>
       <div>
-        <span>MODAAR ADD-ON MANAGER</span>
+        <span>ODEIR ADD-ON MANAGER</span>
         <h2>إضافات منشأتك وتراخيصها</h2>
         <p>كل إضافة لها سعر سنوي، مدة ترخيص، أماكن ظهور محددة، وسجل مستقل. إيقاف الإضافة يمنع الوصول فقط ولا يحذف بياناتها.</p>
       </div>
@@ -271,7 +271,7 @@ function AddonCard({slug,product,timezone,busy,onAction,onDetails}){
       <div className={styles.identity}><i aria-hidden="true">{product.iconKey||'+'}</i><span><small>{product.categoryLabel||product.featureKey}</small><h3>{product.name}</h3></span></div>
       <b className={`${styles.status} ${statusTone(status)}`}>{STATUS[status]||status}</b>
     </header>
-    <p>{product.description||manifest.shortDescription||'إضافة مستقلة ضمن منظومة مُدار.'}</p>
+    <p>{product.description||manifest.shortDescription||'إضافة مستقلة ضمن منظومة أودير.'}</p>
     <section className={styles.priceLine}>
       <div><small>السعر</small><strong>{money(price.amountMinor,price.currency)}</strong><span>{INTERVAL[price.interval]||'دورية غير محددة'}</span></div>
       <div><small>الإصدار</small><b>{product.version||manifest.version||'1.0.0'}</b><span>{formatDate(product.publishedAt||manifest.releasedAt,timezone)}</span></div>

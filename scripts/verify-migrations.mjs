@@ -117,7 +117,8 @@ const required=[
   '20260816132000_dashboard_date_range_v1.sql',
   '20260816160000_tenant_dashboard_resilience_v1.sql',
   '20260822050000_task_day_overdue_policy_v1.sql',
-  '20260822105500_tenant_runtime_load_hotfix_v1.sql'
+  '20260822105500_tenant_runtime_load_hotfix_v1.sql',
+  '20260823190000_tenant_brand_isolation_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();
@@ -282,6 +283,22 @@ for(const pattern of [
   /revoke all on function public\.v3_cms_template_upload_ticket/,
   /enable row level security/
 ])assert.match(cmsPro,pattern);
+
+const tenantBrandIsolation=sqlByFile.get(
+  '20260823190000_tenant_brand_isolation_v1.sql'
+);
+for(const pattern of [
+  /private_app\.yeastar_settings_snapshot_core/,
+  /public\.v2_platform_provision_tenant/,
+  /public\.v2_tenant_automation_studio_action/,
+  /public\.v4_platform_commerce_action/,
+  /ODEIR-DEMO-001/,
+  /'ODR-'/
+])assert.match(tenantBrandIsolation,pattern);
+assert.doesNotMatch(
+  tenantBrandIsolation,
+  /https:\/\/reef\.ras\.yeastar\.com|REEF-DEMO-001/
+);
 
 assert.doesNotMatch(allSql,/grant\s+all[\s\S]+to\s+anon/i);
 console.log(`Verified ${sqlFiles.length} forward migrations, including Add-on Platform v3, CMS v3, core public pages, Visual Builder, and isolated ZIP template imports.`);

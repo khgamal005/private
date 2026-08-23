@@ -2,7 +2,7 @@ begin;
 
 update catalog.plans
 set name_ar='النسخة الأساسية المجانية لمدة 12 شهرًا',
-    description='النواة الأساسية من مُدار مجانًا لمدة 12 شهرًا من تاريخ تفعيل المنشأة. الإضافات مستقلة.',
+    description='النواة الأساسية من أودير مجانًا لمدة 12 شهرًا من تاريخ تفعيل المنشأة. الإضافات مستقلة.',
     interval='year',amount_minor=0,currency='SAR',updated_at=now()
 where plan_key='free';
 
@@ -101,12 +101,12 @@ begin
  select id into v_organization_id from core.organizations where organization_key='org-modaar-training-center' limit 1;
  if v_organization_id is null then
   insert into core.organizations(organization_key,legal_name,display_name,country_code,status)
-  values('org-modaar-training-center','مركز مُدار النموذجي للتدريب','مركز مُدار النموذجي للتدريب','SA','active') returning id into v_organization_id;
+  values('org-modaar-training-center','مركز أودير النموذجي للتدريب','مركز أودير النموذجي للتدريب','SA','active') returning id into v_organization_id;
  end if;
  select id into v_tenant_id from core.tenants where slug='modaar-training-center' limit 1;
  if v_tenant_id is null then
   insert into core.tenants(organization_id,tenant_key,slug,name,legal_name,status,country_code,timezone,default_locale,settings)
-  values(v_organization_id,'tenant-modaar-training-center','modaar-training-center','مركز مُدار النموذجي للتدريب','مركز مُدار النموذجي للتدريب','trial','SA','Asia/Riyadh','ar-SA',
+  values(v_organization_id,'tenant-modaar-training-center','modaar-training-center','مركز أودير النموذجي للتدريب','مركز أودير النموذجي للتدريب','trial','SA','Asia/Riyadh','ar-SA',
   jsonb_build_object('founderTenant',true,'trainingCenter',true,'demoData',true,'dataDisclaimerAr','جميع البيانات داخل هذه المنشأة تجريبية وغير حقيقية.','planLabelAr','النسخة الأساسية المجانية لمدة 12 شهرًا','addonsInitiallyEnabled',false)) returning id into v_tenant_id;
  else
   update core.tenants set settings=settings||jsonb_build_object('founderTenant',true,'trainingCenter',true,'demoData',true,'dataDisclaimerAr','جميع البيانات داخل هذه المنشأة تجريبية وغير حقيقية.','planLabelAr','النسخة الأساسية المجانية لمدة 12 شهرًا','addonsInitiallyEnabled',false),updated_at=now() where id=v_tenant_id;

@@ -1,4 +1,4 @@
--- Modaar service and add-on marketplace (applied as 20260808000722).
+-- ODEIR service and add-on marketplace (applied as 20260808000722).
 -- Additive only: existing tenants, memberships, customers, integrations and URLs are untouched.
 
 create schema if not exists marketplace;
@@ -59,7 +59,7 @@ $$;
 create table if not exists marketplace.orders (
   id uuid primary key default gen_random_uuid(),
   order_number text not null unique default (
-    'MDR-' || to_char(current_date,'YYMM') || '-' ||
+    'ODR-' || to_char(current_date,'YYMM') || '-' ||
     lpad(nextval('marketplace.order_number_seq')::text,6,'0')
   ),
   tenant_id uuid not null references core.tenants(id) on delete restrict,
@@ -211,7 +211,7 @@ from (
     ('content','course_copywriting','كتابة محتوى صفحة دورة','صياغة عرض الدورة والمحاور والمخرجات والأسئلة الشائعة.','fixed',90000,'للدورة',4,null,'{}'::jsonb,20),
     ('marketing','landing_page','صفحة هبوط عالية التحويل','تصميم وبرمجة صفحة هبوط متجاوبة وربطها بالتتبع والنماذج.','from',350000,'للصفحة',7,'جاهزة للإعلانات','{"tracking":true}'::jsonb,10),
     ('marketing','ads_management_month','إدارة حملات إعلانية شهرية','تخطيط وتشغيل وتحسين الحملات مع تقرير أداء؛ الميزانية الإعلانية منفصلة.','fixed',700000,'شهريًا',3,'إدارة متخصصة','{"adSpendExcluded":true}'::jsonb,20),
-    ('sales','sales_seat_month','مقعد مبيعات هاتفي','مسؤول مبيعات متخصص بمتابعة يومية وتقارير داخل مُدار.','fixed',230000,'للمقعد شهريًا',7,'فريق سعودي اللهجة','{"seatType":"sales"}'::jsonb,10),
+    ('sales','sales_seat_month','مقعد مبيعات هاتفي','مسؤول مبيعات متخصص بمتابعة يومية وتقارير داخل أودير.','fixed',230000,'للمقعد شهريًا',7,'فريق سعودي اللهجة','{"seatType":"sales"}'::jsonb,10),
     ('sales','customer_service_seat_month','مقعد خدمة عملاء','خدمة عملاء ومتابعة استفسارات المتدربين وفق إجراءات المنشأة.','fixed',250000,'للمقعد شهريًا',7,null,'{"seatType":"customer_service"}'::jsonb,20),
     ('consulting','operations_session','جلسة استشارة تشغيل ونمو','جلسة تشخيص وتشغيل مع توصيات قابلة للتنفيذ ومذكرة مختصرة.','fixed',150000,'للجلسة',3,null,'{"minutes":90}'::jsonb,10),
     ('consulting','kpi_framework','بناء منظومة مؤشرات أداء','تصميم مؤشرات الإدارات والتعريفات والمصادر ودورية القياس.','from',600000,'للمشروع',14,null,'{}'::jsonb,20),
@@ -283,10 +283,10 @@ insert into catalog.addon_products(
   status,sort_order,marketplace_category,badge_ar,activation_mode
 )
 select
-  'cms_pro',feature.id,'إضافة الموقع الاحترافي','Modaar CMS Pro',
-  'موقع ومتجر دورات وصفحات هبوط ومقالات وSEO من داخل مُدار.',
+  'cms_pro',feature.id,'إضافة الموقع الاحترافي','ODEIR CMS Pro',
+  'موقع ومتجر دورات وصفحات هبوط ومقالات وSEO من داخل أودير.',
   'fixed',99000,'SAR','month',14,'published_pages',null,
-  'active',76,'website','موقعك داخل مُدار','module'
+  'active',76,'website','موقعك داخل أودير','module'
 from catalog.features feature
 where feature.feature_key='module.website_cms'
 on conflict (product_key) do update
@@ -318,7 +318,7 @@ begin
     select vault.create_secret(
       encode(extensions.gen_random_bytes(32),'hex'),
       'marketplace_payment_webhook_secret',
-      'HMAC secret for Modaar marketplace payment confirmations'
+      'HMAC secret for ODEIR marketplace payment confirmations'
     ) into v_secret_id;
     insert into marketplace.payment_webhooks(provider_key,secret_id,status)
     values ('marktone_hmac',v_secret_id,'active');
@@ -978,7 +978,7 @@ begin
     v_secret:=encode(extensions.gen_random_bytes(32),'hex');
     perform vault.update_secret(
       v_webhook.secret_id,v_secret,'marketplace_payment_webhook_secret',
-      'HMAC secret for Modaar marketplace payment confirmations'
+      'HMAC secret for ODEIR marketplace payment confirmations'
     );
     update marketplace.payment_webhooks
     set status='active',last_error=null,updated_at=now()

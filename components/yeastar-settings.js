@@ -7,8 +7,8 @@ import {yeastarErrorMessage} from '../lib/yeastar-errors';
 const DEFAULT={
   displayName:'Yeastar P550',
   publicConfig:{
-    baseUrl:'https://reef.ras.yeastar.com',
-    extensions:'105',
+    baseUrl:'',
+    extensions:'',
     timezone:'Asia/Riyadh',
     syncIntervalMinutes:60,
     initialHistoryDays:30,
@@ -182,7 +182,7 @@ export default function YeastarSettings({slug}){
           <input name="displayName" defaultValue={data.displayName||'Yeastar P550'} required/>
         </label>
         <label className="mt-field">رابط الجهاز الآمن
-          <input name="baseUrl" type="url" dir="ltr" defaultValue={config.baseUrl} placeholder="https://reef.ras.yeastar.com" required/>
+          <input name="baseUrl" type="url" dir="ltr" defaultValue={config.baseUrl} placeholder="https://your-company.ras.yeastar.com" required/>
           <small>استخدم رابط Remote Access العام، وليس عنوان IP داخليًا.</small>
         </label>
         <label className="mt-field">Client ID

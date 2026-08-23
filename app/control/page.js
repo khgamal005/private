@@ -32,7 +32,7 @@ export default async function ControlOverview({searchParams}){
     <header className="mt-page-head">
       <div>
         <small>PLATFORM CONTROL</small>
-        <h2>لوحة إدارة منصة مُدار</h2>
+        <h2>لوحة إدارة منصة أودير</h2>
         <p>مركز SaaS موحد لإدارة المنشآت والمنتجات والباقات والاشتراكات والتحصيل.</p>
       </div>
       {primaryArea&&<div className="mt-page-actions"><Link className="mt-button primary" href={primaryArea.href}>فتح {primaryArea.title}</Link></div>}

@@ -1,4 +1,4 @@
--- Modaar / Marktone add-on platform v3 (DRAFT ONLY).
+-- ODEIR / Marktone add-on platform v3 (DRAFT ONLY).
 --
 -- Purpose
 --   * Keep the v2 add-on, marketplace, tenant and operational data model intact.

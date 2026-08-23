@@ -48,7 +48,7 @@ test('tenant navigation follows the approved business order and groups',async()=
     'التسجيل والقبول',
     'التسويق والأتمتة',
     'الحسابات والفوترة',
-    'إضافات مُدار',
+    'إضافات أودير',
     'متجر الخدمات',
     'فريق العمل',
     'التقارير والتحليل',
@@ -64,7 +64,7 @@ test('tenant navigation follows the approved business order and groups',async()=
   assert.match(shell,/label:'الدبلومات والدورات',href:`\$\{base\}\/courses`/);
   assert.match(shell,/label:'منصة التدريب التفاعلي',href:`\$\{base\}\/lms`/);
   assert.match(shell,/hasAddon\('lms'\)/);
-  assert.match(shell,/label:'إضافات مُدار',children:\[/);
+  assert.match(shell,/label:'إضافات أودير',children:\[/);
   assert.match(shell,/label:'الإضافات المثبتة'/);
   assert.match(shell,/label:'إضافة جديدة'/);
   assert.match(shell,/key:'servicesStore',label:'متجر الخدمات',href:/);

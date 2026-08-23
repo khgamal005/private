@@ -294,8 +294,8 @@ begin
     'publicConfig', coalesce(
       v_connection.public_config,
       jsonb_build_object(
-        'baseUrl', 'https://reef.ras.yeastar.com',
-        'extensions', '105',
+        'baseUrl', '',
+        'extensions', '',
         'timezone', 'Asia/Riyadh',
         'syncIntervalMinutes', 60,
         'initialHistoryDays', 30,

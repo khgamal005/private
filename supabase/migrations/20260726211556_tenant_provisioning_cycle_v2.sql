@@ -285,7 +285,7 @@ begin
       v_tenant_id,
       v_hostname,
       case
-        when v_hostname = p_slug || '.marktone.sa' then 'subdomain'
+        when v_hostname in (p_slug || '.odeir.com', p_slug || '.marktone.sa') then 'subdomain'
         else 'custom'
       end,
       'pending',

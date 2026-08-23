@@ -220,7 +220,7 @@ function fileName(payload){
   const report=String(payload.report||'report').replace(/[^a-z0-9_-]/gi,'-');
   const from=String(payload.from||'from').replace(/[^0-9-]/g,'');
   const to=String(payload.to||'to').replace(/[^0-9-]/g,'');
-  return `Modaar-${report}-${from}-${to}.xlsx`;
+  return `Odeir-${report}-${from}-${to}.xlsx`;
 }
 
 export async function POST(request){

@@ -1,7 +1,8 @@
 {
-  "version": "2.0.0-beta.23",
-  "releasedAt": "2026-08-08T00:13:08.625Z",
+  "version": "2.0.0-beta.30",
+  "releasedAt": "2026-08-23T23:48:15.734Z",
   "highlights": [
+    "Published the secure ODEIR public registration flow with one-time browser challenges and no Hostinger server-secret dependency",
     "Added a managed services marketplace with 7 categories and 15 explicitly priced offerings",
     "Added a priced add-on marketplace with tenant-scoped automatic installation after verified payment",
     "Added signed and idempotent payment webhooks with automatic entitlement and CMS module activation",

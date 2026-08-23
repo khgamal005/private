@@ -1124,3 +1124,117 @@
   html { scroll-behavior: auto; }
   .odeir-experience *, .odeir-experience *::before, .odeir-experience *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Registration modal: isolated from the landing-page layout and loaded on demand. */
+.registration-modal-layer {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  direction: rtl;
+  font-family: var(--font-arabic), "IBM Plex Sans Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
+  isolation: isolate;
+}
+.registration-modal-backdrop {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: rgba(1, 12, 25, .78);
+  backdrop-filter: blur(14px) saturate(115%);
+  cursor: default;
+  animation: registration-backdrop-in .24s ease both;
+}
+.registration-modal-dialog {
+  display: flex;
+  width: min(720px, 100%);
+  height: min(860px, calc(100dvh - 36px));
+  max-height: calc(100dvh - 36px);
+  overflow: hidden;
+  flex-direction: column;
+  border: 1px solid rgba(111, 221, 222, .27);
+  border-radius: 28px;
+  background: #f5f9fb;
+  color: #102f46;
+  box-shadow: 0 38px 110px rgba(0, 8, 20, .48), 0 0 0 1px rgba(255,255,255,.08) inset;
+  animation: registration-dialog-in .32s cubic-bezier(.2,.8,.2,1) both;
+}
+.registration-modal-header {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 132px minmax(0,1fr) 42px;
+  align-items: center;
+  gap: 18px;
+  padding: 17px 19px;
+  border-bottom: 1px solid rgba(255,255,255,.11);
+  background: radial-gradient(circle at 6% 0, rgba(27,203,202,.2), transparent 34%), linear-gradient(135deg,#04192f,#082e4e 72%,#073d50);
+  color: #fff;
+}
+.registration-modal-brand {
+  display: grid;
+  height: 62px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(111, 221, 222, .2);
+  border-radius: 16px;
+  background: rgba(2,17,38,.5);
+  box-shadow: 0 12px 28px rgba(0,0,0,.18);
+}
+.registration-modal-brand img { width: 118px; height: 55px; object-fit: contain; }
+.registration-modal-heading { min-width: 0; }
+.registration-modal-heading > span { display: block; color: #71e2df; font-size: 10px; font-weight: 800; letter-spacing: .03em; }
+.registration-modal-heading h2 { margin: 3px 0 2px; color: #fff; font-size: 21px; line-height: 1.4; }
+.registration-modal-heading p { margin: 0; color: #c7d8e5; font-size: 11px; line-height: 1.65; }
+.registration-modal-close {
+  position: relative;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 13px;
+  background: rgba(255,255,255,.07);
+  color: #fff;
+  cursor: pointer;
+}
+.registration-modal-close::before,.registration-modal-close::after { content: ""; position: absolute; width: 17px; height: 2px; border-radius: 2px; background: currentColor; }
+.registration-modal-close::before { transform: rotate(45deg); }
+.registration-modal-close::after { transform: rotate(-45deg); }
+.registration-modal-close:hover { border-color: rgba(113,226,223,.55); background: rgba(113,226,223,.12); }
+.registration-modal-close:focus-visible { outline: 3px solid rgba(240,197,52,.7); outline-offset: 3px; }
+.registration-modal-content { position: relative; min-height: 0; flex: 1; overflow: hidden; background: #f5f9fb; }
+.registration-modal-frame { position: relative; z-index: 1; display: block; width: 100%; height: 100%; border: 0; background: #f5f9fb; opacity: 0; transition: opacity .2s ease; }
+.registration-modal-frame.is-ready { opacity: 1; }
+.registration-modal-loading { position: absolute; z-index: 0; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; color: #496777; font-size: 12px; font-weight: 700; }
+.registration-modal-loading i { width: 30px; height: 30px; border: 3px solid #d5e6ea; border-top-color: #0d9aa7; border-radius: 50%; animation: registration-spin .75s linear infinite; }
+.registration-modal-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 10px 18px; border-top: 1px solid #d9e6eb; background: #fff; color: #4e6877; font-size: 10px; }
+.registration-modal-footer span { display: flex; align-items: center; gap: 7px; }
+.registration-modal-footer span i { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #14b8b2; box-shadow: 0 0 0 4px rgba(20,184,178,.12); }
+.registration-modal-footer b { flex: 0 0 auto; color: #876717; font-size: 10px; }
+@keyframes registration-backdrop-in { from { opacity: 0; } }
+@keyframes registration-dialog-in { from { opacity: 0; transform: translateY(18px) scale(.975); } }
+@keyframes registration-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 620px) {
+  .registration-modal-layer { padding: 0; place-items: stretch; }
+  .registration-modal-dialog { width: 100%; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
+  .registration-modal-header { grid-template-columns: 92px minmax(0,1fr) 39px; gap: 11px; padding: max(12px,env(safe-area-inset-top)) 13px 12px; }
+  .registration-modal-brand { height: 52px; border-radius: 13px; }
+  .registration-modal-brand img { width: 84px; height: 42px; }
+  .registration-modal-heading > span { font-size: 8px; }
+  .registration-modal-heading h2 { margin-top: 2px; font-size: 17px; }
+  .registration-modal-heading p { overflow: hidden; max-width: 29ch; font-size: 9px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+  .registration-modal-close { width: 39px; height: 39px; border-radius: 12px; }
+  .registration-modal-footer { min-height: calc(49px + env(safe-area-inset-bottom)); padding: 9px 13px max(9px,env(safe-area-inset-bottom)); font-size: 8px; }
+  .registration-modal-footer b { font-size: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .registration-modal-backdrop,.registration-modal-dialog,.registration-modal-loading i { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  .registration-modal-frame { transition-duration: .01ms !important; }
+}

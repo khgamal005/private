@@ -3,9 +3,9 @@
 import FreeTrialLanding from './free-trial-landing';
 import OdeirBrand from './odeir-brand';
 
-export default function LifetimeFreeApplication(){
-  return <main className="lifetime-free-application" dir="rtl">
-    <header className="lifetime-header">
+export default function LifetimeFreeApplication({embedded=false}){
+  return <main className={embedded?'lifetime-free-application lifetime-free-application--embedded':'lifetime-free-application'} dir="rtl">
+    {!embedded&&<header className="lifetime-header">
       <a href="/" className="lifetime-brand" aria-label="أودير - الرئيسية">
         <OdeirBrand subtitle="منصة إدارة المنشآت"/>
       </a>
@@ -14,10 +14,10 @@ export default function LifetimeFreeApplication(){
         <a href="/free-trial">التسجيل المجاني</a>
         <a href="/login">دخول المنشآت</a>
       </nav>
-    </header>
+    </header>}
 
     <section className="lifetime-apply-hero">
-      <div className="lifetime-copy">
+      {!embedded&&<div className="lifetime-copy">
         <span className="lifetime-pill">ابدأ مع أودير مجانًا</span>
         <h1>ابدأ مجانًا.<br/><em>واستمر مجانًا مدى الحياة.</em></h1>
         <p>فعّل المساحة الأساسية لإدارة العملاء والمهام والتسجيل والدورات والتقارير دون بطاقة بنكية أو مدة انتهاء. يمكنك إضافة الخدمات والتكاملات المدفوعة فقط عندما تحتاج إليها.</p>
@@ -30,17 +30,17 @@ export default function LifetimeFreeApplication(){
           <strong>ما الذي يبقى مجانيًا؟</strong>
           <p>الحساب الأساسي والوحدات المجانية المحددة في سياسة البرنامج. بعض التكاملات، السعات الإضافية، وخدمات التشغيل الاحترافية تُفعّل اختياريًا وفق احتياج المنشأة.</p>
         </div>
-      </div>
+      </div>}
 
       <div className="lifetime-form-shell">
-        <FreeTrialLanding/>
+        <FreeTrialLanding registrationOnly={embedded}/>
       </div>
     </section>
 
-    <footer className="lifetime-footer">
+    {!embedded&&<footer className="lifetime-footer">
       <span>© 2026 أودير</span>
       <a href="/">العودة إلى أودير</a>
-    </footer>
+    </footer>}
 
     <style jsx global>{`
       .lifetime-free-application{min-height:100vh;background:radial-gradient(circle at 12% 18%,rgba(19,199,209,.15),transparent 28%),radial-gradient(circle at 88% 4%,rgba(240,197,52,.12),transparent 24%),linear-gradient(145deg,#031326 0%,#06182e 52%,#020b16 100%);color:#fff;font-family:inherit}
@@ -52,6 +52,7 @@ export default function LifetimeFreeApplication(){
       .lifetime-note{border-right:3px solid #f0c534;background:rgba(240,197,52,.075);padding:17px 19px;border-radius:14px}.lifetime-note strong{color:#fff;font-size:13px}.lifetime-note p{margin:7px 0 0;color:#b9c7d3;font-size:11px;line-height:1.8}
       .lifetime-form-shell{min-width:0}.lifetime-form-shell>.free-trial-route{min-height:auto!important;background:transparent!important}.lifetime-form-shell .site-header,.lifetime-form-shell .hero-copy,.lifetime-form-shell .fit-strip,.lifetime-form-shell .platform-section,.lifetime-form-shell .product-section,.lifetime-form-shell .journey-section,.lifetime-form-shell .modules-section,.lifetime-form-shell .guide-section,.lifetime-form-shell .saudi-section,.lifetime-form-shell .faq-section,.lifetime-form-shell .closing-cta,.lifetime-form-shell .site-footer{display:none!important}.lifetime-form-shell .hero{display:block!important;min-height:0!important;padding:0!important;background:transparent!important}.lifetime-form-shell .trial-card{width:100%!important;max-width:none!important;margin:0!important;box-shadow:0 42px 110px rgba(0,0,0,.38)!important;border:1px solid rgba(255,255,255,.12)!important}.lifetime-form-shell .trial-card:before{content:'تسجيل منشأتك في أودير';display:block;padding:15px 20px;background:linear-gradient(90deg,#08b8b1,#13c7d1);color:#06182e;font-size:12px;font-weight:900;text-align:center}.lifetime-form-shell .trial-body{max-height:none!important}.lifetime-form-shell .card-subtitle:after{content:' — الحساب الأساسي بلا مدة انتهاء.';color:#087f7a;font-weight:800}.lifetime-form-shell .contact-form .card-heading h2{font-size:0}.lifetime-form-shell .contact-form .card-heading h2:after{content:'جهّز حساب منشأتك';font-size:22px}.lifetime-form-shell .consent-row a{color:#087f7a;text-decoration:underline;font-weight:900}.lifetime-form-shell .success-state h2{font-size:0}.lifetime-form-shell .success-state h2:after{content:'مرحبًا بمنشأتك في أودير';font-size:28px}.lifetime-form-shell .success-state>p{font-size:0}.lifetime-form-shell .success-state>p:after{content:'وصل تنبيه لفريق المراجعة، وسنراجع بيانات المنشأة ثم نرسل تفاصيل تفعيل الحساب.';font-size:14px}
       .lifetime-footer{max-width:1240px;margin:auto;padding:22px 28px;border-top:1px solid rgba(255,255,255,.09);display:flex;justify-content:space-between;color:#71869a;font-size:11px}.lifetime-footer a{color:#13c7d1;text-decoration:none}
+      .lifetime-free-application--embedded{min-height:0;background:#f5f9fb;color:#112c42}.lifetime-free-application--embedded .lifetime-apply-hero{display:block;max-width:none;margin:0;padding:0}.lifetime-free-application--embedded .lifetime-form-shell .trial-card{border:0!important;border-radius:0!important;box-shadow:none!important}.lifetime-free-application--embedded .lifetime-form-shell .trial-card:before{display:none!important}
       @media(max-width:980px){.lifetime-apply-hero{grid-template-columns:1fr;padding-top:42px}.lifetime-copy{padding-top:0}.lifetime-benefits{grid-template-columns:1fr 1fr 1fr}.lifetime-header nav a:first-child{display:none}}
       @media(max-width:650px){.lifetime-header{padding:18px}.lifetime-header nav{gap:10px}.lifetime-header nav a{font-size:10px}.lifetime-apply-hero{padding:38px 16px 70px;gap:32px}.lifetime-copy h1{font-size:44px}.lifetime-copy>p{font-size:14px}.lifetime-benefits{grid-template-columns:1fr}.lifetime-footer{padding:18px 16px}}
     `}</style>

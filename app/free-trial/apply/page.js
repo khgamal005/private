@@ -15,6 +15,7 @@ export const metadata={
   }
 };
 
-export default function LifetimeFreeApplyPage(){
-  return <LifetimeFreeApplication/>;
+export default async function LifetimeFreeApplyPage({searchParams}){
+  const query=await searchParams;
+  return <LifetimeFreeApplication embedded={query?.embedded==='1'}/>;
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import OdeirRegistrationModal from "./odeir-registration-modal";
 
 const APP_ORIGIN = "";
 
@@ -153,6 +154,21 @@ function ArrowMark() {
   return <span className="arrow-mark" aria-hidden="true" />;
 }
 
+function opensRegistrationModal(href: string) {
+  const path = String(href || "").trim().split(/[?#]/, 1)[0].replace(/^https?:\/\/[^/]+/i, "");
+  return path === "/free-trial" || path === "/free-trial/apply";
+}
+
+function openRegistrationFromLink(
+  event: MouseEvent<HTMLAnchorElement>,
+  href: string,
+  onRegister: () => void,
+) {
+  if (!opensRegistrationModal(href)) return;
+  event.preventDefault();
+  onRegister();
+}
+
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <span className={compact ? "brand brand--compact" : "brand"} aria-label="أودير ODEIR">
@@ -203,7 +219,7 @@ function useReveal() {
   }, []);
 }
 
-function Header({ cms }: { cms: LandingCms }) {
+function Header({ cms, onRegister }: { cms: LandingCms; onRegister: () => void }) {
   const [open, setOpen] = useState(false);
   const primaryLabel = cms.hero?.primaryLabel || "سجّل منشأتك مجانًا";
   const primaryHref = cms.hero?.primaryHref || "/free-trial/apply";
@@ -219,11 +235,11 @@ function Header({ cms }: { cms: LandingCms }) {
         <a href="#integrations" onClick={() => setOpen(false)}>التكاملات</a>
         <a href="#security" onClick={() => setOpen(false)}>الحماية</a>
         <a className="mobile-nav-only" href={`${APP_ORIGIN}${loginHref}`} onClick={() => setOpen(false)}>{loginLabel}</a>
-        <a className="mobile-nav-only mobile-nav-cta" href={`${APP_ORIGIN}${primaryHref}`} onClick={() => setOpen(false)}>{primaryLabel}</a>
+        <a className="mobile-nav-only mobile-nav-cta" href={`${APP_ORIGIN}${primaryHref}`} onClick={(event) => { setOpen(false); openRegistrationFromLink(event, primaryHref, onRegister); }}>{primaryLabel}</a>
       </nav>
       <div className="header-actions">
         <a className="login-link" href={`${APP_ORIGIN}${loginHref}`}>{loginLabel}</a>
-        <a className="button button--small" href={`${APP_ORIGIN}${primaryHref}`}>{primaryLabel.replace("منشأتك ", "")} <ArrowMark /></a>
+        <a className="button button--small" href={`${APP_ORIGIN}${primaryHref}`} onClick={(event) => openRegistrationFromLink(event, primaryHref, onRegister)}>{primaryLabel.replace("منشأتك ", "")} <ArrowMark /></a>
       </div>
       <button className={open ? "menu-toggle is-open" : "menu-toggle"} type="button" aria-label={open ? "إغلاق القائمة" : "فتح القائمة"} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <span /><span /><span />
@@ -308,7 +324,7 @@ function MobileHeroSnapshot({ activeEvent }: { activeEvent: number }) {
   );
 }
 
-function Hero({ cms }: { cms: LandingCms }) {
+function Hero({ cms, onRegister }: { cms: LandingCms; onRegister: () => void }) {
   const [activeEvent, setActiveEvent] = useState(0);
   const eyebrow = cmsText(cms.hero?.eyebrow, LEGACY_HERO.eyebrow, "منصة تشغيل وإدارة للمنشآت التدريبية الأهلية المعتمدة");
   const title = cmsText(cms.hero?.title, LEGACY_HERO.title, "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك.");
@@ -332,7 +348,7 @@ function Hero({ cms }: { cms: LandingCms }) {
           <span className="hero-title-mobile">من أول استفسار،<br /><span className="hero-title-accent">حتى مقعد مكتمل.</span></span>
         </> : title}</h1>
         <p>{body}</p>
-        <div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${primaryHref}`}>{primaryLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${secondaryHref}`}>{secondaryLabel}</a></div>
+        <div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${primaryHref}`} onClick={(event) => openRegistrationFromLink(event, primaryHref, onRegister)}>{primaryLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${secondaryHref}`}>{secondaryLabel}</a></div>
         <ul className="hero-trust" aria-label="مزايا البداية"><li><i /> بدون بطاقة بنكية</li><li><i /> إعداد بخطوات واضحة</li><li><i /> بيانات مستقلة لكل منشأة</li></ul>
       </div>
       <MobileHeroSnapshot activeEvent={activeEvent} />
@@ -944,7 +960,7 @@ function FAQ({ cms }: { cms: LandingCms }) {
   );
 }
 
-function FinalCTA({ cms }: { cms: LandingCms }) {
+function FinalCTA({ cms, onRegister }: { cms: LandingCms; onRegister: () => void }) {
   const eyebrow = cmsText(cms.cta?.eyebrow, "جاهز للبدء؟", "جاهز تشوف منشأتك بشكل أوضح؟");
   const title = cmsText(cms.cta?.title, "سجّل منشأتك، واترك الباقي لمسار واضح.", "خلّ منشأتك تمشي بنظام واضح من اليوم.");
   const body = cmsText(cms.cta?.body, "ابدأ بالحساب الأساسي، ثم وسّع أودير مع احتياج منشأتك.", "ابدأ مجانًا، أضف فريقك، وشاهد كيف تنتقل رحلة العميل من استفسار متفرق إلى عملية يمكن إدارتها وقياسها.");
@@ -955,15 +971,18 @@ function FinalCTA({ cms }: { cms: LandingCms }) {
   return (
     <section className="final-cta">
       <div className="final-cta-orbit" aria-hidden="true" />
-      <div className="final-cta-inner section" data-reveal><div className="eyebrow"><span /> {eyebrow}</div><h2>{title === "خلّ منشأتك تمشي بنظام واضح من اليوم." ? <>خلّ منشأتك تمشي<br /><span>بنظام واضح من اليوم.</span></> : title}</h2><p>{body}</p><div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${buttonHref}`}>{buttonLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${loginHref}`}>{loginLabel}</a></div><ul className="hero-trust"><li><i /> بدون بطاقة بنكية</li><li><i /> تبدأ بخطوات بسيطة</li><li><i /> بيانات منشأتك مستقلة</li></ul></div>
+      <div className="final-cta-inner section" data-reveal><div className="eyebrow"><span /> {eyebrow}</div><h2>{title === "خلّ منشأتك تمشي بنظام واضح من اليوم." ? <>خلّ منشأتك تمشي<br /><span>بنظام واضح من اليوم.</span></> : title}</h2><p>{body}</p><div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${buttonHref}`} onClick={(event) => openRegistrationFromLink(event, buttonHref, onRegister)}>{buttonLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${loginHref}`}>{loginLabel}</a></div><ul className="hero-trust"><li><i /> بدون بطاقة بنكية</li><li><i /> تبدأ بخطوات بسيطة</li><li><i /> بيانات منشأتك مستقلة</li></ul></div>
     </section>
   );
 }
 
 export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms }) {
   useReveal();
+  const [registrationOpen, setRegistrationOpen] = useState(false);
   const [showMobileCta, setShowMobileCta] = useState(false);
   const heroShellRef = useRef<HTMLDivElement>(null);
+  const openRegistration = useCallback(() => setRegistrationOpen(true), []);
+  const closeRegistration = useCallback(() => setRegistrationOpen(false), []);
   useEffect(() => {
     const hero = heroShellRef.current;
     const finalCta = document.querySelector<HTMLElement>(".odeir-experience .final-cta");
@@ -984,7 +1003,7 @@ export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms 
   }, []);
   return (
     <main className="odeir-experience" dir="rtl">
-      <div className="hero-shell" ref={heroShellRef}><Header cms={cms} /><Hero cms={cms} /></div>
+      <div className="hero-shell" ref={heroShellRef}><Header cms={cms} onRegister={openRegistration} /><Hero cms={cms} onRegister={openRegistration} /></div>
       <MorningBriefing articles={cms.articles} />
       <StoryStrip />
       <ProductDemo />
@@ -993,13 +1012,14 @@ export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms 
       <RoleSwitcher />
       <SecuritySection cms={cms} />
       <FAQ cms={cms} />
-      <FinalCTA cms={cms} />
+      <FinalCTA cms={cms} onRegister={openRegistration} />
       <footer className="site-footer">
         <div className="footer-brand"><Brand /><p>تشغيل أوضح وإدارة مترابطة للمنشآت التدريبية.</p></div>
         <nav aria-label="روابط السياسات والمحتوى"><a href={`${APP_ORIGIN}/articles`}>الأخبار والمعارف</a><a href={`${APP_ORIGIN}/p/privacy-policy`}>الخصوصية</a><a href={`${APP_ORIGIN}/p/information-security`}>أمن المعلومات</a><a href={`${APP_ORIGIN}/p/terms-of-use`}>شروط الاستخدام</a><a href={`${APP_ORIGIN}/p/data-rights`}>حقوق البيانات</a></nav>
         <span>© {new Date().getFullYear()} أودير. جميع الحقوق محفوظة.</span>
       </footer>
-      <a className={showMobileCta ? "mobile-cta is-visible" : "mobile-cta"} href={`${APP_ORIGIN}${cms.hero?.primaryHref || "/free-trial/apply"}`}>{cms.hero?.primaryLabel || "سجّل منشأتك مجانًا"} <ArrowMark /></a>
+      <a className={showMobileCta ? "mobile-cta is-visible" : "mobile-cta"} href={`${APP_ORIGIN}${cms.hero?.primaryHref || "/free-trial/apply"}`} onClick={(event) => openRegistrationFromLink(event, cms.hero?.primaryHref || "/free-trial/apply", openRegistration)}>{cms.hero?.primaryLabel || "سجّل منشأتك مجانًا"} <ArrowMark /></a>
+      <OdeirRegistrationModal open={registrationOpen} onClose={closeRegistration} />
     </main>
   );
 }

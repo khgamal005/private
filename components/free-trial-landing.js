@@ -23,7 +23,7 @@ const ERROR_COPY = {
   invalid_phone: "راجع رقم الجوال وأدخله بصيغة صحيحة.",
   service_unavailable: "الخدمة غير متاحة لحظيًا. حاول مرة أخرى بعد قليل."
 };
-function FreeTrialLanding() {
+function FreeTrialLanding({ registrationOnly = false } = {}) {
   const startedAt = useRef(0);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -132,8 +132,8 @@ function FreeTrialLanding() {
   function update(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
   }
-  return <main dir="rtl" className="free-trial-route site-shell">
-      <header className="site-header">
+  return <main dir="rtl" className={registrationOnly ? "free-trial-route site-shell registration-only" : "free-trial-route site-shell"}>
+      {!registrationOnly && <header className="site-header">
         <a className="brand" href="/" aria-label="أودير - الصفحة الرئيسية">
           <span className="brand-mark">O</span>
           <span>
@@ -151,10 +151,10 @@ function FreeTrialLanding() {
             تسجيل الدخول
           </a>
         </nav>
-      </header>
+      </header>}
 
-      <section id="top" className="hero">
-        <div className="hero-copy">
+      <section id="top" className={registrationOnly ? "hero registration-only-hero" : "hero"}>
+        {!registrationOnly && <div className="hero-copy">
           <span className="eyebrow"><SparkIcon /> صُمم خصيصًا لمنشآت التدريب في السعودية</span>
           <div className="product-name" aria-label="منصة أودير">
             <span>ODEIR</span><b>ONE</b><i>منصة التشغيل والإدارة</i>
@@ -176,7 +176,7 @@ function FreeTrialLanding() {
             <span>14</span>
             <div><b>يومًا للتجربة</b><small>بدون بطاقة بنكية أو التزام</small></div>
           </div>
-        </div>
+        </div>}
 
         <section id="trial-card" className="trial-card" aria-label="تسجيل منشأة في أودير">
           <div className="stepper" aria-label={`الخطوة ${activeStep} من 4`}>
@@ -202,7 +202,7 @@ function FreeTrialLanding() {
     id="institution-search"
     value={query}
     onChange={(event) => setQuery(event.target.value)}
-    placeholder="مثال: شركة ريف المهارات للتدريب"
+    placeholder="مثال: مركز الأفق للتدريب"
     autoComplete="organization"
   />
                   <button disabled={busy === "search"}>
@@ -348,6 +348,7 @@ function FreeTrialLanding() {
         </section>
       </section>
 
+      {!registrationOnly && <>
       <section className="fit-strip" aria-label="مزايا أساسية">
         <div><span><LanguageIcon /></span><b>عربي من الأساس</b><small>واجهة واتجاه عمل يناسب فريقك</small></div>
         <div><span><BuildingIcon /></span><b>متخصص في التدريب</b><small>ليس CRM عامًا يحتاج إعادة اختراع</small></div>
@@ -559,6 +560,7 @@ function FreeTrialLanding() {
         <p>بيانات المنشآت محمية، وتُعرض تفاصيل الاتصال بصيغة مقنّعة حتى التحقق.</p>
         <span>© 2026 ODEIR</span>
       </footer>
+      </>}
     </main>;
 }
 function Field({ label, value, onChange, required, type = "text", placeholder, ...props }) {

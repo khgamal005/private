@@ -19,18 +19,35 @@ test('ODEIR launch migration publishes the concise builder-managed public site',
 });
 
 test('ODEIR registration and authentication entry points carry the new identity',async()=>{
-  const [application,trial,login,brand]=await Promise.all([
+  const [application,trial,login,brand,modal,applyPage,trialStyles,landingStyles]=await Promise.all([
     read('components/lifetime-free-application.js'),
     read('components/free-trial-landing.js'),
     read('app/login/page.js'),
-    read('components/odeir-brand.js')
+    read('components/odeir-brand.js'),
+    read('components/odeir-registration-modal.tsx'),
+    read('app/free-trial/apply/page.js'),
+    read('app/free-trial/free-trial.css'),
+    read('app/odeir-landing-experience.css')
   ]);
   assert.match(application,/OdeirBrand/);
   assert.match(application,/مرحبًا بمنشأتك في أودير/);
+  assert.match(application,/registrationOnly=\{embedded\}/);
   assert.match(trial,/aria-label="تسجيل منشأة في أودير"/);
+  assert.match(trial,/registrationOnly/);
+  assert.match(trial,/اعثر على منشأتك/);
+  assert.doesNotMatch(trial,/ريف|reef/i);
   assert.match(login,/تسجيل دخول المنشآت \| أودير/);
   assert.match(brand,/inverse\?'\/odeir\/odeir-logo-dark\.png':'\/odeir\/odeir-logo-official\.png'/);
   assert.match(brand,/أودير ODEIR/);
+  assert.match(modal,/createPortal/);
+  assert.match(modal,/role="dialog"/);
+  assert.match(modal,/event\.key === "Escape"/);
+  assert.match(modal,/\/free-trial\/apply\?embedded=1/);
+  assert.match(applyPage,/searchParams/);
+  assert.match(applyPage,/embedded=\{query\?\.embedded==='1'\}/);
+  assert.match(trialStyles,/Registration flow clarity and embedded modal surface/);
+  assert.match(landingStyles,/\.registration-modal-layer/);
+  assert.match(landingStyles,/@media \(max-width: 620px\)[\s\S]+\.registration-modal-dialog/);
 });
 
 test('ODEIR production homepage uses the interactive, builder-backed landing experience',async()=>{
@@ -64,6 +81,9 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(landing,/المواد العامة المنشورة/);
   assert.match(landing,/heroShellRef/);
   assert.match(landing,/className="odeir-home-hero"/);
+  assert.match(landing,/OdeirRegistrationModal/);
+  assert.match(landing,/openRegistrationFromLink/);
+  assert.match(landing,/registrationOpen/);
   assert.doesNotMatch(landing,/className="hero"/);
   for(const logo of integrationLogoNames.map(name=>`/integrations/${name}`)){
     assert.match(landing,new RegExp(logo.replaceAll('/','\\/')));

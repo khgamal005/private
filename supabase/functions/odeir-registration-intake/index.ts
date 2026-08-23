@@ -12,6 +12,15 @@ const REGISTRATION_FROM_EMAIL=Deno.env.get('ODEIR_REGISTRATION_FROM_EMAIL')
   ||'';
 const PUBLIC_APP_URL=Deno.env.get('ODEIR_PUBLIC_APP_URL')
   ||'https://odeir.com';
+const CHALLENGE_AUDIENCE='registration-submit';
+const CHALLENGE_TTL_SECONDS=300;
+const ALLOWED_CHALLENGE_ORIGINS=new Set([
+  'https://odeir.com',
+  'https://www.odeir.com',
+  'https://staging.odeir.com',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+]);
 
 const JSON_HEADERS={
   'content-type':'application/json; charset=utf-8',
@@ -21,31 +30,51 @@ const JSON_HEADERS={
 };
 
 type JsonRecord=Record<string,unknown>;
+type ChallengeClaims={
+  v:1;
+  aud:string;
+  jti:string;
+  iat:number;
+  exp:number;
+  ipHash:string;
+  userAgentHash:string|null;
+};
+
+let challengeSigningKey:Promise<CryptoKey>|null=null;
 
 Deno.serve(async(request:Request)=>{
-  if(request.method!=='POST')return json({ok:false,error:'method_not_allowed'},405);
+  const corsOrigin=allowedChallengeOrigin(request);
+  if(request.method==='OPTIONS'){
+    if(!corsOrigin)return json({ok:false,error:'origin_not_allowed'},403);
+    return new Response(null,{status:204,headers:corsHeaders(corsOrigin)});
+  }
+  if(request.method!=='POST'){
+    return json({ok:false,error:'method_not_allowed'},405,corsOrigin);
+  }
   if(!SUPABASE_URL||!SERVICE_ROLE_KEY||RATE_SALT.length<32){
-    return json({ok:false,error:'service_unavailable'},503);
+    return json({ok:false,error:'service_unavailable'},503,corsOrigin);
   }
   if(Number(request.headers.get('content-length')??'0')>16_384){
-    return json({ok:false,error:'request_too_large'},413);
-  }
-  if(!await authorizedServerRequest(request)){
-    return json({ok:false,error:'unauthorized'},401);
+    return json({ok:false,error:'request_too_large'},413,corsOrigin);
   }
 
   const rawBody=await request.text();
   if(new TextEncoder().encode(rawBody).byteLength>16_384){
-    return json({ok:false,error:'request_too_large'},413);
+    return json({ok:false,error:'request_too_large'},413,corsOrigin);
   }
   let body:JsonRecord;
   try{
     body=JSON.parse(rawBody);
     if(!body||Array.isArray(body)||typeof body!=='object')throw new Error();
-  }catch{return json({ok:false,error:'invalid_json'},400);}
+  }catch{return json({ok:false,error:'invalid_json'},400,corsOrigin);}
 
-  if(clean(body.website,120))return json({ok:true,ignored:true});
   const action=clean(body.action,24);
+  if(action==='challenge'){
+    if(!corsOrigin){
+      return json({ok:false,error:'origin_not_allowed'},403);
+    }
+    return issueRegistrationChallenge(request,corsOrigin);
+  }
   if(action==='health'){
     return json({
       ok:true,
@@ -60,6 +89,7 @@ Deno.serve(async(request:Request)=>{
   if(action!=='submit'){
     return json({ok:false,error:'invalid_action'},400);
   }
+  if(clean(body.website,120))return json({ok:true,ignored:true});
   const startedAt=Number(body.startedAt??0);
   const elapsed=Date.now()-startedAt;
   if(!startedAt||elapsed<700||elapsed>7_200_000){
@@ -68,10 +98,22 @@ Deno.serve(async(request:Request)=>{
 
   try{
     const payload=validatedPayload(body);
-    const clientIp=clean(request.headers.get('x-odeir-client-ip'),80)||'unknown';
-    const userAgent=clean(request.headers.get('x-odeir-user-agent'),300);
-    const ipHash=await sha256(`${clientIp}|${RATE_SALT}`);
-    const userAgentHash=userAgent?await sha256(`${userAgent}|${RATE_SALT}`):null;
+    const challenge=clean(body.challenge,1024);
+    let ipHash:string;
+    let userAgentHash:string|null;
+    if(challenge){
+      const claims=await consumeRegistrationChallenge(challenge);
+      ipHash=claims.ipHash;
+      userAgentHash=claims.userAgentHash;
+    }else{
+      if(!await authorizedServerRequest(request)){
+        return json({ok:false,error:'unauthorized'},401);
+      }
+      const clientIp=clean(request.headers.get('x-odeir-client-ip'),80)||'unknown';
+      const userAgent=clean(request.headers.get('x-odeir-user-agent'),300);
+      ipHash=await sha256(`${clientIp}|${RATE_SALT}`);
+      userAgentHash=userAgent?await sha256(`${userAgent}|${RATE_SALT}`):null;
+    }
     const allowed=await rpc<boolean>('v1_registration_rate_limit_consume',{
       p_rate_key:`submit:${ipHash}`,
       p_limit:3,
@@ -120,6 +162,166 @@ Deno.serve(async(request:Request)=>{
   }
 });
 
+async function issueRegistrationChallenge(request:Request,corsOrigin:string){
+  const clientIp=sourceClientIp(request);
+  if(!clientIp){
+    return json({ok:false,error:'registration_challenge_unavailable'},503,corsOrigin);
+  }
+  try{
+    const userAgent=clean(request.headers.get('user-agent'),300);
+    const [ipHash,userAgentHash]=await Promise.all([
+      sha256(`${clientIp}|${RATE_SALT}`),
+      userAgent?sha256(`${userAgent}|${RATE_SALT}`):Promise.resolve(null)
+    ]);
+    const allowed=await rpc<boolean>('v1_registration_rate_limit_consume',{
+      p_rate_key:`challenge-issue:${ipHash}`,
+      p_limit:5,
+      p_window_seconds:3_600
+    });
+    if(!allowed)return json({ok:false,error:'rate_limited'},429,corsOrigin);
+
+    const now=Math.floor(Date.now()/1000);
+    const claims:ChallengeClaims={
+      v:1,
+      aud:CHALLENGE_AUDIENCE,
+      jti:randomHex(32),
+      iat:now,
+      exp:now+CHALLENGE_TTL_SECONDS,
+      ipHash,
+      userAgentHash
+    };
+    return json({
+      ok:true,
+      challenge:await signChallenge(claims),
+      expiresIn:CHALLENGE_TTL_SECONDS
+    },200,corsOrigin);
+  }catch{
+    console.error('odeir-registration-challenge','service_unavailable');
+    return json({ok:false,error:'registration_challenge_unavailable'},503,corsOrigin);
+  }
+}
+
+async function consumeRegistrationChallenge(token:string){
+  const claims=await verifyChallenge(token);
+  const allowed=await rpc<boolean>('v1_registration_rate_limit_consume',{
+    p_rate_key:`challenge:${await sha256(claims.jti)}`,
+    p_limit:1,
+    p_window_seconds:600
+  });
+  if(!allowed)throw new PublicError('registration_challenge_invalid',400);
+  return claims;
+}
+
+async function signChallenge(claims:ChallengeClaims){
+  const encoded=base64UrlEncode(
+    new TextEncoder().encode(JSON.stringify(claims))
+  );
+  const signature=new Uint8Array(await crypto.subtle.sign(
+    'HMAC',await getChallengeSigningKey(),new TextEncoder().encode(encoded)
+  ));
+  return `${encoded}.${base64UrlEncode(signature)}`;
+}
+
+async function verifyChallenge(token:string):Promise<ChallengeClaims>{
+  const parts=token.split('.');
+  if(
+    parts.length!==2
+    ||parts.some(part=>!part||!/^[A-Za-z0-9_-]+$/.test(part))
+  )throw new PublicError('registration_challenge_invalid',400);
+  try{
+    const valid=await crypto.subtle.verify(
+      'HMAC',
+      await getChallengeSigningKey(),
+      base64UrlDecode(parts[1]),
+      new TextEncoder().encode(parts[0])
+    );
+    if(!valid)throw new Error();
+    const claims=JSON.parse(
+      new TextDecoder().decode(base64UrlDecode(parts[0]))
+    ) as ChallengeClaims;
+    const now=Math.floor(Date.now()/1000);
+    if(
+      claims?.v!==1
+      ||claims.aud!==CHALLENGE_AUDIENCE
+      ||!/^[a-f0-9]{64}$/.test(claims.jti)
+      ||!/^[a-f0-9]{64}$/.test(claims.ipHash)
+      ||!(claims.userAgentHash===null||/^[a-f0-9]{64}$/.test(claims.userAgentHash))
+      ||!Number.isInteger(claims.iat)
+      ||!Number.isInteger(claims.exp)
+      ||claims.exp<=claims.iat
+      ||claims.exp-claims.iat>CHALLENGE_TTL_SECONDS
+      ||claims.iat>now+30
+      ||claims.iat<now-(CHALLENGE_TTL_SECONDS+60)
+      ||claims.exp<now
+    )throw new Error();
+    return claims;
+  }catch(error){
+    if(error instanceof PublicError)throw error;
+    throw new PublicError('registration_challenge_invalid',400);
+  }
+}
+
+function getChallengeSigningKey(){
+  challengeSigningKey??=crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(RATE_SALT),
+    {name:'HMAC',hash:'SHA-256'},
+    false,
+    ['sign','verify']
+  );
+  return challengeSigningKey;
+}
+
+function randomHex(byteLength:number){
+  const bytes=crypto.getRandomValues(new Uint8Array(byteLength));
+  return Array.from(bytes)
+    .map(byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+
+function base64UrlEncode(bytes:Uint8Array){
+  let binary='';
+  for(const byte of bytes)binary+=String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+function base64UrlDecode(value:string){
+  const normalized=value.replace(/-/g,'+').replace(/_/g,'/');
+  const padded=normalized+'='.repeat((4-normalized.length%4)%4);
+  const binary=atob(padded);
+  return Uint8Array.from(binary,character=>character.charCodeAt(0));
+}
+
+function sourceClientIp(request:Request){
+  const candidates=[
+    clean(request.headers.get('cf-connecting-ip'),80),
+    clean(request.headers.get('x-forwarded-for'),240)
+      .split(',')[0]?.trim()??''
+  ];
+  return candidates.find(candidate=>
+    candidate.length<=64&&(
+      /^\d{1,3}(?:\.\d{1,3}){3}$/.test(candidate)
+        ?candidate.split('.').every(part=>Number(part)<=255)
+        :candidate.includes(':')&&/^[0-9a-f:.]+$/i.test(candidate)
+    )
+  )??'';
+}
+
+function allowedChallengeOrigin(request:Request){
+  const origin=clean(request.headers.get('origin'),240);
+  return ALLOWED_CHALLENGE_ORIGINS.has(origin)?origin:'';
+}
+
+function corsHeaders(origin:string){
+  return {
+    ...JSON_HEADERS,
+    'access-control-allow-origin':origin,
+    'access-control-allow-methods':'POST, OPTIONS',
+    'access-control-allow-headers':'apikey, content-type',
+    'access-control-max-age':'600',
+    'vary':'Origin'
+  };
+}
+
 async function authorizedServerRequest(request:Request){
   const ingress=clean(request.headers.get('x-odeir-intake-token'),256);
   if(
@@ -157,11 +359,14 @@ async function confirmRegistration(body:JsonRecord,request:Request){
     return json({ok:false,error:'registration_confirmation_invalid'},400);
   }
   try{
-    const clientIp=clean(request.headers.get('x-odeir-client-ip'),80)||'unknown';
+    const clientIp=sourceClientIp(request);
+    if(!clientIp){
+      return json({ok:false,error:'registration_confirmation_unavailable'},503);
+    }
     const ipHash=await sha256(`${clientIp}|${RATE_SALT}`);
     const allowed=await rpc<boolean>('v1_registration_rate_limit_consume',{
-      p_rate_key:`confirm:${ipHash}`,
-      p_limit:12,
+      p_rate_key:`confirm-source:${ipHash}`,
+      p_limit:240,
       p_window_seconds:3_600
     });
     if(!allowed)return json({ok:false,error:'rate_limited'},429);
@@ -347,8 +552,11 @@ async function secureEqual(left:string,right:string){
   return difference===0;
 }
 
-function json(payload:unknown,status=200){
-  return new Response(JSON.stringify(payload),{status,headers:JSON_HEADERS});
+function json(payload:unknown,status=200,corsOrigin=''){
+  return new Response(JSON.stringify(payload),{
+    status,
+    headers:corsOrigin?corsHeaders(corsOrigin):JSON_HEADERS
+  });
 }
 
 class PublicError extends Error{

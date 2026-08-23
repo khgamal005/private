@@ -8,9 +8,6 @@ const EDGE_FUNCTION='odeir-registration-intake';
 export async function POST(request){
   const ingressToken=process.env.ODEIR_REGISTRATION_INGRESS_TOKEN||'';
   const serverKey=SUPABASE_SECRET_KEY||'';
-  if(!ingressToken&&!serverKey){
-    return NextResponse.json({ok:false,error:'service_unavailable'},{status:503});
-  }
 
   try{
     const contentLength=Number(request.headers.get('content-length')||0);
@@ -31,12 +28,25 @@ export async function POST(request){
       return NextResponse.json({ok:false,error:'invalid_json'},{status:400});
     }
 
+    if(body.action==='challenge_bootstrap'){
+      return NextResponse.json({
+        ok:true,
+        endpoint:`${SUPABASE_URL}/functions/v1/${EDGE_FUNCTION}`,
+        publishableKey:SUPABASE_KEY
+      },{
+        headers:{
+          'Cache-Control':'private, no-store, max-age=0',
+          'Referrer-Policy':'no-referrer'
+        }
+      });
+    }
+
     const response=await fetch(
       `${SUPABASE_URL}/functions/v1/${EDGE_FUNCTION}`,
       {
         method:'POST',
         headers:{
-          apikey:ingressToken?SUPABASE_KEY:serverKey,
+          apikey:ingressToken?SUPABASE_KEY:(serverKey||SUPABASE_KEY),
           'content-type':'application/json',
           ...(ingressToken?{'x-odeir-intake-token':ingressToken}:{}),
           'x-odeir-client-ip':clientIp(request),

@@ -36,9 +36,6 @@ export async function POST(request){
   }
   const ingressToken=process.env.ODEIR_REGISTRATION_INGRESS_TOKEN||'';
   const serverKey=SUPABASE_SECRET_KEY||'';
-  if(!ingressToken&&!serverKey){
-    return clearConfirmCookie(redirectState(request,'unavailable'));
-  }
 
   try{
     const response=await fetch(
@@ -46,7 +43,7 @@ export async function POST(request){
       {
         method:'POST',
         headers:{
-          apikey:ingressToken?SUPABASE_KEY:serverKey,
+          apikey:ingressToken?SUPABASE_KEY:(serverKey||SUPABASE_KEY),
           'content-type':'application/json',
           ...(ingressToken?{'x-odeir-intake-token':ingressToken}:{}),
           'x-odeir-client-ip':clientIp(request),

@@ -92,6 +92,8 @@ test('email confirmation GET is read-only and POST delegates the mutation only t
   assert.match(post,/fetch\(/);
   assert.match(post,/\$\{SUPABASE_URL\}\/functions\/v1\/\$\{EDGE_FUNCTION\}/);
   assert.match(post,/body:JSON\.stringify\(\{action:'confirm',token\}\)/);
+  assert.match(post,/apikey:ingressToken\?SUPABASE_KEY:\(serverKey\|\|SUPABASE_KEY\)/);
+  assert.doesNotMatch(post,/if\(!ingressToken&&!serverKey\)/);
   assert.doesNotMatch(post,/\/rest\/v1\/rpc|v1_registration_confirm_email_and_provision/);
   assert.doesNotMatch(route,/SUPABASE_SERVICE_ROLE_KEY|service[_\s.-]?role/i);
 });
@@ -181,7 +183,9 @@ test('confirmation tokens are hashed, expiring, one-time, and protected by resen
   assert.match(confirm,/email_confirmation_expires_at=null/);
   assert.match(edge,/delete publicResult\._confirmationToken/);
   assert.match(edge,/delete publicResult\.contactEmail/);
-  assert.match(edge,/p_rate_key:`confirm:\$\{ipHash\}`[\s\S]*?p_limit:12[\s\S]*?p_window_seconds:3_600/);
+  assert.match(edge,/const clientIp=sourceClientIp\(request\)/);
+  assert.match(edge,/p_rate_key:`confirm-source:\$\{ipHash\}`[\s\S]*?p_limit:240[\s\S]*?p_window_seconds:3_600/);
+  assert.doesNotMatch(edge,/p_rate_key:`confirm:\$\{(?:token|tokenRateHash)/);
 });
 
 test('activation policy is permission checked, server-gated, and wired to the platform settings UI',async()=>{
@@ -200,6 +204,7 @@ test('activation policy is permission checked, server-gated, and wired to the pl
   assert.match(route,/activationMode==='email_verified_trial'&&!emailReady/);
   assert.match(route,/v1_platform_registration_policy_save/);
   assert.match(helper,/import 'server-only'/);
+  assert.match(helper,/apikey:ingressToken\?SUPABASE_KEY:\(serverKey\|\|SUPABASE_KEY\)/);
   assert.match(settings,/hasPlatformPermission\([\s\S]*?'platform\.settings\.manage'/);
   assert.match(settings,/RegistrationActivationPolicy/);
   assert.match(ui,/value="manual_review"/);

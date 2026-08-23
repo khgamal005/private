@@ -100,7 +100,7 @@ test('request actions lock rows, detect stale versions, and replay completed pro
   assert.doesNotMatch(action,/insert into core\.tenants/);
 });
 
-test('public registration submits same-origin without exposing privileged credentials',async()=>{
+test('public registration obtains a one-time Edge challenge without exposing privileged credentials',async()=>{
   const [landing,route]=await Promise.all([
     read('components/free-trial-landing.js'),
     read('app/api/public/registration/route.js')
@@ -108,12 +108,20 @@ test('public registration submits same-origin without exposing privileged creden
 
   assert.match(landing,/['"]\/api\/public\/registration['"]/);
   assert.match(landing,/action\s*===?\s*['"]submit['"]/);
+  assert.match(landing,/action: "challenge_bootstrap"/);
+  assert.match(landing,/body: JSON\.stringify\(\{ action: "challenge" \}\)/);
+  assert.match(landing,/credentials: "omit"/);
+  assert.match(landing,/const challenge = await requestRegistrationChallenge\(\)/);
+  assert.match(landing,/submitLockRef\.current/);
+  assert.match(landing,/aria-busy=\{busy === "submit"\}/);
   assert.match(route,/odeir-registration-intake/);
   assert.match(route,/ODEIR_REGISTRATION_INGRESS_TOKEN/);
   assert.match(route,/x-odeir-intake-token/);
   assert.match(route,/SUPABASE_KEY/);
   assert.match(route,/SUPABASE_SECRET_KEY/);
-  assert.match(route,/apikey:ingressToken\?SUPABASE_KEY:serverKey/);
+  assert.match(route,/body\.action==='challenge_bootstrap'/);
+  assert.match(route,/publishableKey:SUPABASE_KEY/);
+  assert.match(route,/apikey:ingressToken\?SUPABASE_KEY:\(serverKey\|\|SUPABASE_KEY\)/);
   assert.doesNotMatch(landing,/SUPABASE_SERVICE_ROLE_KEY|service[_\s.-]?role|SUPABASE_SECRET/i);
   assert.doesNotMatch(landing,/NEXT_PUBLIC_[A-Z0-9_]*(?:SECRET|SERVICE)/i);
   assert.doesNotMatch(route,/NEXT_PUBLIC_[A-Z0-9_]*(?:SECRET|SERVICE)/i);
@@ -134,10 +142,27 @@ test('edge intake authenticates the server hop and rate limits anonymous submiss
   assert.match(serviceAuth,/revoke all on function public\.v1_registration_edge_authorize\(\)[\s\S]*?from public,anon,authenticated/);
   assert.match(serviceAuth,/grant execute on function public\.v1_registration_edge_authorize\(\)[\s\S]*?to service_role/);
   assert.match(edge,/v1_registration_rate_limit_consume/);
+  assert.match(edge,/request\.method==='OPTIONS'/);
+  assert.match(edge,/'access-control-allow-origin':origin/);
+  assert.match(edge,/'access-control-allow-headers':'apikey, content-type'/);
+  assert.match(edge,/'vary':'Origin'/);
+  assert.match(edge,/CHALLENGE_TTL_SECONDS=300/);
+  assert.match(edge,/CHALLENGE_AUDIENCE='registration-submit'/);
+  assert.match(edge,/randomHex\(32\)/);
+  assert.match(edge,/\{name:'HMAC',hash:'SHA-256'\}/);
+  assert.match(edge,/request\.headers\.get\('cf-connecting-ip'\)/);
+  assert.match(edge,/request\.headers\.get\('x-forwarded-for'\)/);
+  assert.match(edge,/p_rate_key:`challenge-issue:\$\{ipHash\}`[\s\S]*?p_limit:5[\s\S]*?p_window_seconds:3_600/);
+  assert.match(edge,/p_rate_key:`challenge:\$\{await sha256\(claims\.jti\)\}`[\s\S]*?p_limit:1[\s\S]*?p_window_seconds:600/);
   assert.match(edge,/p_limit:3/);
   assert.match(edge,/p_window_seconds:86_400/);
   assert.match(edge,/SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(edge,/v1_public_submit_registration_request/);
+  assert.ok(
+    edge.indexOf('const claims=await consumeRegistrationChallenge(challenge)')
+      <edge.indexOf("const result=await rpc<JsonRecord>('v1_public_submit_registration_request'"),
+    'the one-time challenge must be consumed before a registration request is created'
+  );
   assert.match(config,/\[functions\.odeir-registration-intake\][\s\S]*?verify_jwt\s*=\s*false/);
 });
 

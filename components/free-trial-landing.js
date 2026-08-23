@@ -24,10 +24,13 @@ const ERROR_COPY = {
   invalid_phone: "راجع رقم الجوال وأدخله بصيغة صحيحة.",
   email_configuration_unavailable: "تعذر إرسال رسالة التأكيد الآن. بياناتك لم تُفقد؛ حاول بعد قليل.",
   confirmation_email_failed: "تعذر إرسال رسالة التأكيد الآن. حاول مرة أخرى بعد قليل.",
+  registration_challenge_invalid: "انتهت مهلة الحماية. أعد إرسال الطلب مرة أخرى.",
+  registration_challenge_unavailable: "تعذر تأمين الطلب لحظيًا. حاول مرة أخرى بعد قليل.",
   service_unavailable: "الخدمة غير متاحة لحظيًا. حاول مرة أخرى بعد قليل."
 };
 function FreeTrialLanding({ registrationOnly = false } = {}) {
   const startedAt = useRef(0);
+  const submitLockRef = useRef(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -63,6 +66,44 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
       throw new Error(value.error || "service_unavailable");
     }
     return value;
+  }
+  async function requestRegistrationChallenge() {
+    const bootstrapResponse = await fetch(REGISTRATION_API, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "challenge_bootstrap" }),
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    const bootstrap = await bootstrapResponse.json().catch(() => ({}));
+    if (!bootstrapResponse.ok || bootstrap.ok !== true || typeof bootstrap.endpoint !== "string" || typeof bootstrap.publishableKey !== "string") {
+      throw new Error("registration_challenge_unavailable");
+    }
+    let endpoint;
+    try {
+      endpoint = new URL(bootstrap.endpoint);
+    } catch {
+      throw new Error("registration_challenge_unavailable");
+    }
+    if (endpoint.protocol !== "https:" || !endpoint.hostname.endsWith(".supabase.co") || !endpoint.pathname.endsWith("/odeir-registration-intake")) {
+      throw new Error("registration_challenge_unavailable");
+    }
+    const challengeResponse = await fetch(endpoint.toString(), {
+      method: "POST",
+      headers: {
+        apikey: bootstrap.publishableKey,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ action: "challenge" }),
+      credentials: "omit",
+      cache: "no-store",
+      referrerPolicy: "no-referrer"
+    });
+    const challengeResult = await challengeResponse.json().catch(() => ({}));
+    if (!challengeResponse.ok || challengeResult.ok !== true || typeof challengeResult.challenge !== "string" || challengeResult.challenge.length < 120) {
+      throw new Error(challengeResult.error || "registration_challenge_unavailable");
+    }
+    return challengeResult.challenge;
   }
   async function search(event) {
     event.preventDefault();
@@ -117,11 +158,15 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
   }
   async function submit(event) {
     event.preventDefault();
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setBusy("submit");
     setError("");
     try {
+      const challenge = await requestRegistrationChallenge();
       const value = await callApi({
         action: "submit",
+        challenge,
         institutionState: isNew ? "new" : "existing",
         accountId: selected?.id || null,
         ...form
@@ -133,6 +178,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
+      submitLockRef.current = false;
       setBusy("");
     }
   }
@@ -290,7 +336,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
               </div>
             </div>}
 
-          {step === "form" && <form className="trial-body contact-form" onSubmit={submit}>
+          {step === "form" && <form className="trial-body contact-form" onSubmit={submit} aria-busy={busy === "submit"}>
               <div className="card-heading">
                 <span className="heading-icon"><UserIcon /></span>
                 <div><small>بيانات مسؤول الطلب</small><h2>{isNew ? "أضف منشأة جديدة" : "جهّز حساب منشأتك"}</h2></div>
@@ -326,7 +372,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
               </label>
               {error && <div className="alert error" role="alert">{error}</div>}
               <div className="form-actions">
-                <button type="button" className="secondary-button" onClick={() => setStep(isNew ? "search" : "details")}>رجوع</button>
+                <button type="button" className="secondary-button" disabled={busy === "submit"} onClick={() => setStep(isNew ? "search" : "details")}>رجوع</button>
                 <button className="primary-button" disabled={busy === "submit" || !form.tvtcAcknowledged || !form.privacyConsent}>
                   {busy === "submit" ? <><Spinner /> جارٍ إرسال الطلب…</> : <>إرسال طلب التسجيل <ArrowIcon /></>}
                 </button>

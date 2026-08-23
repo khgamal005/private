@@ -89,7 +89,7 @@ export default function CourseCatalog({
     <header className="mt-page-head">
       <div>
         <small>ACADEMY CATALOG</small>
-        <h2>متجر البرامج والدورات</h2>
+        <h2>الدبلومات والدورات</h2>
         <p>كتالوج موحّد للدورات والأسعار والعروض، مرتبط بالدفعات والتسجيل والقبول والمبيعات.</p>
       </div>
       <div className="mt-page-actions">
@@ -99,18 +99,6 @@ export default function CourseCatalog({
 
     {message&&<div className="mt-alert">{message}</div>}
     {error&&!modal&&<div className="mt-alert error">{error}</div>}
-    <section className="mt-data-note">
-      {wooConnected
-        ?<div>
-          <b>WooCommerce هو مصدر البيانات التجارية</b>
-          <p>السعر والعرض والصور والمخزون تتحدث من المتجر، بينما تظل الدفعات والتشغيل والاعتماد داخل ماركتون.</p>
-        </div>
-        :<div>
-          <b>الأسعار والجداول لم تُخترع</b>
-          <p>أدخل الدورات والمدد المؤكدة، أو اربط WooCommerce لنقل الأسعار والعروض تلقائيًا.</p>
-        </div>}
-      <span>{wooConnected?'متزامن':'بيانات دقيقة'}</span>
-    </section>
 
     <section className="mt-kpis">
       <article className="mt-kpi"><span>الدورات النشطة</span><b>{courses.length}</b><small>برامج في الكتالوج</small></article>

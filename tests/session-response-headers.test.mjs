@@ -41,6 +41,16 @@ test('protected pages disable proxy buffering and shared caching',async()=>{
   const global=routes.find(route=>route.source==='/:path*');
   assert.equal(valueFor(global,'X-Content-Type-Options'),'nosniff');
   assert.equal(valueFor(global,'X-Frame-Options'),'DENY');
+
+  const embeddedRegistration=routes.find(
+    route=>route.source==='/free-trial/apply'
+  );
+  assert.ok(embeddedRegistration,'missing embedded registration headers');
+  assert.equal(valueFor(embeddedRegistration,'X-Frame-Options'),'SAMEORIGIN');
+  assert.ok(
+    routes.indexOf(embeddedRegistration)>routes.indexOf(global),
+    'the scoped frame override must run after the global DENY rule'
+  );
 });
 
 test('every session-creating auth response explicitly disables caching',async()=>{

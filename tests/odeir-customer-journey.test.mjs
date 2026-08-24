@@ -13,7 +13,9 @@ test('the public ODEIR experience tells the complete fictional trainee journey',
   assert.match(landing,/href="#journey"[\s\S]{0,100}>رحلة العميل<\/a>/);
   assert.doesNotMatch(landing,/IntegrationActionLab|integrationActionSources|تكاملات تحرّك العمل|الإشعار ما يكفي/);
   assert.match(landing,/<StoryStrip \/>[\s\S]*<ProductDemo \/>[\s\S]*<JourneyLab \/>[\s\S]*<OperationalStories cms=\{cms\} \/>/);
-  assert.match(runtimeBlock,/<span>03<\/span> رحلة العميل والمتدرب كاملة/);
+  assert.match(runtimeBlock,/kickerNumber = "03"/);
+  assert.match(runtimeBlock,/<span>03<\/span>/);
+  assert.match(runtimeBlock,/رحلة العميل والمتدرب كاملة/);
   assert.doesNotMatch(runtimeBlock,/variant\s*=|journey-blended/);
   assert.match(runtimeBlock,/const idPrefix = "journey"/);
   assert.match(runtimeBlock,/<section className="journey-section journey-section--blended" id=\{idPrefix\}/);

@@ -50,6 +50,8 @@ type LandingCms = {
   articles?: LandingArticle[];
 };
 
+type LandingVariant = "default" | "manager";
+
 const LEGACY_HERO = {
   eyebrow: "منصة تشغيل وإدارة للمنشآت التعليمية والتدريبية",
   title: "كل منشأتك في مكان واحد. واضحة، مترابطة، وتحت السيطرة.",
@@ -219,8 +221,9 @@ function useReveal() {
   }, []);
 }
 
-function Header({ cms, onRegister }: { cms: LandingCms; onRegister: () => void }) {
+function Header({ cms, onRegister, variant = "default" }: { cms: LandingCms; onRegister: () => void; variant?: LandingVariant }) {
   const [open, setOpen] = useState(false);
+  const managerPreview = variant === "manager";
   const primaryLabel = cms.hero?.primaryLabel || "سجّل منشأتك مجانًا";
   const primaryHref = cms.hero?.primaryHref || "/free-trial/apply";
   const loginLabel = cms.settings?.customerLoginLabel || "دخول المنشآت";
@@ -229,11 +232,19 @@ function Header({ cms, onRegister }: { cms: LandingCms; onRegister: () => void }
     <header className="site-header">
       <a className="brand-link" href="#top" aria-label="أودير - الرئيسية"><Brand /></a>
       <nav className={open ? "main-nav is-open" : "main-nav"} aria-label="التنقل الرئيسي">
-        <a href="#morning-brief" onClick={() => setOpen(false)}>أول فنجان</a>
-        <a href="#story" onClick={() => setOpen(false)}>التكاملات</a>
-        <a href="#product" onClick={() => setOpen(false)}>جولة داخل أودير</a>
-        <a href="#journey" onClick={() => setOpen(false)}>رحلة العميل</a>
-        <a href="#security" onClick={() => setOpen(false)}>الحماية</a>
+        {managerPreview ? <>
+          <a href="#product" onClick={() => setOpen(false)}>جولة أودير</a>
+          <a href="#journey" onClick={() => setOpen(false)}>رحلة المتدرب</a>
+          <a href="#manager-proof" onClick={() => setOpen(false)}>من واقع التشغيل</a>
+          <a href="#story" onClick={() => setOpen(false)}>التكاملات</a>
+          <a href="#security" onClick={() => setOpen(false)}>الحماية</a>
+        </> : <>
+          <a href="#morning-brief" onClick={() => setOpen(false)}>أول فنجان</a>
+          <a href="#story" onClick={() => setOpen(false)}>التكاملات</a>
+          <a href="#product" onClick={() => setOpen(false)}>جولة داخل أودير</a>
+          <a href="#journey" onClick={() => setOpen(false)}>رحلة العميل</a>
+          <a href="#security" onClick={() => setOpen(false)}>الحماية</a>
+        </>}
         <a className="mobile-nav-only" href={`${APP_ORIGIN}${loginHref}`} onClick={() => setOpen(false)}>{loginLabel}</a>
         <a className="mobile-nav-only mobile-nav-cta" href={`${APP_ORIGIN}${primaryHref}`} onClick={(event) => { setOpen(false); openRegistrationFromLink(event, primaryHref, onRegister); }}>{primaryLabel}</a>
       </nav>
@@ -324,15 +335,22 @@ function HeroSnapshot({ activeEvent }: { activeEvent: number }) {
   );
 }
 
-function Hero({ cms, onRegister }: { cms: LandingCms; onRegister: () => void }) {
+function Hero({ cms, onRegister, variant = "default" }: { cms: LandingCms; onRegister: () => void; variant?: LandingVariant }) {
   const [activeEvent, setActiveEvent] = useState(0);
-  const eyebrow = cmsText(cms.hero?.eyebrow, LEGACY_HERO.eyebrow, "منصة تشغيل وإدارة للمنشآت التدريبية الأهلية المعتمدة");
-  const title = cmsText(cms.hero?.title, LEGACY_HERO.title, "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك.");
-  const body = cmsText(cms.hero?.body, LEGACY_HERO.body, "أودير يجمع المبيعات والتسجيل والقبول والبرامج والمهام والتقارير في مساحة واحدة؛ حتى يعمل فريقك بوضوح، وتتخذ إدارتك القرار في وقته.");
+  const managerPreview = variant === "manager";
+  const eyebrow = managerPreview
+    ? "منصة تشغيل مصممة لمراكز التدريب السعودية"
+    : cmsText(cms.hero?.eyebrow, LEGACY_HERO.eyebrow, "منصة تشغيل وإدارة للمنشآت التدريبية الأهلية المعتمدة");
+  const title = managerPreview
+    ? "شغّل مركزك من أول استفسار حتى الشهادة… من مكان واحد."
+    : cmsText(cms.hero?.title, LEGACY_HERO.title, "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك.");
+  const body = managerPreview
+    ? "اعرف أين وصل كل عميل ومتدرب، ومن المسؤول عن الخطوة التالية، وما الذي يحتاج تدخلك الآن—بدون تجميع يدوي بين الواتساب والجداول والأنظمة المتفرقة."
+    : cmsText(cms.hero?.body, LEGACY_HERO.body, "أودير يجمع المبيعات والتسجيل والقبول والبرامج والمهام والتقارير في مساحة واحدة؛ حتى يعمل فريقك بوضوح، وتتخذ إدارتك القرار في وقته.");
   const primaryLabel = cms.hero?.primaryLabel || "سجّل منشأتك مجانًا";
   const primaryHref = cms.hero?.primaryHref || "/free-trial/apply";
-  const secondaryLabel = cmsText(cms.hero?.secondaryLabel, LEGACY_HERO.secondaryLabel, "جرّب أودير بنفسك");
-  const secondaryHref = cmsHref(cms.hero?.secondaryHref, LEGACY_HERO.secondaryHref, "#product");
+  const secondaryLabel = managerPreview ? "شاهد رحلة متدرب كاملة" : cmsText(cms.hero?.secondaryLabel, LEGACY_HERO.secondaryLabel, "جرّب أودير بنفسك");
+  const secondaryHref = managerPreview ? "#journey" : cmsHref(cms.hero?.secondaryHref, LEGACY_HERO.secondaryHref, "#product");
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = window.setInterval(() => setActiveEvent((value) => (value + 1) % journeyEvents.length), 2600);
@@ -343,15 +361,17 @@ function Hero({ cms, onRegister }: { cms: LandingCms; onRegister: () => void }) 
       <div className="hero-glow hero-glow--one" aria-hidden="true" /><div className="hero-glow hero-glow--two" aria-hidden="true" />
       <div className="hero-copy" data-reveal>
         <div className="eyebrow"><span /> {eyebrow}</div>
-        <h1>{title === "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك." ? <>
+        <h1>{managerPreview ? <>
+          <span className="hero-title">شغّل مركزك من أول استفسار،<br /><span className="hero-title-accent">حتى الشهادة… من مكان واحد.</span></span>
+        </> : title === "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك." ? <>
           <span className="hero-title">من أول استفسار،<br /><span className="hero-title-accent">حتى مقعد مكتمل.</span></span>
         </> : title}</h1>
         <p>{body}</p>
         <div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${primaryHref}`} onClick={(event) => openRegistrationFromLink(event, primaryHref, onRegister)}>{primaryLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${secondaryHref}`}>{secondaryLabel}</a></div>
-        <ul className="hero-trust" aria-label="مزايا البداية"><li><i /> بدون بطاقة بنكية</li><li><i /> إعداد بخطوات واضحة</li><li><i /> بيانات مستقلة لكل منشأة</li></ul>
+        {managerPreview ? <ul className="hero-trust" aria-label="مزايا البداية"><li><i /> يبدأ مجانًا</li><li><i /> لا يلزم نقل كل بياناتك</li><li><i /> جرّب مسارًا واحدًا أولًا</li></ul> : <ul className="hero-trust" aria-label="مزايا البداية"><li><i /> بدون بطاقة بنكية</li><li><i /> إعداد بخطوات واضحة</li><li><i /> بيانات مستقلة لكل منشأة</li></ul>}
       </div>
       <HeroSnapshot activeEvent={activeEvent} />
-      <a href="#morning-brief" className="scroll-cue" aria-label="انتقل للمحتوى"><span /> اكتشف أودير</a>
+      <a href={managerPreview ? "#manager-trust" : "#morning-brief"} className="scroll-cue" aria-label="انتقل للمحتوى"><span /> اكتشف أودير</a>
     </section>
   );
 }
@@ -569,7 +589,7 @@ function JourneyCategoryIcon({ type }: { type: JourneyCategoryKey }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 9 10-5 10 5-10 5L2 9Zm4 3v5c4 3 8 3 12 0v-5M22 9v7" /></svg>;
 }
 
-function StoryStrip() {
+function StoryStrip({ kickerNumber = "01" }: { kickerNumber?: string } = {}) {
   const [activeCategoryKey, setActiveCategoryKey] = useState<JourneyCategoryKey>("commerce");
   const [activeNode, setActiveNode] = useState(0);
   const activeCategory = JOURNEY_CATEGORIES.find((category) => category.key === activeCategoryKey) ?? JOURNEY_CATEGORIES[0];
@@ -587,7 +607,7 @@ function StoryStrip() {
 
   return (
     <section className="story-section section" id="story">
-      <div className="section-kicker" data-reveal><span>01</span> كل تكامل في مكانه</div>
+      <div className="section-kicker" data-reveal>{kickerNumber === "01" ? <span>01</span> : <span>{kickerNumber}</span>} كل تكامل في مكانه</div>
       <div className="story-head" data-reveal><h2>خمس منظومات حول منشأتك.<br />أودير يجمعها في مسار واحد.</h2><p>اختر القسم، وشاهد كيف تتحول المنصات المتفرقة إلى رحلة تشغيل مفهومة للمدير والموظف—بدون شاشة إضافية تزيد التعقيد.</p></div>
       <div className="story-flow" data-reveal>
         <div className="journey-category-tabs" role="tablist" aria-label="أقسام التكامل">
@@ -671,12 +691,12 @@ function StoryStrip() {
   );
 }
 
-function ProductDemo() {
+function ProductDemo({ kickerNumber = "02" }: { kickerNumber?: string } = {}) {
   const [activeView, setActiveView] = useState<DemoViewKey>("overview");
   const view = demoViews[activeView];
   return (
     <section className="product-section section" id="product">
-      <div className="section-kicker section-kicker--light" data-reveal><span>02</span> مو مجرد كلام</div>
+      <div className="section-kicker section-kicker--light" data-reveal>{kickerNumber === "02" ? <span>02</span> : <span>{kickerNumber}</span>} مو مجرد كلام</div>
       <div className="product-intro" data-reveal><div><h2>خذ جولة داخل أودير.<br /><span>وشوف كيف يصير الوضوح.</span></h2></div><p>بدّل بين الشاشات. الأرقام افتراضية، لكن المنطق هو نفس منطق يوم منشأتك: مسؤول، حالة، موعد، وقرار.</p></div>
       <div className="demo-tabs" role="tablist" aria-label="شاشات أودير" data-reveal>
         {(Object.entries(demoViews) as [DemoViewKey, typeof demoViews[DemoViewKey]][]).map(([key, item]) => <button key={key} type="button" role="tab" aria-selected={activeView === key} className={activeView === key ? "is-active" : ""} onClick={() => setActiveView(key)}><span>{item.label}</span><small>{item.eyebrow}</small></button>)}
@@ -793,6 +813,109 @@ function OperationalStories({ cms }: { cms: LandingCms }) {
             <span className="feature-index">{String(index + 1).padStart(2, "0")}</span>
           </article>
         ))}
+      </div>
+    </section>
+  );
+}
+
+const managerCapabilities = [
+  { key: "sales", title: "المبيعات والعملاء", description: "المصدر، المسؤول، آخر تواصل والخطوة التالية في سجل واحد." },
+  { key: "admission", title: "التسجيل والقبول", description: "حالة الطلب والمستندات والسداد والقبول بدون تسليمات مبهمة." },
+  { key: "courses", title: "الدورات والدفعات", description: "البرنامج والسعر والدفعة والجدول والمقاعد من مصدر تشغيلي واحد." },
+  { key: "attendance", title: "المحاضرات والحضور", description: "مواعيد وروابط وحضور ونتائج تظهر للفريق قبل أن يصبح النقص مشكلة." },
+  { key: "tasks", title: "المهام والتقويم", description: "مهمة نشطة واضحة لكل متابعة، مع مسؤول وموعد وسجل محفوظ." },
+  { key: "billing", title: "الفوترة والسداد", description: "قيمة الطلب وحالته وارتباطه بالعميل والتسجيل في نفس السياق." },
+  { key: "reports", title: "التقارير ولوحة المدير", description: "مؤشرات قابلة للتفصيل تكشف أين يتوقف المسار ومن يحتاج تدخلك." },
+  { key: "website", title: "الموقع والمحتوى", description: "صفحات المنشأة وسياساتها ومحتواها تُدار بصلاحيات واضحة." },
+] as const;
+
+type ManagerCapabilityKey = typeof managerCapabilities[number]["key"];
+
+function ManagerCapabilityIcon({ type }: { type: ManagerCapabilityKey }) {
+  if (type === "sales") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-6 9c.5-4 2.5-6 6-6s5.5 2 6 6M16 8h6M16 12h5M16 16h4" /></svg>;
+  if (type === "admission") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Zm9 0v5h4M9 12h7M9 16h5" /><path d="m8 8 1 1 2-2" /></svg>;
+  if (type === "courses") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 8 9-5 9 5-9 5-9-5Zm4 3v6c3 2 7 2 10 0v-6M21 8v7" /></svg>;
+  if (type === "attendance") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5V4Zm3-2v4M16 2v4M5 9h14M9 13h2M14 13h2M9 17h2" /></svg>;
+  if (type === "tasks") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5V3Zm4 5 1.5 1.5L14 6M9 14h6M9 18h4" /></svg>;
+  if (type === "billing") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3V6Zm0 4h18M7 15h4M17 14l1.3 1.3L21 12.6" /></svg>;
+  if (type === "reports") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2" /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3V5Zm0 4h18M7 7h.01M10 7h.01M7 13h5M7 16h9" /></svg>;
+}
+
+function ManagerTrustRail() {
+  const items = [
+    ["مصمم لواقع مراكز التدريب السعودية", "من أول استفسار حتى الشهادة"],
+    ["ابدأ مجانًا دون بطاقة بنكية", "اختبر الملاءمة قبل التوسع"],
+    ["لا يلزم نقل كل بياناتك", "ابدأ بمسار واحد واضح"],
+    ["بيانات وصلاحيات منفصلة", "كل دور يرى ما يحتاجه"],
+  ] as const;
+  return (
+    <section className="manager-trust-rail" id="manager-trust" aria-label="مزايا البداية مع أودير">
+      <div className="manager-trust-inner section" data-reveal>
+        {items.map(([title, description], index) => <article key={title}><span>{String(index + 1).padStart(2, "0")}</span><div><b>{title}</b><small>{description}</small></div><i aria-hidden="true" /></article>)}
+      </div>
+    </section>
+  );
+}
+
+function ManagerOperationalProof() {
+  const before = [
+    ["مصدر العميل", "يضيع بين الإعلان والرسائل والموظف"],
+    ["المتابعة", "تعتمد على الذاكرة أو جدول منفصل"],
+    ["بيانات الرفع", "تظهر النواقص قرب الموعد"],
+    ["قرار المدير", "ينتظر تجميع تقرير من أكثر من شخص"],
+  ] as const;
+  const after = [
+    ["مصدر العميل", "الحملة والمسؤول محفوظان في نفس السجل"],
+    ["المتابعة", "خطوة تالية واحدة بمسؤول وموعد واضحين"],
+    ["بيانات الرفع", "قائمة تحقق وتجهيز ومتابعة للحالة"],
+    ["قرار المدير", "الاختناق ظاهر وقابل للتفصيل من اللوحة"],
+  ] as const;
+  const lifecycle = [
+    ["الإعلان والطلب", "التسويق"],
+    ["المبيعات", "مستشار القبول"],
+    ["القبول والسداد", "المبيعات والحسابات"],
+    ["الدفعة والحضور", "التشغيل"],
+    ["تجهيز بيانات المؤسسة ومنار", "التسجيل"],
+    ["الشهادة", "المنشأة"],
+  ] as const;
+  return (
+    <section className="manager-proof-section" id="manager-proof">
+      <div className="manager-proof-inner section">
+        <div className="section-kicker" data-reveal><span>03</span> سيناريو تشغيل واقعي</div>
+        <div className="manager-proof-heading" data-reveal>
+          <h2>الفرق لا يظهر في عدد الشاشات.<br /><span>يظهر عند تسليم الخطوة بين فريقين.</span></h2>
+          <p>سيناريو مبني على مواقف يومية شائعة داخل مراكز التدريب؛ جميع الأسماء والبيانات المعروضة افتراضية.</p>
+        </div>
+        <div className="manager-proof-board" data-reveal>
+          <header><span><i /> مقارنة تشغيلية</span><small>لا أرقام نجاح أو ادعاءات غير موثقة</small></header>
+          <div className="manager-proof-compare">
+            <article className="manager-proof-column manager-proof-column--before">
+              <div><span>قبل</span><h3>عندما تكون الأدوات متفرقة</h3></div>
+              {before.map(([label, description]) => <p key={label}><i aria-hidden="true" /><span><b>{label}</b><small>{description}</small></span></p>)}
+            </article>
+            <article className="manager-proof-column manager-proof-column--after">
+              <div><span>داخل أودير</span><h3>عندما يصبح المسار واحدًا</h3></div>
+              {after.map(([label, description]) => <p key={label}><i aria-hidden="true" /><span><b>{label}</b><small>{description}</small></span></p>)}
+            </article>
+          </div>
+          <div className="manager-proof-lifecycle" aria-label="تسليم رحلة المتدرب بين الفرق">
+            {lifecycle.map(([label, owner], index) => <span key={label}><i>{String(index + 1).padStart(2, "0")}</i><b>{label}</b><small>{owner}</small></span>)}
+          </div>
+          <p className="manager-proof-note"><i /> أودير يجهّز البيانات ويتحقق من اكتمالها ويتابع حالتها؛ الرفع والإصدار يتمان وفق إجراءات الجهة والمنصة وصلاحيات المنشأة.</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ManagerCapabilities() {
+  return (
+    <section className="manager-capabilities-section section" id="capabilities">
+      <div className="section-kicker" data-reveal><span>04</span> القدرات بدون إطالة</div>
+      <div className="manager-capabilities-heading" data-reveal><h2>ما يحتاجه مدير المركز.<br /><span>مختصر، مترابط، وقابل للتوسع.</span></h2><p>ابدأ بالمسار الأكثر إلحاحًا، ثم فعّل بقية الوحدات عندما يحتاجها فريقك—دون فرض تغيير شامل من اليوم الأول.</p></div>
+      <div className="manager-capabilities-grid">
+        {managerCapabilities.map((item, index) => <article key={item.key} data-reveal><span className="manager-capability-icon"><ManagerCapabilityIcon type={item.key} /></span><i>{String(index + 1).padStart(2, "0")}</i><h3>{item.title}</h3><p>{item.description}</p></article>)}
       </div>
     </section>
   );
@@ -961,7 +1084,7 @@ function JourneyPhaseIcon({ type }: { type: JourneyPhaseKey }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Zm9 0v5h4M9 12h7M9 16h5" /><path d="m8 8 1 1 2-2" /></svg>;
 }
 
-function JourneyLab() {
+function JourneyLab({ kickerNumber = "03" }: { kickerNumber?: string } = {}) {
   const [step, setStep] = useState(0);
   const [runId, setRunId] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -1014,7 +1137,7 @@ function JourneyLab() {
   return (
     <section className="journey-section journey-section--blended" id={idPrefix} ref={sectionRef}>
       <div className="journey-inner section">
-        <div className="section-kicker section-kicker--light" data-reveal><span>03</span> رحلة العميل والمتدرب كاملة</div>
+        <div className="section-kicker section-kicker--light" data-reveal>{kickerNumber === "03" ? <span>03</span> : <span>{kickerNumber}</span>} رحلة العميل والمتدرب كاملة</div>
         <div className="journey-heading" data-reveal><h2>من أول نقرة…<br /><span>إلى شهادة مستحقة.</span></h2><p>تابع انتقال الطلب بين التسويق والمبيعات والقبول والتدريب والاعتماد؛ كل مسؤول وموعد ونتيجة محفوظة في مسار واحد.</p></div>
         <div className="journey-phase-picker" role="tablist" aria-label="فصول رحلة المتدرب" data-reveal>
           {journeyPhases.map((phase, index) => (
@@ -1121,12 +1244,12 @@ const roleViews = {
 
 type RoleKey = keyof typeof roleViews;
 
-function RoleSwitcher() {
+function RoleSwitcher({ kickerNumber = "05" }: { kickerNumber?: string } = {}) {
   const [role, setRole] = useState<RoleKey>("management");
   const view = roleViews[role];
   return (
     <section className="roles-section section">
-      <div className="section-kicker" data-reveal><span>05</span> كل دور له وضوحه</div>
+      <div className="section-kicker" data-reveal>{kickerNumber === "05" ? <span>05</span> : <span>{kickerNumber}</span>} كل دور له وضوحه</div>
       <div className="roles-heading" data-reveal><h2>كل موظف يشوف اللي يحتاجه.<br /><span>والإدارة تشوف الصورة كلها.</span></h2><p>صلاحيات حسب الدور، وأولوية يومية واضحة، بدون ما تغرق الموظف في شاشات ما تخصّه.</p></div>
       <div className="role-switcher" data-reveal>
         <div className="role-tabs" role="tablist" aria-label="اختر دور الموظف">{(Object.entries(roleViews) as [RoleKey, typeof roleViews[RoleKey]][]).map(([key, item]) => <button key={key} type="button" role="tab" aria-selected={role === key} className={role === key ? "is-active" : ""} onClick={() => setRole(key)}><i /><span>{item.label}</span></button>)}</div>
@@ -1140,7 +1263,7 @@ function RoleSwitcher() {
   );
 }
 
-function SecuritySection({ cms }: { cms: LandingCms }) {
+function SecuritySection({ cms, kickerNumber = "06" }: { cms: LandingCms; kickerNumber?: string }) {
   const defaults = [
     ["عزل بيانات كل منشأة", "مساحة وسياق مستقلان يمنعان اختلاط بيانات منشأة بغيرها."],
     ["صلاحيات حسب الدور", "كل مستخدم يرى وينفذ ما يحتاجه لأداء عمله فقط."],
@@ -1157,7 +1280,7 @@ function SecuritySection({ cms }: { cms: LandingCms }) {
   return (
     <section className="security-section" id="security">
       <div className="security-inner section">
-        <div className="security-copy" data-reveal><div className="section-kicker section-kicker--light"><span>06</span> {kicker}</div><h2>{title === "بيانات منشأتك تبقى منشأتك." ? <>بيانات منشأتك<br /><span>تبقى منشأتك.</span></> : title}</h2><p>{body}</p><a href={`${APP_ORIGIN}/p/information-security`}>اقرأ عن أمن المعلومات <ArrowMark /></a></div>
+        <div className="security-copy" data-reveal><div className="section-kicker section-kicker--light">{kickerNumber === "06" ? <span>06</span> : <span>{kickerNumber}</span>} {kicker}</div><h2>{title === "بيانات منشأتك تبقى منشأتك." ? <>بيانات منشأتك<br /><span>تبقى منشأتك.</span></> : title}</h2><p>{body}</p><a href={`${APP_ORIGIN}/p/information-security`}>اقرأ عن أمن المعلومات <ArrowMark /></a></div>
         <div className="security-grid" data-reveal>
           <article><span className="security-icon security-icon--layers"><i /><i /><i /></span><b>{cards[0].title}</b><p>{cards[0].description}</p></article>
           <article><span className="security-icon security-icon--key"><i /></span><b>{cards[1].title}</b><p>{cards[1].description}</p></article>
@@ -1170,7 +1293,7 @@ function SecuritySection({ cms }: { cms: LandingCms }) {
   );
 }
 
-function FAQ({ cms }: { cms: LandingCms }) {
+function FAQ({ cms, kickerNumber = "07", variant = "default" }: { cms: LandingCms; kickerNumber?: string; variant?: LandingVariant }) {
   const defaults = [
     ["هل أحتاج بطاقة بنكية للتسجيل؟", "لا. يمكنك بدء التسجيل المجاني دون إدخال بطاقة بنكية، ثم تهيئة بيانات المنشأة والفريق بخطوات واضحة."],
     ["هل لازم أنقل كل بياناتي من أول يوم؟", "لا. ابدأ بالمسار الأكثر إلحاحًا عندك، مثل العملاء والمتابعات، ثم وسّع الاستخدام تدريجيًا وفق احتياج منشأتك."],
@@ -1178,8 +1301,15 @@ function FAQ({ cms }: { cms: LandingCms }) {
     ["هل التكاملات كلها متاحة الآن؟", "نعرض حالة كل تكامل بوضوح داخل الصفحة: متاح، قيد التفعيل، أو قريبًا. لن نصف تكاملًا بأنه متاح قبل جاهزيته للاستخدام."],
     ["هل أقدر أعدل موقع أودير من البيلدر؟", "صفحات الموقع الأساسية والسياسات محفوظة داخل نظام إدارة المحتوى، ويمكن تعديلها ونشرها من بيلدر الموقع حسب الصلاحيات."],
   ] as const;
+  const managerQuestions = [
+    ["هل يناسب أودير مركزًا صغيرًا أو في بداية التشغيل؟", "نعم. يمكنك البدء بمسار واحد يسبب لك أكبر قدر من التشتيت—مثل العملاء والمتابعات—ثم إضافة التسجيل والدورات والتقارير تدريجيًا مع نمو الاستخدام."],
+    ["هل يجب أن أنقل كل بيانات المركز قبل أن أبدأ؟", "لا. لا يلزم نقل كل البيانات من اليوم الأول. ابدأ ببيانات أساسية وتجربة تشغيل محددة، ثم قرر ما يستحق النقل أو الربط بعد أن تتأكد من ملاءمة المسار لفريقك."],
+    ["ما الذي يبدأ مجانًا، وما الذي قد يكون مدفوعًا؟", "يبدأ التسجيل الأساسي دون بطاقة بنكية. قد ترتبط بعض السعات أو الإضافات أو خدمات الربط بخطط مدفوعة، وتظهر حالة التوفر والتكلفة قبل تفعيل أي خدمة."],
+    ["هل يرفع أودير البيانات تلقائيًا إلى المؤسسة العامة ومنصة منار؟", "أودير يساعد على تجهيز البيانات والتحقق من اكتمالها ومتابعة حالتها. الرفع والإصدار يخضعان لإجراءات الجهة والمنصة وصلاحيات المنشأة، ولا نصفهما كتَكامل آلي مباشر إلا عندما تكون الخدمة متاحة ومعلنة بوضوح."],
+    ["كيف يبدأ التفعيل والدعم؟", "سجّل المنشأة، أضف البيانات الأساسية، وابدأ بمسار تشغيلي واضح. بعد ذلك استخدم قنوات الخدمة المتاحة داخل أودير لطلب المساندة أو التوسع وفق احتياج المركز."],
+  ] as const;
   const cmsSlots = [0, 1, 2, -1, 3];
-  const questions = defaults.map(([question, answer], index) => {
+  const defaultQuestions = defaults.map(([question, answer], index) => {
     const cmsIndex = cmsSlots[index];
     if (cmsIndex < 0) return [question, answer] as const;
     return [
@@ -1187,21 +1317,24 @@ function FAQ({ cms }: { cms: LandingCms }) {
       cmsText(cms.faq?.items?.[cmsIndex]?.description, LEGACY_FAQ[cmsIndex][1], answer),
     ] as const;
   });
-  const kicker = cmsText(cms.faq?.eyebrow, "أسئلة سريعة", "قبل ما تبدأ");
-  const title = cmsText(cms.faq?.title, "قبل أن تبدأ", "أسئلة واضحة. إجابات أوضح.");
-  const body = cmsText(cms.faq?.body, "إجابات مباشرة على أكثر الأسئلة شيوعًا.", "بدون شروط مخفية ولا وعود أكبر من المرحلة.");
+  const managerPreview = variant === "manager";
+  const questions = managerPreview ? managerQuestions : defaultQuestions;
+  const kicker = managerPreview ? "ما يهم مدير المركز" : cmsText(cms.faq?.eyebrow, "أسئلة سريعة", "قبل ما تبدأ");
+  const title = managerPreview ? "أسئلة القرار… بإجابات مباشرة." : cmsText(cms.faq?.title, "قبل أن تبدأ", "أسئلة واضحة. إجابات أوضح.");
+  const body = managerPreview ? "وضوح في البداية، والنقل، والتكلفة، وما يتم آليًا وما يحتاج إجراء المنشأة." : cmsText(cms.faq?.body, "إجابات مباشرة على أكثر الأسئلة شيوعًا.", "بدون شروط مخفية ولا وعود أكبر من المرحلة.");
   return (
     <section className="faq-section section">
-      <div className="faq-heading" data-reveal><div className="section-kicker"><span>07</span> {kicker}</div><h2>{title === "أسئلة واضحة. إجابات أوضح." ? <>أسئلة واضحة.<br />إجابات أوضح.</> : title}</h2><p>{body}</p></div>
+      <div className="faq-heading" data-reveal><div className="section-kicker">{kickerNumber === "07" ? <span>07</span> : <span>{kickerNumber}</span>} {kicker}</div><h2>{title === "أسئلة واضحة. إجابات أوضح." ? <>أسئلة واضحة.<br />إجابات أوضح.</> : title}</h2><p>{body}</p></div>
       <div className="faq-list" data-reveal>{questions.map(([question, answer], index) => <details key={question} open={index === 0}><summary><span>{question}</span><i /></summary><p>{answer}</p></details>)}</div>
     </section>
   );
 }
 
-function FinalCTA({ cms, onRegister }: { cms: LandingCms; onRegister: () => void }) {
-  const eyebrow = cmsText(cms.cta?.eyebrow, "جاهز للبدء؟", "جاهز تشوف منشأتك بشكل أوضح؟");
-  const title = cmsText(cms.cta?.title, "سجّل منشأتك، واترك الباقي لمسار واضح.", "خلّ منشأتك تمشي بنظام واضح من اليوم.");
-  const body = cmsText(cms.cta?.body, "ابدأ بالحساب الأساسي، ثم وسّع أودير مع احتياج منشأتك.", "ابدأ مجانًا، أضف فريقك، وشاهد كيف تنتقل رحلة العميل من استفسار متفرق إلى عملية يمكن إدارتها وقياسها.");
+function FinalCTA({ cms, onRegister, variant = "default" }: { cms: LandingCms; onRegister: () => void; variant?: LandingVariant }) {
+  const managerPreview = variant === "manager";
+  const eyebrow = managerPreview ? "ابدأ من أكثر نقطة تستهلك وقتك" : cmsText(cms.cta?.eyebrow, "جاهز للبدء؟", "جاهز تشوف منشأتك بشكل أوضح؟");
+  const title = managerPreview ? "جرّب مسارًا واحدًا… ثم قرر على واقع مركزك." : cmsText(cms.cta?.title, "سجّل منشأتك، واترك الباقي لمسار واضح.", "خلّ منشأتك تمشي بنظام واضح من اليوم.");
+  const body = managerPreview ? "ابدأ مجانًا دون نقل شامل للبيانات. جرّب رحلة عميل أو دفعة تدريبية، وشاهد هل أصبح المسؤول والموعد والخطوة التالية أوضح لفريقك." : cmsText(cms.cta?.body, "ابدأ بالحساب الأساسي، ثم وسّع أودير مع احتياج منشأتك.", "ابدأ مجانًا، أضف فريقك، وشاهد كيف تنتقل رحلة العميل من استفسار متفرق إلى عملية يمكن إدارتها وقياسها.");
   const buttonLabel = cms.cta?.buttonLabel || "سجّل منشأتك مجانًا";
   const buttonHref = cms.cta?.buttonHref || "/free-trial/apply";
   const loginLabel = cms.settings?.customerLoginLabel || "دخول المنشآت";
@@ -1209,7 +1342,7 @@ function FinalCTA({ cms, onRegister }: { cms: LandingCms; onRegister: () => void
   return (
     <section className="final-cta">
       <div className="final-cta-orbit" aria-hidden="true" />
-      <div className="final-cta-inner section" data-reveal><div className="eyebrow"><span /> {eyebrow}</div><h2>{title === "خلّ منشأتك تمشي بنظام واضح من اليوم." ? <>خلّ منشأتك تمشي<br /><span>بنظام واضح من اليوم.</span></> : title}</h2><p>{body}</p><div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${buttonHref}`} onClick={(event) => openRegistrationFromLink(event, buttonHref, onRegister)}>{buttonLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${loginHref}`}>{loginLabel}</a></div><ul className="hero-trust"><li><i /> بدون بطاقة بنكية</li><li><i /> تبدأ بخطوات بسيطة</li><li><i /> بيانات منشأتك مستقلة</li></ul></div>
+      <div className="final-cta-inner section" data-reveal><div className="eyebrow"><span /> {eyebrow}</div><h2>{title === "خلّ منشأتك تمشي بنظام واضح من اليوم." ? <>خلّ منشأتك تمشي<br /><span>بنظام واضح من اليوم.</span></> : title}</h2><p>{body}</p><div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${buttonHref}`} onClick={(event) => openRegistrationFromLink(event, buttonHref, onRegister)}>{buttonLabel} <ArrowMark /></a>{managerPreview ? <a className="button button--ghost" href="#journey">شاهد رحلة المتدرب</a> : <a className="button button--ghost" href={`${APP_ORIGIN}${loginHref}`}>{loginLabel}</a>}</div><ul className="hero-trust"><li><i /> بدون بطاقة بنكية</li><li><i /> تبدأ بخطوات بسيطة</li><li><i /> بيانات منشأتك مستقلة</li></ul></div>
     </section>
   );
 }
@@ -1251,6 +1384,57 @@ export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms 
       <SecuritySection cms={cms} />
       <FAQ cms={cms} />
       <FinalCTA cms={cms} onRegister={openRegistration} />
+      <footer className="site-footer">
+        <div className="footer-brand"><Brand /><p>تشغيل أوضح وإدارة مترابطة للمنشآت التدريبية.</p></div>
+        <nav aria-label="روابط السياسات والمحتوى"><a href={`${APP_ORIGIN}/articles`}>الأخبار والمعارف</a><a href={`${APP_ORIGIN}/p/privacy-policy`}>الخصوصية</a><a href={`${APP_ORIGIN}/p/information-security`}>أمن المعلومات</a><a href={`${APP_ORIGIN}/p/terms-of-use`}>شروط الاستخدام</a><a href={`${APP_ORIGIN}/p/data-rights`}>حقوق البيانات</a></nav>
+        <span>© {new Date().getFullYear()} أودير. جميع الحقوق محفوظة.</span>
+      </footer>
+      <a className={showMobileCta ? "mobile-cta is-visible" : "mobile-cta"} href={`${APP_ORIGIN}${cms.hero?.primaryHref || "/free-trial/apply"}`} onClick={(event) => openRegistrationFromLink(event, cms.hero?.primaryHref || "/free-trial/apply", openRegistration)}>{cms.hero?.primaryLabel || "سجّل منشأتك مجانًا"} <ArrowMark /></a>
+      <OdeirRegistrationModal open={registrationOpen} onClose={closeRegistration} />
+    </main>
+  );
+}
+
+export function OdeirManagerPreview({ cms = {} }: { cms?: LandingCms }) {
+  useReveal();
+  const [registrationOpen, setRegistrationOpen] = useState(false);
+  const [showMobileCta, setShowMobileCta] = useState(false);
+  const heroShellRef = useRef<HTMLDivElement>(null);
+  const openRegistration = useCallback(() => setRegistrationOpen(true), []);
+  const closeRegistration = useCallback(() => setRegistrationOpen(false), []);
+  useEffect(() => {
+    const hero = heroShellRef.current;
+    const experience = hero?.closest(".odeir-experience");
+    const finalCta = experience?.querySelector<HTMLElement>(".final-cta");
+    if (!hero || !("IntersectionObserver" in window)) return;
+    let heroVisible = true;
+    let finalVisible = false;
+    const update = () => setShowMobileCta(!heroVisible && !finalVisible);
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.target === hero) heroVisible = entry.isIntersecting;
+        if (entry.target === finalCta) finalVisible = entry.isIntersecting;
+      });
+      update();
+    }, { threshold: 0.06, rootMargin: "-64px 0px 0px 0px" });
+    observer.observe(hero);
+    if (finalCta) observer.observe(finalCta);
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <main className="odeir-experience odeir-experience--manager" dir="rtl" data-preview="manager">
+      <div className="hero-shell" ref={heroShellRef}><Header cms={cms} onRegister={openRegistration} variant="manager" /><Hero cms={cms} onRegister={openRegistration} variant="manager" /></div>
+      <ManagerTrustRail />
+      <ProductDemo kickerNumber="01" />
+      <JourneyLab kickerNumber="02" />
+      <ManagerOperationalProof />
+      <ManagerCapabilities />
+      <StoryStrip kickerNumber="05" />
+      <RoleSwitcher kickerNumber="06" />
+      <SecuritySection cms={cms} kickerNumber="07" />
+      <MorningBriefing articles={cms.articles} />
+      <FAQ cms={cms} kickerNumber="08" variant="manager" />
+      <FinalCTA cms={cms} onRegister={openRegistration} variant="manager" />
       <footer className="site-footer">
         <div className="footer-brand"><Brand /><p>تشغيل أوضح وإدارة مترابطة للمنشآت التدريبية.</p></div>
         <nav aria-label="روابط السياسات والمحتوى"><a href={`${APP_ORIGIN}/articles`}>الأخبار والمعارف</a><a href={`${APP_ORIGIN}/p/privacy-policy`}>الخصوصية</a><a href={`${APP_ORIGIN}/p/information-security`}>أمن المعلومات</a><a href={`${APP_ORIGIN}/p/terms-of-use`}>شروط الاستخدام</a><a href={`${APP_ORIGIN}/p/data-rights`}>حقوق البيانات</a></nav>

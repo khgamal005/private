@@ -1,0 +1,845 @@
+.odeir-experience--manager {
+  --manager-navy: #041a34;
+  --manager-ink: #0b2138;
+  --manager-muted: #607387;
+  --manager-surface: #f7faf9;
+  --manager-line: rgba(10, 40, 65, .11);
+  background: var(--manager-surface);
+}
+
+.odeir-experience--manager #product,
+.odeir-experience--manager #journey,
+.odeir-experience--manager #manager-proof,
+.odeir-experience--manager #capabilities,
+.odeir-experience--manager #story,
+.odeir-experience--manager #security,
+.odeir-experience--manager #morning-brief {
+  scroll-margin-top: 28px;
+}
+
+.odeir-experience--manager .hero-shell {
+  background:
+    radial-gradient(circle at 13% 19%, rgba(4, 208, 193, .16), transparent 27%),
+    radial-gradient(circle at 84% 74%, rgba(61, 130, 222, .18), transparent 30%),
+    linear-gradient(145deg, #020d20 0%, #051c39 52%, #04162f 100%);
+}
+
+.odeir-experience--manager .site-header {
+  max-width: 1380px;
+}
+
+.odeir-experience--manager .main-nav {
+  gap: clamp(14px, 1.7vw, 28px);
+}
+
+.odeir-experience--manager .main-nav a {
+  font-size: 13px;
+}
+
+.odeir-experience--manager .odeir-home-hero {
+  max-width: 1380px;
+  min-height: 720px;
+  padding-block: 72px 92px;
+  gap: clamp(44px, 5.4vw, 82px);
+  background: transparent;
+  box-shadow: none;
+}
+
+.odeir-experience--manager .hero-copy h1 {
+  max-width: 760px;
+  margin-block: 23px 22px;
+  font-size: clamp(45px, 4.3vw, 62px);
+  line-height: 1.18;
+  letter-spacing: -.045em;
+}
+
+.odeir-experience--manager .hero-copy > p {
+  max-width: 680px;
+  color: #d2ddea;
+  font-size: 17px;
+  line-height: 1.9;
+}
+
+.odeir-experience--manager .hero-trust {
+  color: #bdcada;
+  font-size: 11px;
+}
+
+.odeir-experience--manager .hero-snapshot {
+  width: min(100%, 555px);
+  border-color: rgba(128, 196, 225, .28);
+  box-shadow: 0 34px 84px rgba(0, 6, 20, .47), 0 0 0 1px rgba(255,255,255,.05);
+}
+
+.odeir-experience--manager .manager-trust-rail {
+  position: relative;
+  z-index: 5;
+  border-bottom: 1px solid var(--manager-line);
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 20px 52px rgba(8, 30, 52, .055);
+}
+
+.odeir-experience--manager .manager-trust-inner {
+  min-height: 126px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.odeir-experience--manager .manager-trust-inner article {
+  position: relative;
+  min-width: 0;
+  padding: 28px 24px;
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  align-items: center;
+  gap: 13px;
+  border-left: 1px solid var(--manager-line);
+}
+
+.odeir-experience--manager .manager-trust-inner article:last-child {
+  border-left: 0;
+}
+
+.odeir-experience--manager .manager-trust-inner article > span {
+  color: #a7b4c0;
+  font-family: var(--font-latin), Arial, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.odeir-experience--manager .manager-trust-inner article > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.odeir-experience--manager .manager-trust-inner article b {
+  color: #132d46;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.odeir-experience--manager .manager-trust-inner article small {
+  color: #748597;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.odeir-experience--manager .manager-trust-inner article > i {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(8, 200, 187, .28);
+  border-radius: 50%;
+  background: #effbf9;
+}
+
+.odeir-experience--manager .manager-trust-inner article > i::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 4px;
+  left: 8px;
+  top: 8px;
+  border-left: 2px solid #0aa79d;
+  border-bottom: 2px solid #0aa79d;
+  transform: rotate(-45deg);
+}
+
+.odeir-experience--manager .product-section {
+  padding-block: 112px 124px;
+}
+
+.odeir-experience--manager .journey-section {
+  padding-block: 112px 122px;
+}
+
+.odeir-experience--manager .journey-phase small {
+  font-size: 10px;
+}
+
+.odeir-experience--manager .journey-step small {
+  font-size: 9px;
+}
+
+.odeir-experience--manager .journey-stage-facts b {
+  font-size: 11.5px;
+}
+
+.odeir-experience--manager .journey-disclaimer {
+  max-width: 920px;
+  font-size: 10.5px;
+}
+
+.odeir-experience--manager .manager-proof-section {
+  position: relative;
+  overflow: hidden;
+  padding-block: 120px 128px;
+  background:
+    radial-gradient(circle at 7% 8%, rgba(8, 200, 187, .09), transparent 25%),
+    linear-gradient(155deg, #f8fbfa 0%, #edf5f3 54%, #f8faf9 100%);
+}
+
+.odeir-experience--manager .manager-proof-section::before {
+  content: "";
+  position: absolute;
+  width: 430px;
+  height: 430px;
+  left: -280px;
+  bottom: -260px;
+  border: 1px solid rgba(8, 200, 187, .16);
+  border-radius: 50%;
+  box-shadow: 0 0 0 58px rgba(8, 200, 187, .035), 0 0 0 116px rgba(8, 200, 187, .025);
+}
+
+.odeir-experience--manager .manager-proof-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.odeir-experience--manager .manager-proof-heading,
+.odeir-experience--manager .manager-capabilities-heading {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: 1.08fr .72fr;
+  align-items: end;
+  gap: clamp(44px, 7vw, 96px);
+}
+
+.odeir-experience--manager .manager-proof-heading h2,
+.odeir-experience--manager .manager-capabilities-heading h2 {
+  margin: 0;
+  color: var(--manager-ink);
+  font-size: clamp(40px, 4.1vw, 58px);
+  line-height: 1.22;
+  letter-spacing: -.045em;
+}
+
+.odeir-experience--manager .manager-proof-heading h2 span,
+.odeir-experience--manager .manager-capabilities-heading h2 span {
+  color: #0b8f86;
+}
+
+.odeir-experience--manager .manager-proof-heading p,
+.odeir-experience--manager .manager-capabilities-heading > p {
+  margin: 0;
+  color: #506477;
+  font-size: 15px;
+  line-height: 1.95;
+}
+
+.odeir-experience--manager .manager-proof-board {
+  margin-top: 58px;
+  padding: 28px;
+  overflow: hidden;
+  border: 1px solid rgba(99, 194, 201, .25);
+  border-radius: 36px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 9% 0%, rgba(11, 209, 194, .13), transparent 28%),
+    linear-gradient(145deg, rgba(2, 15, 34, .98), rgba(5, 31, 59, .96));
+  box-shadow: 0 34px 90px rgba(6, 31, 50, .22);
+}
+
+.odeir-experience--manager .manager-proof-board > header {
+  min-height: 46px;
+  padding: 0 5px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid rgba(255,255,255,.09);
+}
+
+.odeir-experience--manager .manager-proof-board > header span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #d7e4ee;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.odeir-experience--manager .manager-proof-board > header span i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 0 6px rgba(8,200,187,.12), 0 0 22px rgba(8,200,187,.5);
+}
+
+.odeir-experience--manager .manager-proof-board > header small {
+  color: #8197ab;
+  font-size: 9px;
+}
+
+.odeir-experience--manager .manager-proof-compare {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.odeir-experience--manager .manager-proof-column {
+  min-width: 0;
+  padding: 25px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 24px;
+  background: rgba(255,255,255,.035);
+}
+
+.odeir-experience--manager .manager-proof-column--after {
+  border-color: rgba(37, 219, 207, .28);
+  background: linear-gradient(145deg, rgba(8,200,187,.11), rgba(255,255,255,.035));
+}
+
+.odeir-experience--manager .manager-proof-column > div {
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.odeir-experience--manager .manager-proof-column > div span {
+  color: #7f94a8;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.odeir-experience--manager .manager-proof-column--after > div span {
+  color: #58ded5;
+}
+
+.odeir-experience--manager .manager-proof-column h3 {
+  margin: 6px 0 0;
+  color: #fff;
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+.odeir-experience--manager .manager-proof-column > p {
+  margin: 0;
+  padding: 16px 0;
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr);
+  align-items: start;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+
+.odeir-experience--manager .manager-proof-column > p:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.odeir-experience--manager .manager-proof-column > p > i {
+  width: 9px;
+  height: 9px;
+  margin-top: 7px;
+  border: 2px solid #71869b;
+  border-radius: 50%;
+}
+
+.odeir-experience--manager .manager-proof-column--after > p > i {
+  border-color: #42d9cf;
+  background: #42d9cf;
+  box-shadow: 0 0 0 5px rgba(66,217,207,.1);
+}
+
+.odeir-experience--manager .manager-proof-column > p > span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.odeir-experience--manager .manager-proof-column p b {
+  color: #dbe6ef;
+  font-size: 12px;
+}
+
+.odeir-experience--manager .manager-proof-column p small {
+  color: #8fa3b6;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.odeir-experience--manager .manager-proof-column--after p small {
+  color: #b8cbd8;
+}
+
+.odeir-experience--manager .manager-proof-lifecycle {
+  position: relative;
+  margin-top: 18px;
+  padding-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0,1fr));
+  gap: 9px;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.odeir-experience--manager .manager-proof-lifecycle > span {
+  position: relative;
+  min-width: 0;
+  min-height: 112px;
+  padding: 15px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 17px;
+  background: rgba(255,255,255,.035);
+}
+
+.odeir-experience--manager .manager-proof-lifecycle > span::after {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  width: 8px;
+  height: 1px;
+  background: rgba(64, 218, 209, .42);
+}
+
+.odeir-experience--manager .manager-proof-lifecycle > span:last-child::after {
+  display: none;
+}
+
+.odeir-experience--manager .manager-proof-lifecycle i {
+  color: #4ddbd2;
+  font-family: var(--font-latin), Arial, sans-serif;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.odeir-experience--manager .manager-proof-lifecycle b {
+  color: #edf4f8;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.odeir-experience--manager .manager-proof-lifecycle small {
+  color: #8298ab;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.odeir-experience--manager .manager-proof-note {
+  margin: 18px 4px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  color: #91a6b7;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.75;
+}
+
+.odeir-experience--manager .manager-proof-note > i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--yellow);
+  box-shadow: 0 0 0 5px rgba(245,201,52,.09);
+}
+
+.odeir-experience--manager .manager-capabilities-section {
+  padding-block: 116px 126px;
+}
+
+.odeir-experience--manager .manager-capabilities-grid {
+  margin-top: 54px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.odeir-experience--manager .manager-capabilities-grid article {
+  position: relative;
+  min-width: 0;
+  min-height: 218px;
+  padding: 27px;
+  overflow: hidden;
+  border: 1px solid var(--manager-line);
+  border-radius: 23px;
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 16px 44px rgba(11, 35, 57, .045);
+  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+}
+
+.odeir-experience--manager .manager-capabilities-grid article:hover {
+  z-index: 2;
+  border-color: rgba(8,200,187,.3);
+  box-shadow: 0 22px 56px rgba(11, 35, 57, .08);
+  transform: translateY(-4px);
+}
+
+.odeir-experience--manager .manager-capabilities-grid article:first-child {
+  border-color: rgba(67, 213, 204, .28);
+  color: #fff;
+  background: linear-gradient(145deg, #073553, #041c38 78%);
+  box-shadow: 0 22px 58px rgba(3, 26, 51, .18);
+}
+
+.odeir-experience--manager .manager-capabilities-grid article:nth-child(7) {
+  border-color: rgba(8,200,187,.25);
+  background: linear-gradient(145deg, #e9faf7, #fff);
+}
+
+.odeir-experience--manager .manager-capability-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(8,200,187,.22);
+  border-radius: 15px;
+  color: #0c8d85;
+  background: #eefaf8;
+}
+
+.odeir-experience--manager .manager-capabilities-grid article:first-child .manager-capability-icon {
+  border-color: rgba(91, 226, 219, .25);
+  color: #8df1eb;
+  background: rgba(29, 204, 194, .1);
+}
+
+.odeir-experience--manager .manager-capability-icon svg {
+  width: 25px;
+  height: 25px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.odeir-experience--manager .manager-capabilities-grid article > i {
+  position: absolute;
+  left: 23px;
+  top: 24px;
+  color: #b1bdc7;
+  font-family: var(--font-latin), Arial, sans-serif;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.odeir-experience--manager .manager-capabilities-grid article:first-child > i {
+  color: #607e94;
+}
+
+.odeir-experience--manager .manager-capabilities-grid h3 {
+  margin: 22px 0 9px;
+  color: #173149;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.odeir-experience--manager .manager-capabilities-grid article:first-child h3 {
+  color: #fff;
+}
+
+.odeir-experience--manager .manager-capabilities-grid p {
+  margin: 0;
+  color: #657688;
+  font-size: 11px;
+  line-height: 1.82;
+}
+
+.odeir-experience--manager .manager-capabilities-grid article:first-child p {
+  color: #a9bdcd;
+}
+
+.odeir-experience--manager .story-section,
+.odeir-experience--manager .roles-section,
+.odeir-experience--manager .faq-section {
+  padding-block: 112px 122px;
+}
+
+.odeir-experience--manager .security-section {
+  padding-block: 112px 104px;
+}
+
+.odeir-experience--manager .security-grid article p {
+  color: #a4b4c4;
+  font-size: 12px;
+}
+
+.odeir-experience--manager .morning-inner {
+  padding-block: 102px 108px;
+}
+
+.odeir-experience--manager .faq-list details > p {
+  color: #556a7d;
+  font-size: 14px;
+}
+
+.odeir-experience--manager .final-cta {
+  padding-block: 112px 122px;
+}
+
+.odeir-experience--manager .final-cta h2 {
+  max-width: 980px;
+  font-size: clamp(44px, 5.1vw, 68px);
+}
+
+@media (max-width: 1100px) {
+  .odeir-experience--manager .manager-trust-inner {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .odeir-experience--manager .manager-trust-inner article:nth-child(2) {
+    border-left: 0;
+  }
+
+  .odeir-experience--manager .manager-trust-inner article:nth-child(-n+2) {
+    border-bottom: 1px solid var(--manager-line);
+  }
+
+  .odeir-experience--manager .manager-proof-heading,
+  .odeir-experience--manager .manager-capabilities-heading {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .odeir-experience--manager .manager-proof-heading p,
+  .odeir-experience--manager .manager-capabilities-heading > p {
+    max-width: 760px;
+  }
+
+  .odeir-experience--manager .manager-proof-lifecycle {
+    grid-template-columns: repeat(3, minmax(0,1fr));
+  }
+
+  .odeir-experience--manager .manager-proof-lifecycle > span:nth-child(3n)::after {
+    display: none;
+  }
+
+  .odeir-experience--manager .manager-capabilities-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 920px) {
+  .odeir-experience--manager .main-nav a {
+    font-size: 14px;
+  }
+
+  .odeir-experience--manager .odeir-home-hero {
+    min-height: auto;
+    padding-block: 54px 84px;
+  }
+
+  .odeir-experience--manager .hero-copy h1 {
+    max-width: 780px;
+    font-size: clamp(42px, 7vw, 58px);
+  }
+
+  .odeir-experience--manager .manager-proof-compare {
+    grid-template-columns: 1fr;
+  }
+
+  .odeir-experience--manager .manager-capabilities-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .odeir-experience--manager .odeir-home-hero {
+    padding: 34px 20px 52px;
+  }
+
+  .odeir-experience--manager .hero-copy h1 {
+    margin-block: 20px 18px;
+    font-size: clamp(33px, 9.5vw, 40px);
+    line-height: 1.22;
+    letter-spacing: -.035em;
+  }
+
+  .odeir-experience--manager .hero-copy > p {
+    font-size: 14px;
+    line-height: 1.82;
+  }
+
+  .odeir-experience--manager .hero-trust {
+    font-size: 9px;
+  }
+
+  .odeir-experience--manager .manager-trust-inner {
+    width: calc(100% - 24px);
+    grid-template-columns: 1fr;
+    padding-block: 7px;
+  }
+
+  .odeir-experience--manager .manager-trust-inner article {
+    min-height: 86px;
+    padding: 17px 11px;
+    border-left: 0;
+    border-bottom: 1px solid var(--manager-line);
+  }
+
+  .odeir-experience--manager .manager-trust-inner article:nth-child(3) {
+    border-bottom: 1px solid var(--manager-line);
+  }
+
+  .odeir-experience--manager .manager-trust-inner article:last-child {
+    border-bottom: 0;
+  }
+
+  .odeir-experience--manager .manager-trust-inner article b {
+    font-size: 11px;
+  }
+
+  .odeir-experience--manager .manager-trust-inner article small {
+    font-size: 8px;
+  }
+
+  .odeir-experience--manager .product-section,
+  .odeir-experience--manager .journey-section,
+  .odeir-experience--manager .story-section,
+  .odeir-experience--manager .roles-section,
+  .odeir-experience--manager .faq-section {
+    padding-block: 76px 82px;
+  }
+
+  .odeir-experience--manager .journey-phase small,
+  .odeir-experience--manager .journey-step small {
+    font-size: 9px;
+  }
+
+  .odeir-experience--manager .journey-stage-facts b {
+    font-size: 10.5px;
+  }
+
+  .odeir-experience--manager .journey-disclaimer {
+    font-size: 9.5px;
+  }
+
+  .odeir-experience--manager .manager-proof-section {
+    padding-block: 76px 84px;
+  }
+
+  .odeir-experience--manager .manager-proof-heading h2,
+  .odeir-experience--manager .manager-capabilities-heading h2 {
+    font-size: clamp(30px, 8.5vw, 36px);
+    line-height: 1.28;
+    letter-spacing: -.035em;
+  }
+
+  .odeir-experience--manager .manager-proof-heading p,
+  .odeir-experience--manager .manager-capabilities-heading > p {
+    font-size: 13px;
+    line-height: 1.82;
+  }
+
+  .odeir-experience--manager .manager-proof-board {
+    width: calc(100% + 4px);
+    margin: 36px -2px 0;
+    padding: 13px;
+    border-radius: 25px;
+  }
+
+  .odeir-experience--manager .manager-proof-board > header {
+    padding: 5px 4px 14px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .odeir-experience--manager .manager-proof-column {
+    padding: 18px;
+    border-radius: 19px;
+  }
+
+  .odeir-experience--manager .manager-proof-column h3 {
+    font-size: 17px;
+  }
+
+  .odeir-experience--manager .manager-proof-column p b {
+    font-size: 11px;
+  }
+
+  .odeir-experience--manager .manager-proof-column p small {
+    font-size: 9.5px;
+  }
+
+  .odeir-experience--manager .manager-proof-lifecycle {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+
+  .odeir-experience--manager .manager-proof-lifecycle > span:nth-child(3n)::after {
+    display: block;
+  }
+
+  .odeir-experience--manager .manager-proof-lifecycle > span:nth-child(2n)::after {
+    display: none;
+  }
+
+  .odeir-experience--manager .manager-proof-lifecycle > span {
+    min-height: 104px;
+    padding: 13px;
+  }
+
+  .odeir-experience--manager .manager-proof-note {
+    font-size: 9px;
+    text-align: right;
+  }
+
+  .odeir-experience--manager .manager-capabilities-section {
+    padding-block: 76px 84px;
+  }
+
+  .odeir-experience--manager .manager-capabilities-grid {
+    margin-top: 34px;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .odeir-experience--manager .manager-capabilities-grid article {
+    min-height: 0;
+    padding: 22px;
+  }
+
+  .odeir-experience--manager .manager-capabilities-grid h3 {
+    margin-top: 18px;
+    font-size: 16px;
+  }
+
+  .odeir-experience--manager .manager-capabilities-grid p {
+    font-size: 10.5px;
+  }
+
+  .odeir-experience--manager .security-section {
+    padding-block: 76px 68px;
+  }
+
+  .odeir-experience--manager .security-grid article p {
+    font-size: 11.5px;
+  }
+
+  .odeir-experience--manager .morning-inner {
+    padding-block: 76px 82px;
+  }
+
+  .odeir-experience--manager .faq-list details > p {
+    font-size: 12.5px;
+  }
+
+  .odeir-experience--manager .final-cta {
+    padding-block: 84px 96px;
+  }
+
+  .odeir-experience--manager .final-cta h2 {
+    font-size: clamp(31px, 9vw, 39px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .odeir-experience--manager .manager-capabilities-grid article:hover {
+    transform: none;
+  }
+}

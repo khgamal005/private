@@ -8,6 +8,14 @@ import {
   recordWooSyncPage,
   wooSyncCompletion
 } from '../_shared/woocommerce-sync-machine.mjs';
+import {
+  retryableWooRpcFailure,
+  safeWooRpcDiagnostic,
+  wooCheckpointRetryPolicy
+} from '../_shared/woocommerce-sync-failure-policy.mjs';
+import {
+  prepareWooJsonbItems
+} from '../_shared/woocommerce-jsonb-safety.mjs';
 
 type Json =
   | null
@@ -83,7 +91,6 @@ type DurableClaim = {
   scope: WooEntity[];
   cursor: JsonRecord;
   checkpointSeq: number;
-  attemptCount: number;
 };
 
 declare const EdgeRuntime: {
@@ -139,9 +146,23 @@ class IntegrationError extends Error {
 }
 
 class RpcError extends IntegrationError {
-  constructor(name: string, status: number) {
-    super(`woocommerce_rpc_${name}_${status}`, status === 401 ? 401 : 500);
+  rpcStatus: number;
+  databaseCode: string;
+
+  constructor(name: string, status: number, payload: string) {
+    const diagnostic = safeWooRpcDiagnostic(payload);
+    const databaseCode = diagnostic.databaseCode;
+    const suffix = [databaseCode, diagnostic.messageCode]
+      .filter(Boolean)
+      .map(code => `_${code}`)
+      .join('');
+    super(
+      `woocommerce_rpc_${name}_${status}${suffix}`,
+      status === 401 ? 401 : 500
+    );
     this.name = 'RpcError';
+    this.rpcStatus = status;
+    this.databaseCode = databaseCode;
   }
 }
 
@@ -369,7 +390,7 @@ async function rpc(
     redirect: 'error'
   });
   const payload = await response.text();
-  if (!response.ok) throw new RpcError(name, response.status);
+  if (!response.ok) throw new RpcError(name, response.status, payload);
   return payload ? parseJsonSafely(payload) : null;
 }
 
@@ -1429,7 +1450,7 @@ async function storeBatch(
     p_connection_id: connectionId,
     p_run_id: runId,
     p_entity_type: entityType,
-    p_items: items,
+    p_items: prepareWooJsonbItems(items),
     p_cursor: cursor as unknown as JsonRecord,
     p_has_more: hasMore
   });
@@ -1999,9 +2020,6 @@ function durableClaim(value: Json): DurableClaim | null {
   const checkpointSeq = nonNegativeInteger(
     recordValue(record, 'checkpointSeq', 'checkpoint_seq')
   );
-  const attemptCount = nonNegativeInteger(
-    recordValue(record, 'attemptCount', 'attempt_count')
-  );
   const scope = scopeValues(recordValue(record, 'scope'));
   if (
     !isUuid(runId)
@@ -2010,7 +2028,6 @@ function durableClaim(value: Json): DurableClaim | null {
     || !cursor
     || !isWooSyncCursor(cursor)
     || checkpointSeq == null
-    || attemptCount == null
     || !scope.length
   ) {
     throw new IntegrationError('woocommerce_sync_claim_invalid', 500);
@@ -2021,8 +2038,7 @@ function durableClaim(value: Json): DurableClaim | null {
     workerId,
     scope,
     cursor,
-    checkpointSeq,
-    attemptCount
+    checkpointSeq
   };
 }
 
@@ -2130,7 +2146,7 @@ async function storeDurablePage(
     p_worker_id: claim.workerId,
     p_expected_seq: claim.checkpointSeq,
     p_entity_type: entityType,
-    p_items: items,
+    p_items: prepareWooJsonbItems(items),
     p_next_cursor: nextCursor,
     p_has_more: true
   });
@@ -2313,6 +2329,12 @@ async function processDurableStep(
 
 function retryableDurableError(error: unknown) {
   if (!(error instanceof IntegrationError)) return true;
+  if (error instanceof RpcError) {
+    return retryableWooRpcFailure({
+      httpStatus: error.rpcStatus,
+      databaseCode: error.databaseCode
+    });
+  }
   return error.code === 'woocommerce_remote_unavailable'
     || error.code === 'woocommerce_store_dns_unavailable'
     || /^woocommerce_remote_http_(408|429|500|502|503|504)$/.test(error.code);
@@ -2324,15 +2346,8 @@ async function settleDurableFailure(
   error: unknown
 ) {
   const retryCount = nonNegativeInteger(claim.cursor.retryCount) || 0;
-  if (error instanceof RpcError) {
-    // A failed checkpoint/complete RPC may have committed even when its
-    // response was lost. Leave the lease in place so recovery re-reads the
-    // authoritative cursor instead of mutating the claimed page twice. Bound
-    // deterministic RPC failures so a broken deployment cannot block the
-    // connection forever.
-    if (claim.attemptCount < 8) return;
-  }
-  if (retryableDurableError(error) && retryCount < 5) {
+  const retryPolicy = wooCheckpointRetryPolicy(retryCount);
+  if (retryableDurableError(error) && retryPolicy.retry) {
     try {
       await rpcAsService(keys, 'v3_woocommerce_release_run', {
         p_connection_id: claim.connectionId,
@@ -2340,10 +2355,11 @@ async function settleDurableFailure(
         p_worker_id: claim.workerId,
         p_expected_seq: claim.checkpointSeq,
         p_error: safeErrorCode(error),
-        p_delay_seconds: Math.min(60 * (2 ** retryCount), 900)
+        p_delay_seconds: retryPolicy.delaySeconds
       });
     } catch {
-      // An expired lease lets the recovery dispatcher resume safely.
+      // CAS rejects release if the prior RPC committed despite an uncertain
+      // response. Lease recovery then re-reads the authoritative cursor.
     }
     return;
   }

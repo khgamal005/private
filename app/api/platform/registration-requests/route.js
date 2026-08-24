@@ -1,11 +1,15 @@
 import {NextResponse} from 'next/server';
+import {createHash} from 'node:crypto';
 import {accessToken} from '../../../../lib/server-auth';
 import {SUPABASE_KEY,SUPABASE_URL} from '../../../../lib/config';
 
 const MAX_BODY_BYTES=16*1024;
+const MAX_DIRECTORY_RESPONSE_BYTES=128*1024;
+const DIRECTORY_API='https://jultamrxwrgzohoktbgr.supabase.co/functions/v1/marktone-free-trial';
 const TRUST_ACTIONS=new Set(['trust_start','trust_approve','trust_restrict']);
 const ACTIONS=new Set([
-  'start_review','approve','reject','reopen','provision',...TRUST_ACTIONS
+  'start_review','approve','reject','reopen','provision',...TRUST_ACTIONS,
+  'approve_and_activate'
 ]);
 const STATUSES=new Set([
   'pending_review','under_review','approved','rejected','converted'
@@ -75,24 +79,87 @@ export async function POST(request){
     if(requiresReason&&String(notes||'').length<3){
       return jsonError('اكتب سببًا واضحًا للقرار','registration_reason_required',400);
     }
-    const payload=action==='provision'
+    let payload=action==='provision'
       ?provisionPayload(body.payload)
+      :action==='approve_and_activate'
+        ?activationPayload(body.payload)
       :action==='reject'
         ?{category:clean(body.category,60)||null}
         :{};
     if(payload.error)return payload.error;
 
     const trustAction=TRUST_ACTIONS.has(action);
+    if(action==='approve_and_activate'){
+      const detailResult=await rpc(token,'v1_platform_registration_request_detail',{
+        p_request_id:requestId
+      });
+      const requestRow=registrationRequestOf(detailResult.data);
+      if(!requestRow){
+        return jsonError('طلب التسجيل غير موجود','registration_request_not_found',404);
+      }
+      const state=clean(valueOf(requestRow,[
+        'institutionState','institution_state'
+      ]),24).toLowerCase();
+      const status=clean(valueOf(requestRow,['status','requestStatus','request_status']),32)
+        .toLowerCase();
+      const provisionedTenantId=clean(valueOf(requestRow,[
+        'provisionedTenantId','provisioned_tenant_id','tenantId','tenant_id'
+      ]),64);
+      const completedReplay=status==='converted'&&isUuid(provisionedTenantId);
+      if(!completedReplay&&!['new','existing'].includes(state)){
+        return jsonError(
+          'نوع طلب المنشأة غير صالح للتفعيل',
+          'registration_institution_state_invalid',
+          409
+        );
+      }
+      if(!completedReplay&&state==='new'&&payload.resolution!=='create_new'){
+        return jsonError(
+          'طلب المنشأة الجديدة لا يمكن ربطه بمساحة قائمة',
+          'registration_activation_resolution_invalid',
+          400
+        );
+      }
+      if(!completedReplay&&state==='existing'){
+        const externalAccountId=clean(valueOf(requestRow,[
+          'externalAccountId','external_account_id','accountId','account_id'
+        ]),64).toLowerCase();
+        const institutionName=clean(valueOf(requestRow,[
+          'institutionName','institution_name','organizationName','organization_name'
+        ]),240);
+        if(!isUuid(externalAccountId)){
+          return jsonError(
+            'تعذر التحقق من هوية المنشأة القائمة',
+            'registration_external_account_required',
+            409
+          );
+        }
+        payload={
+          ...payload,
+          serverVerifiedExternalAccount:await verifyDirectoryInstitution({
+            externalAccountId,
+            institutionName
+          })
+        };
+      }
+    }
     const result=await rpc(
       token,
       trustAction
         ?'v1_platform_registration_trust_action'
-        :'v1_platform_registration_request_action',
+        :action==='approve_and_activate'
+          ?'v1_platform_registration_approve_and_activate'
+          :'v1_platform_registration_request_action',
       trustAction?{
         p_request_id:requestId,
         p_action:action,
         p_expected_version:expectedVersion,
         p_notes:notes
+      }:action==='approve_and_activate'?{
+        p_request_id:requestId,
+        p_expected_version:expectedVersion,
+        p_notes:notes,
+        p_payload:payload
       }:{
         p_request_id:requestId,
         p_action:action,
@@ -106,6 +173,50 @@ export async function POST(request){
   }catch(error){
     return unexpected(error);
   }
+}
+
+function activationPayload(source){
+  const body=source&&typeof source==='object'&&!Array.isArray(source)?source:{};
+  const resolution=clean(body.resolution,32).toLowerCase();
+  if(!['create_new','link_existing'].includes(resolution)){
+    return {error:jsonError(
+      'اختر إنشاء مساحة مستقلة أو ربط مساحة قائمة',
+      'registration_activation_resolution_required',
+      400
+    )};
+  }
+  if(resolution==='link_existing'){
+    const targetTenantSlug=clean(body.targetTenantSlug,80).toLowerCase();
+    if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(targetTenantSlug)){
+      return {error:jsonError(
+        'الرابط المختصر للمساحة القائمة غير صالح',
+        'registration_target_tenant_invalid',
+        400
+      )};
+    }
+    return {
+      resolution,
+      identityVerified:true,
+      confirmedNoExistingTenant:false,
+      targetTenantSlug
+    };
+  }
+  if(body.confirmedNoExistingTenant!==true){
+    return {error:jsonError(
+      'يلزم تأكيد عدم وجود مساحة أودير قائمة قبل الإنشاء',
+      'registration_no_existing_tenant_confirmation_required',
+      400
+    )};
+  }
+  const provision=provisionPayload(body);
+  if(provision.error)return provision;
+  return {
+    ...provision,
+    resolution,
+    identityVerified:true,
+    confirmedNoExistingTenant:true,
+    targetTenantSlug:null
+  };
 }
 
 async function rpc(token,name,body){
@@ -186,6 +297,151 @@ function provisionPayload(source){
   };
 }
 
+async function verifyDirectoryInstitution({externalAccountId,institutionName}){
+  let response;
+  try{
+    response=await fetch(DIRECTORY_API,{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({action:'details',accountId:externalAccountId}),
+      cache:'no-store',
+      credentials:'omit',
+      redirect:'error',
+      referrerPolicy:'no-referrer',
+      signal:AbortSignal.timeout(8_000)
+    });
+  }catch(error){
+    throw new PublicError(
+      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
+      'directory_verification_unavailable',
+      503,
+      error instanceof Error?error.name:'UnknownError'
+    );
+  }
+  const declared=Number(response.headers.get('content-length')||0);
+  if(declared>MAX_DIRECTORY_RESPONSE_BYTES){
+    throw new PublicError(
+      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
+      'directory_verification_unavailable',
+      503,
+      'ResponseTooLarge'
+    );
+  }
+  const raw=await response.text();
+  if(Buffer.byteLength(raw,'utf8')>MAX_DIRECTORY_RESPONSE_BYTES){
+    throw new PublicError(
+      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
+      'directory_verification_unavailable',
+      503,
+      'ResponseTooLarge'
+    );
+  }
+  let result={};
+  try{result=raw?JSON.parse(raw):{};}catch{
+    throw new PublicError(
+      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
+      'directory_verification_unavailable',
+      503,
+      'InvalidJson'
+    );
+  }
+  if(!response.ok){
+    throw new PublicError(
+      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
+      'directory_verification_unavailable',
+      503,
+      `Http${response.status}`
+    );
+  }
+  const institution=result?.institution;
+  if(result?.ok!==true||!institution
+     ||Array.isArray(institution)||typeof institution!=='object'){
+    throw new PublicError(
+      'لم نتمكن من مطابقة المنشأة مع السجل الرسمي؛ راجع الطلب قبل التفعيل',
+      'directory_identity_mismatch',
+      409,
+      'InstitutionMissing'
+    );
+  }
+  const returnedId=clean(valueOf(institution,[
+    'id','accountId','account_id','externalAccountId','external_account_id'
+  ]),64).toLowerCase();
+  const returnedName=clean(valueOf(institution,[
+    'name','institutionName','institution_name','organizationName','organization_name'
+  ]),240);
+  if(returnedId!==externalAccountId
+     ||!returnedName
+     ||normalizeInstitutionName(returnedName)!==normalizeInstitutionName(institutionName)){
+    throw new PublicError(
+      'لم نتمكن من مطابقة المنشأة مع السجل الرسمي؛ راجع الطلب قبل التفعيل',
+      'directory_identity_mismatch',
+      409,
+      'IdentityMismatch'
+    );
+  }
+  const officialIdentifiers={
+    commercialRegistration:officialIdentifier(valueOf(institution,[
+      'commercialRegistration','commercial_registration','crNumber','cr_number'
+    ])),
+    nationalRegistration:officialIdentifier(valueOf(institution,[
+      'nationalRegistration','national_registration','nationalNumber','national_number'
+    ])),
+    tvtcLicense:officialIdentifier(valueOf(institution,[
+      'tvtcLicense','tvtc_license','tvtcLicenseNumber','tvtc_license_number',
+      'trainingLicense','training_license'
+    ]))
+  };
+  const canonicalEvidence={
+    sourceSystem:'marktone_directory',
+    accountId:externalAccountId,
+    institutionName:normalizeInstitutionName(returnedName),
+    officialIdentifiers
+  };
+  return {
+    sourceSystem:'marktone_directory',
+    accountId:externalAccountId,
+    institutionName:returnedName,
+    officialIdentifiers,
+    evidenceHash:createHash('sha256')
+      .update(JSON.stringify(canonicalEvidence),'utf8')
+      .digest('hex')
+  };
+}
+
+function registrationRequestOf(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return null;
+  const candidate=value.request||value.item||value.registrationRequest
+    ||value.registration_request||value;
+  return candidate&&typeof candidate==='object'&&!Array.isArray(candidate)
+    ?candidate
+    :null;
+}
+
+function normalizeInstitutionName(value){
+  return clean(value,240)
+    .toLocaleLowerCase('ar')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function officialIdentifier(value){
+  const normalized=clean(value,80)
+    .replace(/[٠-٩]/g,digit=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .replace(/[۰-۹]/g,digit=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .toUpperCase()
+    .replace(/\s+/g,'')
+    .replace(/[^A-Z0-9._/-]/g,'');
+  return normalized||null;
+}
+
+function valueOf(source,keys,fallback=''){
+  for(const key of keys){
+    const value=source?.[key];
+    if(value!==undefined&&value!==null&&value!=='')return value;
+  }
+  return fallback;
+}
+
 function withInvitationUrl(value,request){
   if(!value||typeof value!=='object'||Array.isArray(value))return value;
   const provisioning=value.provisioning;
@@ -209,11 +465,14 @@ function withInvitationUrl(value,request){
 function translatedStatus(source,fallback){
   if(source.includes('forbidden'))return 403;
   if(source.includes('not_found'))return 404;
-  if(source.includes('conflict')||source.includes('transition_invalid')
+  if(source.includes('conflict'))return 409;
+  if(source.includes('transition_invalid')
      ||source.includes('already_provisioned')||source.includes('slug_exists')
-     ||source.includes('domain_exists'))return 409;
+     ||source.includes('domain_exists')||source.includes('_claimed')
+     ||source.includes('_mismatch')
+     ||source.includes('atomic_activation')||source.includes('manual_activation'))return 409;
   if(Number(fallback)===401)return 401;
-  if(source.includes('_invalid')||source.includes('_required')
+  if(source.includes('_invalid')||source.includes('_required')||source.includes('_missing')
      ||source.includes('plan_not_found'))return 400;
   return 503;
 }
@@ -233,6 +492,30 @@ function translate(source){
     registration_existing_institution_requires_manual_link:'المنشأة القائمة تحتاج تحققًا وربطًا يدويًا، ولن تُنشأ لها مساحة مكررة',
     registration_email_activation_managed:'هذا الطلب يتبع مسار تأكيد البريد ولا يقبل إجراءات التسجيل اليدوية',
     registration_identifier_already_provisioned:'هذه الهوية مرتبطة بمساحة منشأة أُنشئت مسبقًا',
+    registration_manual_activation_required:'هذا الطلب يتطلب مسار الاعتماد والتفعيل اليدوي الموحد',
+    registration_atomic_activation_required:'استخدم إجراء «اعتماد وتفعيل» حتى لا يبقى الطلب في حالة ناقصة',
+    registration_activation_target_missing:'تعذر تحديد مساحة المنشأة المستهدفة',
+    registration_identity_verification_required:'يلزم تأكيد مراجعة هوية المنشأة',
+    registration_activation_resolution_required:'اختر إنشاء مساحة مستقلة أو ربط مساحة قائمة',
+    registration_activation_resolution_invalid:'طريقة معالجة الطلب لا تطابق نوع المنشأة',
+    registration_institution_state_invalid:'نوع طلب المنشأة غير صالح للتفعيل',
+    registration_new_institution_link_invalid:'طلب المنشأة الجديدة لا يمكن ربطه بمساحة قائمة',
+    registration_no_existing_tenant_confirmation_required:'يلزم تأكيد عدم وجود مساحة أودير قائمة قبل الإنشاء',
+    registration_external_account_required:'تعذر التحقق من هوية المنشأة القائمة',
+    registration_external_account_invalid:'معرّف المنشأة في السجل الرسمي غير صالح',
+    registration_external_account_mismatch:'معرّف المنشأة لا يطابق الطلب المحفوظ',
+    registration_external_account_already_claimed:'سجل المنشأة الرسمي مرتبط بالفعل بمساحة أخرى',
+    registration_server_verification_required:'تعذر إثبات التحقق الخادمي من سجل المنشأة',
+    registration_external_source_invalid:'مصدر سجل المنشأة غير معتمد',
+    registration_external_institution_mismatch:'اسم المنشأة لا يطابق السجل الرسمي المحفوظ',
+    registration_external_evidence_invalid:'بصمة دليل التحقق غير صالحة',
+    registration_official_identifiers_invalid:'تعذر اعتماد المعرّفات الرسمية للمنشأة',
+    registration_new_institution_external_account_invalid:'طلب المنشأة الجديدة يحتوي ارتباطًا رسميًا غير متوقع',
+    registration_target_tenant_required:'حدد الرابط المختصر لمساحة أودير القائمة',
+    registration_target_tenant_invalid:'الرابط المختصر للمساحة القائمة غير صالح',
+    registration_target_tenant_not_found:'لم يتم العثور على مساحة أودير نشطة بهذا الرابط',
+    registration_target_tenant_already_claimed:'المساحة القائمة مرتبطة بالفعل بطلب تسجيل آخر',
+    registration_created_tenant_activation_failed:'تعذر إكمال تفعيل المساحة الجديدة؛ لم يُحفظ الطلب كمنشأة مفعّلة',
     display_name_required:'اسم المنشأة مطلوب',
     invalid_slug:'الرابط المختصر غير صالح',
     slug_exists:'هذا الرابط المختصر مستخدم بالفعل',
@@ -247,6 +530,13 @@ function translate(source){
 }
 
 function unexpected(error){
+  if(error instanceof PublicError){
+    console.error('platform_registration_directory_verification_failed',{
+      publicCode:error.code,
+      failureClass:error.failureClass
+    });
+    return jsonError(error.publicMessage,error.code,error.status);
+  }
   if(error instanceof RpcError){
     console.error('platform_registration_rpc_failed',{
       rpcName:error.rpcName,
@@ -289,6 +579,30 @@ class RpcError extends Error{
       registration_transition_invalid:1,
       registration_trust_transition_invalid:1,
       registration_trust_target_invalid:1,
+      registration_activation_resolution_required:1,
+      registration_activation_resolution_invalid:1,
+      registration_institution_state_invalid:1,
+      registration_manual_activation_required:1,
+      registration_atomic_activation_required:1,
+      registration_activation_target_missing:1,
+      registration_identity_verification_required:1,
+      registration_new_institution_link_invalid:1,
+      registration_no_existing_tenant_confirmation_required:1,
+      registration_external_account_required:1,
+      registration_external_account_invalid:1,
+      registration_external_account_mismatch:1,
+      registration_external_account_already_claimed:1,
+      registration_server_verification_required:1,
+      registration_external_source_invalid:1,
+      registration_external_institution_mismatch:1,
+      registration_external_evidence_invalid:1,
+      registration_official_identifiers_invalid:1,
+      registration_new_institution_external_account_invalid:1,
+      registration_target_tenant_required:1,
+      registration_target_tenant_invalid:1,
+      registration_target_tenant_not_found:1,
+      registration_target_tenant_already_claimed:1,
+      registration_created_tenant_activation_failed:1,
       registration_request_not_found:1,
       forbidden:1
     }).find(code=>source.includes(code))||(status===503?'service_unavailable':'request_failed');
@@ -296,5 +610,15 @@ class RpcError extends Error{
     this.rpcName=rpcName;
     this.databaseCode=databaseCode;
     this.responseStatus=responseStatus;
+  }
+}
+
+class PublicError extends Error{
+  constructor(publicMessage,code,status,failureClass){
+    super(code);
+    this.publicMessage=publicMessage;
+    this.code=code;
+    this.status=status;
+    this.failureClass=failureClass;
   }
 }

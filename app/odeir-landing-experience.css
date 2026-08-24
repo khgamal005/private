@@ -500,60 +500,148 @@
 .odeir-experience .report-bars { height: 110px; margin-top: 25px; display: flex; align-items: end; justify-content: space-around; gap: 9px; border-bottom: 1px solid #e3e8ed; background-image: linear-gradient(#edf1f4 1px, transparent 1px); background-size: 100% 25%; }
 .odeir-experience .report-bars i { width: 8%; max-width: 22px; border-radius: 5px 5px 0 0; background: linear-gradient(to top, #0ea99f, #88e6dc); }
 
-.odeir-experience .journey-section { padding: 140px 0 130px; color: #fff; overflow: hidden; background: radial-gradient(circle at 15% 20%, rgba(8,200,187,.12), transparent 25%), linear-gradient(150deg, #031329, #061f40 65%, #031126); }
+.odeir-experience .integration-action-section { position: relative; padding: 140px 0 130px; color: #fff; overflow: hidden; background: radial-gradient(circle at 82% 15%, rgba(8,200,187,.13), transparent 25%), radial-gradient(circle at 14% 82%, rgba(37,108,197,.12), transparent 25%), linear-gradient(148deg, #031127, #051d3b 64%, #031126); }
+.odeir-experience .integration-action-section::before { content: ""; position: absolute; inset: 0; opacity: .1; background-image: linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px); background-size: 76px 76px; mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 80%, transparent); }
+.odeir-experience .integration-action-inner { position: relative; z-index: 1; }
+.odeir-experience .integration-action-heading { margin-top: 28px; display: grid; grid-template-columns: 1.1fr .72fr; align-items: end; gap: 90px; }
+.odeir-experience .integration-action-heading h2 { color: #fff; }
+.odeir-experience .integration-action-heading h2 span { color: var(--teal-soft); }
+.odeir-experience .integration-action-heading p { color: #9fb2c5; }
+.odeir-experience .integration-action-picker { margin-top: 60px; display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 10px; }
+.odeir-experience .integration-action-choice { min-width: 0; min-height: 82px; padding: 13px 16px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; text-align: right; border: 1px solid rgba(255,255,255,.11); border-radius: 15px; color: #fff; background: rgba(255,255,255,.035); cursor: pointer; transition: transform .25s ease, border-color .25s ease, background .25s ease, box-shadow .25s ease; }
+.odeir-experience .integration-action-choice:hover, .odeir-experience .integration-action-choice.is-active { transform: translateY(-3px); border-color: rgba(8,200,187,.52); background: rgba(8,200,187,.08); box-shadow: 0 14px 32px rgba(0,7,23,.26); }
+.odeir-experience .integration-action-choice:focus-visible, .odeir-experience .integration-action-step:focus-visible, .odeir-experience .integration-action-topbar button:focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; }
+.odeir-experience .integration-action-choice > i, .odeir-experience .integration-action-source-logo { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: #06203d; background: #eef4fa; font-size: 12px; font-style: normal; font-weight: 950; direction: ltr; }
+.odeir-experience .integration-action-choice > span { min-width: 0; display: grid; }
+.odeir-experience .integration-action-choice b { overflow: hidden; color: #eef6fc; font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
+.odeir-experience .integration-action-choice small { margin-top: 4px; color: #8198ae; font-size: 7px; }
+.odeir-experience .integration-action-choice--meta > i, .odeir-experience .integration-action-source-logo--meta { color: #087cf0; background: #eaf4ff; font-size: 23px; }
+.odeir-experience .integration-action-choice--whatsapp > i, .odeir-experience .integration-action-source-logo--whatsapp { color: #fff; background: #20c76b; }
+.odeir-experience .integration-action-choice--salla > i, .odeir-experience .integration-action-source-logo--salla { color: #5c49ac; background: #eeeaff; font-size: 17px; }
+.odeir-experience .integration-action-choice--zid > i, .odeir-experience .integration-action-source-logo--zid { color: #17472b; background: #dff2df; }
+.odeir-experience .integration-action-choice--woo > i, .odeir-experience .integration-action-source-logo--woo { color: #fff; background: #8952c9; font-size: 8px; }
+.odeir-experience .integration-action-console { margin-top: 20px; padding: 28px; border: 1px solid rgba(119,163,207,.25); border-radius: var(--radius-lg); background: linear-gradient(145deg, rgba(2,15,34,.82), rgba(4,23,50,.68)); box-shadow: 0 35px 90px rgba(0,5,18,.42); backdrop-filter: blur(14px); }
+.odeir-experience .integration-action-topbar { display: flex; justify-content: space-between; align-items: center; gap: 18px; }
+.odeir-experience .integration-action-topbar button { min-height: 31px; padding: 7px 11px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #cfdae6; background: rgba(255,255,255,.04); font-size: 8px; cursor: pointer; transition: .22s ease; }
+.odeir-experience .integration-action-topbar button:hover { border-color: rgba(8,200,187,.35); color: #fff; background: rgba(8,200,187,.08); }
+.odeir-experience .integration-action-lead { margin-top: 24px; padding: 17px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 13px; border: 1px solid rgba(255,255,255,.1); border-radius: 16px; background: rgba(255,255,255,.045); }
+.odeir-experience .integration-action-source-logo { width: 46px; height: 46px; }
+.odeir-experience .integration-action-lead > span { min-width: 0; display: grid; }
+.odeir-experience .integration-action-lead small { color: #8296ac; font-size: 7px; }
+.odeir-experience .integration-action-lead b { margin-top: 3px; color: #fff; font-size: 13px; }
+.odeir-experience .integration-action-lead em { margin-top: 4px; overflow: hidden; color: #a2b4c6; font-size: 8px; font-style: normal; white-space: nowrap; text-overflow: ellipsis; }
+.odeir-experience .integration-action-lead strong { max-width: 110px; padding: 8px 11px; border-radius: 9px; color: var(--teal-soft); background: rgba(8,200,187,.1); font-size: 8px; text-align: center; }
+.odeir-experience .integration-action-track { position: relative; margin-top: 32px; display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); direction: rtl; }
+.odeir-experience .integration-action-track::before { content: ""; position: absolute; top: 19px; right: 10%; left: 10%; height: 2px; background: rgba(255,255,255,.1); }
+.odeir-experience .integration-action-step { position: relative; z-index: 1; min-width: 0; padding: 0 5px; display: grid; justify-items: center; text-align: center; border: 0; color: inherit; background: transparent; cursor: pointer; }
+.odeir-experience .integration-action-step > i { width: 38px; height: 38px; display: grid; place-items: center; border: 3px solid #173552; border-radius: 50%; color: #70869d; background: #08203e; font-size: 7px; font-style: normal; font-weight: 900; transition: .3s ease; }
+.odeir-experience .integration-action-step > span { min-width: 0; margin-top: 10px; display: grid; }
+.odeir-experience .integration-action-step b { overflow: hidden; color: #8da1b5; font-size: 9px; white-space: nowrap; text-overflow: ellipsis; }
+.odeir-experience .integration-action-step small { margin-top: 3px; overflow: hidden; color: #5e7891; font-size: 7px; line-height: 1.45; white-space: nowrap; text-overflow: ellipsis; }
+.odeir-experience .integration-action-step.is-active > i { transform: scale(1.08); border-color: var(--yellow); color: #09213e; background: var(--yellow); box-shadow: 0 0 0 7px rgba(245,201,52,.1); }
+.odeir-experience .integration-action-step.is-active b { color: #fff; }
+.odeir-experience .integration-action-step.is-done > i { border-color: var(--teal); color: #06213d; background: var(--teal); }
+.odeir-experience .integration-action-step.is-done b { color: var(--teal-soft); }
+.odeir-experience .integration-action-metrics { margin-top: 28px; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+.odeir-experience .integration-action-metrics span { padding: 13px; display: grid; border: 1px solid rgba(255,255,255,.08); border-radius: 11px; background: rgba(255,255,255,.025); }
+.odeir-experience .integration-action-metrics small { color: #8298ad; font-size: 8px; }
+.odeir-experience .integration-action-metrics b { margin-top: 5px; color: #fff; font-size: 18px; direction: ltr; text-align: right; }
+.odeir-experience .integration-action-rail { margin-top: 18px; display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); border: 1px solid rgba(255,255,255,.08); border-radius: 15px; overflow: hidden; background: rgba(255,255,255,.025); }
+.odeir-experience .integration-action-wordmark { min-width: 0; min-height: 66px; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; color: #bac8d5; border-left: 1px solid rgba(255,255,255,.07); font-size: 9px; font-weight: 800; direction: ltr; }
+.odeir-experience .integration-action-wordmark:last-child { border-left: 0; }
+.odeir-experience .integration-action-wordmark i { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 7px; color: #071e37; background: #eef3f7; font-size: 8px; font-style: normal; font-weight: 950; }
+.odeir-experience .integration-action-wordmark small { padding: 3px 5px; border-radius: 5px; color: #75cabf; background: rgba(8,200,187,.08); font-size: 5px; direction: rtl; }
+.odeir-experience .integration-action-wordmark--meta i { color: #087cf0; font-size: 16px; }
+.odeir-experience .integration-action-wordmark--woo i { color: #fff; background: #8952c9; }
+.odeir-experience .integration-action-wordmark--salla i { color: #5c49ac; background: #eeeaff; font-size: 13px; }
+.odeir-experience .integration-action-wordmark--zid i { color: #17472b; background: #dff2df; }
+.odeir-experience .integration-action-wordmark--google i { color: #4285f4; }
+.odeir-experience .integration-action-wordmark--yeastar i { color: #fff; background: #1f73c9; }
+.odeir-experience .integration-action-disclaimer { max-width: 760px; margin: 16px auto 0; color: #657f97; text-align: center; font-size: 7px; line-height: 1.8; }
+
+.odeir-experience .journey-section { position: relative; padding: 140px 0 130px; color: #fff; overflow: hidden; background: radial-gradient(circle at 15% 20%, rgba(8,200,187,.14), transparent 25%), radial-gradient(circle at 88% 78%, rgba(37,108,197,.14), transparent 24%), linear-gradient(150deg, #031329, #061f40 65%, #031126); }
+.odeir-experience .journey-section::before { content: ""; position: absolute; inset: 0; opacity: .12; background-image: linear-gradient(rgba(255,255,255,.11) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.11) 1px, transparent 1px); background-size: 74px 74px; mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent); }
+.odeir-experience .journey-section::after { content: ""; position: absolute; width: 460px; height: 460px; left: -260px; top: 31%; border: 1px solid rgba(8,200,187,.13); border-radius: 50%; box-shadow: 0 0 0 56px rgba(8,200,187,.035), 0 0 0 112px rgba(8,200,187,.018); }
+.odeir-experience .journey-inner { position: relative; z-index: 1; }
+.odeir-experience .journey-legacy-anchor { position: absolute; top: -90px; }
 .odeir-experience .journey-heading { margin-top: 28px; display: grid; grid-template-columns: 1.1fr .72fr; align-items: end; gap: 90px; }
 .odeir-experience .journey-heading h2 { color: #fff; }
 .odeir-experience .journey-heading h2 span { color: var(--teal-soft); }
-.odeir-experience .journey-heading p { color: #9eb0c4; }
-.odeir-experience .source-picker { margin-top: 60px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
-.odeir-experience .source-choice { min-width: 0; min-height: 80px; padding: 12px 13px; display: flex; align-items: center; gap: 10px; text-align: right; border: 1px solid rgba(255,255,255,.1); border-radius: 15px; color: #fff; background: rgba(255,255,255,.035); cursor: pointer; transition: .28s ease; }
-.odeir-experience .source-choice:hover, .odeir-experience .source-choice.is-active { transform: translateY(-4px); border-color: rgba(8,200,187,.38); background: rgba(8,200,187,.08); }
-.odeir-experience .source-choice > i, .odeir-experience .journey-source-logo { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 12px; color: #fff; background: #183652; font-size: 11px; font-style: normal; font-weight: 950; direction: ltr; }
-.odeir-experience .source-choice > span { min-width: 0; display: grid; }
-.odeir-experience .source-choice b { overflow: hidden; font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
-.odeir-experience .source-choice small { margin-top: 4px; color: #7f93a9; font-size: 7px; }
-.odeir-experience .source-choice--meta > i, .odeir-experience .journey-source-logo--meta { color: #087cf0; background: #eaf4ff; font-size: 23px; }
-.odeir-experience .source-choice--whatsapp > i, .odeir-experience .journey-source-logo--whatsapp { color: #fff; background: #23bf67; }
-.odeir-experience .source-choice--salla > i, .odeir-experience .journey-source-logo--salla { color: #6137a0; background: #f0eafd; }
-.odeir-experience .source-choice--zid > i, .odeir-experience .journey-source-logo--zid { color: #122019; background: #cfeacc; }
-.odeir-experience .source-choice--woo > i, .odeir-experience .journey-source-logo--woo { color: #fff; background: #8954c4; font-size: 8px; }
-.odeir-experience .journey-console { margin-top: 20px; padding: 28px; border: 1px solid rgba(119,163,207,.23); border-radius: var(--radius-lg); background: rgba(2,15,34,.58); box-shadow: 0 35px 90px rgba(0,5,18,.37); backdrop-filter: blur(12px); }
-.odeir-experience .journey-topbar { display: flex; justify-content: space-between; align-items: center; }
-.odeir-experience .demo-label { display: inline-flex; align-items: center; gap: 8px; color: #8fa3b9; font-size: 8px; font-weight: 700; }
-.odeir-experience .demo-label i { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 5px rgba(8,200,187,.12); }
-.odeir-experience .journey-topbar button { padding: 7px 10px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #c6d3e1; background: rgba(255,255,255,.04); font-size: 8px; cursor: pointer; }
+.odeir-experience .journey-heading p { color: #a8b9ca; }
+.odeir-experience .journey-phase-picker { margin-top: 60px; display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 10px; }
+.odeir-experience .journey-phase { position: relative; min-width: 0; min-height: 92px; padding: 14px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 11px; overflow: hidden; text-align: right; border: 1px solid rgba(255,255,255,.1); border-radius: 16px; color: #fff; background: rgba(255,255,255,.035); cursor: pointer; touch-action: manipulation; transition: transform .28s ease, border-color .28s ease, background .28s ease, box-shadow .28s ease; }
+.odeir-experience .journey-phase:hover, .odeir-experience .journey-phase.is-active { transform: translateY(-4px); border-color: rgba(8,200,187,.48); background: linear-gradient(140deg, rgba(8,200,187,.13), rgba(255,255,255,.045)); box-shadow: 0 15px 38px rgba(0,8,25,.24); }
+.odeir-experience .journey-phase:focus-visible, .odeir-experience .journey-step:focus-visible, .odeir-experience .journey-topbar button:focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; }
+.odeir-experience .journey-phase-icon { width: 43px; height: 43px; display: grid; place-items: center; border: 1px solid rgba(131,243,232,.2); border-radius: 13px; color: #91e9e1; background: rgba(8,200,187,.09); }
+.odeir-experience .journey-phase-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.odeir-experience .journey-phase > span:nth-child(2) { min-width: 0; display: grid; }
+.odeir-experience .journey-phase b { overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+.odeir-experience .journey-phase small { margin-top: 5px; color: #8fa2b6; font-size: 8px; line-height: 1.5; }
+.odeir-experience .journey-phase em { position: absolute; left: 9px; top: 7px; color: rgba(255,255,255,.14); font-size: 18px; font-style: normal; font-weight: 950; }
+.odeir-experience .journey-phase.is-active em { color: rgba(130,245,234,.3); }
+.odeir-experience .journey-console { margin-top: 20px; padding: 28px; border: 1px solid rgba(119,163,207,.25); border-radius: var(--radius-lg); background: linear-gradient(145deg, rgba(2,15,34,.82), rgba(4,23,50,.68)); box-shadow: 0 35px 90px rgba(0,5,18,.42); backdrop-filter: blur(14px); }
+.odeir-experience .journey-topbar { display: flex; justify-content: space-between; align-items: center; gap: 18px; }
+.odeir-experience .demo-label { display: inline-flex; align-items: center; gap: 8px; color: #9cb0c3; font-size: 9px; font-weight: 700; line-height: 1.6; }
+.odeir-experience .demo-label i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 5px rgba(8,200,187,.12); animation: journey-live-pulse 2.2s ease-in-out infinite; }
+.odeir-experience .journey-controls { display: flex; flex: 0 0 auto; gap: 7px; }
+.odeir-experience .journey-topbar button { min-height: 31px; padding: 7px 11px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #cfdae6; background: rgba(255,255,255,.04); font-size: 8px; cursor: pointer; transition: .22s ease; }
+.odeir-experience .journey-topbar button:hover { border-color: rgba(8,200,187,.35); color: #fff; background: rgba(8,200,187,.08); }
 .odeir-experience .journey-lead { margin-top: 24px; padding: 17px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 13px; border: 1px solid rgba(255,255,255,.1); border-radius: 16px; background: rgba(255,255,255,.045); }
-.odeir-experience .journey-lead > span { display: grid; }
-.odeir-experience .journey-lead small { color: #7f93aa; font-size: 7px; }
+.odeir-experience .journey-source-logo { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 13px; color: #087cf0; background: #eaf4ff; font-size: 25px; font-style: normal; font-weight: 950; direction: ltr; }
+.odeir-experience .journey-lead > span { min-width: 0; display: grid; }
+.odeir-experience .journey-lead small { color: #8296ac; font-size: 7px; }
 .odeir-experience .journey-lead b { margin-top: 3px; color: #fff; font-size: 13px; }
-.odeir-experience .journey-lead em { margin-top: 3px; color: #9cb0c4; font-size: 8px; font-style: normal; }
-.odeir-experience .journey-lead strong { padding: 7px 10px; border-radius: 8px; color: var(--teal-soft); background: rgba(8,200,187,.1); font-size: 8px; }
-.odeir-experience .journey-track { position: relative; margin-top: 32px; display: grid; grid-template-columns: repeat(5, 1fr); direction: rtl; }
-.odeir-experience .journey-track::before { content: ""; position: absolute; top: 20px; right: 8%; left: 8%; height: 2px; background: rgba(255,255,255,.1); }
-.odeir-experience .journey-step { position: relative; z-index: 1; min-width: 0; padding: 0 7px; display: grid; justify-items: center; text-align: center; border: 0; background: transparent; cursor: pointer; }
-.odeir-experience .journey-step > i { width: 41px; height: 41px; display: grid; place-items: center; border: 4px solid #173552; border-radius: 50%; color: #6f869d; background: #08203e; font-size: 7px; font-style: normal; font-weight: 900; transition: .3s ease; }
-.odeir-experience .journey-step > span { margin-top: 12px; display: grid; }
-.odeir-experience .journey-step b { color: #8599ae; font-size: 9px; }
-.odeir-experience .journey-step small { margin-top: 4px; color: #526b84; font-size: 7px; line-height: 1.5; }
-.odeir-experience .journey-step.is-active > i { border-color: var(--yellow); color: #09213e; background: var(--yellow); box-shadow: 0 0 0 8px rgba(245,201,52,.1); }
+.odeir-experience .journey-lead b i { margin-right: 6px; padding: 3px 5px; border-radius: 5px; color: #7d93aa; background: rgba(255,255,255,.055); font-size: 6px; font-style: normal; font-weight: 750; }
+.odeir-experience .journey-lead em { margin-top: 4px; overflow: hidden; color: #a2b4c6; font-size: 8px; font-style: normal; white-space: nowrap; text-overflow: ellipsis; }
+.odeir-experience .journey-lead strong { max-width: 110px; padding: 8px 11px; border-radius: 9px; color: var(--teal-soft); background: rgba(8,200,187,.1); font-size: 8px; text-align: center; }
+.odeir-experience .journey-progress { margin-top: 23px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 17px; }
+.odeir-experience .journey-progress > span { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.odeir-experience .journey-progress b { color: #dce8f3; font-size: 8px; }
+.odeir-experience .journey-progress small { color: #647d94; font-size: 7px; }
+.odeir-experience .journey-progress > div { height: 4px; overflow: hidden; border-radius: 9px; background: rgba(255,255,255,.08); }
+.odeir-experience .journey-progress > div i { display: block; height: 100%; margin-right: 0; border-radius: inherit; background: linear-gradient(90deg, #5ae1d7, var(--teal)); box-shadow: 0 0 16px rgba(8,200,187,.48); transition: width .65s cubic-bezier(.2,.8,.2,1); }
+.odeir-experience .journey-track { position: relative; margin-top: 27px; display: grid; grid-template-columns: repeat(10, minmax(0,1fr)); direction: rtl; }
+.odeir-experience .journey-track::before { content: ""; position: absolute; top: 19px; right: 5%; left: 5%; height: 2px; background: rgba(255,255,255,.09); }
+.odeir-experience .journey-step { position: relative; z-index: 1; min-width: 0; padding: 0 3px; display: grid; justify-items: center; text-align: center; border: 0; color: inherit; background: transparent; cursor: pointer; touch-action: manipulation; }
+.odeir-experience .journey-step > i { width: 38px; height: 38px; display: grid; place-items: center; border: 3px solid #173552; border-radius: 50%; color: #70869d; background: #08203e; font-size: 7px; font-style: normal; font-weight: 900; transition: transform .3s ease, border-color .3s ease, color .3s ease, background .3s ease, box-shadow .3s ease; }
+.odeir-experience .journey-step > span { min-width: 0; margin-top: 10px; display: grid; }
+.odeir-experience .journey-step b { overflow: hidden; color: #8da1b5; font-size: 9px; white-space: nowrap; text-overflow: ellipsis; }
+.odeir-experience .journey-step small { margin-top: 3px; overflow: hidden; color: #5e7891; font-size: 7px; line-height: 1.45; white-space: nowrap; text-overflow: ellipsis; }
+.odeir-experience .journey-step:hover > i { transform: scale(1.07); border-color: #357696; }
+.odeir-experience .journey-step.is-active > i { transform: scale(1.08); border-color: var(--yellow); color: #09213e; background: var(--yellow); box-shadow: 0 0 0 7px rgba(245,201,52,.1), 0 0 22px rgba(245,201,52,.22); }
 .odeir-experience .journey-step.is-active b { color: #fff; }
+.odeir-experience .journey-step.is-active small { color: #c4d2df; }
 .odeir-experience .journey-step.is-done > i { border-color: var(--teal); color: #06213d; background: var(--teal); }
 .odeir-experience .journey-step.is-done b { color: var(--teal-soft); }
-.odeir-experience .journey-metrics { margin-top: 34px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.odeir-experience .journey-metrics span { padding: 15px; display: grid; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; background: rgba(255,255,255,.025); }
-.odeir-experience .journey-metrics small { color: #7288a0; font-size: 7px; }
-.odeir-experience .journey-metrics b { margin-top: 6px; color: #fff; font-size: 20px; direction: ltr; text-align: right; }
-.odeir-experience .integration-rail { margin-top: 42px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; }
-.odeir-experience .integration-wordmark { min-height: 54px; padding: 8px 13px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,.09); border-radius: 13px; color: #d8e2ed; background: rgba(255,255,255,.03); font-size: 10px; font-weight: 800; direction: ltr; }
-.odeir-experience .integration-wordmark i { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 8px; font-size: 9px; font-style: normal; }
-.odeir-experience .integration-wordmark small { margin-left: 4px; color: #607890; font-size: 6px; direction: rtl; }
-.odeir-experience .integration-wordmark--yeastar i { color: #fff; background: #f58220; }
-.odeir-experience .integration-wordmark--google i { color: #4285f4; background: #fff; }
-.odeir-experience .integration-wordmark--meta i { color: #087cf0; background: #eaf4ff; font-size: 18px; }
-.odeir-experience .integration-wordmark--woo i { color: #fff; background: #8954c4; }
-.odeir-experience .integration-wordmark--salla i { color: #6137a0; background: #f0eafd; }
-.odeir-experience .integration-wordmark--zid i { color: #122019; background: #cfeacc; }
-.odeir-experience .brand-disclaimer { margin: 18px auto 0; color: #5f7890; text-align: center; font-size: 7px; line-height: 1.7; }
+.odeir-experience .journey-stage-card { min-height: 245px; margin-top: 29px; display: grid; grid-template-columns: minmax(0,1fr) 245px; overflow: hidden; border: 1px solid rgba(139,177,211,.17); border-radius: 18px; background: rgba(255,255,255,.038); animation: journey-stage-in .48s cubic-bezier(.2,.8,.2,1) both; }
+.odeir-experience .journey-stage-copy { min-width: 0; padding: 25px 27px; }
+.odeir-experience .journey-stage-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.odeir-experience .journey-stage-heading span { padding: 6px 9px; border-radius: 7px; color: #7be4db; background: rgba(8,200,187,.09); font-size: 7px; font-weight: 850; }
+.odeir-experience .journey-stage-heading time { color: #70879e; font-size: 8px; font-weight: 750; direction: ltr; }
+.odeir-experience .journey-stage-copy h3 { margin: 15px 0 0; color: #fff; font-size: clamp(21px,2.2vw,29px); line-height: 1.35; letter-spacing: -.025em; }
+.odeir-experience .journey-stage-copy > p { max-width: 760px; margin: 10px 0 0; color: #a7b8c8; font-size: 12px; line-height: 1.8; }
+.odeir-experience .journey-stage-facts { margin-top: 20px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.odeir-experience .journey-stage-facts > span { min-width: 0; padding: 11px 12px; display: grid; border: 1px solid rgba(255,255,255,.07); border-radius: 10px; background: rgba(0,8,23,.18); }
+.odeir-experience .journey-stage-facts small { color: #7890a6; font-size: 8px; }
+.odeir-experience .journey-stage-facts b { margin-top: 5px; overflow: hidden; color: #dce6ee; font-size: 10px; line-height: 1.55; text-overflow: ellipsis; }
+.odeir-experience .journey-stage-result { position: relative; padding: 22px; display: grid; align-content: center; justify-items: start; overflow: hidden; border-right: 1px solid rgba(255,255,255,.08); background: radial-gradient(circle at 80% 10%, rgba(8,200,187,.14), transparent 42%), rgba(0,11,28,.25); }
+.odeir-experience .journey-stage-result::after { content: ""; position: absolute; width: 118px; height: 118px; left: -56px; bottom: -62px; border: 1px solid rgba(8,200,187,.12); border-radius: 50%; box-shadow: 0 0 0 20px rgba(8,200,187,.025); }
+.odeir-experience .journey-stage-number { position: absolute; left: 14px; top: 7px; color: rgba(255,255,255,.08); font-size: 54px; font-weight: 950; letter-spacing: -.06em; }
+.odeir-experience .journey-stage-result > small { color: #718aa1; font-size: 7px; }
+.odeir-experience .journey-stage-result > b { position: relative; margin-top: 7px; color: var(--teal-soft); font-size: 14px; line-height: 1.45; }
+.odeir-experience .journey-stage-result > p { position: relative; margin: 19px 0 0; padding-top: 13px; width: 100%; display: grid; border-top: 1px solid rgba(255,255,255,.08); }
+.odeir-experience .journey-stage-result > p small { color: #637c94; font-size: 6px; }
+.odeir-experience .journey-stage-result > p b { margin-top: 4px; color: #d8e4ee; font-size: 9px; }
+.odeir-experience .journey-authorities { position: relative; width: 100%; margin-top: 16px; display: grid; gap: 6px; }
+.odeir-experience .journey-authorities span { min-width: 0; min-height: 39px; padding: 5px 7px; display: flex; align-items: center; gap: 7px; border: 1px solid rgba(255,255,255,.08); border-radius: 9px; color: #d8e4ee; background: rgba(255,255,255,.035); font-size: 7px; line-height: 1.4; }
+.odeir-experience .journey-authorities img { width: 27px; height: 27px; flex: 0 0 auto; object-fit: contain; border-radius: 6px; background: #fff; }
+.odeir-experience .journey-metrics { margin-top: 12px; display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; }
+.odeir-experience .journey-metrics span { min-width: 0; padding: 14px; display: grid; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; background: rgba(255,255,255,.025); }
+.odeir-experience .journey-metrics small { color: #8298ad; font-size: 8px; line-height: 1.45; }
+.odeir-experience .journey-metrics b { margin-top: 6px; color: #fff; font-size: 18px; unicode-bidi: plaintext; text-align: right; }
+.odeir-experience .journey-disclaimer { max-width: 860px; margin: 20px auto 0; color: #678097; text-align: center; font-size: 7px; line-height: 1.8; }
+@keyframes journey-stage-in { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes journey-live-pulse { 0%,100% { box-shadow: 0 0 0 5px rgba(8,200,187,.1); } 50% { box-shadow: 0 0 0 9px rgba(8,200,187,.02); } }
 
 .odeir-experience .roles-section { padding: 140px 0 150px; }
 .odeir-experience .roles-heading h2 span { color: #0c8f88; }
@@ -726,12 +814,18 @@
   .odeir-experience .feature-story:nth-child(even) .feature-copy { order: 1; }
   .odeir-experience .feature-story:nth-child(even) .feature-visual { order: 2; }
   .odeir-experience .feature-visual { width: min(650px, 100%); }
-  .odeir-experience .journey-section { padding-block: 105px; }
-  .odeir-experience .source-picker { grid-template-columns: repeat(3, 1fr); }
+  .odeir-experience .integration-action-section, .odeir-experience .journey-section { padding-block: 105px; }
+  .odeir-experience .integration-action-heading { grid-template-columns: 1fr; gap: 20px; }
+  .odeir-experience .integration-action-picker { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .odeir-experience .integration-action-rail { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .odeir-experience .integration-action-wordmark:nth-child(3) { border-left: 0; }
+  .odeir-experience .integration-action-wordmark:nth-child(-n+3) { border-bottom: 1px solid rgba(255,255,255,.07); }
+  .odeir-experience .journey-phase-picker { grid-template-columns: repeat(3, minmax(0,1fr)); }
   .odeir-experience .journey-console { padding: 23px; }
-  .odeir-experience .journey-track { overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; }
-  .odeir-experience .journey-step { min-width: 150px; }
-  .odeir-experience .journey-track::before { display: none; }
+  .odeir-experience .journey-phase { min-height: 86px; }
+  .odeir-experience .journey-step b { font-size: 7px; }
+  .odeir-experience .journey-step small { font-size: 5.5px; }
+  .odeir-experience .journey-stage-card { grid-template-columns: minmax(0,1fr) 220px; }
   .odeir-experience .role-switcher { grid-template-columns: 180px 1fr; }
   .odeir-experience .role-screen { padding: 30px 25px; }
   .odeir-experience .security-section { padding-block: 105px 78px; }
@@ -813,9 +907,9 @@
   .odeir-experience .product-copy-card p { font-size: 12px; }
   .odeir-experience .product-stage > .dashboard-window .window-body { min-height: 286px; }
   .odeir-experience .features-section, .odeir-experience .roles-section { padding-block: 86px 92px; }
-  .odeir-experience .features-heading, .odeir-experience .roles-heading, .odeir-experience .journey-heading { margin-top: 20px; gap: 17px; }
-  .odeir-experience .features-heading h2, .odeir-experience .roles-heading h2, .odeir-experience .journey-heading h2 { font-size: 37px; line-height: 1.28; }
-  .odeir-experience .features-heading p, .odeir-experience .roles-heading p, .odeir-experience .journey-heading p { font-size: 14px; line-height: 1.85; }
+  .odeir-experience .features-heading, .odeir-experience .roles-heading, .odeir-experience .integration-action-heading, .odeir-experience .journey-heading { margin-top: 20px; gap: 17px; }
+  .odeir-experience .features-heading h2, .odeir-experience .roles-heading h2, .odeir-experience .integration-action-heading h2, .odeir-experience .journey-heading h2 { font-size: 37px; line-height: 1.28; }
+  .odeir-experience .features-heading p, .odeir-experience .roles-heading p, .odeir-experience .integration-action-heading p, .odeir-experience .journey-heading p { font-size: 14px; line-height: 1.85; }
   .odeir-experience .feature-stories { margin-top: 40px; gap: 14px; }
   .odeir-experience .feature-story, .odeir-experience .feature-story:nth-child(even) { padding: 28px 19px 20px; gap: 27px; border-radius: 25px; }
   .odeir-experience .feature-copy > small { margin-top: 17px; }
@@ -835,23 +929,67 @@
   .odeir-experience .admission-steps { margin-top: 29px; }
   .odeir-experience .admission-footer { margin-top: 29px; }
   .odeir-experience .report-bars { height: 94px; }
-  .odeir-experience .journey-section { padding-block: 86px 90px; }
-  .odeir-experience .source-picker { margin-top: 38px; grid-template-columns: repeat(2, 1fr); gap: 7px; }
-  .odeir-experience .source-choice { min-height: 70px; padding: 9px; }
-  .odeir-experience .source-choice > i { width: 34px; height: 34px; }
-  .odeir-experience .source-choice b { font-size: 9px; }
-  .odeir-experience .source-choice small { font-size: 6px; }
+  .odeir-experience .integration-action-section, .odeir-experience .journey-section { padding-block: 86px 90px; }
+  .odeir-experience .integration-action-picker { margin-top: 38px; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; }
+  .odeir-experience .integration-action-choice:last-child { grid-column: 1 / -1; }
+  .odeir-experience .integration-action-choice { min-height: 75px; padding: 10px; gap: 9px; }
+  .odeir-experience .integration-action-choice > i { width: 38px; height: 38px; }
+  .odeir-experience .integration-action-console { margin-top: 14px; padding: 16px 12px; border-radius: 21px; }
+  .odeir-experience .integration-action-topbar { align-items: stretch; flex-direction: column; gap: 11px; }
+  .odeir-experience .integration-action-topbar button { min-height: 42px; }
+  .odeir-experience .integration-action-lead { padding: 12px; }
+  .odeir-experience .integration-action-source-logo { width: 38px; height: 38px; }
+  .odeir-experience .integration-action-lead b { font-size: 11px; }
+  .odeir-experience .integration-action-lead strong { max-width: 78px; }
+  .odeir-experience .integration-action-track { margin-top: 20px; grid-template-columns: 1fr; gap: 7px; }
+  .odeir-experience .integration-action-track::before { display: none; }
+  .odeir-experience .integration-action-step { min-height: 57px; padding: 8px 10px; grid-template-columns: auto 1fr; align-items: center; justify-items: stretch; gap: 10px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; text-align: right; background: rgba(255,255,255,.025); }
+  .odeir-experience .integration-action-step > i { width: 34px; height: 34px; }
+  .odeir-experience .integration-action-step > span { margin-top: 0; }
+  .odeir-experience .integration-action-metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .odeir-experience .integration-action-rail { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .odeir-experience .integration-action-wordmark, .odeir-experience .integration-action-wordmark:nth-child(3) { border-left: 1px solid rgba(255,255,255,.07); border-bottom: 1px solid rgba(255,255,255,.07); }
+  .odeir-experience .integration-action-wordmark:nth-child(even) { border-left: 0; }
+  .odeir-experience .integration-action-wordmark:nth-last-child(-n+2) { border-bottom: 0; }
+  .odeir-experience .journey-phase-picker { margin-top: 38px; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; }
+  .odeir-experience .journey-phase:last-child { grid-column: 1 / -1; }
+  .odeir-experience .journey-phase { min-height: 78px; padding: 10px; gap: 9px; }
+  .odeir-experience .journey-phase-icon { width: 38px; height: 38px; }
+  .odeir-experience .journey-phase-icon svg { width: 19px; height: 19px; }
+  .odeir-experience .journey-phase b { font-size: 10px; }
+  .odeir-experience .journey-phase small { font-size: 7px; }
   .odeir-experience .journey-console { margin-top: 14px; padding: 16px 12px; border-radius: 21px; }
+  .odeir-experience .journey-topbar { align-items: stretch; flex-direction: column; gap: 11px; }
+  .odeir-experience .demo-label { font-size: 8px; }
+  .odeir-experience .journey-controls { width: 100%; }
+  .odeir-experience .journey-controls button { min-height: 42px; flex: 1 1 0; font-size: 8px; }
   .odeir-experience .journey-lead { padding: 12px; }
+  .odeir-experience .journey-source-logo { width: 38px; height: 38px; font-size: 21px; }
+  .odeir-experience .journey-lead b { font-size: 11px; }
+  .odeir-experience .journey-lead b i { display: none; }
+  .odeir-experience .journey-lead em { font-size: 7px; }
   .odeir-experience .journey-lead strong { max-width: 78px; text-align: center; }
-  .odeir-experience .journey-track { margin-inline: -12px; padding-inline: 12px; scroll-snap-type: x mandatory; }
-  .odeir-experience .journey-step { min-width: 128px; scroll-snap-align: center; }
-  .odeir-experience .journey-step small { max-width: 104px; }
+  .odeir-experience .journey-progress { grid-template-columns: 1fr; gap: 8px; }
+  .odeir-experience .journey-track { margin-top: 20px; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; }
+  .odeir-experience .journey-track::before { display: none; }
+  .odeir-experience .journey-step { min-height: 58px; padding: 8px 9px; grid-template-columns: auto 1fr; align-items: center; justify-items: stretch; gap: 9px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; text-align: right; background: rgba(255,255,255,.025); }
+  .odeir-experience .journey-step > i { width: 34px; height: 34px; border-width: 3px; }
+  .odeir-experience .journey-step > span { margin-top: 0; }
+  .odeir-experience .journey-step b { font-size: 9px; }
+  .odeir-experience .journey-step small { font-size: 7px; }
+  .odeir-experience .journey-stage-card { min-height: 0; grid-template-columns: 1fr; }
+  .odeir-experience .journey-stage-copy { padding: 21px 16px; }
+  .odeir-experience .journey-stage-copy h3 { font-size: 21px; }
+  .odeir-experience .journey-stage-copy > p { font-size: 11px; }
+  .odeir-experience .journey-stage-facts { grid-template-columns: 1fr; }
+  .odeir-experience .journey-stage-facts b { font-size: 8px; }
+  .odeir-experience .journey-stage-result { min-height: 162px; border-top: 1px solid rgba(255,255,255,.08); border-right: 0; }
+  .odeir-experience .journey-authorities { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .odeir-experience .journey-metrics { margin-top: 24px; grid-template-columns: repeat(2, 1fr); }
   .odeir-experience .journey-metrics span { padding: 11px; }
   .odeir-experience .journey-metrics b { font-size: 16px; }
-  .odeir-experience .integration-rail { margin-top: 31px; justify-content: stretch; }
-  .odeir-experience .integration-wordmark { flex: 1 1 calc(50% - 6px); justify-content: center; }
+  .odeir-experience .journey-metrics span:last-child { grid-column: 1 / -1; }
+  .odeir-experience .journey-disclaimer { font-size: 7px; }
   .odeir-experience .role-switcher { margin-top: 42px; grid-template-columns: 1fr; border-radius: 25px; }
   .odeir-experience .role-tabs { padding: 10px; display: flex; overflow-x: auto; border: 0; border-bottom: 1px solid #e5e9ee; scrollbar-width: none; }
   .odeir-experience .role-tabs button { min-width: 128px; flex: 0 0 auto; }
@@ -969,6 +1107,7 @@
   .odeir-experience .story-section,
   .odeir-experience .features-section,
   .odeir-experience .roles-section,
+  .odeir-experience .integration-action-section,
   .odeir-experience .journey-section,
   .odeir-experience .faq-section { padding-block: 72px 78px; }
   .odeir-experience .product-section { padding: 72px 16px 80px; }
@@ -977,6 +1116,7 @@
   .odeir-experience .product-intro h2,
   .odeir-experience .features-heading h2,
   .odeir-experience .roles-heading h2,
+  .odeir-experience .integration-action-heading h2,
   .odeir-experience .journey-heading h2,
   .odeir-experience .security-copy h2,
   .odeir-experience .faq-heading h2,
@@ -985,6 +1125,7 @@
   .odeir-experience .product-intro p,
   .odeir-experience .features-heading p,
   .odeir-experience .roles-heading p,
+  .odeir-experience .integration-action-heading p,
   .odeir-experience .journey-heading p { font-size: 13.5px; line-height: 1.82; }
   .odeir-experience .story-flow { margin-top: 34px; }
 
@@ -1014,15 +1155,9 @@
   .odeir-experience .feature-copy h3 { font-size: 26px; line-height: 1.4; }
   .odeir-experience .feature-copy p { font-size: 12.5px; }
 
-  .odeir-experience .source-picker { margin-top: 30px; }
-  .odeir-experience .source-picker > button:last-child { grid-column: 1 / -1; }
+  .odeir-experience .journey-phase-picker { margin-top: 30px; }
   .odeir-experience .journey-console { padding: 14px 12px; }
-  .odeir-experience .journey-track { margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 7px; overflow: visible; scroll-snap-type: none; }
-  .odeir-experience .journey-step { min-width: 0; min-height: 57px; padding: 8px 10px; grid-template-columns: auto 1fr; align-items: center; justify-items: stretch; gap: 11px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; text-align: right; background: rgba(255,255,255,.025); scroll-snap-align: none; }
-  .odeir-experience .journey-step > i { width: 34px; height: 34px; border-width: 3px; }
-  .odeir-experience .journey-step > span { margin-top: 0; }
-  .odeir-experience .journey-step b { font-size: 9px; }
-  .odeir-experience .journey-step small { max-width: none; font-size: 7px; }
+  .odeir-experience .journey-track { margin: 18px 0 0; }
 
   .odeir-experience .role-switcher { margin-top: 34px; }
   .odeir-experience .role-tabs { padding: 8px; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; overflow: visible; }
@@ -1105,6 +1240,8 @@
 }
 
 @media (max-width: 370px) {
+  .odeir-experience .journey-phase-picker, .odeir-experience .journey-track { grid-template-columns: 1fr; }
+  .odeir-experience .journey-phase:last-child { grid-column: auto; }
   .odeir-experience .story-section .story-flow { padding-inline: 9px; }
   .odeir-experience .journey-category-tab { width: 146px; min-width: 146px; flex-basis: 146px; }
   .odeir-experience .journey-category-summary h3 { font-size: 18px; }

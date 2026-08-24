@@ -230,9 +230,9 @@ function Header({ cms, onRegister }: { cms: LandingCms; onRegister: () => void }
       <a className="brand-link" href="#top" aria-label="أودير - الرئيسية"><Brand /></a>
       <nav className={open ? "main-nav is-open" : "main-nav"} aria-label="التنقل الرئيسي">
         <a href="#morning-brief" onClick={() => setOpen(false)}>أول فنجان</a>
-        <a href="#story" onClick={() => setOpen(false)}>كيف يعمل</a>
+        <a href="#story" onClick={() => setOpen(false)}>التكاملات</a>
         <a href="#product" onClick={() => setOpen(false)}>جولة داخل أودير</a>
-        <a href="#integrations" onClick={() => setOpen(false)}>التكاملات</a>
+        <a href="#journey" onClick={() => setOpen(false)}>رحلة العميل</a>
         <a href="#security" onClick={() => setOpen(false)}>الحماية</a>
         <a className="mobile-nav-only" href={`${APP_ORIGIN}${loginHref}`} onClick={() => setOpen(false)}>{loginLabel}</a>
         <a className="mobile-nav-only mobile-nav-cta" href={`${APP_ORIGIN}${primaryHref}`} onClick={(event) => { setOpen(false); openRegistrationFromLink(event, primaryHref, onRegister); }}>{primaryLabel}</a>
@@ -805,7 +805,7 @@ function OperationalStories({ cms }: { cms: LandingCms }) {
   );
 }
 
-const journeySources = [
+const integrationActionSources = [
   { key: "meta", label: "Meta", mark: "∞", status: "قيد التفعيل" },
   { key: "whatsapp", label: "WhatsApp", mark: "WA", status: "قيد التفعيل" },
   { key: "salla", label: "سلة", mark: "س", status: "قريبًا" },
@@ -813,7 +813,7 @@ const journeySources = [
   { key: "woo", label: "WooCommerce", mark: "Woo", status: "متاح" },
 ] as const;
 
-const journeySteps = [
+const integrationActionSteps = [
   ["وصل الطلب", "حُفظ المصدر والحملة"],
   ["دخل قائمة التوزيع", "بانتظار الموظف المناسب"],
   ["تم الإسناد", "إشعار مباشر للموظفة نورة"],
@@ -821,19 +821,19 @@ const journeySteps = [
   ["انتقل للتسجيل", "الخطوة التالية: السداد"],
 ] as const;
 
-function JourneyLab() {
+function IntegrationActionLab() {
   const [source, setSource] = useState("meta");
   const [step, setStep] = useState(0);
   const [runId, setRunId] = useState(0);
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    if (step >= journeySteps.length - 1) return;
+    if (step >= integrationActionSteps.length - 1) return;
     const timer = window.setTimeout(() => setStep((value) => value + 1), 1050);
     return () => window.clearTimeout(timer);
   }, [step, runId]);
 
-  const currentSource = journeySources.find((item) => item.key === source) ?? journeySources[0];
+  const currentSource = integrationActionSources.find((item) => item.key === source) ?? integrationActionSources[0];
   const restart = (nextSource = source) => {
     setSource(nextSource);
     setStep(0);
@@ -841,34 +841,362 @@ function JourneyLab() {
   };
 
   return (
-    <section className="journey-section" id="integrations">
-      <div className="journey-inner section">
+    <section className="integration-action-section" id="integrations">
+      <div className="integration-action-inner section">
         <div className="section-kicker section-kicker--light" data-reveal><span>04</span> تكاملات تحرّك العمل</div>
-        <div className="journey-heading" data-reveal><h2>الإشعار ما يكفي.<br /><span>خلّه يصير إجراء.</span></h2><p>اختر نقطة دخول تجريبية وشاهد كيف يتحول الطلب إلى عميل، ثم مهمة، ثم متابعة واضحة داخل أودير.</p></div>
-        <div className="source-picker" role="tablist" aria-label="اختر مصدر العميل" data-reveal>
-          {journeySources.map((item) => <button key={item.key} type="button" role="tab" aria-selected={source === item.key} className={source === item.key ? `source-choice source-choice--${item.key} is-active` : `source-choice source-choice--${item.key}`} onClick={() => restart(item.key)}><i>{item.mark}</i><span><b>{item.label}</b><small>{item.status}</small></span></button>)}
+        <div className="integration-action-heading" data-reveal><h2>الإشعار ما يكفي.<br /><span>خلّه يصير إجراء.</span></h2><p>اختر نقطة دخول تجريبية وشاهد كيف يتحول الطلب إلى عميل، ثم مهمة، ثم متابعة واضحة داخل أودير.</p></div>
+        <div className="integration-action-picker" role="tablist" aria-label="اختر مصدر العميل" data-reveal>
+          {integrationActionSources.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={source === item.key}
+              className={source === item.key ? `integration-action-choice integration-action-choice--${item.key} is-active` : `integration-action-choice integration-action-choice--${item.key}`}
+              onClick={() => restart(item.key)}
+            >
+              <i>{item.mark}</i><span><b>{item.label}</b><small>{item.status}</small></span>
+            </button>
+          ))}
         </div>
-        <div className="journey-console" data-reveal>
-          <div className="journey-topbar"><span className="demo-label"><i /> تجربة توضيحية · بيانات افتراضية</span><button type="button" onClick={() => restart()}>أعد الرحلة</button></div>
-          <div className="journey-lead">
-            <div className={`journey-source-logo journey-source-logo--${currentSource.key}`}>{currentSource.mark}</div>
+        <div className="integration-action-console" data-reveal>
+          <div className="integration-action-topbar"><span className="demo-label"><i /> تجربة توضيحية · بيانات افتراضية</span><button type="button" onClick={() => restart()}>أعد الرحلة</button></div>
+          <div className="integration-action-lead">
+            <div className={`integration-action-source-logo integration-action-source-logo--${currentSource.key}`}>{currentSource.mark}</div>
             <span><small>عميل تجريبي من {currentSource.label}</small><b>ريم عبدالله</b><em>برنامج تحليل البيانات</em></span>
             <strong>{step === 4 ? "بانتظار السداد" : step >= 2 ? "قيد المتابعة" : "جديد"}</strong>
           </div>
-          <div className="journey-track">
-            {journeySteps.map(([title, copy], index) => <button key={title} type="button" className={index < step ? "journey-step is-done" : index === step ? "journey-step is-active" : "journey-step"} onClick={() => setStep(index)}><i>{index < step ? "✓" : String(index + 1).padStart(2, "0")}</i><span><b>{title}</b><small>{copy}</small></span></button>)}
+          <div className="integration-action-track">
+            {integrationActionSteps.map(([title, copy], index) => (
+              <button key={title} type="button" className={index < step ? "integration-action-step is-done" : index === step ? "integration-action-step is-active" : "integration-action-step"} onClick={() => setStep(index)}>
+                <i>{index < step ? "✓" : String(index + 1).padStart(2, "0")}</i><span><b>{title}</b><small>{copy}</small></span>
+              </button>
+            ))}
           </div>
-          <div className="journey-metrics"><span><small>استفسارات اليوم</small><b>{47 + step}</b></span><span><small>بانتظار التوزيع</small><b>{Math.max(0, 3 - step)}</b></span><span><small>متوسط الاستجابة</small><b>{step >= 3 ? "04:18" : "05:02"}</b></span><span><small>تسجيلات جديدة</small><b>{17 + (step === 4 ? 1 : 0)}</b></span></div>
+          <div className="integration-action-metrics"><span><small>استفسارات اليوم</small><b>{47 + step}</b></span><span><small>بانتظار التوزيع</small><b>{Math.max(0, 3 - step)}</b></span><span><small>متوسط الاستجابة</small><b>{step >= 3 ? "04:18" : "05:02"}</b></span><span><small>تسجيلات جديدة</small><b>{17 + (step === 4 ? 1 : 0)}</b></span></div>
         </div>
-        <div className="integration-rail" data-reveal>
-          <span className="integration-wordmark integration-wordmark--yeastar"><i>Y</i> Yeastar <small>متاح</small></span>
-          <span className="integration-wordmark integration-wordmark--google"><i>G</i> Google <small>قيد التفعيل</small></span>
-          <span className="integration-wordmark integration-wordmark--meta"><i>∞</i> Meta <small>قيد التفعيل</small></span>
-          <span className="integration-wordmark integration-wordmark--woo"><i>Woo</i> WooCommerce <small>متاح</small></span>
-          <span className="integration-wordmark integration-wordmark--salla"><i>س</i> سلة <small>قريبًا</small></span>
-          <span className="integration-wordmark integration-wordmark--zid"><i>ز</i> زد <small>قريبًا</small></span>
+        <div className="integration-action-rail" data-reveal>
+          <span className="integration-action-wordmark integration-action-wordmark--yeastar"><i>Y</i> Yeastar <small>متاح</small></span>
+          <span className="integration-action-wordmark integration-action-wordmark--google"><i>G</i> Google <small>قيد التفعيل</small></span>
+          <span className="integration-action-wordmark integration-action-wordmark--meta"><i>∞</i> Meta <small>قيد التفعيل</small></span>
+          <span className="integration-action-wordmark integration-action-wordmark--woo"><i>Woo</i> WooCommerce <small>متاح</small></span>
+          <span className="integration-action-wordmark integration-action-wordmark--salla"><i>س</i> سلة <small>قريبًا</small></span>
+          <span className="integration-action-wordmark integration-action-wordmark--zid"><i>ز</i> زد <small>قريبًا</small></span>
         </div>
-        <p className="brand-disclaimer">أسماء وشعارات المنصات مملوكة لأصحابها، وعرضها يوضح مسار التكامل ولا يعني وجود شراكة رسمية.</p>
+        <p className="integration-action-disclaimer">أسماء وشعارات المنصات مملوكة لأصحابها، وعرضها يوضح مسار التكامل ولا يعني وجود شراكة رسمية.</p>
+      </div>
+    </section>
+  );
+}
+
+const journeyPhases = [
+  { key: "demand", label: "الإعلان والطلب", caption: "من الحملة إلى سجل واضح", start: 0 },
+  { key: "sales", label: "المبيعات والمتابعة", caption: "توزيع واتصال ومواعيد", start: 2 },
+  { key: "conversion", label: "الإغلاق والقبول", caption: "سداد موثق وملف مكتمل", start: 4 },
+  { key: "training", label: "التسجيل والمحاضرات", caption: "دفعة وجدول وحضور", start: 6 },
+  { key: "credential", label: "الرفع والشهادة", caption: "تحقق وإصدار موثق", start: 8 },
+] as const;
+
+type JourneyPhaseKey = typeof journeyPhases[number]["key"];
+
+const journeySteps: readonly {
+  key: string;
+  phase: JourneyPhaseKey;
+  label: string;
+  title: string;
+  summary: string;
+  owner: string;
+  action: string;
+  result: string;
+  status: string;
+  personState: string;
+  time: string;
+}[] = [
+  {
+    key: "ad",
+    phase: "demand",
+    label: "الإعلان",
+    title: "بدأت الرحلة من إعلان البرنامج",
+    summary: "نقرة على إعلان فيديو لبرنامج تحليل البيانات وصلت إلى نموذج اهتمام واضح بدل أن تضيع في صندوق رسائل منفصل.",
+    owner: "فريق التسويق",
+    action: "Meta Leads · حملة دفعة سبتمبر",
+    result: "المصدر والحملة والإعلان محفوظة",
+    status: "طلب جديد",
+    personState: "عميل محتمل",
+    time: "09:02",
+  },
+  {
+    key: "capture",
+    phase: "demand",
+    label: "التقاط الطلب",
+    title: "دخل الطلب ومعه كل سياقه",
+    summary: "حُفظ الاسم والجوال والبرنامج المطلوب، ثم جرى فحص الهوية ومنع إنشاء سجل مكرر لنفس العميل داخل المنشأة.",
+    owner: "أودير",
+    action: "فحص الهوية وتكرار رقم الجوال",
+    result: "سجل عميل موحّد دون تكرار",
+    status: "مؤهل مبدئيًا",
+    personState: "عميل محتمل",
+    time: "09:02",
+  },
+  {
+    key: "assignment",
+    phase: "sales",
+    label: "التوزيع",
+    title: "وصل الطلب للمسؤولة الأنسب خلال ثوانٍ",
+    summary: "اختار مسار التوزيع موظفة المبيعات المناسبة وفق البرنامج ووقت العمل وحجم المهام، مع بقاء مصدر الإسناد واضحًا.",
+    owner: "توزيع المبيعات",
+    action: "قواعد البرنامج والدوام وحجم المهام",
+    result: "تم الإسناد خلال 12 ثانية",
+    status: "تم الإسناد",
+    personState: "فرصة نشطة",
+    time: "09:03",
+  },
+  {
+    key: "followup",
+    phase: "sales",
+    label: "المتابعة",
+    title: "كل اتصال وموعد محفوظ في السجل",
+    summary: "سُجلت المكالمة والرسالة والملاحظة وموعد المتابعة التالي؛ لذلك يعرف أي موظف ما حدث وما الخطوة القادمة.",
+    owner: "مستشارة القبول",
+    action: "مكالمة 06:42 + رسالة + موعد متابعة",
+    result: "مهتمة · متابعة اليوم 4:30 م",
+    status: "قيد المتابعة",
+    personState: "فرصة نشطة",
+    time: "09:07",
+  },
+  {
+    key: "payment",
+    phase: "conversion",
+    label: "الإغلاق والدفع",
+    title: "تحولت الفرصة إلى تسجيل مؤكد",
+    summary: "أُرسل رابط السداد، وحُفظت العملية على ملف العميل، ثم أُغلقت مهمة البيع المفتوحة بعد تأكيد الدفع.",
+    owner: "المبيعات والحسابات",
+    action: "رابط سداد بقيمة 1,490 ر.س",
+    result: "تم تأكيد الدفع وإغلاق متابعة البيع",
+    status: "تم تأكيد الدفع",
+    personState: "تم الدفع",
+    time: "اليوم الثاني",
+  },
+  {
+    key: "admission",
+    phase: "conversion",
+    label: "القبول",
+    title: "ملف القبول مكتمل وواضح",
+    summary: "راجع فريق القبول البيانات والمستندات ومتطلبات البرنامج، وسُجلت النتيجة دون فقد تاريخ المبيعات السابق.",
+    owner: "القبول والتسجيل",
+    action: "التحقق من الهوية ومتطلبات البرنامج",
+    result: "مقبولة · لا مستندات ناقصة",
+    status: "مقبولة",
+    personState: "متدربة مسجلة",
+    time: "10:18",
+  },
+  {
+    key: "enrollment",
+    phase: "training",
+    label: "التسجيل",
+    title: "حُجز مقعدها داخل الدفعة",
+    summary: "أُنشئ رقم المتدربة وربطت بالدفعة وتاريخ البداية وجدول المحاضرات، فأصبحت بيانات التشغيل جاهزة للفريق.",
+    owner: "مسؤول التسجيل",
+    action: "رقم متدرب + دفعة + جدول محاضرات",
+    result: "PBI-SEP-26 · المقعد 18 من 25",
+    status: "مسجلة",
+    personState: "متدربة مسجلة",
+    time: "10:26",
+  },
+  {
+    key: "lectures",
+    phase: "training",
+    label: "المحاضرات",
+    title: "الحضور والتقدم تحت المتابعة",
+    summary: "تحركت التذكيرات وروابط المحاضرات والحضور والنتائج من خطة واحدة، مع تنبيه الفريق قبل أن يصبح النقص مشكلة.",
+    owner: "التشغيل الأكاديمي",
+    action: "تذكيرات وروابط وحضور ونتيجة",
+    result: "18.5 من 20 ساعة · حضور 92%",
+    status: "مستوفية الحضور",
+    personState: "متدربة",
+    time: "أسبوعان",
+  },
+  {
+    key: "submission",
+    phase: "credential",
+    label: "الرفع",
+    title: "السجل التدريبي جاهز بلا نقص",
+    summary: "راجع أودير الحقول وسجل حالة تجهيز البيانات للمؤسسة العامة للتدريب التقني والمهني ومنصة منار، دون ادعاء رفع آلي غير متاح.",
+    owner: "مسؤول التسجيل",
+    action: "مطابقة الهوية والبرنامج والساعات والحضور",
+    result: "جاهز للرفع بعد اكتمال التحقق",
+    status: "جاهز للرفع",
+    personState: "متدربة",
+    time: "12:40",
+  },
+  {
+    key: "certificate",
+    phase: "credential",
+    label: "الشهادة",
+    title: "أصبحت الشهادة الإلكترونية متاحة",
+    summary: "بعد اعتماد المنشأة لسجل التدريب وإتمام إجراءات المنصة، حُفظت حالة الشهادة ورابطها وأُرسلت للمتدربة.",
+    owner: "المنشأة التدريبية",
+    action: "تأكيد الإصدار وتحديث سجل المتدربة",
+    result: "رابط الشهادة محفوظ وتم إرساله",
+    status: "الشهادة صادرة",
+    personState: "خريجة",
+    time: "14:05",
+  },
+] as const;
+
+function JourneyPhaseIcon({ type }: { type: JourneyPhaseKey }) {
+  if (type === "demand") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 13 12-5v9L4 13Zm0 0v4h4l2 3M19 9l2-2M20 13h3M19 17l2 2" /></svg>;
+  if (type === "sales") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-6 9c.5-4 2.5-6 6-6s5.5 2 6 6M16 8h6M16 12h5M16 16h4" /></svg>;
+  if (type === "conversion") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3V6Zm0 4h18M7 15h4M17 14l1.3 1.3L21 12.6" /></svg>;
+  if (type === "training") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5V4Zm3-2v4M16 2v4M5 9h14M9 13h2M14 13h2M9 17h2" /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Zm9 0v5h4M9 12h7M9 16h5" /><path d="m8 8 1 1 2-2" /></svg>;
+}
+
+function JourneyLab() {
+  const [step, setStep] = useState(0);
+  const [runId, setRunId] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const [pageVisible, setPageVisible] = useState(() => typeof document === "undefined" || !document.hidden);
+  const sectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || !("IntersectionObserver" in window)) {
+      setIsVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => setIsVisible(entry.isIntersecting), { threshold: 0.04, rootMargin: "-10% 0px" });
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const syncVisibility = () => setPageVisible(!document.hidden);
+    document.addEventListener("visibilitychange", syncVisibility);
+    return () => document.removeEventListener("visibilitychange", syncVisibility);
+  }, []);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!isVisible || !pageVisible || paused) return;
+    if (step >= journeySteps.length - 1) return;
+    const timer = window.setTimeout(() => setStep((value) => value + 1), 2300);
+    return () => window.clearTimeout(timer);
+  }, [isVisible, pageVisible, paused, step, runId]);
+
+  const currentStep = journeySteps[step] ?? journeySteps[0];
+  const currentPhase = journeyPhases.find((phase) => phase.key === currentStep.phase) ?? journeyPhases[0];
+  const nextStep = journeySteps[step + 1];
+  const progress = Math.round((step / (journeySteps.length - 1)) * 100);
+
+  const restart = (start = 0) => {
+    setStep(start);
+    setPaused(false);
+    setRunId((value) => value + 1);
+  };
+
+  const inspectStep = (index: number) => {
+    setStep(index);
+    setPaused(true);
+  };
+
+  return (
+    <section className="journey-section" id="journey" ref={sectionRef}>
+      <div className="journey-inner section">
+        <div className="section-kicker section-kicker--light" data-reveal><span>05</span> رحلة العميل والمتدرب كاملة</div>
+        <div className="journey-heading" data-reveal><h2>من أول نقرة…<br /><span>إلى شهادة مستحقة.</span></h2><p>تابع انتقال الطلب بين التسويق والمبيعات والقبول والتدريب والاعتماد؛ كل مسؤول وموعد ونتيجة محفوظة في مسار واحد.</p></div>
+        <div className="journey-phase-picker" role="tablist" aria-label="فصول رحلة المتدرب" data-reveal>
+          {journeyPhases.map((phase, index) => (
+            <button
+              key={phase.key}
+              id={`journey-phase-${phase.key}`}
+              type="button"
+              role="tab"
+              aria-controls="journey-stage-panel"
+              aria-selected={currentPhase.key === phase.key}
+              className={currentPhase.key === phase.key ? "journey-phase is-active" : "journey-phase"}
+              onClick={() => restart(phase.start)}
+            >
+              <span className="journey-phase-icon"><JourneyPhaseIcon type={phase.key} /></span>
+              <span><b>{phase.label}</b><small>{phase.caption}</small></span>
+              <em>{String(index + 1).padStart(2, "0")}</em>
+            </button>
+          ))}
+        </div>
+        <div className="journey-console" data-reveal>
+          <div className="journey-topbar">
+            <span className="demo-label"><i /> محاكاة تشغيلية مستوحاة من رحلة فعلية · جميع البيانات افتراضية</span>
+            <span className="journey-controls">
+              <button type="button" aria-pressed={paused} onClick={() => setPaused((value) => !value)}>{paused ? "استكمل الحركة" : "أوقف الحركة"}</button>
+              <button type="button" onClick={() => restart()}>أعد الرحلة</button>
+            </span>
+          </div>
+          <div className="journey-lead">
+            <div className="journey-source-logo journey-source-logo--meta" aria-hidden="true">∞</div>
+            <span><small>متدربة تجريبية · 05•• ••• 4821</small><b>سارة العتيبي <i>اسم افتراضي</i></b><em>تحليل البيانات باستخدام Power BI · دفعة سبتمبر</em></span>
+            <strong>{currentStep.personState}</strong>
+          </div>
+          <div className="journey-progress" aria-label={`اكتمل ${progress}% من الرحلة`}>
+            <span><b>المحطة {String(step + 1).padStart(2, "0")}</b><small>من {journeySteps.length} محطات</small></span>
+            <div aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>
+          </div>
+          <div className="journey-track" aria-label="محطات رحلة العميل والمتدرب">
+            {journeySteps.map((item, index) => (
+              <button
+                key={item.key}
+                type="button"
+                className={index < step ? "journey-step is-done" : index === step ? "journey-step is-active" : "journey-step"}
+                aria-current={index === step ? "step" : undefined}
+                aria-label={`${index + 1}. ${item.label}: ${item.title}`}
+                onClick={() => inspectStep(index)}
+              >
+                <i>{index < step ? "✓" : String(index + 1).padStart(2, "0")}</i>
+                <span><b>{item.label}</b><small>{item.status}</small></span>
+              </button>
+            ))}
+          </div>
+          <div
+            className="journey-stage-card"
+            id="journey-stage-panel"
+            role="tabpanel"
+            aria-labelledby={`journey-phase-${currentPhase.key}`}
+            aria-live="polite"
+            key={currentStep.key}
+          >
+            <div className="journey-stage-copy">
+              <div className="journey-stage-heading"><span>{currentPhase.label}</span><time dir="auto">{currentStep.time}</time></div>
+              <h3>{currentStep.title}</h3>
+              <p>{currentStep.summary}</p>
+              <div className="journey-stage-facts">
+                <span><small>المسؤول</small><b>{currentStep.owner}</b></span>
+                <span><small>الإجراء المحفوظ</small><b>{currentStep.action}</b></span>
+                <span><small>النتيجة</small><b>{currentStep.result}</b></span>
+              </div>
+            </div>
+            <aside className="journey-stage-result">
+              <span className="journey-stage-number">{String(step + 1).padStart(2, "0")}</span>
+              <small>الحالة الحالية</small>
+              <b>{currentStep.status}</b>
+              {step >= 8 ? (
+                <div className="journey-authorities" aria-label="الجهات والمنصات ذات الصلة">
+                  <span><Image src="/integrations/tvtc-color.svg" width={36} height={36} alt="" /> التدريب التقني</span>
+                  <span><Image src="/integrations/mnar-color.svg" width={36} height={36} alt="" /> منصة منار</span>
+                </div>
+              ) : (
+                <p><small>الخطوة التالية</small><b>{nextStep?.label ?? "اكتملت الرحلة"}</b></p>
+              )}
+            </aside>
+          </div>
+          <div className="journey-metrics" aria-label="نتائج السيناريو حتى هذه المحطة">
+            <span><small>زمن أول استجابة</small><b>{step >= 3 ? "03:42" : "—"}</b></span>
+            <span><small>حتى تأكيد الدفع</small><b>{step >= 4 ? "يومان" : "—"}</b></span>
+            <span><small>نسبة الحضور</small><b>{step >= 7 ? "92%" : "—"}</b></span>
+            <span><small>حقول ناقصة عند التجهيز</small><b>{step >= 8 ? "0" : "—"}</b></span>
+            <span><small>شهادة صادرة</small><b>{step >= 9 ? "1" : "0"}</b></span>
+          </div>
+        </div>
+        <p className="journey-disclaimer" data-reveal>أودير يوحّد تجهيز البيانات ومتابعة حالتها. الرفع والإصدار يتمان وفق إجراءات الجهة والمنصة وصلاحيات المنشأة، ولا يعني هذا العرض شراكة أو تكاملًا آليًا مباشرًا.</p>
       </div>
     </section>
   );
@@ -888,7 +1216,7 @@ function RoleSwitcher() {
   const view = roleViews[role];
   return (
     <section className="roles-section section">
-      <div className="section-kicker" data-reveal><span>05</span> كل دور له وضوحه</div>
+      <div className="section-kicker" data-reveal><span>06</span> كل دور له وضوحه</div>
       <div className="roles-heading" data-reveal><h2>كل موظف يشوف اللي يحتاجه.<br /><span>والإدارة تشوف الصورة كلها.</span></h2><p>صلاحيات حسب الدور، وأولوية يومية واضحة، بدون ما تغرق الموظف في شاشات ما تخصّه.</p></div>
       <div className="role-switcher" data-reveal>
         <div className="role-tabs" role="tablist" aria-label="اختر دور الموظف">{(Object.entries(roleViews) as [RoleKey, typeof roleViews[RoleKey]][]).map(([key, item]) => <button key={key} type="button" role="tab" aria-selected={role === key} className={role === key ? "is-active" : ""} onClick={() => setRole(key)}><i /><span>{item.label}</span></button>)}</div>
@@ -919,7 +1247,7 @@ function SecuritySection({ cms }: { cms: LandingCms }) {
   return (
     <section className="security-section" id="security">
       <div className="security-inner section">
-        <div className="security-copy" data-reveal><div className="section-kicker section-kicker--light"><span>06</span> {kicker}</div><h2>{title === "بيانات منشأتك تبقى منشأتك." ? <>بيانات منشأتك<br /><span>تبقى منشأتك.</span></> : title}</h2><p>{body}</p><a href={`${APP_ORIGIN}/p/information-security`}>اقرأ عن أمن المعلومات <ArrowMark /></a></div>
+        <div className="security-copy" data-reveal><div className="section-kicker section-kicker--light"><span>07</span> {kicker}</div><h2>{title === "بيانات منشأتك تبقى منشأتك." ? <>بيانات منشأتك<br /><span>تبقى منشأتك.</span></> : title}</h2><p>{body}</p><a href={`${APP_ORIGIN}/p/information-security`}>اقرأ عن أمن المعلومات <ArrowMark /></a></div>
         <div className="security-grid" data-reveal>
           <article><span className="security-icon security-icon--layers"><i /><i /><i /></span><b>{cards[0].title}</b><p>{cards[0].description}</p></article>
           <article><span className="security-icon security-icon--key"><i /></span><b>{cards[1].title}</b><p>{cards[1].description}</p></article>
@@ -954,7 +1282,7 @@ function FAQ({ cms }: { cms: LandingCms }) {
   const body = cmsText(cms.faq?.body, "إجابات مباشرة على أكثر الأسئلة شيوعًا.", "بدون شروط مخفية ولا وعود أكبر من المرحلة.");
   return (
     <section className="faq-section section">
-      <div className="faq-heading" data-reveal><div className="section-kicker"><span>07</span> {kicker}</div><h2>{title === "أسئلة واضحة. إجابات أوضح." ? <>أسئلة واضحة.<br />إجابات أوضح.</> : title}</h2><p>{body}</p></div>
+      <div className="faq-heading" data-reveal><div className="section-kicker"><span>08</span> {kicker}</div><h2>{title === "أسئلة واضحة. إجابات أوضح." ? <>أسئلة واضحة.<br />إجابات أوضح.</> : title}</h2><p>{body}</p></div>
       <div className="faq-list" data-reveal>{questions.map(([question, answer], index) => <details key={question} open={index === 0}><summary><span>{question}</span><i /></summary><p>{answer}</p></details>)}</div>
     </section>
   );
@@ -1008,6 +1336,7 @@ export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms 
       <StoryStrip />
       <ProductDemo />
       <OperationalStories cms={cms} />
+      <IntegrationActionLab />
       <JourneyLab />
       <RoleSwitcher />
       <SecuritySection cms={cms} />

@@ -695,6 +695,27 @@
 @keyframes morning-pulse { 0%,100% { box-shadow: 0 0 0 4px rgba(8,200,187,.08); } 50% { box-shadow: 0 0 0 8px rgba(8,200,187,.16); } }
 @keyframes snapshot-event-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 
+/* Desktop keeps the hero on one continuous surface and uses a calmer display scale. */
+@media (min-width: 921px) {
+  .odeir-experience .odeir-home-hero {
+    padding-inline: clamp(32px, 4vw, 58px);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .odeir-experience .hero-copy h1 { font-size: clamp(41.6px, 4vw, 59.2px); }
+  .odeir-experience .morning-copy h2 { font-size: clamp(36px, 3.6vw, 52.8px); }
+  .odeir-experience .story-head h2,
+  .odeir-experience .product-intro h2 { font-size: clamp(33.6px, 3.84vw, 56px); }
+  .odeir-experience .features-heading h2,
+  .odeir-experience .roles-heading h2,
+  .odeir-experience .journey-heading h2 { font-size: clamp(33.6px, 3.76vw, 54.4px); }
+  .odeir-experience .security-copy h2 { font-size: clamp(35.2px, 4vw, 56px); }
+  .odeir-experience .faq-heading h2 { font-size: clamp(32.8px, 3.84vw, 53.6px); }
+  .odeir-experience .final-cta h2 { font-size: clamp(38.4px, 4.8vw, 65.6px); }
+  .odeir-experience .early-cta h2 { font-size: clamp(22.4px, 2.96vw, 40px); }
+}
+
 @media (max-width: 1180px) {
   .odeir-experience .site-header, .odeir-experience .odeir-home-hero { width: min(100% - 42px, 1120px); }
   .odeir-experience .main-nav { gap: 18px; }
@@ -704,6 +725,10 @@
   .odeir-experience .hero-copy > p { font-size: 16px; }
   .odeir-experience .hero-snapshot { width: min(100%, 520px); }
   .odeir-experience .story-flow { grid-template-columns: 1fr 68px .75fr 68px 1.1fr; padding: 32px; }
+}
+
+@media (min-width: 921px) and (max-width: 1180px) {
+  .odeir-experience .hero-copy h1 { font-size: clamp(36px, 4.24vw, 51.2px); }
 }
 
 @media (max-width: 920px) {

@@ -129,6 +129,12 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(styles,/\.hero-snapshot \{ position: relative; overflow: hidden; width: min\(100%, 570px\)/);
   assert.match(styles,/\.hero-snapshot \{ width: min\(620px, 100%\); margin: 0 auto; \}/);
   assert.match(styles,/\.hero-snapshot \{ width: 100%; padding: 16px;/);
+  assert.match(styles,/@media \(min-width: 921px\)[\s\S]*\.odeir-home-hero \{[\s\S]*padding-inline: clamp\(32px, 4vw, 58px\);[\s\S]*background: transparent;[\s\S]*box-shadow: none;/);
+  assert.match(styles,/\.hero-copy h1 \{ font-size: clamp\(41\.6px, 4vw, 59\.2px\); \}/);
+  assert.match(styles,/\.final-cta h2 \{ font-size: clamp\(38\.4px, 4\.8vw, 65\.6px\); \}/);
+  assert.match(styles,/@media \(min-width: 921px\) and \(max-width: 1180px\)[\s\S]*\.hero-copy h1 \{ font-size: clamp\(36px, 4\.24vw, 51\.2px\); \}/);
+  assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.odeir-home-hero \{ width: 100%; padding: 34px 20px 52px;/);
+  assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.hero-copy h1 \{ max-width: 390px; margin: 15px 0 17px; font-size: clamp\(34px, 9\.4vw, 40px\);/);
   assert.doesNotMatch(styles,/hero-title-(?:desktop|mobile)|mobile-hero-snapshot|dashboard-window--hero|hero-orbit|floating-event|floating-result/);
   assert.match(styles,/\.morning-section/);
   assert.match(styles,/\.journey-network-map/);

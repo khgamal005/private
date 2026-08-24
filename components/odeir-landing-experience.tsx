@@ -961,7 +961,7 @@ function JourneyPhaseIcon({ type }: { type: JourneyPhaseKey }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Zm9 0v5h4M9 12h7M9 16h5" /><path d="m8 8 1 1 2-2" /></svg>;
 }
 
-function JourneyLab() {
+function JourneyLab({ variant = "dark" }: { variant?: "dark" | "blended" }) {
   const [step, setStep] = useState(0);
   const [runId, setRunId] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -998,6 +998,7 @@ function JourneyLab() {
   const currentPhase = journeyPhases.find((phase) => phase.key === currentStep.phase) ?? journeyPhases[0];
   const nextStep = journeySteps[step + 1];
   const progress = Math.round((step / (journeySteps.length - 1)) * 100);
+  const idPrefix = variant === "blended" ? "journey-blended" : "journey";
 
   const restart = (start = 0) => {
     setStep(start);
@@ -1011,7 +1012,7 @@ function JourneyLab() {
   };
 
   return (
-    <section className="journey-section" id="journey" ref={sectionRef}>
+    <section className={variant === "blended" ? "journey-section journey-section--blended" : "journey-section"} id={idPrefix} ref={sectionRef}>
       <div className="journey-inner section">
         <div className="section-kicker section-kicker--light" data-reveal><span>03</span> رحلة العميل والمتدرب كاملة</div>
         <div className="journey-heading" data-reveal><h2>من أول نقرة…<br /><span>إلى شهادة مستحقة.</span></h2><p>تابع انتقال الطلب بين التسويق والمبيعات والقبول والتدريب والاعتماد؛ كل مسؤول وموعد ونتيجة محفوظة في مسار واحد.</p></div>
@@ -1019,10 +1020,10 @@ function JourneyLab() {
           {journeyPhases.map((phase, index) => (
             <button
               key={phase.key}
-              id={`journey-phase-${phase.key}`}
+              id={`${idPrefix}-phase-${phase.key}`}
               type="button"
               role="tab"
-              aria-controls="journey-stage-panel"
+              aria-controls={`${idPrefix}-stage-panel`}
               aria-selected={currentPhase.key === phase.key}
               className={currentPhase.key === phase.key ? "journey-phase is-active" : "journey-phase"}
               onClick={() => restart(phase.start)}
@@ -1067,9 +1068,9 @@ function JourneyLab() {
           </div>
           <div
             className="journey-stage-card"
-            id="journey-stage-panel"
+            id={`${idPrefix}-stage-panel`}
             role="tabpanel"
-            aria-labelledby={`journey-phase-${currentPhase.key}`}
+            aria-labelledby={`${idPrefix}-phase-${currentPhase.key}`}
             aria-live={paused ? "polite" : "off"}
             key={currentStep.key}
           >
@@ -1245,6 +1246,7 @@ export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms 
       <StoryStrip />
       <ProductDemo />
       <JourneyLab />
+      <JourneyLab variant="blended" />
       <OperationalStories cms={cms} />
       <RoleSwitcher />
       <SecuritySection cms={cms} />

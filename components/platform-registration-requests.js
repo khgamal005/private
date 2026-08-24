@@ -10,7 +10,7 @@ const STATUS={
   awaiting_email:{label:'بانتظار تأكيد البريد',short:'تأكيد البريد'},
   pending_review:{label:'بانتظار المراجعة',short:'جديد'},
   under_review:{label:'قيد المراجعة',short:'قيد المراجعة'},
-  approved:{label:'مقبول',short:'مقبول'},
+  approved:{label:'معتمد · بانتظار التفعيل',short:'بانتظار التفعيل'},
   rejected:{label:'مرفوض',short:'مرفوض'},
   converted:{label:'مفعّلة وموثوقة',short:'مفعّلة'},
   trust_pending:{label:'مفعّلة · بانتظار الموثوقية',short:'موثوقية معلّقة'},
@@ -21,6 +21,7 @@ const STATUS={
 const ACTION_STATUS={
   start_review:'under_review',
   approve:'approved',
+  approve_and_activate:'converted',
   reject:'rejected',
   reopen:'under_review',
   provision:'converted',
@@ -32,6 +33,7 @@ const ACTION_STATUS={
 const ACTION_MESSAGES={
   start_review:'تم إسناد الطلب لك وبدء المراجعة.',
   approve:'تم قبول الطلب فقط. لم تُنشأ مساحة منشأة بعد.',
+  approve_and_activate:'تم اعتماد الطلب وتفعيل ارتباط المنشأة في معاملة واحدة.',
   reject:'تم رفض الطلب وحفظ سبب القرار دون حذف السجل.',
   reopen:'أُعيد الطلب إلى المراجعة مع حفظ سبب إعادة الفتح.',
   provision:'تم إنشاء مساحة المنشأة من الطلب المعتمد.',
@@ -91,7 +93,8 @@ function institutionState(value){
 }
 
 function requestIdentifier(item){
-  return item.commercialRegistration||item.nationalRegistration||item.tvtcLicense||'غير مضاف';
+  return item.commercialRegistration||item.nationalRegistration
+    ||item.tvtcLicense||item.tvtcLicenseNumber||'غير مضاف';
 }
 
 function detailStatus(detail,fallback){
@@ -109,6 +112,18 @@ function detailTimeline(detail){
   return Array.isArray(value)?value:[];
 }
 
+function safeInvitationUrl(value){
+  if(typeof window==='undefined')return '';
+  try{
+    const url=new URL(String(value||''),window.location.origin);
+    return url.origin===window.location.origin&&url.pathname==='/accept-invite'
+      ?url.toString()
+      :'';
+  }catch{
+    return '';
+  }
+}
+
 function eventLabel(event){
   const action=String(valueOf(event,['action','event','status'],'')).toLowerCase();
   return ({
@@ -121,6 +136,7 @@ function eventLabel(event){
     reviewing:'قيد المراجعة',
     approve:'تم قبول الطلب',
     approved:'تم قبول الطلب',
+    approve_and_activate:'تم اعتماد الطلب وتفعيل المنشأة',
     reject:'تم رفض الطلب',
     rejected:'تم رفض الطلب',
     reopen:'أُعيد فتح الطلب',
@@ -155,6 +171,10 @@ function activationLabel(mode){
   return mode==='email_verified_trial'
     ?'تفعيل بعد تأكيد البريد'
     :'مراجعة وتفعيل يدوي';
+}
+
+function isExistingInstitution(value){
+  return ['existing','linked','account'].includes(String(value||'').trim().toLowerCase());
 }
 
 function trustLabel(status){
@@ -228,6 +248,10 @@ export default function PlatformRegistrationRequests({initialData}){
   const [reasonCategory,setReasonCategory]=useState('');
   const [reason,setReason]=useState('');
   const [acknowledged,setAcknowledged]=useState(false);
+  const [activationResolution,setActivationResolution]=useState('create_new');
+  const [targetTenantSlug,setTargetTenantSlug]=useState('');
+  const [confirmedNoExistingTenant,setConfirmedNoExistingTenant]=useState(false);
+  const [activationOutcome,setActivationOutcome]=useState(null);
   const [provisionDraft,setProvisionDraft]=useState({
     displayName:'',legalName:'',slug:'',countryCode:'SA',timezone:'Asia/Riyadh',
     planKey:'free',ownerName:'',ownerEmail:'',hostname:''
@@ -334,6 +358,11 @@ export default function PlatformRegistrationRequests({initialData}){
   const hasNext=offset+limit<total;
   const currentStatus=selected?detailStatus(detail,selected.status):'pending_review';
   const tenantSlug=selected?detailTenantSlug(detail,selected.tenantSlug):'';
+  const existingRequest=selected?isExistingInstitution(valueOf(
+    detail,
+    ['institutionState','institution_state'],
+    selected.institutionState
+  )):false;
 
   function updateLocalRequest(id,changes){
     setData(current=>{
@@ -359,6 +388,7 @@ export default function PlatformRegistrationRequests({initialData}){
     const controller=new AbortController();
     detailAbortRef.current=controller;
     setSelected(item);
+    setActivationOutcome(null);
     setDetail(null);
     setDetailError('');
     setDetailLoading(true);
@@ -395,7 +425,14 @@ export default function PlatformRegistrationRequests({initialData}){
     setReasonCategory('');
     setReason('');
     setAcknowledged(false);
-    if(type==='provision')setProvisionDraft(provisionDefaults(detail||{},selected));
+    setTargetTenantSlug('');
+    setConfirmedNoExistingTenant(false);
+    if(type==='provision'||type==='approve_and_activate'){
+      setProvisionDraft(provisionDefaults(detail||{},selected));
+    }
+    if(type==='approve_and_activate'){
+      setActivationResolution(existingRequest?'':'create_new');
+    }
     setError('');
     setConfirm({type});
   }
@@ -439,6 +476,9 @@ export default function PlatformRegistrationRequests({initialData}){
         ['slug','tenantSlug','tenant_slug'],
         valueOf(resultData,['tenantSlug','tenant_slug'],tenantSlug)
       ),'');
+      const invitationUrl=action==='approve_and_activate'
+        ?safeInvitationUrl(valueOf(resultData?.provisioning,['invitationUrl','invitation_url']))
+        :'';
       const nextVersion=number(valueOf(
         serverRequest,
         ['version','rowVersion','row_version'],
@@ -464,6 +504,9 @@ export default function PlatformRegistrationRequests({initialData}){
         ...(nextTenantSlug?{tenantSlug:nextTenantSlug}:{})
       }));
       setConfirm(null);
+      if(action==='approve_and_activate'){
+        setActivationOutcome({requestId,tenantSlug:nextTenantSlug,invitationUrl});
+      }
       setNotice(ACTION_MESSAGES[action]||'تم تنفيذ الإجراء بنجاح.');
       router.refresh();
       return true;
@@ -479,6 +522,23 @@ export default function PlatformRegistrationRequests({initialData}){
     event.preventDefault();
     if(confirm?.type==='approve'){
       runAction('approve',{notes:decisionNote.trim()||null,payload:{}});
+      return;
+    }
+    if(confirm?.type==='approve_and_activate'){
+      const payload=activationResolution==='link_existing'
+        ?{
+          resolution:'link_existing',
+          targetTenantSlug:targetTenantSlug.trim().toLowerCase()
+        }
+        :{
+          ...provisionDraft,
+          resolution:'create_new',
+          confirmedNoExistingTenant
+        };
+      runAction('approve_and_activate',{
+        notes:decisionNote.trim()||null,
+        payload
+      });
       return;
     }
     if(confirm?.type==='reject'){
@@ -529,6 +589,10 @@ export default function PlatformRegistrationRequests({initialData}){
 
     <div className={styles.liveRegion} aria-live="polite" aria-atomic="true">
       {notice&&<div className={styles.notice} role="status">{notice}</div>}
+      {activationOutcome&&<div className={styles.notice} role="status">
+        {activationOutcome.tenantSlug&&<Link href={`/tenant/${encodeURIComponent(activationOutcome.tenantSlug)}`}>فتح المنشأة النشطة</Link>}
+        {activationOutcome.invitationUrl&&<a href={activationOutcome.invitationUrl}>فتح رابط دعوة المالك</a>}
+      </div>}
       {error&&!confirm&&<div className={styles.error} role="alert">{error}</div>}
     </div>
 
@@ -557,7 +621,7 @@ export default function PlatformRegistrationRequests({initialData}){
           ['awaiting_email','بانتظار البريد',number(summary.awaitingEmail)],
           ['pending_review','جديدة',number(summary.pendingReview)],
           ['under_review','قيد المراجعة',number(summary.underReview)],
-          ['approved','مقبولة',number(summary.approved)],
+          ['approved','بانتظار التفعيل',number(summary.approved)],
           ['trust_attention','مراجعة الموثوقية',number(summary.trustPending)],
           ['rejected','مرفوضة',number(summary.rejected)],
           ['converted','مفعّلة وموثوقة',number(summary.trusted)],
@@ -586,7 +650,7 @@ export default function PlatformRegistrationRequests({initialData}){
           </div>
           <div className={styles.identity} data-label="هوية المنشأة">
             <b dir="ltr">{requestIdentifier(item)}</b>
-            <small>{item.commercialRegistration?'سجل تجاري':item.nationalRegistration?'رقم وطني':item.tvtcLicense?'ترخيص تدريب':'بحاجة للتحقق'}</small>
+            <small>{item.commercialRegistration?'سجل تجاري':item.nationalRegistration?'رقم وطني':item.tvtcLicense||item.tvtcLicenseNumber?'ترخيص تدريب':'بحاجة للتحقق'}</small>
           </div>
           <div data-label="الحالة"><StatusBadge status={item.status}/></div>
           <div className={styles.reviewer} data-label="المراجع">
@@ -647,9 +711,9 @@ export default function PlatformRegistrationRequests({initialData}){
             {currentStatus==='awaiting_email'&&<span className={styles.waitingAction}>بانتظار تأكيد مقدم الطلب من بريده</span>}
             {currentStatus==='under_review'&&<>
               <button type="button" className={styles.rejectAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('reject')}>رفض الطلب</button>
-              <button type="button" className={styles.primaryAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('approve')}>قبول الطلب</button>
+              <button type="button" className={styles.primaryAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('approve_and_activate')}>اعتماد وتفعيل</button>
             </>}
-            {currentStatus==='approved'&&!tenantSlug&&<button type="button" className={styles.primaryAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('provision')}>إنشاء مساحة المنشأة</button>}
+            {currentStatus==='approved'&&!tenantSlug&&<button type="button" className={styles.primaryAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('approve_and_activate')}>إكمال التفعيل</button>}
             {currentStatus==='approved'&&tenantSlug&&<Link className={styles.tenantLink} href={`/tenant/${encodeURIComponent(tenantSlug)}`}>فتح مساحة المنشأة</Link>}
             {currentStatus==='rejected'&&<button type="button" className={styles.secondaryAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('reopen')}>إعادة فتح للمراجعة</button>}
             {currentStatus==='converted'&&tenantSlug&&<Link className={styles.tenantLink} href={`/tenant/${encodeURIComponent(tenantSlug)}`}>فتح مساحة المنشأة</Link>}
@@ -680,6 +744,13 @@ export default function PlatformRegistrationRequests({initialData}){
       setAcknowledged={setAcknowledged}
       provisionDraft={provisionDraft}
       setProvisionDraft={setProvisionDraft}
+      existingRequest={existingRequest}
+      activationResolution={activationResolution}
+      setActivationResolution={setActivationResolution}
+      targetTenantSlug={targetTenantSlug}
+      setTargetTenantSlug={setTargetTenantSlug}
+      confirmedNoExistingTenant={confirmedNoExistingTenant}
+      setConfirmedNoExistingTenant={setConfirmedNoExistingTenant}
       onClose={()=>!busy&&setConfirm(null)}
       onSubmit={submitConfirmation}
     />}
@@ -706,7 +777,7 @@ function RequestDetails({detail,selected}){
   const institutionName=valueOf(detail,['institutionName','institution_name','organizationName','organization_name'],selected.institutionName);
   const commercialRegistration=valueOf(detail,['commercialRegistration','commercial_registration','crNumber','cr_number'],selected.commercialRegistration);
   const nationalRegistration=valueOf(detail,['nationalRegistration','national_registration','nationalNumber','national_number'],selected.nationalRegistration);
-  const tvtcLicense=valueOf(detail,['tvtcLicense','tvtc_license','tvtcLicenseNumber','tvtc_license_number','trainingLicense','training_license'],selected.tvtcLicense);
+  const tvtcLicense=valueOf(detail,['tvtcLicense','tvtc_license','tvtcLicenseNumber','tvtc_license_number','trainingLicense','training_license'],selected.tvtcLicense||selected.tvtcLicenseNumber);
   const contactName=valueOf(detail,['contactName','contact_name','applicantName','applicant_name'],selected.contactName);
   const contactTitle=valueOf(detail,['contactTitle','contact_title','contactJobTitle','contact_job_title','jobTitle','job_title'],selected.contactTitle);
   const contactEmail=valueOf(detail,['contactEmail','contact_email','email']);
@@ -776,6 +847,7 @@ function DetailSkeleton(){
 }
 
 function confirmationCopy(type){
+  if(type==='approve_and_activate')return {eyebrow:'قرار ذري وآمن',title:'اعتماد الطلب وتفعيل المنشأة',description:'يُنفذ الاعتماد والتفعيل معًا. إذا تعذر أي تحقق فلن تُحفظ حالة قبول ناقصة.',button:'اعتماد وتفعيل'};
   if(type==='approve')return {eyebrow:'قرار المراجعة',title:'قبول طلب التسجيل',description:'سيُسجل القبول فقط. لن تُنشأ مساحة منشأة ولن تتغير بيانات أي منشأة قائمة.',button:'تأكيد قبول الطلب'};
   if(type==='reject')return {eyebrow:'قرار يحتاج سببًا',title:'رفض طلب التسجيل',description:'سيبقى الطلب محفوظًا في السجل ولن تُحذف بياناته.',button:'تأكيد رفض الطلب'};
   if(type==='reopen')return {eyebrow:'إعادة للمراجعة',title:'إعادة فتح الطلب',description:'سيعود الطلب إلى «قيد المراجعة» مع حفظ سبب إعادة الفتح.',button:'إعادة فتح الطلب'};
@@ -787,7 +859,10 @@ function confirmationCopy(type){
 const ConfirmationDialog=({
   ref,type,selected,busy,error,decisionNote,setDecisionNote,
   reasonCategory,setReasonCategory,reason,setReason,
-  acknowledged,setAcknowledged,provisionDraft,setProvisionDraft,onClose,onSubmit
+  acknowledged,setAcknowledged,provisionDraft,setProvisionDraft,
+  existingRequest,activationResolution,setActivationResolution,
+  targetTenantSlug,setTargetTenantSlug,
+  confirmedNoExistingTenant,setConfirmedNoExistingTenant,onClose,onSubmit
 })=>{
   const copy=confirmationCopy(type);
   const requiresReason=type==='reject'||type==='reopen'||type==='trust_restrict';
@@ -801,10 +876,17 @@ const ConfirmationDialog=({
     &&provisionDraft.ownerName.trim()
     &&/^\S+@\S+\.\S+$/.test(provisionDraft.ownerEmail.trim())
   );
+  const activationValid=activationResolution==='link_existing'
+    ?Boolean(acknowledged&&/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(targetTenantSlug.trim()))
+    :activationResolution==='create_new'
+      ?Boolean(acknowledged&&confirmedNoExistingTenant&&provisionValid)
+      :false;
   const valid=type==='reject'
     ?Boolean(reasonCategory&&reason.trim().length>=8)
     :type==='reopen'||type==='trust_restrict'
       ?reason.trim().length>=8
+      :type==='approve_and_activate'
+        ?activationValid
       :type==='provision'
         ?acknowledged&&provisionValid
         :acknowledged;
@@ -825,12 +907,24 @@ const ConfirmationDialog=({
       <p id="registration-confirm-description">{copy.description}</p>
       <div className={styles.confirmSummary}><span>الطلب</span><b>{selected.reference}</b><span>المنشأة</span><b>{selected.institutionName}</b><span>رقم الهوية</span><b dir="ltr">{requestIdentifier(selected)}</b></div>
 
-      {type==='approve'&&<label className={styles.confirmField}><span>ملاحظة داخلية اختيارية</span><textarea value={decisionNote} onChange={event=>setDecisionNote(event.target.value)} maxLength="1000" rows="3" placeholder="أي ملاحظة يحتاجها فريق التجهيز…"/></label>}
+      {(type==='approve'||type==='approve_and_activate')&&<label className={styles.confirmField}><span>ملاحظة داخلية اختيارية</span><textarea value={decisionNote} onChange={event=>setDecisionNote(event.target.value)} maxLength="1000" rows="3" placeholder="أي ملاحظة يحتاجها فريق التجهيز…"/></label>}
       {type==='trust_approve'&&<label className={styles.confirmField}><span>ملاحظة تحقق اختيارية</span><textarea value={decisionNote} onChange={event=>setDecisionNote(event.target.value)} maxLength="1000" rows="3" placeholder="مصادر أو ملخص التحقق…"/></label>}
       {type==='reject'&&<label className={styles.confirmField}><span>تصنيف سبب الرفض</span><select required value={reasonCategory} onChange={event=>setReasonCategory(event.target.value)}><option value="" disabled>اختر السبب</option>{REJECTION_REASONS.map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>}
       {requiresReason&&<label className={styles.confirmField}><span>{type==='reject'?'سبب الرفض':type==='trust_restrict'?'سبب تقييد المساحة':'سبب إعادة الفتح'}</span><textarea required minLength="8" maxLength="1200" rows="4" value={reason} onChange={event=>setReason(event.target.value)} placeholder="اكتب سببًا واضحًا يمكن الرجوع إليه…"/></label>}
+      {type==='approve_and_activate'&&existingRequest&&<fieldset className={styles.provisionGrid}>
+        <legend>اختر معالجة المنشأة القائمة</legend>
+        <label className={styles.acknowledgement}><input type="radio" name="activation-resolution" value="link_existing" checked={activationResolution==='link_existing'} onChange={()=>setActivationResolution('link_existing')}/><span><b>ربط مساحة أودير قائمة</b><br/>لا يغيّر إعدادات المساحة أو اشتراكها أو أعضاءها.</span></label>
+        <label className={styles.acknowledgement}><input type="radio" name="activation-resolution" value="create_new" checked={activationResolution==='create_new'} onChange={()=>setActivationResolution('create_new')}/><span><b>إنشاء مساحة مستقلة</b><br/>فقط بعد التأكد أنه لا توجد مساحة أودير قائمة لهذه المنشأة.</span></label>
+      </fieldset>}
+      {type==='approve_and_activate'&&activationResolution==='link_existing'&&<fieldset className={styles.provisionGrid}>
+        <legend>المساحة القائمة المستهدفة</legend>
+        <label className={`${styles.confirmField} ${styles.provisionWide}`}><span>الرابط المختصر للمساحة</span><input required dir="ltr" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={targetTenantSlug} onChange={event=>setTargetTenantSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="existing-institute"/></label>
+        <small className={styles.provisionWide}>سيُثبت الارتباط في سجل الطلب فقط، من دون تعديل بيانات أو اشتراك أو مستخدمي المساحة القائمة.</small>
+      </fieldset>}
+      {type==='approve_and_activate'&&activationResolution==='create_new'&&<ProvisionFields value={provisionDraft} onChange={setProvisionDraft}/>} 
       {type==='provision'&&<ProvisionFields value={provisionDraft} onChange={setProvisionDraft}/>} 
-      {!requiresReason&&<label className={styles.acknowledgement}><input type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/><span>{type==='provision'?'راجعت هوية المنشأة وأؤكد إنشاء مساحة مستقلة لها.':type==='trust_approve'?'راجعت مصادر التحقق وأؤكد اعتماد موثوقية هذه المنشأة.':'راجعت بيانات المنشأة وأؤكد أن هذا القرار لا ينشئ مساحة تلقائيًا.'}</span></label>}
+      {type==='approve_and_activate'&&activationResolution==='create_new'&&<label className={styles.acknowledgement}><input type="checkbox" checked={confirmedNoExistingTenant} onChange={event=>setConfirmedNoExistingTenant(event.target.checked)}/><span>بحثت في منشآت أودير وأؤكد عدم وجود مساحة قائمة لهذه المنشأة.</span></label>}
+      {!requiresReason&&(type!=='approve_and_activate'||Boolean(activationResolution))&&<label className={styles.acknowledgement}><input type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/><span>{type==='approve_and_activate'?(activationResolution==='link_existing'?'راجعت الهوية الرسمية وأؤكد أن المساحة المحددة تخص المنشأة نفسها.':'راجعت هوية المنشأة وأؤكد صحة قرار إنشاء مساحة مستقلة.') :type==='provision'?'راجعت هوية المنشأة وأؤكد إنشاء مساحة مستقلة لها.':type==='trust_approve'?'راجعت مصادر التحقق وأؤكد اعتماد موثوقية هذه المنشأة.':'راجعت بيانات المنشأة وأؤكد أن هذا القرار لا ينشئ مساحة تلقائيًا.'}</span></label>}
       {error&&<div className={styles.confirmError} role="alert">{error}</div>}
       {!valid&&<small id="registration-confirm-help" className={styles.confirmHelp} role="status" aria-live="polite">استكمل الإقرار أو سبب القرار والحقول المطلوبة قبل المتابعة.</small>}
       <footer><button type="button" className={styles.cancelButton} disabled={Boolean(busy)} onClick={onClose}>إلغاء</button><button type="submit" className={type==='reject'||type==='trust_restrict'?styles.dangerConfirm:styles.primaryConfirm} disabled={Boolean(busy)||!valid} aria-describedby={!valid?'registration-confirm-help':undefined}>{busy?'جارٍ التنفيذ…':copy.button}</button></footer>

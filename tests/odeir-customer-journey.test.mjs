@@ -14,15 +14,17 @@ test('the public ODEIR experience tells the complete fictional trainee journey',
   assert.doesNotMatch(landing,/IntegrationActionLab|integrationActionSources|تكاملات تحرّك العمل|الإشعار ما يكفي/);
   assert.match(landing,/<StoryStrip \/>[\s\S]*<ProductDemo \/>[\s\S]*<JourneyLab \/>[\s\S]*<OperationalStories cms=\{cms\} \/>/);
   assert.match(runtimeBlock,/<span>03<\/span> رحلة العميل والمتدرب كاملة/);
-  assert.match(runtimeBlock,/variant = "dark"/);
-  assert.match(runtimeBlock,/const idPrefix = variant === "blended" \? "journey-blended" : "journey"/);
-  assert.match(runtimeBlock,/journey-section journey-section--blended/);
+  assert.doesNotMatch(runtimeBlock,/variant\s*=|journey-blended/);
+  assert.match(runtimeBlock,/const idPrefix = "journey"/);
+  assert.match(runtimeBlock,/<section className="journey-section journey-section--blended" id=\{idPrefix\}/);
   assert.ok(runtimeBlock.includes('id={`${idPrefix}-phase-${phase.key}`}'));
   assert.ok(runtimeBlock.includes('aria-controls={`${idPrefix}-stage-panel`}'));
   assert.ok(runtimeBlock.includes('id={`${idPrefix}-stage-panel`}'));
   assert.ok(runtimeBlock.includes('aria-labelledby={`${idPrefix}-phase-${currentPhase.key}`}'));
   assert.doesNotMatch(runtimeBlock,/id="journey-phase-|id="journey-stage-panel"/);
-  assert.match(landing,/<JourneyLab \/>[\s\S]*<JourneyLab variant="blended" \/>[\s\S]*<OperationalStories/);
+  assert.equal((landing.match(/<JourneyLab \/>/g)??[]).length,1);
+  assert.match(landing,/<JourneyLab \/>[\s\S]*<OperationalStories/);
+  assert.doesNotMatch(landing,/JourneyLab variant=/);
   assert.doesNotMatch(runtimeBlock,/id="integrations"/);
   assert.match(runtimeBlock,/محاكاة تشغيلية مستوحاة من رحلة فعلية · جميع البيانات افتراضية/);
   assert.match(runtimeBlock,/05•• ••• 4821/);
@@ -57,7 +59,7 @@ test('the complete journey remains responsive, readable, and motion-aware',async
     assert.match(styles,new RegExp(`\\.${selector}`));
   }
   assert.match(styles,/grid-template-columns: repeat\(10, minmax\(0,1fr\)\)/);
-  assert.match(styles,/\.journey-section \{[^}]+linear-gradient\(150deg, #031329, #061f40 65%, #031126\)/);
+  assert.doesNotMatch(styles,/Temporary side-by-side-in-flow comparison/);
   assert.match(styles,/\.journey-section--blended \{[^}]+linear-gradient\(155deg, #f8fbfa 0%, #edf6f4 54%, #f8faf9 100%\)/);
   assert.match(styles,/\.journey-section--blended \.journey-heading h2 \{ color: #071d36; \}/);
   assert.match(styles,/\.journey-section--blended \.journey-phase \{[^}]+background: rgba\(255,255,255,\.72\)/);

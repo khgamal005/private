@@ -584,7 +584,7 @@
 .odeir-experience .journey-metrics b { margin-top: 6px; color: #fff; font-size: 18px; unicode-bidi: plaintext; text-align: right; }
 .odeir-experience .journey-disclaimer { max-width: 860px; margin: 20px auto 0; color: #678097; text-align: center; font-size: 7px; line-height: 1.8; }
 
-/* Temporary side-by-side-in-flow comparison: the original dark journey stays first. */
+/* Selected light-and-dark journey theme. */
 .odeir-experience .journey-section--blended { color: #0a2741; background: radial-gradient(circle at 13% 12%, rgba(8,200,187,.16), transparent 25%), radial-gradient(circle at 88% 34%, rgba(48,111,198,.09), transparent 27%), linear-gradient(155deg, #f8fbfa 0%, #edf6f4 54%, #f8faf9 100%); }
 .odeir-experience .journey-section--blended::before { opacity: .58; background-image: linear-gradient(rgba(8,42,66,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(8,42,66,.045) 1px, transparent 1px); mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 72%, transparent); }
 .odeir-experience .journey-section--blended::after { border-color: rgba(8,150,143,.15); box-shadow: 0 0 0 56px rgba(8,200,187,.045), 0 0 0 112px rgba(8,200,187,.022); }

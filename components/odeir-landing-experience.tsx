@@ -961,7 +961,7 @@ function JourneyPhaseIcon({ type }: { type: JourneyPhaseKey }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Zm9 0v5h4M9 12h7M9 16h5" /><path d="m8 8 1 1 2-2" /></svg>;
 }
 
-function JourneyLab({ variant = "dark" }: { variant?: "dark" | "blended" }) {
+function JourneyLab() {
   const [step, setStep] = useState(0);
   const [runId, setRunId] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -998,7 +998,7 @@ function JourneyLab({ variant = "dark" }: { variant?: "dark" | "blended" }) {
   const currentPhase = journeyPhases.find((phase) => phase.key === currentStep.phase) ?? journeyPhases[0];
   const nextStep = journeySteps[step + 1];
   const progress = Math.round((step / (journeySteps.length - 1)) * 100);
-  const idPrefix = variant === "blended" ? "journey-blended" : "journey";
+  const idPrefix = "journey";
 
   const restart = (start = 0) => {
     setStep(start);
@@ -1012,7 +1012,7 @@ function JourneyLab({ variant = "dark" }: { variant?: "dark" | "blended" }) {
   };
 
   return (
-    <section className={variant === "blended" ? "journey-section journey-section--blended" : "journey-section"} id={idPrefix} ref={sectionRef}>
+    <section className="journey-section journey-section--blended" id={idPrefix} ref={sectionRef}>
       <div className="journey-inner section">
         <div className="section-kicker section-kicker--light" data-reveal><span>03</span> رحلة العميل والمتدرب كاملة</div>
         <div className="journey-heading" data-reveal><h2>من أول نقرة…<br /><span>إلى شهادة مستحقة.</span></h2><p>تابع انتقال الطلب بين التسويق والمبيعات والقبول والتدريب والاعتماد؛ كل مسؤول وموعد ونتيجة محفوظة في مسار واحد.</p></div>
@@ -1246,7 +1246,6 @@ export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms 
       <StoryStrip />
       <ProductDemo />
       <JourneyLab />
-      <JourneyLab variant="blended" />
       <OperationalStories cms={cms} />
       <RoleSwitcher />
       <SecuritySection cms={cms} />

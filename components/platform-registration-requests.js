@@ -27,19 +27,21 @@ const ACTION_STATUS={
   provision:'converted',
   trust_start:'trust_review',
   trust_approve:'converted',
-  trust_restrict:'trust_restricted'
+  trust_restrict:'trust_restricted',
+  move_to_manual_review:'pending_review'
 };
 
 const ACTION_MESSAGES={
   start_review:'تم إسناد الطلب لك وبدء المراجعة.',
   approve:'تم قبول الطلب فقط. لم تُنشأ مساحة منشأة بعد.',
-  approve_and_activate:'تم اعتماد الطلب وتفعيل ارتباط المنشأة في معاملة واحدة.',
+  approve_and_activate:'تم اعتماد الطلب وإنشاء مساحة مستقلة وتفعيلها في معاملة واحدة.',
   reject:'تم رفض الطلب وحفظ سبب القرار دون حذف السجل.',
   reopen:'أُعيد الطلب إلى المراجعة مع حفظ سبب إعادة الفتح.',
   provision:'تم إنشاء مساحة المنشأة من الطلب المعتمد.',
   trust_start:'بدأت مراجعة موثوقية المنشأة، والمساحة تواصل العمل بصورة طبيعية.',
   trust_approve:'اكتملت مراجعة الموثوقية وأصبحت المنشأة موثوقة.',
-  trust_restrict:'قُيّدت هذه المساحة الجديدة فقط، مع حفظ سبب القرار.'
+  trust_restrict:'قُيّدت هذه المساحة الجديدة فقط، مع حفظ سبب القرار.',
+  move_to_manual_review:'تم إلغاء مسار البريد لهذا الطلب وتحويله بأمان إلى المراجعة اليدوية.'
 };
 
 const REJECTION_REASONS=[
@@ -124,6 +126,28 @@ function safeInvitationUrl(value){
   }
 }
 
+function validActivationPayload(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return false;
+  const request=value.request;
+  const provisioning=value.provisioning;
+  if(!request||!provisioning||typeof request!=='object'
+     ||typeof provisioning!=='object'||Array.isArray(provisioning))return false;
+  const requestStatus=String(valueOf(request,[
+    'status','requestStatus','request_status'
+  ],'')).toLowerCase();
+  const requestTenant=String(valueOf(request,[
+    'provisionedTenantId','provisioned_tenant_id'
+  ],'')).toLowerCase();
+  const tenantId=String(valueOf(provisioning,['id','tenantId','tenant_id'],'')).toLowerCase();
+  const slug=String(valueOf(provisioning,['slug','tenantSlug','tenant_slug'],'')).toLowerCase();
+  return requestStatus==='converted'
+    &&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(requestTenant)
+    &&requestTenant===tenantId
+    &&/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
+    &&String(provisioning.status).toLowerCase()==='active'
+    &&String(provisioning.resolution).toLowerCase()==='create_new';
+}
+
 function eventLabel(event){
   const action=String(valueOf(event,['action','event','status'],'')).toLowerCase();
   return ({
@@ -144,6 +168,7 @@ function eventLabel(event){
     provisioned:'تم إنشاء مساحة المنشأة',
     email_confirmation_sent:'أُرسلت رسالة تأكيد البريد',
     email_confirmed:'تم تأكيد البريد',
+    email_fallback_manual:'تم تحويل الطلب إلى المراجعة اليدوية',
     auto_provision:'تفعّلت المساحة تلقائيًا',
     trust_start:'بدأت مراجعة الموثوقية',
     trust_approve:'تم اعتماد موثوقية المنشأة',
@@ -156,15 +181,9 @@ function summaryKey(status){
   if(status==='under_review')return 'underReview';
   if(status==='awaiting_email')return 'awaitingEmail';
   if(status==='trust_pending'||status==='trust_review')return 'trustPending';
+  if(status==='trust_restricted')return 'trustRestricted';
+  if(status==='converted')return 'trusted';
   return status;
-}
-
-function statusMatchesFilter(status,filter){
-  if(filter==='all')return true;
-  if(filter==='manual_attention')return ['pending_review','under_review'].includes(status);
-  if(filter==='trust_attention')return ['trust_pending','trust_review'].includes(status);
-  if(filter==='restricted')return ['rejected','trust_restricted'].includes(status);
-  return status===filter;
 }
 
 function activationLabel(mode){
@@ -184,6 +203,27 @@ function trustLabel(status){
     trusted:'موثوقة',
     restricted:'مقيّدة'
   })[String(status||'pending_review')]||'بانتظار مراجعة الموثوقية';
+}
+
+function emailDeliveryLabel(delivery){
+  const transport=String(valueOf(delivery,['state','status'],'')).toLowerCase();
+  const inbox=String(valueOf(delivery,['deliveryState','delivery_state'],'')).toLowerCase();
+  return ({
+    delivered:'وصلت إلى خادم بريد المستلم',
+    bounced:'ارتدت من خادم المستلم',
+    complained:'أبلغ المستلم أنها مزعجة',
+    suppressed:'منعها مزود البريد',
+    delayed:'التسليم متأخر لدى مزود البريد',
+    failed:'أبلغ مزود البريد بفشل التسليم',
+    sent:'أرسلها مزود البريد'
+  })[inbox]||({
+    queued:'في طابور الإرسال',
+    leased:'جارٍ الإرسال',
+    retryable:'ستُعاد المحاولة تلقائيًا',
+    accepted:'قبلها مزود البريد',
+    terminal_failed:'فشل نهائي يحتاج تدخلًا',
+    cancelled:'أُلغيت المحاولة'
+  })[transport]||'لم يبدأ إرسال آلي';
 }
 
 function trapFocus(event,container){
@@ -231,11 +271,13 @@ function provisionDefaults(detail,selected){
   };
 }
 
-export default function PlatformRegistrationRequests({initialData}){
+export default function PlatformRegistrationRequests({
+  initialData,initialQuery='',initialFilter='all'
+}){
   const router=useRouter();
   const [data,setData]=useState(initialData||{summary:{},items:[],total:0,offset:0,limit:25});
-  const [query,setQuery]=useState('');
-  const [filter,setFilter]=useState('all');
+  const [query,setQuery]=useState(initialQuery);
+  const [filter,setFilter]=useState(initialFilter);
   const [selected,setSelected]=useState(null);
   const [detail,setDetail]=useState(null);
   const [detailLoading,setDetailLoading]=useState(false);
@@ -248,8 +290,6 @@ export default function PlatformRegistrationRequests({initialData}){
   const [reasonCategory,setReasonCategory]=useState('');
   const [reason,setReason]=useState('');
   const [acknowledged,setAcknowledged]=useState(false);
-  const [activationResolution,setActivationResolution]=useState('create_new');
-  const [targetTenantSlug,setTargetTenantSlug]=useState('');
   const [confirmedNoExistingTenant,setConfirmedNoExistingTenant]=useState(false);
   const [activationOutcome,setActivationOutcome]=useState(null);
   const [provisionDraft,setProvisionDraft]=useState({
@@ -335,18 +375,7 @@ export default function PlatformRegistrationRequests({initialData}){
   useEffect(()=>()=>detailAbortRef.current?.abort(),[]);
 
   const items=useMemo(()=>Array.isArray(data.items)?data.items:[],[data.items]);
-  const visibleItems=useMemo(()=>{
-    const needle=query.trim().toLocaleLowerCase('ar');
-    return items.filter(item=>{
-      const statusMatches=statusMatchesFilter(item.status,filter);
-      if(!statusMatches)return false;
-      if(!needle)return true;
-      return [
-        item.reference,item.institutionName,item.commercialRegistration,
-        item.nationalRegistration,item.tvtcLicense,item.contactName,item.reviewerName
-      ].some(value=>String(value||'').toLocaleLowerCase('ar').includes(needle));
-    });
-  },[items,filter,query]);
+  const visibleItems=items;
 
   const summary=data.summary||{};
   const total=number(data.total);
@@ -363,6 +392,10 @@ export default function PlatformRegistrationRequests({initialData}){
     ['institutionState','institution_state'],
     selected.institutionState
   )):false;
+  const selectedEmailDelivery=valueOf(detail,['emailDelivery','email_delivery'],{});
+  const selectedEmailDeliveryState=String(valueOf(
+    selectedEmailDelivery,['state','status'],'unknown'
+  )).trim().toLowerCase();
 
   function updateLocalRequest(id,changes){
     setData(current=>{
@@ -370,13 +403,13 @@ export default function PlatformRegistrationRequests({initialData}){
       const previous=currentItems.find(item=>item.id===id);
       const nextItems=currentItems.map(item=>item.id===id?{...item,...changes}:item);
       const nextSummary={...(current.summary||{})};
-      const trustTransition=String(previous?.status||'').startsWith('trust_')
-        ||String(changes.status||'').startsWith('trust_');
-      if(previous?.status&&changes.status&&previous.status!==changes.status&&!trustTransition){
+      if(previous?.status&&changes.status&&previous.status!==changes.status){
         const previousKey=summaryKey(previous.status);
         const nextKey=summaryKey(changes.status);
-        nextSummary[previousKey]=Math.max(0,number(nextSummary[previousKey])-1);
-        nextSummary[nextKey]=number(nextSummary[nextKey])+1;
+        if(previousKey!==nextKey){
+          nextSummary[previousKey]=Math.max(0,number(nextSummary[previousKey])-1);
+          nextSummary[nextKey]=number(nextSummary[nextKey])+1;
+        }
       }
       return {...current,summary:nextSummary,items:nextItems};
     });
@@ -425,13 +458,9 @@ export default function PlatformRegistrationRequests({initialData}){
     setReasonCategory('');
     setReason('');
     setAcknowledged(false);
-    setTargetTenantSlug('');
     setConfirmedNoExistingTenant(false);
     if(type==='provision'||type==='approve_and_activate'){
       setProvisionDraft(provisionDefaults(detail||{},selected));
-    }
-    if(type==='approve_and_activate'){
-      setActivationResolution(existingRequest?'':'create_new');
     }
     setError('');
     setConfirm({type});
@@ -464,6 +493,9 @@ export default function PlatformRegistrationRequests({initialData}){
       const result=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(result.error||'تعذر تنفيذ الإجراء');
       const resultData=result.data||result;
+      if(action==='approve_and_activate'&&!validActivationPayload(resultData)){
+        throw new Error('تعذر التحقق من نتيجة التفعيل؛ أعد المحاولة بأمان.');
+      }
       const serverRequest=resultData.request||resultData.item||{};
       const nextStatus=normalizeStatus(valueOf(
         serverRequest,
@@ -525,16 +557,12 @@ export default function PlatformRegistrationRequests({initialData}){
       return;
     }
     if(confirm?.type==='approve_and_activate'){
-      const payload=activationResolution==='link_existing'
-        ?{
-          resolution:'link_existing',
-          targetTenantSlug:targetTenantSlug.trim().toLowerCase()
-        }
-        :{
-          ...provisionDraft,
-          resolution:'create_new',
-          confirmedNoExistingTenant
-        };
+      const payload={
+        ...provisionDraft,
+        resolution:'create_new',
+        confirmedNoExistingTenant,
+        identityVerified:acknowledged
+      };
       runAction('approve_and_activate',{
         notes:decisionNote.trim()||null,
         payload
@@ -562,16 +590,50 @@ export default function PlatformRegistrationRequests({initialData}){
     }
     if(confirm?.type==='trust_restrict'){
       runAction('trust_restrict',{notes:reason.trim(),payload:{}});
+      return;
     }
+    if(confirm?.type==='move_to_manual_review'){
+      runAction('move_to_manual_review',{notes:reason.trim(),payload:{}});
+    }
+  }
+
+  function navigationUrl(nextOffset,nextFilter=filter,nextQuery=query){
+    const params=new URLSearchParams();
+    const normalizedQuery=nextQuery.trim().slice(0,80);
+    if(nextOffset>0)params.set('offset',String(nextOffset));
+    if(nextFilter&&nextFilter!=='all')params.set('status',nextFilter);
+    if(normalizedQuery)params.set('query',normalizedQuery);
+    const suffix=params.toString()?`?${params}`:'';
+    return `/control/registration-requests${suffix}`;
   }
 
   function navigate(nextOffset){
     if(navigating)return;
     setNavigating(true);
-    const params=new URLSearchParams();
-    if(nextOffset>0)params.set('offset',String(nextOffset));
-    const suffix=params.toString()?`?${params}`:'';
-    router.push(`/control/registration-requests${suffix}`);
+    router.push(navigationUrl(nextOffset));
+  }
+
+  function applyFilter(nextFilter){
+    if(navigating)return;
+    setFilter(nextFilter);
+    setNavigating(true);
+    router.push(navigationUrl(0,nextFilter,query));
+  }
+
+  function applySearch(event){
+    event.preventDefault();
+    if(navigating)return;
+    setNavigating(true);
+    router.push(navigationUrl(0,filter,query));
+  }
+
+  async function copyInvitation(url){
+    try{
+      await navigator.clipboard.writeText(url);
+      setNotice('تم نسخ رابط دعوة المالك. شاركه عبر قناة موثوقة مع المسؤول الصحيح.');
+    }catch{
+      setError('تعذر نسخ رابط الدعوة تلقائيًا. أعد محاولة التفعيل لاستصدار رابط صالح.');
+    }
   }
 
   return <section className={styles.page} dir="rtl">
@@ -591,28 +653,29 @@ export default function PlatformRegistrationRequests({initialData}){
       {notice&&<div className={styles.notice} role="status">{notice}</div>}
       {activationOutcome&&<div className={styles.notice} role="status">
         {activationOutcome.tenantSlug&&<Link href={`/tenant/${encodeURIComponent(activationOutcome.tenantSlug)}`}>فتح المنشأة النشطة</Link>}
-        {activationOutcome.invitationUrl&&<a href={activationOutcome.invitationUrl}>فتح رابط دعوة المالك</a>}
+        {activationOutcome.invitationUrl&&<button type="button" onClick={()=>copyInvitation(activationOutcome.invitationUrl)}>نسخ رابط دعوة المالك</button>}
       </div>}
       {error&&!confirm&&<div className={styles.error} role="alert">{error}</div>}
     </div>
 
     <section className={styles.stats} aria-label="ملخص حالات طلبات التسجيل">
-      <StatusCard label="كل الطلبات" value={number(summary.total)||total} active={filter==='all'} onClick={()=>setFilter('all')} tone="all"/>
-      <StatusCard label="بانتظار البريد" value={number(summary.awaitingEmail)} active={filter==='awaiting_email'} onClick={()=>setFilter('awaiting_email')} tone="awaiting_email"/>
-      <StatusCard label="مراجعة التسجيل" value={number(summary.pendingReview)+number(summary.underReview)} active={filter==='manual_attention'} onClick={()=>setFilter('manual_attention')} tone="under_review"/>
-      <StatusCard label="مراجعة الموثوقية" value={number(summary.trustPending)} active={filter==='trust_attention'} onClick={()=>setFilter('trust_attention')} tone="trust_attention"/>
-      <StatusCard label="مفعّلة وموثوقة" value={number(summary.trusted)} active={filter==='converted'} onClick={()=>setFilter('converted')} tone="converted"/>
-      <StatusCard label="مرفوضة أو مقيّدة" value={number(summary.rejected)+number(summary.trustRestricted)} active={filter==='restricted'} onClick={()=>setFilter('restricted')} tone="restricted"/>
+      <StatusCard label="كل الطلبات" value={number(summary.total)||total} active={filter==='all'} onClick={()=>applyFilter('all')} tone="all"/>
+      <StatusCard label="بانتظار البريد" value={number(summary.awaitingEmail)} active={filter==='awaiting_email'} onClick={()=>applyFilter('awaiting_email')} tone="awaiting_email"/>
+      <StatusCard label="مراجعة التسجيل" value={number(summary.pendingReview)+number(summary.underReview)} active={filter==='manual_attention'} onClick={()=>applyFilter('manual_attention')} tone="under_review"/>
+      <StatusCard label="مراجعة الموثوقية" value={number(summary.trustPending)} active={filter==='trust_attention'} onClick={()=>applyFilter('trust_attention')} tone="trust_attention"/>
+      <StatusCard label="مفعّلة وموثوقة" value={number(summary.trusted)} active={filter==='converted'} onClick={()=>applyFilter('converted')} tone="converted"/>
+      <StatusCard label="مرفوضة أو مقيّدة" value={number(summary.rejected)+number(summary.trustRestricted)} active={filter==='restricted'} onClick={()=>applyFilter('restricted')} tone="restricted"/>
     </section>
 
     <section className={styles.queue} aria-labelledby="registration-queue-title">
       <header className={styles.queueHeader}>
-        <div><h3 id="registration-queue-title">صندوق الطلبات</h3><p>{visibleItems.length} طلبًا مطابقًا في الصفحة الحالية</p></div>
-        <label className={styles.search}>
+        <div><h3 id="registration-queue-title">صندوق الطلبات</h3><p>{total} طلبًا مطابقًا · عرض {from}–{to}</p></div>
+        <form className={styles.search} onSubmit={applySearch}>
           <span className={styles.visuallyHidden}>البحث في طلبات التسجيل</span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
           <input value={query} onChange={event=>setQuery(event.target.value)} placeholder="ابحث برقم الطلب أو المنشأة أو السجل…"/>
-        </label>
+          <button type="submit" className={styles.visuallyHidden}>بحث</button>
+        </form>
       </header>
 
       <div className={styles.filters} role="group" aria-label="تصفية الطلبات حسب الحالة">
@@ -631,7 +694,7 @@ export default function PlatformRegistrationRequests({initialData}){
           type="button"
           className={filter===key?styles.activeFilter:''}
           aria-pressed={filter===key}
-          onClick={()=>setFilter(key)}
+          onClick={()=>applyFilter(key)}
         >{label}<span>{count}</span></button>)}
       </div>
 
@@ -708,7 +771,10 @@ export default function PlatformRegistrationRequests({initialData}){
           <div><small>القرار لا يحذف الطلب ولا يعدّل بيانات منشأة قائمة.</small>{error&&<span role="alert">{error}</span>}</div>
           <div className={styles.drawerActions}>
             {currentStatus==='pending_review'&&<button type="button" className={styles.primaryAction} disabled={Boolean(busy)} onClick={()=>runAction('start_review')}>{busy==='start_review'?'جارٍ الإسناد…':'بدء المراجعة'}</button>}
-            {currentStatus==='awaiting_email'&&<span className={styles.waitingAction}>بانتظار تأكيد مقدم الطلب من بريده</span>}
+            {currentStatus==='awaiting_email'&&<>
+              <span className={styles.waitingAction}>{selectedEmailDeliveryState==='terminal_failed'?'فشل إرسال التأكيد نهائيًا؛ يمكن إنقاذ الطلب يدويًا.':'بانتظار تأكيد مقدم الطلب من بريده'}</span>
+              {selectedEmailDeliveryState==='terminal_failed'&&<button type="button" className={styles.secondaryAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('move_to_manual_review')}>تحويل للمراجعة اليدوية</button>}
+            </>}
             {currentStatus==='under_review'&&<>
               <button type="button" className={styles.rejectAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('reject')}>رفض الطلب</button>
               <button type="button" className={styles.primaryAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('approve_and_activate')}>اعتماد وتفعيل</button>
@@ -745,10 +811,6 @@ export default function PlatformRegistrationRequests({initialData}){
       provisionDraft={provisionDraft}
       setProvisionDraft={setProvisionDraft}
       existingRequest={existingRequest}
-      activationResolution={activationResolution}
-      setActivationResolution={setActivationResolution}
-      targetTenantSlug={targetTenantSlug}
-      setTargetTenantSlug={setTargetTenantSlug}
       confirmedNoExistingTenant={confirmedNoExistingTenant}
       setConfirmedNoExistingTenant={setConfirmedNoExistingTenant}
       onClose={()=>!busy&&setConfirm(null)}
@@ -790,10 +852,13 @@ function RequestDetails({detail,selected}){
   const activationMode=valueOf(detail,['activationMode','activation_mode'],selected.activationMode||'manual_review');
   const currentTrust=valueOf(detail,['trustStatus','trust_status'],selected.trustStatus||'pending_review');
   const emailConfirmedAt=valueOf(detail,['emailConfirmedAt','email_confirmed_at'],selected.emailConfirmedAt);
+  const emailDelivery=valueOf(detail,['emailDelivery','email_delivery'],{});
+  const hasEmailDelivery=emailDelivery&&typeof emailDelivery==='object'
+    &&!Array.isArray(emailDelivery)&&Object.keys(emailDelivery).length>0;
   const autoActivated=activationMode==='email_verified_trial';
 
   return <div className={styles.details}>
-    {String(state).toLowerCase()==='existing'&&<aside className={styles.existingNotice}><span>✓</span><div><b>الطلب يشير إلى حساب منشأة قائم</b><p>يجب التحقق من التطابق المؤكد قبل أي ربط. تشابه الاسم وحده لا يكفي.</p></div></aside>}
+    {String(state).toLowerCase()==='existing'&&<aside className={styles.existingNotice}><span>✓</span><div><b>الطلب يشير إلى منشأة في السجل الخارجي</b><p>سيُتحقق من التطابق خادميًا ثم تُنشأ مساحة مستقلة فقط؛ هذا المسار لا يربط أو يعدّل أي مساحة أودير قائمة.</p></div></aside>}
     {autoActivated&&<aside className={styles.autoNotice}><span>◎</span><div><b>المساحة تعمل أثناء مراجعة الموثوقية</b><p>تأكيد البريد فعّل مساحة جديدة مستقلة وفق الباقة المحددة. المراجعة لا تعطل وظائفها إلا إذا صدر قرار تقييد موثّق.</p></div></aside>}
 
     <section className={styles.detailSection}>
@@ -822,6 +887,12 @@ function RequestDetails({detail,selected}){
       <div className={styles.detailGrid}>
         <DetailItem label="مسار التفعيل" value={activationLabel(activationMode)}/>
         <DetailItem label="حالة الموثوقية" value={trustLabel(currentTrust)}/>
+        {hasEmailDelivery&&<>
+          <DetailItem label="تسليم بريد التأكيد" value={emailDeliveryLabel(emailDelivery)}/>
+          <DetailItem label="محاولات البريد" value={valueOf(emailDelivery,['attemptCount','attempt_count'],0)} ltr/>
+          {valueOf(emailDelivery,['nextAttemptAt','next_attempt_at'])&&<DetailItem label="المحاولة التالية" value={formatDate(valueOf(emailDelivery,['nextAttemptAt','next_attempt_at']))}/>} 
+          {valueOf(emailDelivery,['lastErrorCode','last_error_code'])&&<DetailItem label="رمز عطل البريد" value={valueOf(emailDelivery,['lastErrorCode','last_error_code'])} ltr/>}
+        </>}
         {emailConfirmedAt&&<DetailItem label="تأكيد البريد" value={formatDate(emailConfirmedAt)}/>} 
         <DetailItem label="مسؤول المراجعة" value={reviewer||'لم يُسند بعد'}/>
         <DetailItem label="وقت الاستلام" value={formatDate(valueOf(detail,['createdAt','created_at','submittedAt','submitted_at'],selected.createdAt))}/>
@@ -847,6 +918,7 @@ function DetailSkeleton(){
 }
 
 function confirmationCopy(type){
+  if(type==='move_to_manual_review')return {eyebrow:'مسار إنقاذ موثّق',title:'تحويل الطلب إلى المراجعة اليدوية',description:'ستُلغى كل روابط ومحاولات التأكيد لهذا الطلب، ثم ينتقل للمراجعة. لن تُنشأ مساحة من هذه الخطوة.',button:'تحويل للمراجعة'};
   if(type==='approve_and_activate')return {eyebrow:'قرار ذري وآمن',title:'اعتماد الطلب وتفعيل المنشأة',description:'يُنفذ الاعتماد والتفعيل معًا. إذا تعذر أي تحقق فلن تُحفظ حالة قبول ناقصة.',button:'اعتماد وتفعيل'};
   if(type==='approve')return {eyebrow:'قرار المراجعة',title:'قبول طلب التسجيل',description:'سيُسجل القبول فقط. لن تُنشأ مساحة منشأة ولن تتغير بيانات أي منشأة قائمة.',button:'تأكيد قبول الطلب'};
   if(type==='reject')return {eyebrow:'قرار يحتاج سببًا',title:'رفض طلب التسجيل',description:'سيبقى الطلب محفوظًا في السجل ولن تُحذف بياناته.',button:'تأكيد رفض الطلب'};
@@ -860,30 +932,28 @@ const ConfirmationDialog=({
   ref,type,selected,busy,error,decisionNote,setDecisionNote,
   reasonCategory,setReasonCategory,reason,setReason,
   acknowledged,setAcknowledged,provisionDraft,setProvisionDraft,
-  existingRequest,activationResolution,setActivationResolution,
-  targetTenantSlug,setTargetTenantSlug,
+  existingRequest,
   confirmedNoExistingTenant,setConfirmedNoExistingTenant,onClose,onSubmit
 })=>{
   const copy=confirmationCopy(type);
-  const requiresReason=type==='reject'||type==='reopen'||type==='trust_restrict';
+  const requiresReason=type==='reject'||type==='reopen'||type==='trust_restrict'
+    ||type==='move_to_manual_review';
   const provisionValid=Boolean(
     provisionDraft.displayName.trim()
     &&provisionDraft.legalName.trim()
-    &&/^[a-z0-9-]+$/.test(provisionDraft.slug.trim())
+    &&/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(provisionDraft.slug.trim())
     &&provisionDraft.countryCode.trim()
     &&provisionDraft.timezone.trim()
     &&provisionDraft.planKey.trim()
     &&provisionDraft.ownerName.trim()
     &&/^\S+@\S+\.\S+$/.test(provisionDraft.ownerEmail.trim())
   );
-  const activationValid=activationResolution==='link_existing'
-    ?Boolean(acknowledged&&/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(targetTenantSlug.trim()))
-    :activationResolution==='create_new'
-      ?Boolean(acknowledged&&confirmedNoExistingTenant&&provisionValid)
-      :false;
+  const activationValid=Boolean(
+    acknowledged&&confirmedNoExistingTenant&&provisionValid
+  );
   const valid=type==='reject'
     ?Boolean(reasonCategory&&reason.trim().length>=8)
-    :type==='reopen'||type==='trust_restrict'
+    :type==='reopen'||type==='trust_restrict'||type==='move_to_manual_review'
       ?reason.trim().length>=8
       :type==='approve_and_activate'
         ?activationValid
@@ -910,21 +980,12 @@ const ConfirmationDialog=({
       {(type==='approve'||type==='approve_and_activate')&&<label className={styles.confirmField}><span>ملاحظة داخلية اختيارية</span><textarea value={decisionNote} onChange={event=>setDecisionNote(event.target.value)} maxLength="1000" rows="3" placeholder="أي ملاحظة يحتاجها فريق التجهيز…"/></label>}
       {type==='trust_approve'&&<label className={styles.confirmField}><span>ملاحظة تحقق اختيارية</span><textarea value={decisionNote} onChange={event=>setDecisionNote(event.target.value)} maxLength="1000" rows="3" placeholder="مصادر أو ملخص التحقق…"/></label>}
       {type==='reject'&&<label className={styles.confirmField}><span>تصنيف سبب الرفض</span><select required value={reasonCategory} onChange={event=>setReasonCategory(event.target.value)}><option value="" disabled>اختر السبب</option>{REJECTION_REASONS.map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>}
-      {requiresReason&&<label className={styles.confirmField}><span>{type==='reject'?'سبب الرفض':type==='trust_restrict'?'سبب تقييد المساحة':'سبب إعادة الفتح'}</span><textarea required minLength="8" maxLength="1200" rows="4" value={reason} onChange={event=>setReason(event.target.value)} placeholder="اكتب سببًا واضحًا يمكن الرجوع إليه…"/></label>}
-      {type==='approve_and_activate'&&existingRequest&&<fieldset className={styles.provisionGrid}>
-        <legend>اختر معالجة المنشأة القائمة</legend>
-        <label className={styles.acknowledgement}><input type="radio" name="activation-resolution" value="link_existing" checked={activationResolution==='link_existing'} onChange={()=>setActivationResolution('link_existing')}/><span><b>ربط مساحة أودير قائمة</b><br/>لا يغيّر إعدادات المساحة أو اشتراكها أو أعضاءها.</span></label>
-        <label className={styles.acknowledgement}><input type="radio" name="activation-resolution" value="create_new" checked={activationResolution==='create_new'} onChange={()=>setActivationResolution('create_new')}/><span><b>إنشاء مساحة مستقلة</b><br/>فقط بعد التأكد أنه لا توجد مساحة أودير قائمة لهذه المنشأة.</span></label>
-      </fieldset>}
-      {type==='approve_and_activate'&&activationResolution==='link_existing'&&<fieldset className={styles.provisionGrid}>
-        <legend>المساحة القائمة المستهدفة</legend>
-        <label className={`${styles.confirmField} ${styles.provisionWide}`}><span>الرابط المختصر للمساحة</span><input required dir="ltr" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={targetTenantSlug} onChange={event=>setTargetTenantSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="existing-institute"/></label>
-        <small className={styles.provisionWide}>سيُثبت الارتباط في سجل الطلب فقط، من دون تعديل بيانات أو اشتراك أو مستخدمي المساحة القائمة.</small>
-      </fieldset>}
-      {type==='approve_and_activate'&&activationResolution==='create_new'&&<ProvisionFields value={provisionDraft} onChange={setProvisionDraft}/>} 
+      {requiresReason&&<label className={styles.confirmField}><span>{type==='reject'?'سبب الرفض':type==='trust_restrict'?'سبب تقييد المساحة':type==='move_to_manual_review'?'سبب التحويل للمراجعة اليدوية':'سبب إعادة الفتح'}</span><textarea required minLength="8" maxLength="1200" rows="4" value={reason} onChange={event=>setReason(event.target.value)} placeholder="اكتب سببًا واضحًا يمكن الرجوع إليه…"/></label>}
+      {type==='approve_and_activate'&&existingRequest&&<div className={styles.confirmSummary} role="note"><span>عزل إلزامي</span><b>سيُعاد التحقق من السجل الرسمي خادميًا، ثم تُنشأ مساحة مستقلة فقط. ربط مساحة أودير قائمة غير متاح من هذا المسار.</b></div>}
+      {type==='approve_and_activate'&&<ProvisionFields value={provisionDraft} onChange={setProvisionDraft}/>} 
       {type==='provision'&&<ProvisionFields value={provisionDraft} onChange={setProvisionDraft}/>} 
-      {type==='approve_and_activate'&&activationResolution==='create_new'&&<label className={styles.acknowledgement}><input type="checkbox" checked={confirmedNoExistingTenant} onChange={event=>setConfirmedNoExistingTenant(event.target.checked)}/><span>بحثت في منشآت أودير وأؤكد عدم وجود مساحة قائمة لهذه المنشأة.</span></label>}
-      {!requiresReason&&(type!=='approve_and_activate'||Boolean(activationResolution))&&<label className={styles.acknowledgement}><input type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/><span>{type==='approve_and_activate'?(activationResolution==='link_existing'?'راجعت الهوية الرسمية وأؤكد أن المساحة المحددة تخص المنشأة نفسها.':'راجعت هوية المنشأة وأؤكد صحة قرار إنشاء مساحة مستقلة.') :type==='provision'?'راجعت هوية المنشأة وأؤكد إنشاء مساحة مستقلة لها.':type==='trust_approve'?'راجعت مصادر التحقق وأؤكد اعتماد موثوقية هذه المنشأة.':'راجعت بيانات المنشأة وأؤكد أن هذا القرار لا ينشئ مساحة تلقائيًا.'}</span></label>}
+      {type==='approve_and_activate'&&<label className={styles.acknowledgement}><input type="checkbox" checked={confirmedNoExistingTenant} onChange={event=>setConfirmedNoExistingTenant(event.target.checked)}/><span>بحثت في منشآت أودير وأؤكد عدم وجود مساحة قائمة لهذه المنشأة؛ لن أربط الطلب بأي مساحة قائمة.</span></label>}
+      {!requiresReason&&<label className={styles.acknowledgement}><input type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/><span>{type==='approve_and_activate'?'راجعت هوية المنشأة وأؤكد صحة قرار إنشاء مساحة مستقلة بعد التحقق الخادمي.' :type==='provision'?'راجعت هوية المنشأة وأؤكد إنشاء مساحة مستقلة لها.':type==='trust_approve'?'راجعت مصادر التحقق وأؤكد اعتماد موثوقية هذه المنشأة.':'راجعت بيانات المنشأة وأؤكد أن هذا القرار لا ينشئ مساحة تلقائيًا.'}</span></label>}
       {error&&<div className={styles.confirmError} role="alert">{error}</div>}
       {!valid&&<small id="registration-confirm-help" className={styles.confirmHelp} role="status" aria-live="polite">استكمل الإقرار أو سبب القرار والحقول المطلوبة قبل المتابعة.</small>}
       <footer><button type="button" className={styles.cancelButton} disabled={Boolean(busy)} onClick={onClose}>إلغاء</button><button type="submit" className={type==='reject'||type==='trust_restrict'?styles.dangerConfirm:styles.primaryConfirm} disabled={Boolean(busy)||!valid} aria-describedby={!valid?'registration-confirm-help':undefined}>{busy?'جارٍ التنفيذ…':copy.button}</button></footer>
@@ -940,7 +1001,7 @@ function ProvisionFields({value,onChange}){
     <legend>بيانات مساحة المنشأة الجديدة</legend>
     <label className={styles.confirmField}><span>اسم العرض</span><input required value={value.displayName} onChange={event=>set('displayName',event.target.value)} maxLength="160"/></label>
     <label className={styles.confirmField}><span>الاسم القانوني</span><input required value={value.legalName} onChange={event=>set('legalName',event.target.value)} maxLength="200"/></label>
-    <label className={styles.confirmField}><span>الرابط المختصر</span><input required dir="ltr" pattern="[a-z0-9-]+" value={value.slug} onChange={event=>set('slug',event.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="example-institute"/></label>
+    <label className={styles.confirmField}><span>الرابط المختصر</span><input required dir="ltr" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={value.slug} onChange={event=>set('slug',event.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="example-institute"/></label>
     <label className={styles.confirmField}><span>الدولة</span><select required value={value.countryCode} onChange={event=>set('countryCode',event.target.value)}><option value="SA">السعودية</option><option value="AE">الإمارات</option><option value="EG">مصر</option></select></label>
     <label className={styles.confirmField}><span>المنطقة الزمنية</span><select required value={value.timezone} onChange={event=>set('timezone',event.target.value)}><option value="Asia/Riyadh">الرياض</option><option value="Asia/Dubai">دبي</option><option value="Africa/Cairo">القاهرة</option></select></label>
     <label className={styles.confirmField}><span>مفتاح الباقة</span><input required dir="ltr" value={value.planKey} onChange={event=>set('planKey',event.target.value.trim().toLowerCase())} placeholder="free"/></label>

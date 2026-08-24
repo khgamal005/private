@@ -64,22 +64,33 @@ on platform.registration_identity_claims(tenant_id);
 -- Reserve identifiers already attached to a tenant before public auto-activation
 -- exists. A null request_id means the identifier came from an established tenant,
 -- not from the public registration flow.
-insert into platform.registration_identity_claims(
-  identifier_type,identifier_hash,request_id,tenant_id
-)
-select
-  'commercial',
-  encode(extensions.digest(
-    'commercial:'||regexp_replace(profile.commercial_registration_number,'[^0-9]','','g'),
-    'sha256'
-  ),'hex'),
-  null,
-  profile.tenant_id
-from accounting_core.tenant_profiles profile
-where nullif(regexp_replace(
-  profile.commercial_registration_number,'[^0-9]','','g'
-),'') is not null
-on conflict (identifier_type,identifier_hash) do nothing;
+-- Some non-production environments predate accounting_core.  Keep the
+-- expand migration portable and fail closed: only import exact Saudi CRs
+-- when the authoritative legacy relation is actually present.  Existing
+-- account detection remains the primary guard for established tenants.
+do $registration_existing_claim_backfill$
+begin
+  if to_regclass('accounting_core.tenant_profiles') is not null then
+    execute $sql$
+      insert into platform.registration_identity_claims(
+        identifier_type,identifier_hash,request_id,tenant_id
+      )
+      select
+        'commercial',
+        encode(extensions.digest(
+          'commercial:'||trim(profile.commercial_registration_number),
+          'sha256'
+        ),'hex'),
+        null,
+        profile.tenant_id
+      from accounting_core.tenant_profiles profile
+      where trim(profile.commercial_registration_number) ~ '^[0-9]{10}$'
+        and trim(profile.commercial_registration_number) !~ '^([0-9])\1{9}$'
+      on conflict (identifier_type,identifier_hash) do nothing
+    $sql$;
+  end if;
+end
+$registration_existing_claim_backfill$;
 
 insert into platform.registration_settings(singleton)
 values (true)

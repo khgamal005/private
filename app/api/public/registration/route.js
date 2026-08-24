@@ -15,8 +15,8 @@ export async function POST(request){
       return NextResponse.json({ok:false,error:'request_too_large'},{status:413});
     }
 
-    const rawBody=await request.text();
-    if(Buffer.byteLength(rawBody,'utf8')>MAX_BODY_BYTES){
+    const rawBody=await boundedRequestText(request,MAX_BODY_BYTES);
+    if(rawBody===null){
       return NextResponse.json({ok:false,error:'request_too_large'},{status:413});
     }
 
@@ -54,7 +54,7 @@ export async function POST(request){
         },
         body:JSON.stringify(body),
         cache:'no-store',
-        signal:AbortSignal.timeout(10_000)
+        signal:AbortSignal.timeout(20_000)
       }
     );
 
@@ -70,6 +70,29 @@ export async function POST(request){
     });
     return NextResponse.json({ok:false,error:'service_unavailable'},{status:503});
   }
+}
+
+async function boundedRequestText(request,maxBytes){
+  if(!request.body)return '';
+  const reader=request.body.getReader();
+  const chunks=[];
+  let total=0;
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>maxBytes){
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  }finally{reader.releaseLock();}
+  const merged=new Uint8Array(total);
+  let offset=0;
+  for(const chunk of chunks){merged.set(chunk,offset);offset+=chunk.byteLength;}
+  return new TextDecoder().decode(merged);
 }
 
 function clientIp(request){

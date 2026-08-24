@@ -51,7 +51,7 @@ export async function POST(request){
         },
         body:JSON.stringify({action:'confirm',token}),
         cache:'no-store',
-        signal:AbortSignal.timeout(15_000)
+        signal:AbortSignal.timeout(30_000)
       }
     );
     const result=await response.json().catch(()=>({}));

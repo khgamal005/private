@@ -264,11 +264,11 @@ function MiniChart({ values }: { values: readonly number[] }) {
   );
 }
 
-function DashboardWindow({ activeView = "overview", hero = false }: { activeView?: DemoViewKey; hero?: boolean }) {
+function DashboardWindow({ activeView = "overview" }: { activeView?: DemoViewKey }) {
   const view = demoViews[activeView];
   const activeIndex = activeView === "overview" ? 0 : activeView === "sales" ? 1 : activeView === "operations" ? 2 : 4;
   return (
-    <div className={hero ? "dashboard-window dashboard-window--hero" : "dashboard-window"}>
+    <div className="dashboard-window">
       <div className="window-bar"><span className="window-brand"><Brand compact /></span><span className="window-search">ابحث عن عميل أو طلب...</span><span className="window-user">م ك</span></div>
       <div className="window-body">
         <aside className="window-sidebar" aria-label="قائمة توضيحية">
@@ -300,27 +300,27 @@ function DashboardWindow({ activeView = "overview", hero = false }: { activeView
   );
 }
 
-function MobileHeroSnapshot({ activeEvent }: { activeEvent: number }) {
+function HeroSnapshot({ activeEvent }: { activeEvent: number }) {
   const event = journeyEvents[activeEvent];
   return (
-    <div className="mobile-hero-snapshot" data-reveal aria-label="لوحة تشغيل توضيحية للجوال">
-      <div className="mobile-snapshot-head">
+    <aside className="hero-snapshot" data-reveal aria-label="لوحة تشغيل توضيحية">
+      <div className="hero-snapshot-head">
         <span><small>لوحة اليوم</small><b>منشأتك في نظرة واحدة</b></span>
         <em><i /> مباشر</em>
       </div>
-      <div className="mobile-snapshot-kpis">
+      <div className="hero-snapshot-kpis">
         <span><small>طلبات جديدة</small><b>63</b><em>+8 اليوم</em></span>
         <span><small>متابعات قريبة</small><b>7</b><em>خلال ساعتين</em></span>
         <span><small>نسبة التحويل</small><b>18.7%</b><em>+2.4%</em></span>
       </div>
-      <div className="mobile-snapshot-event" key={event.time} aria-live="polite">
-        <span className="mobile-event-mark"><i /></span>
+      <div className="hero-snapshot-event" key={event.time} aria-live="polite">
+        <span className="hero-event-mark"><i /></span>
         <span><small>{event.source} · {event.time}</small><b>{event.text}</b></span>
         <em>تم</em>
       </div>
-      <div className="mobile-snapshot-progress" aria-hidden="true"><span /><span /><span /><span /><span /></div>
+      <div className="hero-snapshot-progress" aria-hidden="true"><span /><span /><span /><span /><span /></div>
       <p><i /> تجربة توضيحية بأرقام وبيانات افتراضية</p>
-    </div>
+    </aside>
   );
 }
 
@@ -344,20 +344,13 @@ function Hero({ cms, onRegister }: { cms: LandingCms; onRegister: () => void }) 
       <div className="hero-copy" data-reveal>
         <div className="eyebrow"><span /> {eyebrow}</div>
         <h1>{title === "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك." ? <>
-          <span className="hero-title-desktop">من أول استفسار…<br /><span className="hero-title-accent">إلى مقعد مكتمل،</span><br />كل خطوة تحت عينك.</span>
-          <span className="hero-title-mobile">من أول استفسار،<br /><span className="hero-title-accent">حتى مقعد مكتمل.</span></span>
+          <span className="hero-title">من أول استفسار،<br /><span className="hero-title-accent">حتى مقعد مكتمل.</span></span>
         </> : title}</h1>
         <p>{body}</p>
         <div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${primaryHref}`} onClick={(event) => openRegistrationFromLink(event, primaryHref, onRegister)}>{primaryLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${secondaryHref}`}>{secondaryLabel}</a></div>
         <ul className="hero-trust" aria-label="مزايا البداية"><li><i /> بدون بطاقة بنكية</li><li><i /> إعداد بخطوات واضحة</li><li><i /> بيانات مستقلة لكل منشأة</li></ul>
       </div>
-      <MobileHeroSnapshot activeEvent={activeEvent} />
-      <div className="hero-visual" data-reveal>
-        <div className="hero-orbit hero-orbit--one" aria-hidden="true" /><div className="hero-orbit hero-orbit--two" aria-hidden="true" />
-        <DashboardWindow hero />
-        <div className="floating-event" aria-live="polite"><span className="event-time">{journeyEvents[activeEvent].time}</span><span className="event-icon"><i /></span><span><b>{journeyEvents[activeEvent].source}</b><small>{journeyEvents[activeEvent].text}</small></span></div>
-        <div className="floating-result"><i /><span><small>نسبة التحويل</small><b>18.7%</b></span><em>+2.4%</em></div>
-      </div>
+      <HeroSnapshot activeEvent={activeEvent} />
       <a href="#morning-brief" className="scroll-cue" aria-label="انتقل للمحتوى"><span /> اكتشف أودير</a>
     </section>
   );

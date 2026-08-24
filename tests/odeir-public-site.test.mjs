@@ -96,6 +96,10 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(landing,/المواد العامة المنشورة/);
   assert.match(landing,/heroShellRef/);
   assert.match(landing,/className="odeir-home-hero"/);
+  assert.match(landing,/function HeroSnapshot/);
+  assert.match(landing,/<aside className="hero-snapshot"[^>]+aria-label="لوحة تشغيل توضيحية"/);
+  assert.match(landing,/className="hero-title">من أول استفسار،/);
+  assert.doesNotMatch(landing,/hero-title-(?:desktop|mobile)|MobileHeroSnapshot|<DashboardWindow hero \/>|className="hero-visual"/);
   assert.match(landing,/OdeirRegistrationModal/);
   assert.match(landing,/openRegistrationFromLink/);
   assert.match(landing,/registrationOpen/);
@@ -117,11 +121,15 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.doesNotMatch(landing,/<i>☎<\/i>|source--wa(?:[\s"'])/);
   assert.match(styles,/\.odeir-experience \.hero-shell/);
   assert.match(styles,/\.odeir-experience \.odeir-home-hero/);
-  assert.match(styles,/\.hero-copy h1 \.hero-title-mobile/);
+  assert.match(styles,/\.hero-copy h1 \.hero-title/);
   assert.match(styles,/font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; letter-spacing: inherit/);
   assert.match(styles,/\.site-header \.brand-link \{ padding: 12px; \}/);
   assert.match(styles,/\.site-header \.brand \{ padding: 0 !important; gap: 0 !important; \}/);
-  assert.match(styles,/\.mobile-hero-snapshot/);
+  assert.match(styles,/grid-template-columns: minmax\(500px, 1\.08fr\) minmax\(420px, \.92fr\)/);
+  assert.match(styles,/\.hero-snapshot \{ position: relative; overflow: hidden; width: min\(100%, 570px\)/);
+  assert.match(styles,/\.hero-snapshot \{ width: min\(620px, 100%\); margin: 0 auto; \}/);
+  assert.match(styles,/\.hero-snapshot \{ width: 100%; padding: 16px;/);
+  assert.doesNotMatch(styles,/hero-title-(?:desktop|mobile)|mobile-hero-snapshot|dashboard-window--hero|hero-orbit|floating-event|floating-result/);
   assert.match(styles,/\.morning-section/);
   assert.match(styles,/\.journey-network-map/);
   assert.match(styles,/\.journey-category-tabs/);

@@ -133,18 +133,28 @@ Deno.serve(async(request:Request)=>{
       if(!confirmationToken||!isUuid(requestId)||!contactEmail){
         throw new Error('registration_confirmation_payload_invalid');
       }
+      const confirmationTokenHash=await sha256(confirmationToken);
       await sendConfirmationEmail({
         requestId,
         reference:clean(result.reference,40),
         email:contactEmail,
         contactName:payload.contactName,
         institutionName:payload.institutionName,
-        token:confirmationToken
+        token:confirmationToken,
+        tokenHash:confirmationTokenHash
       });
-      await rpc<boolean>('v1_registration_mark_confirmation_sent',{
-        p_request_id:requestId,
-        p_token_hash:await sha256(confirmationToken)
+      const marked=await rpc<boolean>(
+        'v1_registration_mark_confirmation_sent',
+        {
+          p_request_id:requestId,
+          p_token_hash:confirmationTokenHash
+        }
+      ).catch(()=>{
+        throw new PublicError('confirmation_email_state_unavailable',503);
       });
+      if(marked!==true){
+        throw new PublicError('confirmation_email_state_unavailable',503);
+      }
     }
     const publicResult={...result};
     delete publicResult._confirmationToken;
@@ -153,12 +163,18 @@ Deno.serve(async(request:Request)=>{
     return json({ok:true,...publicResult},result.duplicate===true?200:201);
   }catch(error){
     if(error instanceof PublicError){
+      if(error.status>=500){
+        console.error('odeir-registration-intake',error.code);
+      }
       return json({ok:false,error:error.code},error.status);
     }
     const code=databaseErrorCode(error);
     const publicCode=PUBLIC_DATABASE_ERRORS.has(code)?code:'service_unavailable';
     console.error('odeir-registration-intake',publicCode);
-    return json({ok:false,error:publicCode},publicCode==='service_unavailable'?503:400);
+    const status=[
+      'service_unavailable','confirmation_email_in_progress'
+    ].includes(publicCode)?503:400;
+    return json({ok:false,error:publicCode},status);
   }
 });
 
@@ -414,7 +430,7 @@ function isOdeirRegistrationSender(value:string){
 }
 
 async function sendConfirmationEmail({
-  requestId,reference,email,contactName,institutionName,token
+  requestId,reference,email,contactName,institutionName,token,tokenHash
 }:{
   requestId:string;
   reference:string;
@@ -422,10 +438,15 @@ async function sendConfirmationEmail({
   contactName:string;
   institutionName:string;
   token:string;
+  tokenHash:string;
 }){
   if(!registrationEmailConfigurationReady()){
     throw new PublicError('email_configuration_unavailable',503);
   }
+  if(!/^[a-f0-9]{64}$/.test(tokenHash)){
+    throw new PublicError('confirmation_email_state_unavailable',503);
+  }
+
   let confirmationUrl:URL;
   try{
     confirmationUrl=new URL('/api/public/registration/confirm',PUBLIC_APP_URL);
@@ -436,29 +457,191 @@ async function sendConfirmationEmail({
     throw new PublicError('email_configuration_unavailable',503);
   }
   confirmationUrl.searchParams.set('token',token);
+
+  let delivery:JsonRecord;
+  try{
+    delivery=await rpc<JsonRecord>('v1_registration_email_delivery_begin',{
+      p_request_id:requestId,
+      p_token_hash:tokenHash
+    });
+  }catch{
+    console.error(
+      'odeir-registration-email-ledger',
+      'delivery_begin_unavailable'
+    );
+    throw new PublicError('confirmation_email_state_unavailable',503);
+  }
+
+  const deliveryId=clean(delivery.deliveryId,48);
+  const idempotencyKey=clean(delivery.idempotencyKey,200);
+  const attempt=Number(delivery.attempt);
+  if(
+    !isUuid(deliveryId)
+    ||!Number.isInteger(attempt)
+    ||attempt<1
+    ||!/^[a-z0-9/_-]{1,200}$/.test(idempotencyKey)
+  ){
+    throw new PublicError('confirmation_email_state_unavailable',503);
+  }
+  if(delivery.accepted===true&&delivery.sendRequired===false){
+    return;
+  }
+  if(delivery.inFlight===true){
+    throw new PublicError('confirmation_email_in_progress',503);
+  }
+  if(delivery.sendRequired!==true){
+    throw new PublicError('confirmation_email_state_unavailable',503);
+  }
+
   const safeName=escapeHtml(contactName);
   const safeInstitution=escapeHtml(institutionName);
   const safeReference=escapeHtml(reference);
   const safeUrl=escapeHtml(confirmationUrl.toString());
-  const response=await fetch('https://api.resend.com/emails',{
-    method:'POST',
-    headers:{
-      authorization:`Bearer ${REGISTRATION_RESEND_API_KEY}`,
-      'content-type':'application/json',
-      'idempotency-key':`odeir-registration-${requestId}-${(await sha256(token)).slice(0,16)}`
-    },
-    body:JSON.stringify({
-      from:REGISTRATION_FROM_EMAIL,
-      to:[email],
-      subject:'أكد بريدك وفعّل مساحة منشأتك في أودير',
-      html:`<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f3f7f9;font-family:Tahoma,Arial,sans-serif;color:#0b2942"><div style="max-width:580px;margin:24px auto;padding:28px;background:#fff;border:1px solid #dbe7ec;border-radius:18px"><div style="font-size:12px;font-weight:800;color:#07948d">أودير | منصة إدارة المنشآت</div><h1 style="font-size:25px;line-height:1.5;margin:18px 0 8px">مرحبًا ${safeName}</h1><p style="font-size:14px;line-height:1.9;color:#526b7c">أكد بريدك لتفعيل مساحة <strong>${safeInstitution}</strong> التجريبية. ستعمل وظائف الباقة مباشرة، وتبقى موثوقية المنشأة قيد المراجعة.</p><a href="${safeUrl}" style="display:block;margin:24px 0;padding:15px 18px;border-radius:12px;background:#082f4d;color:#fff;text-align:center;text-decoration:none;font-weight:800">تأكيد البريد وتفعيل المساحة</a><p style="font-size:11px;line-height:1.8;color:#78909e">رقم الطلب: <strong>${safeReference}</strong><br>الرابط أحادي الاستخدام وتنتهي صلاحيته حسب سياسة التسجيل.</p><p style="font-size:10px;color:#91a2ad">إذا لم تطلب التسجيل في أودير، تجاهل هذه الرسالة.</p></div></body></html>`,
-      text:`مرحبًا ${contactName}\n\nأكد بريدك لتفعيل مساحة ${institutionName} في أودير:\n${confirmationUrl.toString()}\n\nرقم الطلب: ${reference}`
-    }),
-    signal:AbortSignal.timeout(8_000)
-  });
-  if(!response.ok){
+  let response:Response;
+  try{
+    response=await fetch('https://api.resend.com/emails',{
+      method:'POST',
+      headers:{
+        authorization:`Bearer ${REGISTRATION_RESEND_API_KEY}`,
+        'content-type':'application/json',
+        'Idempotency-Key':idempotencyKey
+      },
+      body:JSON.stringify({
+        from:REGISTRATION_FROM_EMAIL,
+        to:[email],
+        subject:'أكد بريدك وفعّل مساحة منشأتك في أودير',
+        html:`<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f3f7f9;font-family:Tahoma,Arial,sans-serif;color:#0b2942"><div style="max-width:580px;margin:24px auto;padding:28px;background:#fff;border:1px solid #dbe7ec;border-radius:18px"><div style="font-size:12px;font-weight:800;color:#07948d">أودير | منصة إدارة المنشآت</div><h1 style="font-size:25px;line-height:1.5;margin:18px 0 8px">مرحبًا ${safeName}</h1><p style="font-size:14px;line-height:1.9;color:#526b7c">أكد بريدك لتفعيل مساحة <strong>${safeInstitution}</strong> التجريبية. ستعمل وظائف الباقة مباشرة، وتبقى موثوقية المنشأة قيد المراجعة.</p><a href="${safeUrl}" style="display:block;margin:24px 0;padding:15px 18px;border-radius:12px;background:#082f4d;color:#fff;text-align:center;text-decoration:none;font-weight:800">تأكيد البريد وتفعيل المساحة</a><p style="font-size:11px;line-height:1.8;color:#78909e">رقم الطلب: <strong>${safeReference}</strong><br>الرابط أحادي الاستخدام وتنتهي صلاحيته حسب سياسة التسجيل.</p><p style="font-size:10px;color:#91a2ad">إذا لم تطلب التسجيل في أودير، تجاهل هذه الرسالة.</p></div></body></html>`,
+        text:`مرحبًا ${contactName}\n\nأكد بريدك لتفعيل مساحة ${institutionName} في أودير:\n${confirmationUrl.toString()}\n\nرقم الطلب: ${reference}`
+      }),
+      signal:AbortSignal.timeout(8_000)
+    });
+  }catch(error){
+    const failureCode=error instanceof DOMException&&error.name==='TimeoutError'
+      ?'resend_timeout'
+      :'resend_transport_error';
+    const accepted=await recordEmailDeliveryFailure({
+      deliveryId,attempt,httpStatus:null,errorCode:failureCode
+    });
+    if(accepted)return;
+    console.error('odeir-registration-email-provider',failureCode);
     throw new PublicError('confirmation_email_failed',503);
   }
+
+  if(!response.ok){
+    const failureCode=await resendFailureCode(response);
+    const accepted=await recordEmailDeliveryFailure({
+      deliveryId,attempt,httpStatus:response.status,errorCode:failureCode
+    });
+    if(accepted)return;
+    console.error('odeir-registration-email-provider',failureCode);
+    throw new PublicError('confirmation_email_failed',503);
+  }
+
+  const providerMessageId=await resendMessageId(response);
+  if(!providerMessageId){
+    const accepted=await recordEmailDeliveryFailure({
+      deliveryId,
+      attempt,
+      httpStatus:response.status,
+      errorCode:'resend_invalid_response'
+    });
+    if(accepted)return;
+    console.error(
+      'odeir-registration-email-provider',
+      'resend_invalid_response'
+    );
+    throw new PublicError('confirmation_email_failed',503);
+  }
+
+  let completed:JsonRecord;
+  try{
+    completed=await rpc<JsonRecord>('v1_registration_email_delivery_finish',{
+      p_delivery_id:deliveryId,
+      p_attempt:attempt,
+      p_outcome:'accepted',
+      p_provider_message_id:providerMessageId,
+      p_http_status:response.status,
+      p_error_code:null
+    });
+  }catch{
+    // The provider may already have accepted the message.  Never overwrite that
+    // outcome with a guessed failure; the same database key is safe to retry.
+    console.error(
+      'odeir-registration-email-ledger',
+      'delivery_acceptance_persistence_unavailable'
+    );
+    throw new PublicError('confirmation_email_state_unavailable',503);
+  }
+  if(
+    completed.status!=='accepted'
+    ||completed.providerMessageId!==providerMessageId
+  ){
+    throw new PublicError('confirmation_email_state_unavailable',503);
+  }
+}
+
+async function recordEmailDeliveryFailure({
+  deliveryId,attempt,httpStatus,errorCode
+}:{
+  deliveryId:string;
+  attempt:number;
+  httpStatus:number|null;
+  errorCode:string;
+}){
+  try{
+    const result=await rpc<JsonRecord>(
+      'v1_registration_email_delivery_finish',{
+      p_delivery_id:deliveryId,
+      p_attempt:attempt,
+      p_outcome:'failed',
+      p_provider_message_id:null,
+      p_http_status:httpStatus,
+      p_error_code:errorCode
+      }
+    );
+    return result.status==='accepted';
+  }catch{
+    console.error(
+      'odeir-registration-email-ledger',
+      'delivery_failure_persistence_unavailable'
+    );
+    return false;
+  }
+}
+
+async function resendMessageId(response:Response){
+  try{
+    const payload=JSON.parse(await response.text()) as JsonRecord;
+    const messageId=clean(payload.id,240);
+    return /^[A-Za-z0-9][A-Za-z0-9_-]{0,239}$/.test(messageId)
+      ?messageId
+      :'';
+  }catch{
+    return '';
+  }
+}
+
+async function resendFailureCode(response:Response){
+  let providerCode='';
+  try{
+    const payload=JSON.parse(await response.text()) as JsonRecord;
+    providerCode=clean(payload.name??payload.type,48).toLowerCase()
+      .replace(/[^a-z0-9]+/g,'_')
+      .replace(/^_+|_+$/g,'');
+  }catch{
+    // The HTTP status still provides a safe, bounded diagnostic.
+  }
+  const allowedProviderCodes=new Set([
+    'application_error','internal_server_error','invalid_access',
+    'invalid_api_key','invalid_from_address','invalid_parameter',
+    'invalid_region','method_not_allowed','missing_api_key',
+    'missing_required_field','not_found','rate_limit_exceeded',
+    'validation_error'
+  ]);
+  const code=allowedProviderCodes.has(providerCode)
+    ?`resend_${providerCode}`
+    :`resend_http_${response.status}`;
+  return code.slice(0,80);
 }
 
 const PUBLIC_DATABASE_ERRORS=new Set([
@@ -466,7 +649,8 @@ const PUBLIC_DATABASE_ERRORS=new Set([
   'contact_name_required','job_title_required','invalid_email','invalid_phone',
   'registration_identifier_invalid','invalid_external_account',
   'institution_required','registration_payload_invalid',
-  'registration_confirmation_invalid','registration_confirmation_already_used'
+  'registration_confirmation_invalid','registration_confirmation_already_used',
+  'confirmation_email_in_progress'
 ]);
 
 function validatedPayload(body:JsonRecord){

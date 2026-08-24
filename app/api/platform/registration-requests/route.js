@@ -125,7 +125,13 @@ async function rpc(token,name,body){
   try{data=text?JSON.parse(text):{};}catch{data={detail:text};}
   if(!response.ok){
     const source=String(data?.message||data?.error||data?.detail||'request_failed');
-    throw new RpcError(source,translatedStatus(source,response.status));
+    throw new RpcError({
+      source,
+      status:translatedStatus(source,response.status),
+      rpcName:name,
+      databaseCode:String(data?.code||''),
+      responseStatus:response.status
+    });
   }
   return {data,status:response.status};
 }
@@ -207,7 +213,9 @@ function translatedStatus(source,fallback){
      ||source.includes('already_provisioned')||source.includes('slug_exists')
      ||source.includes('domain_exists'))return 409;
   if(Number(fallback)===401)return 401;
-  return 400;
+  if(source.includes('_invalid')||source.includes('_required')
+     ||source.includes('plan_not_found'))return 400;
+  return 503;
 }
 
 function translate(source){
@@ -240,6 +248,12 @@ function translate(source){
 
 function unexpected(error){
   if(error instanceof RpcError){
+    console.error('platform_registration_rpc_failed',{
+      rpcName:error.rpcName,
+      databaseCode:error.databaseCode||'unknown',
+      responseStatus:error.responseStatus,
+      publicCode:error.code
+    });
     return jsonError(translate(error.source),error.code,error.status);
   }
   console.error('platform_registration_request_failed',{
@@ -267,7 +281,7 @@ function isUuid(value){
 }
 
 class RpcError extends Error{
-  constructor(source,status){
+  constructor({source,status,rpcName,databaseCode,responseStatus}){
     super(source);
     this.source=source;
     this.code=Object.keys({
@@ -277,7 +291,10 @@ class RpcError extends Error{
       registration_trust_target_invalid:1,
       registration_request_not_found:1,
       forbidden:1
-    }).find(code=>source.includes(code))||'request_failed';
+    }).find(code=>source.includes(code))||(status===503?'service_unavailable':'request_failed');
     this.status=status;
+    this.rpcName=rpcName;
+    this.databaseCode=databaseCode;
+    this.responseStatus=responseStatus;
   }
 }

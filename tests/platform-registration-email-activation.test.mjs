@@ -210,6 +210,11 @@ test('activation policy is permission checked, server-gated, and wired to the pl
   assert.match(ui,/value="manual_review"/);
   assert.match(ui,/value="email_verified_trial"/);
   assert.match(ui,/disabled=\{!policy\.emailReady\}/);
+  assert.match(ui,/data-block-reason=\{!policy\.emailReady\?emailBlockReason:undefined\}/);
+  assert.match(ui,/data-block-next-step=\{!policy\.emailReady\?emailBlockNextStep:undefined\}/);
+  assert.match(ui,/مفتاح Resend وبريد إرسال موثّق/);
+  assert.match(ui,/data-block-reason=\{automaticFieldBlockReason\|\|undefined\}/);
+  assert.match(ui,/data-block-reason=\{saveBlockReason\|\|undefined\}/);
   assert.match(ui,/fetch\('\/api\/platform\/registration-policy'/);
 });
 

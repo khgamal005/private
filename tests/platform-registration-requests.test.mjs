@@ -5,6 +5,7 @@ import test from 'node:test';
 const read=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 
 const MIGRATION='supabase/migrations/20260823193000_platform_registration_requests_v1.sql';
+const DETAIL_ROW_HOTFIX='supabase/migrations/20260824003000_registration_request_detail_row_assignment_v1.sql';
 
 function section(source,start,end){
   const from=source.indexOf(start);
@@ -182,6 +183,22 @@ test('platform inbox is permission guarded and appears only in the authorized na
   assert.match(shell,/permission:['"]platform\.tenants\.manage['"]/);
 });
 
+test('registration detail expands the table row before assigning it to the rowtype variable',async()=>{
+  const migration=await read(DETAIL_ROW_HOTFIX);
+  const detail=section(
+    migration,
+    'create or replace function public.v1_platform_registration_request_detail',
+    'revoke all on function public.v1_platform_registration_request_detail'
+  );
+
+  assert.match(detail,/select request\.\*\s+into v_request/);
+  assert.doesNotMatch(detail,/select request\s+into v_request/);
+  assert.match(detail,/security definer\s+set search_path=''/);
+  assert.match(detail,/has_platform_permission\('platform\.tenants\.manage'\)/);
+  assert.match(migration,/revoke all on function public\.v1_platform_registration_request_detail\(uuid\)[\s\S]*?from public,anon,authenticated/);
+  assert.match(migration,/grant execute on function public\.v1_platform_registration_request_detail\(uuid\)[\s\S]*?to authenticated/);
+});
+
 test('platform action API uses an allowlist and reports optimistic-lock conflicts as HTTP 409',async()=>{
   const route=await read('app/api/platform/registration-requests/route.js');
 
@@ -192,6 +209,10 @@ test('platform action API uses an allowlist and reports optimistic-lock conflict
   assert.match(route,/v1_platform_registration_request_action/);
   assert.match(route,/registration_request_conflict/);
   assert.match(route,/source\.includes\(['"]conflict['"]\)[\s\S]{0,240}?return 409;/);
+  assert.match(route,/return 503;/);
+  assert.match(route,/status===503\?'service_unavailable':'request_failed'/);
+  assert.match(route,/platform_registration_rpc_failed/);
+  assert.match(route,/databaseCode:error\.databaseCode\|\|'unknown'/);
   assert.doesNotMatch(route,/SUPABASE_SERVICE_ROLE_KEY|service[_\s.-]?role/i);
 });
 

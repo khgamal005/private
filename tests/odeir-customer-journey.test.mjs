@@ -49,6 +49,14 @@ test('the complete journey remains responsive, readable, and motion-aware',async
     assert.match(styles,new RegExp(`\\.${selector}`));
   }
   assert.match(styles,/grid-template-columns: repeat\(10, minmax\(0,1fr\)\)/);
+  assert.match(styles,/\.journey-section \{[^}]+linear-gradient\(155deg, #f8fbfa 0%, #edf6f4 54%, #f8faf9 100%\)/);
+  assert.match(styles,/\.journey-heading h2 \{ color: #071d36; \}/);
+  assert.match(styles,/\.journey-phase \{[^}]+background: rgba\(255,255,255,\.72\)/);
+  assert.match(styles,/\.journey-phase\.is-active \{[^}]+linear-gradient\(145deg, #073552, #041c38 78%\)/);
+  assert.match(styles,/\.journey-phase\.is-active \.journey-phase-icon \{[^}]+background: var\(--yellow\)/);
+  assert.match(styles,/\.journey-phase small \{[^}]+color: #5f7284/);
+  assert.match(styles,/\.journey-console \{[^}]+linear-gradient\(145deg, rgba\(2,15,34,\.96\), rgba\(4,24,52,\.92\)\)/);
+  assert.match(styles,/\.journey-console::before/);
   assert.match(styles,/@keyframes journey-stage-in/);
   assert.match(styles,/@keyframes journey-live-pulse/);
   assert.match(styles,/@media \(max-width: 620px\)[\s\S]+\.journey-track \{[^}]+grid-template-columns: repeat\(2, minmax\(0,1fr\)\)/);

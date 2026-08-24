@@ -300,3 +300,24 @@ test('the selected plan activates every entitled module in the new workspace',as
   assert.match(provision,/plan_feature\.value='true'::jsonb/);
   assert.match(provision,/on conflict \(tenant_id,module_id\) do update[\s\S]*?set enabled=true/);
 });
+
+
+test('platform registration email transport is isolated from tenant automation',async()=>{
+  const [edge,rootEnv,tenantEnv]=await Promise.all([
+    read('supabase/functions/odeir-registration-intake/index.ts'),
+    read('.env.example'),
+    read('supabase/functions/training-automation-dispatch/.env.example')
+  ]);
+
+  assert.match(edge,/Deno\.env\.get\('ODEIR_REGISTRATION_RESEND_API_KEY'\)/);
+  assert.doesNotMatch(edge,/Deno\.env\.get\('RESEND_API_KEY'\)/);
+  assert.doesNotMatch(edge,/Deno\.env\.get\('RESEND_FROM'\)/);
+  assert.match(edge,/registrationEmailConfigurationReady\(\)/);
+  assert.match(edge,/isOdeirRegistrationSender/);
+  assert.match(edge,/@odeir\\\.com/);
+
+  assert.match(rootEnv,/^ODEIR_REGISTRATION_RESEND_API_KEY=$/m);
+  assert.doesNotMatch(rootEnv,/^RESEND_API_KEY=$/m);
+  assert.match(tenantEnv,/^RESEND_API_KEY=$/m);
+  assert.doesNotMatch(tenantEnv,/ODEIR_REGISTRATION_RESEND_API_KEY/);
+});

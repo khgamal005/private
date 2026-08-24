@@ -6,10 +6,12 @@ const INTAKE_TOKEN=Deno.env.get('ODEIR_REGISTRATION_INGRESS_TOKEN')??'';
 const RATE_SALT=Deno.env.get('ODEIR_REGISTRATION_RATE_SALT')
   ||INTAKE_TOKEN
   ||SERVICE_ROLE_KEY;
-const RESEND_API_KEY=Deno.env.get('RESEND_API_KEY')??'';
-const REGISTRATION_FROM_EMAIL=Deno.env.get('ODEIR_REGISTRATION_FROM_EMAIL')
-  ||Deno.env.get('RESEND_FROM')
-  ||'';
+// Platform-registration email credentials are deliberately isolated from
+// every tenant-owned messaging provider and legacy training fallback.
+const REGISTRATION_RESEND_API_KEY=
+  Deno.env.get('ODEIR_REGISTRATION_RESEND_API_KEY')?.trim()??'';
+const REGISTRATION_FROM_EMAIL=
+  Deno.env.get('ODEIR_REGISTRATION_FROM_EMAIL')?.trim()??'';
 const PUBLIC_APP_URL=Deno.env.get('ODEIR_PUBLIC_APP_URL')
   ||'https://odeir.com';
 const CHALLENGE_AUDIENCE='registration-submit';
@@ -78,9 +80,7 @@ Deno.serve(async(request:Request)=>{
   if(action==='health'){
     return json({
       ok:true,
-      emailReady:Boolean(
-        RESEND_API_KEY&&REGISTRATION_FROM_EMAIL&&PUBLIC_APP_URL
-      )
+      emailReady:registrationEmailConfigurationReady()
     });
   }
   if(action==='confirm'){
@@ -386,6 +386,33 @@ async function confirmRegistration(body:JsonRecord,request:Request){
   }
 }
 
+function registrationEmailConfigurationReady(){
+  if(
+    !REGISTRATION_RESEND_API_KEY
+    ||!isOdeirRegistrationSender(REGISTRATION_FROM_EMAIL)
+  )return false;
+  try{
+    const url=new URL(PUBLIC_APP_URL);
+    const localHost=url.hostname==='localhost'||url.hostname==='127.0.0.1';
+    const trustedHost=
+      url.hostname==='odeir.com'
+      ||url.hostname==='www.odeir.com'
+      ||url.hostname==='staging.odeir.com'
+      ||localHost;
+    return trustedHost&&(
+      url.protocol==='https:'||(localHost&&url.protocol==='http:')
+    );
+  }catch{
+    return false;
+  }
+}
+
+function isOdeirRegistrationSender(value:string){
+  const bracketed=value.match(/<([^<>]+)>$/)?.[1]?.trim();
+  const address=bracketed||value.trim();
+  return /^[^\s@<>]+@odeir\.com$/i.test(address);
+}
+
 async function sendConfirmationEmail({
   requestId,reference,email,contactName,institutionName,token
 }:{
@@ -396,7 +423,7 @@ async function sendConfirmationEmail({
   institutionName:string;
   token:string;
 }){
-  if(!RESEND_API_KEY||!REGISTRATION_FROM_EMAIL||!PUBLIC_APP_URL){
+  if(!registrationEmailConfigurationReady()){
     throw new PublicError('email_configuration_unavailable',503);
   }
   let confirmationUrl:URL;
@@ -416,7 +443,7 @@ async function sendConfirmationEmail({
   const response=await fetch('https://api.resend.com/emails',{
     method:'POST',
     headers:{
-      authorization:`Bearer ${RESEND_API_KEY}`,
+      authorization:`Bearer ${REGISTRATION_RESEND_API_KEY}`,
       'content-type':'application/json',
       'idempotency-key':`odeir-registration-${requestId}-${(await sha256(token)).slice(0,16)}`
     },

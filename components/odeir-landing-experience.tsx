@@ -790,7 +790,7 @@ function OperationalStories({ cms }: { cms: LandingCms }) {
   const body = cmsText(cms.capabilities?.body, "وحدات مترابطة تعطي كل دور شاشته، وتُبقي الإدارة على صورة واحدة للعمل.", "أودير ما يبدأ من قائمة مميزات؛ يبدأ من اللحظة التي يقول فيها المدير: وين وصلنا؟ ومن المسؤول؟ وش الخطوة الجاية؟");
   return (
     <section className="features-section section" id="capabilities">
-      <div className="section-kicker" data-reveal><span>03</span> {kicker}</div>
+      <div className="section-kicker" data-reveal><span>04</span> {kicker}</div>
       <div className="features-heading" data-reveal><h2>{title}</h2><p>{body}</p></div>
       <div className="feature-stories">
         {stories.map((story, index) => (
@@ -800,90 +800,6 @@ function OperationalStories({ cms }: { cms: LandingCms }) {
             <span className="feature-index">{String(index + 1).padStart(2, "0")}</span>
           </article>
         ))}
-      </div>
-    </section>
-  );
-}
-
-const integrationActionSources = [
-  { key: "meta", label: "Meta", mark: "∞", status: "قيد التفعيل" },
-  { key: "whatsapp", label: "WhatsApp", mark: "WA", status: "قيد التفعيل" },
-  { key: "salla", label: "سلة", mark: "س", status: "قريبًا" },
-  { key: "zid", label: "زد", mark: "زد", status: "قريبًا" },
-  { key: "woo", label: "WooCommerce", mark: "Woo", status: "متاح" },
-] as const;
-
-const integrationActionSteps = [
-  ["وصل الطلب", "حُفظ المصدر والحملة"],
-  ["دخل قائمة التوزيع", "بانتظار الموظف المناسب"],
-  ["تم الإسناد", "إشعار مباشر للموظفة نورة"],
-  ["تم التواصل", "مكالمة Yeastar محفوظة"],
-  ["انتقل للتسجيل", "الخطوة التالية: السداد"],
-] as const;
-
-function IntegrationActionLab() {
-  const [source, setSource] = useState("meta");
-  const [step, setStep] = useState(0);
-  const [runId, setRunId] = useState(0);
-
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    if (step >= integrationActionSteps.length - 1) return;
-    const timer = window.setTimeout(() => setStep((value) => value + 1), 1050);
-    return () => window.clearTimeout(timer);
-  }, [step, runId]);
-
-  const currentSource = integrationActionSources.find((item) => item.key === source) ?? integrationActionSources[0];
-  const restart = (nextSource = source) => {
-    setSource(nextSource);
-    setStep(0);
-    setRunId((value) => value + 1);
-  };
-
-  return (
-    <section className="integration-action-section" id="integrations">
-      <div className="integration-action-inner section">
-        <div className="section-kicker section-kicker--light" data-reveal><span>04</span> تكاملات تحرّك العمل</div>
-        <div className="integration-action-heading" data-reveal><h2>الإشعار ما يكفي.<br /><span>خلّه يصير إجراء.</span></h2><p>اختر نقطة دخول تجريبية وشاهد كيف يتحول الطلب إلى عميل، ثم مهمة، ثم متابعة واضحة داخل أودير.</p></div>
-        <div className="integration-action-picker" role="tablist" aria-label="اختر مصدر العميل" data-reveal>
-          {integrationActionSources.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              role="tab"
-              aria-selected={source === item.key}
-              className={source === item.key ? `integration-action-choice integration-action-choice--${item.key} is-active` : `integration-action-choice integration-action-choice--${item.key}`}
-              onClick={() => restart(item.key)}
-            >
-              <i>{item.mark}</i><span><b>{item.label}</b><small>{item.status}</small></span>
-            </button>
-          ))}
-        </div>
-        <div className="integration-action-console" data-reveal>
-          <div className="integration-action-topbar"><span className="demo-label"><i /> تجربة توضيحية · بيانات افتراضية</span><button type="button" onClick={() => restart()}>أعد الرحلة</button></div>
-          <div className="integration-action-lead">
-            <div className={`integration-action-source-logo integration-action-source-logo--${currentSource.key}`}>{currentSource.mark}</div>
-            <span><small>عميل تجريبي من {currentSource.label}</small><b>ريم عبدالله</b><em>برنامج تحليل البيانات</em></span>
-            <strong>{step === 4 ? "بانتظار السداد" : step >= 2 ? "قيد المتابعة" : "جديد"}</strong>
-          </div>
-          <div className="integration-action-track">
-            {integrationActionSteps.map(([title, copy], index) => (
-              <button key={title} type="button" className={index < step ? "integration-action-step is-done" : index === step ? "integration-action-step is-active" : "integration-action-step"} onClick={() => setStep(index)}>
-                <i>{index < step ? "✓" : String(index + 1).padStart(2, "0")}</i><span><b>{title}</b><small>{copy}</small></span>
-              </button>
-            ))}
-          </div>
-          <div className="integration-action-metrics"><span><small>استفسارات اليوم</small><b>{47 + step}</b></span><span><small>بانتظار التوزيع</small><b>{Math.max(0, 3 - step)}</b></span><span><small>متوسط الاستجابة</small><b>{step >= 3 ? "04:18" : "05:02"}</b></span><span><small>تسجيلات جديدة</small><b>{17 + (step === 4 ? 1 : 0)}</b></span></div>
-        </div>
-        <div className="integration-action-rail" data-reveal>
-          <span className="integration-action-wordmark integration-action-wordmark--yeastar"><i>Y</i> Yeastar <small>متاح</small></span>
-          <span className="integration-action-wordmark integration-action-wordmark--google"><i>G</i> Google <small>قيد التفعيل</small></span>
-          <span className="integration-action-wordmark integration-action-wordmark--meta"><i>∞</i> Meta <small>قيد التفعيل</small></span>
-          <span className="integration-action-wordmark integration-action-wordmark--woo"><i>Woo</i> WooCommerce <small>متاح</small></span>
-          <span className="integration-action-wordmark integration-action-wordmark--salla"><i>س</i> سلة <small>قريبًا</small></span>
-          <span className="integration-action-wordmark integration-action-wordmark--zid"><i>ز</i> زد <small>قريبًا</small></span>
-        </div>
-        <p className="integration-action-disclaimer">أسماء وشعارات المنصات مملوكة لأصحابها، وعرضها يوضح مسار التكامل ولا يعني وجود شراكة رسمية.</p>
       </div>
     </section>
   );
@@ -1104,7 +1020,7 @@ function JourneyLab() {
   return (
     <section className="journey-section" id="journey" ref={sectionRef}>
       <div className="journey-inner section">
-        <div className="section-kicker section-kicker--light" data-reveal><span>05</span> رحلة العميل والمتدرب كاملة</div>
+        <div className="section-kicker section-kicker--light" data-reveal><span>03</span> رحلة العميل والمتدرب كاملة</div>
         <div className="journey-heading" data-reveal><h2>من أول نقرة…<br /><span>إلى شهادة مستحقة.</span></h2><p>تابع انتقال الطلب بين التسويق والمبيعات والقبول والتدريب والاعتماد؛ كل مسؤول وموعد ونتيجة محفوظة في مسار واحد.</p></div>
         <div className="journey-phase-picker" role="tablist" aria-label="فصول رحلة المتدرب" data-reveal>
           {journeyPhases.map((phase, index) => (
@@ -1161,7 +1077,7 @@ function JourneyLab() {
             id="journey-stage-panel"
             role="tabpanel"
             aria-labelledby={`journey-phase-${currentPhase.key}`}
-            aria-live="polite"
+            aria-live={paused ? "polite" : "off"}
             key={currentStep.key}
           >
             <div className="journey-stage-copy">
@@ -1216,7 +1132,7 @@ function RoleSwitcher() {
   const view = roleViews[role];
   return (
     <section className="roles-section section">
-      <div className="section-kicker" data-reveal><span>06</span> كل دور له وضوحه</div>
+      <div className="section-kicker" data-reveal><span>05</span> كل دور له وضوحه</div>
       <div className="roles-heading" data-reveal><h2>كل موظف يشوف اللي يحتاجه.<br /><span>والإدارة تشوف الصورة كلها.</span></h2><p>صلاحيات حسب الدور، وأولوية يومية واضحة، بدون ما تغرق الموظف في شاشات ما تخصّه.</p></div>
       <div className="role-switcher" data-reveal>
         <div className="role-tabs" role="tablist" aria-label="اختر دور الموظف">{(Object.entries(roleViews) as [RoleKey, typeof roleViews[RoleKey]][]).map(([key, item]) => <button key={key} type="button" role="tab" aria-selected={role === key} className={role === key ? "is-active" : ""} onClick={() => setRole(key)}><i /><span>{item.label}</span></button>)}</div>
@@ -1247,7 +1163,7 @@ function SecuritySection({ cms }: { cms: LandingCms }) {
   return (
     <section className="security-section" id="security">
       <div className="security-inner section">
-        <div className="security-copy" data-reveal><div className="section-kicker section-kicker--light"><span>07</span> {kicker}</div><h2>{title === "بيانات منشأتك تبقى منشأتك." ? <>بيانات منشأتك<br /><span>تبقى منشأتك.</span></> : title}</h2><p>{body}</p><a href={`${APP_ORIGIN}/p/information-security`}>اقرأ عن أمن المعلومات <ArrowMark /></a></div>
+        <div className="security-copy" data-reveal><div className="section-kicker section-kicker--light"><span>06</span> {kicker}</div><h2>{title === "بيانات منشأتك تبقى منشأتك." ? <>بيانات منشأتك<br /><span>تبقى منشأتك.</span></> : title}</h2><p>{body}</p><a href={`${APP_ORIGIN}/p/information-security`}>اقرأ عن أمن المعلومات <ArrowMark /></a></div>
         <div className="security-grid" data-reveal>
           <article><span className="security-icon security-icon--layers"><i /><i /><i /></span><b>{cards[0].title}</b><p>{cards[0].description}</p></article>
           <article><span className="security-icon security-icon--key"><i /></span><b>{cards[1].title}</b><p>{cards[1].description}</p></article>
@@ -1282,7 +1198,7 @@ function FAQ({ cms }: { cms: LandingCms }) {
   const body = cmsText(cms.faq?.body, "إجابات مباشرة على أكثر الأسئلة شيوعًا.", "بدون شروط مخفية ولا وعود أكبر من المرحلة.");
   return (
     <section className="faq-section section">
-      <div className="faq-heading" data-reveal><div className="section-kicker"><span>08</span> {kicker}</div><h2>{title === "أسئلة واضحة. إجابات أوضح." ? <>أسئلة واضحة.<br />إجابات أوضح.</> : title}</h2><p>{body}</p></div>
+      <div className="faq-heading" data-reveal><div className="section-kicker"><span>07</span> {kicker}</div><h2>{title === "أسئلة واضحة. إجابات أوضح." ? <>أسئلة واضحة.<br />إجابات أوضح.</> : title}</h2><p>{body}</p></div>
       <div className="faq-list" data-reveal>{questions.map(([question, answer], index) => <details key={question} open={index === 0}><summary><span>{question}</span><i /></summary><p>{answer}</p></details>)}</div>
     </section>
   );
@@ -1335,9 +1251,8 @@ export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms 
       <MorningBriefing articles={cms.articles} />
       <StoryStrip />
       <ProductDemo />
-      <OperationalStories cms={cms} />
-      <IntegrationActionLab />
       <JourneyLab />
+      <OperationalStories cms={cms} />
       <RoleSwitcher />
       <SecuritySection cms={cms} />
       <FAQ cms={cms} />

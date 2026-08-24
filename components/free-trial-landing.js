@@ -22,8 +22,11 @@ const ERROR_COPY = {
   consent_required: "يلزم الموافقة على الإقرار التنظيمي وسياسة الخصوصية.",
   invalid_email: "راجع صيغة البريد الإلكتروني.",
   invalid_phone: "راجع رقم الجوال وأدخله بصيغة صحيحة.",
+  registration_identifier_invalid: "راجع الرقم الرسمي: السجل التجاري 10 أرقام، والرقم الوطني 10 أرقام يبدأ بـ7.",
   email_configuration_unavailable: "تعذر إرسال رسالة التأكيد الآن. بياناتك لم تُفقد؛ حاول بعد قليل.",
   confirmation_email_failed: "تعذر إرسال رسالة التأكيد الآن. حاول مرة أخرى بعد قليل.",
+  confirmation_email_in_progress: "رسالة التأكيد قيد المعالجة. انتظر قليلًا ثم افحص صندوق الوارد، ويمكنك إعادة المحاولة إذا لم تصل.",
+  confirmation_email_state_unavailable: "تعذر التحقق من حالة إرسال رسالة التأكيد مؤقتًا. لم تُفقد بياناتك؛ حاول بعد قليل.",
   registration_challenge_invalid: "انتهت مهلة الحماية. أعد إرسال الطلب مرة أخرى.",
   registration_challenge_unavailable: "تعذر تأمين الطلب لحظيًا. حاول مرة أخرى بعد قليل.",
   service_unavailable: "الخدمة غير متاحة لحظيًا. حاول مرة أخرى بعد قليل."
@@ -42,6 +45,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
   const [reference, setReference] = useState("");
   const [confirmationRequired, setConfirmationRequired] = useState(false);
   const [confirmationAlreadySent, setConfirmationAlreadySent] = useState(false);
+  const [confirmationQueued, setConfirmationQueued] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
@@ -55,6 +59,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
     if (step === "details") return 2;
     return 1;
   }, [step]);
+  const manualExisting = step === "success" && !confirmationRequired && !isNew;
   async function callApi(payload) {
     const response = await fetch(payload.action === "submit" ? REGISTRATION_API : TRIAL_API, {
       method: "POST",
@@ -174,6 +179,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
       setReference(value.reference || "");
       setConfirmationRequired(value.confirmationRequired === true);
       setConfirmationAlreadySent(value.confirmationAlreadySent === true);
+      setConfirmationQueued(value.confirmationQueued === true);
       setStep("success");
     } catch (caught) {
       setError(messageFor(caught));
@@ -379,22 +385,34 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
               </div>
             </form>}
 
-          {step === "success" && <div className={`trial-body success-state${confirmationRequired ? " email-confirmation" : ""}`}>
+          {step === "success" && <div className={`trial-body success-state${confirmationRequired ? " email-confirmation" : ""}`} role="status" aria-live="polite">
               <span className="success-orbit"><CheckIcon /></span>
-              <small>{confirmationRequired ? "تم حفظ طلبك وإرسال رسالة التأكيد" : "تم استلام طلبك بنجاح"}</small>
-              <h2>مرحبًا بمنشأتك في أودير</h2>
+              <small>{confirmationRequired
+                ? confirmationAlreadySent
+                  ? "تم حفظ طلبك ورسالة التأكيد مقبولة للإرسال"
+                  : "تم حفظ طلبك ووضع رسالة التأكيد في مسار الإرسال"
+                :isNew
+                  ?"تم استلام طلبك بنجاح"
+                  :"تم حفظ طلب المنشأة للمراجعة"}</small>
+              <h2>{manualExisting?'طلبك محفوظ ومسار التفعيل محمي':'مرحبًا بمنشأتك في أودير'}</h2>
               <p>{confirmationRequired
-                ? `${confirmationAlreadySent ? "رابط التأكيد موجود في الرسالة التي أرسلناها قبل قليل." : "افتح بريدك واضغط رابط التأكيد."} بعدها تتفعّل مساحة مستقلة وفق الباقة المحددة، وتعمل بصورة طبيعية بينما نراجع موثوقية المنشأة.`
-                : "ظهر طلبك مباشرة لفريق المراجعة، وسنراجع بيانات المنشأة ثم نتواصل معك خلال يوم عمل."}</p>
+                ? `${confirmationAlreadySent ? "افحص بريدك؛ مزود البريد قبل الرسالة للإرسال." : confirmationQueued ? "ستُرسل رسالة التأكيد تلقائيًا، ويمكن للنظام استكمالها بعد أي انقطاع مؤقت." : "افحص بريدك خلال دقائق قليلة."} بعد التأكيد تتفعّل مساحة مستقلة وفق الباقة المحددة، وتعمل بصورة طبيعية بينما نراجع موثوقية المنشأة.`
+                :!manualExisting
+                  ?"ظهر طلبك مباشرة لفريق المراجعة. سنراجع هوية المنشأة ثم نعتمد الطلب ونجهز مساحتها دون وعد برسالة تفعيل تلقائية."
+                  :"لن نرسل رابط تفعيل تلقائيًا لهذا الطلب حمايةً للحساب؛ يراجع الفريق المطابقة ثم يتواصل مع مسؤول الطلب."}</p>
               <div className="reference-box"><span>رقم الطلب</span><b>{reference}</b><small>احتفظ به للمتابعة</small></div>
               <div className="next-steps">
                 {confirmationRequired ? <>
-                  <span><i>1</i><b>أكد البريد</b><small>من الرسالة المرسلة لك</small></span>
+                  <span><i>1</i><b>أكد البريد</b><small>من الرسالة فور وصولها</small></span>
                   <span><i>2</i><b>تفعيل فوري</b><small>مساحة مستقلة تعمل مباشرة</small></span>
                   <span><i>3</i><b>مراجعة الموثوقية</b><small>دون تعطيل وظائف الباقة</small></span>
+                </> :manualExisting ? <>
+                  <span><i>1</i><b>مطابقة المنشأة</b><small>التحقق من السجل والهوية</small></span>
+                  <span><i>2</i><b>تجهيز مساحة مستقلة</b><small>من دون المساس بأي مساحة قائمة</small></span>
+                  <span><i>3</i><b>التواصل مع المسؤول</b><small>بعد اكتمال القرار الموثّق</small></span>
                 </> : <>
                   <span><i>1</i><b>مراجعة المنشأة</b><small>مطابقة البيانات الرسمية</small></span>
-                  <span><i>2</i><b>رسالة التأكيد</b><small>على بريد مسؤول الطلب</small></span>
+                  <span><i>2</i><b>اعتماد الطلب</b><small>قرار موثّق من الفريق</small></span>
                   <span><i>3</i><b>تجهيز المساحة</b><small>أدوار ودليل تفاعلي</small></span>
                 </>}
               </div>
@@ -405,6 +423,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
     setReference("");
     setConfirmationRequired(false);
     setConfirmationAlreadySent(false);
+    setConfirmationQueued(false);
     setForm(initialForm);
   }}>طلب آخر</button>
             </div>}

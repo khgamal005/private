@@ -28,6 +28,20 @@ function safeOffset(value){
   return Math.max(0,Math.floor(safeNumber(value,0)/PAGE_SIZE)*PAGE_SIZE);
 }
 
+function safeFilter(value){
+  const normalized=safeText(value,'all').toLowerCase();
+  return [
+    'all','awaiting_email','pending_review','under_review','approved',
+    'rejected','converted','trust_pending','trust_review','trust_restricted',
+    'manual_attention','trust_attention','restricted'
+  ].includes(normalized)?normalized:'all';
+}
+
+function safeQuery(value){
+  return safeText(value).normalize('NFKC')
+    .replace(/[\u0000-\u001F\u007F]/g,' ').trim().slice(0,80);
+}
+
 function safeStatus(value){
   const normalized=safeText(value,'pending_review').toLowerCase();
   if(['pending','pending_review'].includes(normalized))return 'pending_review';
@@ -109,7 +123,14 @@ export default async function RegistrationRequestsPage({searchParams}){
   await requirePlatformPermission('platform.tenants.manage');
   const params=await searchParams;
   const offset=safeOffset(params?.offset);
-  const result=await getPlatformRegistrationRequests({offset,limit:PAGE_SIZE});
+  const filter=safeFilter(params?.status);
+  const query=safeQuery(params?.query);
+  const result=await getPlatformRegistrationRequests({
+    status:filter==='all'?null:filter,
+    query:query||null,
+    offset,
+    limit:PAGE_SIZE
+  });
   const total=safeNumber(result?.total,result?.items?.length||0);
   const resolvedOffset=safeOffset(result?.offset??offset);
   const resolvedLimit=Math.min(50,Math.max(1,safeNumber(result?.limit,PAGE_SIZE)));
@@ -117,7 +138,7 @@ export default async function RegistrationRequestsPage({searchParams}){
     .map(sanitizeListItem)
     .filter(item=>item.id);
 
-  return <PlatformRegistrationRequests initialData={{
+  return <PlatformRegistrationRequests initialQuery={query} initialFilter={filter} initialData={{
     summary:sanitizeSummary(result?.summary||{},total),
     items,
     total,

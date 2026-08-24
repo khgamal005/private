@@ -44,8 +44,10 @@ export default function RegistrationActivationPolicy({initialPolicy}){
   const changed=mode!==policy.activationMode
     ||Number(ttl)!==Number(policy.emailConfirmationTtlMinutes)
     ||planKey!==policy.trialPlanKey;
-  const emailBlockReason='بريد أودير المرسل غير مربوط بوظيفة التسجيل بعد؛ يلزم مفتاح Resend وبريد إرسال موثّق.';
-  const emailBlockNextStep='أكمل إعداد المرسل الموثّق، ثم حدّث الشاشة وأعد فحص الجاهزية.';
+  const telemetryDegraded=policy.emailTelemetryDegraded===true
+    ||(policy.emailReady===true&&policy.emailTelemetryReady===false);
+  const emailBlockReason='مسار إرسال بريد التسجيل غير جاهز؛ تحقق من المرسل، إثبات النطاق، مفتاح التوقيع، وعامل الطابور.';
+  const emailBlockNextStep='أكمل فحص صحة مسار البريد، ثم حدّث الشاشة وأعد فحص الجاهزية.';
   const automaticFieldBlockReason=mode!=='email_verified_trial'
     ?'اختر «تفعيل بعد تأكيد البريد» أولًا لتعديل هذا الإعداد.'
     :'';
@@ -74,6 +76,7 @@ export default function RegistrationActivationPolicy({initialPolicy}){
       </div>
       <p id="registration-mode-help" className={styles.modeHelp}>المسار يطبّق على الطلبات الجديدة فقط؛ المنشأة القائمة لا تتفعّل تلقائيًا.</p>
       {!policy.emailReady&&<div id="registration-email-help" className={styles.emailAlert} role="alert">{emailBlockReason} سيظل المسار اليدوي يعمل بأمان حتى اكتمال الإعداد.</div>}
+      {telemetryDegraded?<div className={styles.emailAlert} role="status">إرسال رسائل التأكيد جاهز ويمكن تفعيل السياسة. تتبع التسليم عبر Webhook غير مكتمل حاليًا؛ سيظل سجل قبول Resend ومحاولات الطابور متاحًا، لكن حالات التسليم والارتداد ستبقى محدودة حتى ربط Webhook.</div>:null}
       <div className={styles.fields}>
         <label><span>صلاحية رابط البريد</span><select value={ttl} onChange={event=>edit(()=>setTtl(Number(event.target.value)))} disabled={mode!=='email_verified_trial'} data-block-reason={automaticFieldBlockReason||undefined} data-block-next-step={automaticFieldBlockReason?'جهّز بريد التأكيد ثم اختر وضع التفعيل البريدي.':undefined}><option value="30">30 دقيقة</option><option value="60">ساعة</option><option value="180">3 ساعات</option><option value="1440">24 ساعة</option></select></label>
         <label><span>باقة المساحة بعد التفعيل</span><input dir="ltr" value={planKey} onChange={event=>edit(()=>setPlanKey(event.target.value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'')))} disabled={mode!=='email_verified_trial'} data-block-reason={automaticFieldBlockReason||undefined} data-block-next-step={automaticFieldBlockReason?'جهّز بريد التأكيد ثم اختر وضع التفعيل البريدي.':undefined} placeholder="free"/></label>

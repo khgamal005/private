@@ -6,6 +6,8 @@ const read=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 
 const MIGRATION='supabase/migrations/20260823193000_platform_registration_requests_v1.sql';
 const DETAIL_ROW_HOTFIX='supabase/migrations/20260824003000_registration_request_detail_row_assignment_v1.sql';
+const MANUAL_ACTIVATION_INTEGRITY=
+  'supabase/migrations/20260824170000_registration_manual_activation_integrity_v1.sql';
 
 function section(source,start,end){
   const from=source.indexOf(start);
@@ -13,6 +15,39 @@ function section(source,start,end){
   const to=end?source.indexOf(end,from+start.length):source.length;
   assert.notEqual(to,-1,`missing section end: ${end}`);
   return source.slice(from,to);
+}
+
+function compact(source){
+  return source.replace(/\s+/g,'');
+}
+
+function position(source,needle,label=needle){
+  const at=source.indexOf(needle);
+  assert.notEqual(at,-1,`missing contract marker: ${label}`);
+  return at;
+}
+
+function assertOrdered(source,markers){
+  let previous=-1;
+  for(const marker of markers){
+    const at=position(source,marker);
+    assert.ok(at>previous,`contract marker is out of order: ${marker}`);
+    previous=at;
+  }
+}
+
+function assertBoundedStreamingReader(source){
+  assertOrdered(source,[
+    'request.body.getReader()',
+    'await reader.read()',
+    'total+=value.byteLength',
+    'if(total>maxBytes)',
+    'await reader.cancel()',
+    'return null'
+  ]);
+  assert.ok(source.includes('finally{reader.releaseLock();}'));
+  assert.equal(source.includes('request.text()'),false);
+  assert.equal(source.includes('request.json()'),false);
 }
 
 test('registration storage is private by default and privileged functions are hardened',async()=>{
@@ -159,12 +194,44 @@ test('edge intake authenticates the server hop and rate limits anonymous submiss
   assert.match(edge,/p_window_seconds:86_400/);
   assert.match(edge,/SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(edge,/v1_public_submit_registration_request/);
-  assert.ok(
-    edge.indexOf('const claims=await consumeRegistrationChallenge(challenge)')
-      <edge.indexOf("const result=await rpc<JsonRecord>('v1_public_submit_registration_request'"),
-    'the one-time challenge must be consumed before a registration request is created'
+  const challengeConsumed=position(
+    edge,
+    'const claims=await consumeRegistrationChallenge(challenge)'
   );
+  const v2Submit=position(
+    edge,
+    "result=await rpc<JsonRecord>('v2_public_submit_registration_request'"
+  );
+  const v1Fallback=position(
+    edge,
+    "result=await rpc<JsonRecord>('v1_public_submit_registration_request'"
+  );
+  assert.ok(challengeConsumed<v2Submit,'challenge must precede the v2 submit');
+  assert.ok(challengeConsumed<v1Fallback,'challenge must precede the v1 fallback');
   assert.match(config,/\[functions\.odeir-registration-intake\][\s\S]*?verify_jwt\s*=\s*false/);
+});
+
+test('every anonymous or platform JSON ingress bounds the streamed body before parsing',async()=>{
+  const [publicRoute,platformRoute,edge]=await Promise.all([
+    read('app/api/public/registration/route.js'),
+    read('app/api/platform/registration-requests/route.js'),
+    read('supabase/functions/odeir-registration-intake/index.ts')
+  ]);
+  const readers=[
+    section(publicRoute,'async function boundedRequestText','function clientIp'),
+    section(platformRoute,'async function boundedRequestText','function provisionPayload'),
+    section(edge,'async function boundedRequestText','function bytesToHex')
+  ];
+
+  for(const reader of readers)assertBoundedStreamingReader(reader);
+
+  const publicPost=section(publicRoute,'export async function POST','async function boundedRequestText');
+  const platformBody=section(platformRoute,'async function limitedBody','async function boundedRequestText');
+  const edgeIngress=section(edge,'Deno.serve','function allowedChallengeOrigin');
+  for(const ingress of [publicPost,platformBody,edgeIngress]){
+    assert.ok(ingress.includes("headers.get('content-length')"));
+    assertOrdered(ingress,['content-length','boundedRequestText','JSON.parse']);
+  }
 });
 
 test('platform inbox is permission guarded and appears only in the authorized navigation',async()=>{
@@ -213,12 +280,189 @@ test('platform action API uses an allowlist and reports optimistic-lock conflict
   assert.match(route,/status===503\?'service_unavailable':'request_failed'/);
   assert.match(route,/platform_registration_rpc_failed/);
   assert.match(route,/databaseCode:error\.databaseCode\|\|'unknown'/);
-  assert.doesNotMatch(route,/SUPABASE_SERVICE_ROLE_KEY|service[_\s.-]?role/i);
+  assert.ok(route.includes("import {SUPABASE_SECRET_KEY} from '../../../../lib/admin-config'"));
+  assert.ok(route.includes('async function rpcService'));
+  assert.ok(route.includes('apikey:SUPABASE_SECRET_KEY'));
+});
+
+test('terminal email failures expose only the versioned manual-review rescue action',async()=>{
+  const [route,component,ledger]=await Promise.all([
+    read('app/api/platform/registration-requests/route.js'),
+    read('components/platform-registration-requests.js'),
+    read('supabase/migrations/20260824171000_registration_email_delivery_ledger_v1.sql')
+  ]);
+  const post=section(route,'export async function POST','function activationPayload');
+  assert.match(route,/['"]move_to_manual_review['"]/);
+  assert.match(route,/v1_platform_registration_email_delivery_status/);
+  assert.match(post,
+    /action==='move_to_manual_review'[\s\S]*v1_platform_registration_email_move_to_manual/
+  );
+  assert.match(post,
+    /p_request_id:requestId,[\s\S]*p_expected_version:expectedVersion,[\s\S]*p_notes:notes/
+  );
+  assert.match(route,/registration_email_fallback_reason_required/);
+  assert.match(route,/registration_email_fallback_not_allowed/);
+
+  assert.match(component,/move_to_manual_review:'pending_review'/);
+  assert.match(component,/email_fallback_manual:/);
+  assert.match(component,
+    /selectedEmailDeliveryState==='terminal_failed'[\s\S]*openConfirmation\('move_to_manual_review'\)/
+  );
+  assert.match(component,
+    /confirm\?\.type==='move_to_manual_review'[\s\S]*runAction\('move_to_manual_review'/
+  );
+  assert.match(component,
+    /type==='move_to_manual_review'[\s\S]*reason\.trim\(\)\.length>=8/
+  );
+  const rescue=section(
+    ledger,
+    'create or replace function public.v1_platform_registration_email_move_to_manual',
+    'revoke all on function public.v2_public_submit_registration_request'
+  );
+  assert.doesNotMatch(rescue,/provision_tenant_core|insert into core\.tenants/);
+});
+
+test('manual activation attests an existing directory account server-side before create-new activation',async()=>{
+  const [route,migration]=await Promise.all([
+    read('app/api/platform/registration-requests/route.js'),
+    read(MANUAL_ACTIVATION_INTEGRITY)
+  ]);
+  const post=section(route,'export async function POST','function activationPayload');
+  const activation=section(route,'function activationPayload','async function rpc(');
+  const approve=section(
+    migration,
+    'create or replace function public.v1_platform_registration_approve_and_activate',
+    'revoke all on function public.v1_platform_registration_activation_attestation_prepare'
+  );
+
+  assertOrdered(post,[
+    "'v1_platform_registration_request_detail'",
+    "'v1_platform_registration_activation_attestation_prepare'",
+    'const evidence=await verifyDirectoryInstitution',
+    "'v1_registration_activation_attestation_complete'",
+    'payload={...payload,attestationId}',
+    "?'v1_platform_registration_approve_and_activate'"
+  ]);
+  const completeCall=section(
+    post,
+    'await rpcService(',
+    'payload={...payload,attestationId}'
+  );
+  assert.ok(completeCall.includes("'v1_registration_activation_attestation_complete'"));
+  assert.ok(completeCall.includes('p_attestation_id:attestationId'));
+  assert.ok(completeCall.includes('p_nonce:attestationNonce'));
+  assert.ok(completeCall.includes('p_directory_evidence:evidence'));
+
+  assert.ok(activation.includes("if(resolution!=='create_new')"));
+  assert.ok(activation.includes('if(body.identityVerified!==true)'));
+  assert.ok(activation.includes('identityVerified:true'));
+  assert.equal(activation.includes('attestationId'),false);
+  assert.equal(route.includes('attestationId:null'),false);
+
+  const approveCompact=compact(approve);
+  assert.ok(approveCompact.includes(
+    "ifp_payload->'identityVerified'isdistinctfrom'true'::jsonbthen"
+  ));
+  assert.ok(approveCompact.includes(
+    "trim(coalesce(p_payload->>'resolution',''))<>'create_new'"
+  ));
+  assert.ok(approve.includes("v_attestation.status<>'completed'"));
+  assert.ok(approve.includes('v_attestation.requested_by_subject_id is distinct from v_actor'));
+  assert.ok(approve.includes("set status='consumed',consumed_at=now()"));
+  assert.equal(approve.includes('link_existing'),false);
+
+  const migrationCompact=compact(migration);
+  assert.ok(migrationCompact.includes(
+    'grantexecuteonfunctionpublic.v1_platform_registration_activation_attestation_prepare(uuid,integer)toauthenticated;'
+  ));
+  assert.ok(migrationCompact.includes(
+    'grantexecuteonfunctionpublic.v1_registration_activation_attestation_complete(uuid,text,jsonb)toservice_role;'
+  ));
+  assert.equal(
+    migrationCompact.includes(
+      'grantexecuteonfunctionpublic.v1_registration_activation_attestation_complete(uuid,text,jsonb)toauthenticated;'
+    ),
+    false
+  );
+  assert.ok(migrationCompact.includes(
+    'grantexecuteonfunctionpublic.v1_platform_registration_approve_and_activate(uuid,integer,text,jsonb)toauthenticated;'
+  ));
+});
+
+test('activation accepts only a strict converted active create-new response',async()=>{
+  const route=await read('app/api/platform/registration-requests/route.js');
+  const validator=section(route,'function validActivationResult','function withInvitationUrl');
+  const post=section(route,'export async function POST','function activationPayload');
+
+  for(const contract of [
+    "requestStatus==='converted'",
+    'isUuid(requestTenantId)',
+    'tenantId===requestTenantId',
+    "/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)",
+    "clean(provisioning.status,24).toLowerCase()==='active'",
+    "clean(provisioning.resolution,24).toLowerCase()==='create_new'"
+  ])assert.ok(validator.includes(contract),`missing activation response contract: ${contract}`);
+
+  assertOrdered(post,[
+    "?'v1_platform_registration_approve_and_activate'",
+    "if(action==='approve_and_activate'&&!validActivationResult(result.data))",
+    "'registration_activation_response_invalid'",
+    'const data=withInvitationUrl(result.data)'
+  ]);
+});
+
+test('registration snapshot applies composite filters before total and pagination while summary stays global',async()=>{
+  const [route,migration]=await Promise.all([
+    read('app/api/platform/registration-requests/route.js'),
+    read(MANUAL_ACTIVATION_INTEGRITY)
+  ]);
+  const snapshot=section(
+    migration,
+    'create or replace function public.v1_platform_registration_requests_snapshot',
+    'create or replace function public.v1_platform_registration_activation_attestation_prepare'
+  );
+  const compactSnapshot=compact(snapshot);
+
+  for(const status of ['manual_attention','trust_attention','restricted']){
+    assert.ok(route.includes(`'${status}'`),`route must accept ${status}`);
+    assert.ok(snapshot.includes(`'${status}'`),`database must accept ${status}`);
+  }
+  for(const filterContract of [
+    "v_status='manual_attention'andrequest.queue_statusin('pending_review','under_review')",
+    "v_status='trust_attention'andrequest.queue_statusin('trust_pending','trust_review')",
+    "v_status='restricted'andrequest.queue_statusin('rejected','trust_restricted')"
+  ])assert.ok(
+    compactSnapshot.includes(filterContract),
+    `missing composite filter contract: ${filterContract}`
+  );
+
+  assert.ok(compactSnapshot.includes("'total',(selectcount(*)frommatched)"));
+  assert.ok(compactSnapshot.includes('fromclassifiedrequest'));
+  const classifiedAt=position(snapshot,'with classified as materialized');
+  const matchedAt=position(snapshot,'matched as materialized');
+  const summaryAt=position(snapshot,"'summary'");
+  const globalSummaryAt=snapshot.indexOf('from classified request',summaryAt);
+  const matchedTotalAt=snapshot.indexOf("'total',(select count(*) from matched)",summaryAt);
+  const pageAt=snapshot.indexOf('from matched filtered',matchedTotalAt);
+  const paginationAt=snapshot.indexOf('limit v_limit offset v_offset',pageAt);
+  for(const [at,label] of [
+    [globalSummaryAt,'global classified summary'],
+    [matchedTotalAt,'matched total'],
+    [pageAt,'matched page'],
+    [paginationAt,'server pagination']
+  ])assert.notEqual(at,-1,`missing snapshot contract: ${label}`);
+  assert.ok(classifiedAt<matchedAt);
+  assert.ok(matchedAt<summaryAt);
+  assert.ok(summaryAt<globalSummaryAt);
+  assert.ok(globalSummaryAt<matchedTotalAt);
+  assert.ok(matchedTotalAt<pageAt);
+  assert.ok(pageAt<paginationAt);
 });
 
 test('the new registration path is isolated from Reef and tenant records until provisioning',async()=>{
   const sources=await Promise.all([
     read(MIGRATION),
+    read(MANUAL_ACTIVATION_INTEGRITY),
     read('supabase/functions/odeir-registration-intake/index.ts'),
     read('app/api/public/registration/route.js'),
     read('app/api/platform/registration-requests/route.js'),
@@ -228,6 +472,13 @@ test('the new registration path is isolated from Reef and tenant records until p
   const combined=sources.join('\n');
 
   assert.doesNotMatch(combined,/reef|ريف/i);
+  assert.equal(combined.toLowerCase().includes('link_existing'),false);
+  assert.doesNotMatch(
+    sources[1],
+    /'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/i
+  );
+  assert.ok(sources[1].includes("'registrationRequestId',v_request.id::text"));
+  assert.ok(sources[1].includes("'registrationResolution','create_new'"));
   const beforeProvision=section(
     sources[0],
     'create table if not exists platform.registration_requests',

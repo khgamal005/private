@@ -1,15 +1,26 @@
 import {NextResponse} from 'next/server';
 import {accessToken} from '../../../../lib/server-auth';
+import {SUPABASE_SECRET_KEY} from '../../../../lib/admin-config';
 import {SUPABASE_KEY,SUPABASE_URL} from '../../../../lib/config';
 
 const MAX_BODY_BYTES=16*1024;
+const MAX_DIRECTORY_RESPONSE_BYTES=128*1024;
+const POST_DEADLINE_MS=28_000;
+const DIRECTORY_API=process.env.ODEIR_REGISTRATION_DIRECTORY_API_URL
+  ||'https://jultamrxwrgzohoktbgr.supabase.co/functions/v1/marktone-free-trial';
+const PUBLIC_APP_URL=process.env.ODEIR_PUBLIC_APP_URL||'https://odeir.com';
 const TRUST_ACTIONS=new Set(['trust_start','trust_approve','trust_restrict']);
 const ACTIONS=new Set([
-  'start_review','approve','reject','reopen','provision',...TRUST_ACTIONS
+  'start_review','approve','reject','reopen','provision',...TRUST_ACTIONS,
+  'approve_and_activate','move_to_manual_review'
 ]);
 const STATUSES=new Set([
-  'pending_review','under_review','approved','rejected','converted'
+  'pending_review','under_review','approved','rejected','converted',
+  'awaiting_email','trust_pending','trust_review','trust_restricted',
+  'manual_attention','trust_attention','restricted'
 ]);
+
+export const maxDuration=30;
 
 export async function GET(request){
   try{
@@ -19,10 +30,18 @@ export async function GET(request){
     const requestId=String(searchParams.get('id')||'').trim();
     if(requestId){
       if(!isUuid(requestId))return jsonError('معرّف الطلب غير صالح','invalid_request_id',400);
-      const result=await rpc(token,'v1_platform_registration_request_detail',{
-        p_request_id:requestId
-      });
-      return NextResponse.json({success:true,data:result.data},{status:result.status});
+      const [result,delivery]=await Promise.all([
+        rpc(token,'v1_platform_registration_request_detail',{
+          p_request_id:requestId
+        }),
+        rpc(token,'v1_platform_registration_email_delivery_status',{
+          p_request_id:requestId
+        })
+      ]);
+      const data=result.data&&typeof result.data==='object'&&!Array.isArray(result.data)
+        ?{...result.data,emailDelivery:delivery.data?.emailDelivery??null}
+        :result.data;
+      return NextResponse.json({success:true,data},{status:result.status});
     }
 
     const status=String(searchParams.get('status')||'').trim()||null;
@@ -46,6 +65,7 @@ export async function GET(request){
 
 export async function POST(request){
   try{
+    const deadlineAt=Date.now()+POST_DEADLINE_MS;
     const token=await accessToken();
     if(!token)return jsonError('انتهت جلسة الدخول','authentication_required',401);
     const rawBody=await limitedBody(request);
@@ -68,29 +88,132 @@ export async function POST(request){
       );
     }
 
-    const requiresReason=['reject','reopen','trust_restrict'].includes(action);
+    const requiresReason=[
+      'reject','reopen','trust_restrict','move_to_manual_review'
+    ].includes(action);
     const notes=requiresReason
       ?clean(body.reason??body.notes,1200)
       :clean(body.notes??body.note,1200)||null;
     if(requiresReason&&String(notes||'').length<3){
       return jsonError('اكتب سببًا واضحًا للقرار','registration_reason_required',400);
     }
-    const payload=action==='provision'
+    let payload=action==='provision'
       ?provisionPayload(body.payload)
+      :action==='approve_and_activate'
+        ?activationPayload(body.payload)
       :action==='reject'
         ?{category:clean(body.category,60)||null}
         :{};
     if(payload.error)return payload.error;
 
     const trustAction=TRUST_ACTIONS.has(action);
+    if(action==='approve_and_activate'){
+      const detailResult=await rpc(token,'v1_platform_registration_request_detail',{
+        p_request_id:requestId
+      },{deadlineAt,maxMs:5_000});
+      const requestRow=registrationRequestOf(detailResult.data);
+      if(!requestRow){
+        return jsonError('طلب التسجيل غير موجود','registration_request_not_found',404);
+      }
+      const state=clean(valueOf(requestRow,[
+        'institutionState','institution_state'
+      ]),24).toLowerCase();
+      const status=clean(valueOf(requestRow,['status','requestStatus','request_status']),32)
+        .toLowerCase();
+      const provisionedTenantId=clean(valueOf(requestRow,[
+        'provisionedTenantId','provisioned_tenant_id','tenantId','tenant_id'
+      ]),64);
+      const completedReplay=status==='converted'&&isUuid(provisionedTenantId);
+      if(!completedReplay&&!['new','existing'].includes(state)){
+        return jsonError(
+          'نوع طلب المنشأة غير صالح للتفعيل',
+          'registration_institution_state_invalid',
+          409
+        );
+      }
+      if(!completedReplay&&state==='new'&&payload.resolution!=='create_new'){
+        return jsonError(
+          'طلب المنشأة الجديدة لا يمكن ربطه بمساحة قائمة',
+          'registration_activation_resolution_invalid',
+          400
+        );
+      }
+      if(!completedReplay&&state==='existing'){
+        const externalAccountId=clean(valueOf(requestRow,[
+          'externalAccountId','external_account_id','accountId','account_id'
+        ]),64).toLowerCase();
+        const institutionName=clean(valueOf(requestRow,[
+          'institutionName','institution_name','organizationName','organization_name'
+        ]),240);
+        if(!isUuid(externalAccountId)){
+          return jsonError(
+            'تعذر التحقق من هوية المنشأة القائمة',
+            'registration_external_account_required',
+            409
+          );
+        }
+        const prepared=await rpc(
+          token,
+          'v1_platform_registration_activation_attestation_prepare',
+          {p_request_id:requestId,p_expected_version:expectedVersion},
+          {deadlineAt,maxMs:5_000}
+        );
+        const attestationId=clean(prepared.data?.attestationId,48);
+        const attestationNonce=clean(prepared.data?.nonce,160);
+        const preparedRequestId=clean(prepared.data?.requestId,48);
+        const preparedVersion=Number(prepared.data?.requestVersion);
+        const expiresAt=Date.parse(String(prepared.data?.expiresAt||''));
+        if(
+          !isUuid(attestationId)
+          ||!/^[a-f0-9]{64}$/.test(attestationNonce)
+          ||preparedRequestId!==requestId
+          ||preparedVersion!==expectedVersion
+          ||!Number.isFinite(expiresAt)
+          ||expiresAt<=Date.now()
+        ){
+          throw new PublicError(
+            'تعذر بدء التحقق الآمن؛ لم يُنفذ أي تفعيل',
+            'registration_attestation_unavailable',503,'InvalidPrepareResponse'
+          );
+        }
+        const evidence=await verifyDirectoryInstitution({
+          externalAccountId,
+          institutionName,
+          deadlineAt
+        });
+        await rpcService(
+          'v1_registration_activation_attestation_complete',
+          {
+            p_attestation_id:attestationId,
+            p_nonce:attestationNonce,
+            p_directory_evidence:evidence
+          },
+          {deadlineAt,maxMs:5_000}
+        );
+        payload={...payload,attestationId};
+      }
+    }
     const result=await rpc(
       token,
       trustAction
         ?'v1_platform_registration_trust_action'
-        :'v1_platform_registration_request_action',
+        :action==='approve_and_activate'
+          ?'v1_platform_registration_approve_and_activate'
+          :action==='move_to_manual_review'
+            ?'v1_platform_registration_email_move_to_manual'
+          :'v1_platform_registration_request_action',
       trustAction?{
         p_request_id:requestId,
         p_action:action,
+        p_expected_version:expectedVersion,
+        p_notes:notes
+      }:action==='approve_and_activate'?{
+        p_request_id:requestId,
+        p_expected_version:expectedVersion,
+        p_notes:notes,
+        p_payload:payload
+      }:action==='move_to_manual_review'?{
+        p_request_id:requestId,
         p_expected_version:expectedVersion,
         p_notes:notes
       }:{
@@ -99,16 +222,57 @@ export async function POST(request){
         p_expected_version:expectedVersion,
         p_notes:notes,
         p_payload:payload
-      }
+      },
+      {deadlineAt,maxMs:9_000}
     );
-    const data=withInvitationUrl(result.data,request);
+    if(action==='approve_and_activate'&&!validActivationResult(result.data)){
+      throw new PublicError(
+        'تمت معالجة الطلب لكن تعذر التحقق من نتيجة التفعيل؛ أعد المحاولة بأمان',
+        'registration_activation_response_invalid',503,'InvalidActivationResponse'
+      );
+    }
+    const data=withInvitationUrl(result.data);
     return NextResponse.json({success:true,data},{status:result.status});
   }catch(error){
     return unexpected(error);
   }
 }
 
-async function rpc(token,name,body){
+function activationPayload(source){
+  const body=source&&typeof source==='object'&&!Array.isArray(source)?source:{};
+  const resolution=clean(body.resolution,32).toLowerCase();
+  if(resolution!=='create_new'){
+    return {error:jsonError(
+      'التفعيل ينشئ مساحة مستقلة فقط؛ الربط بمساحة قائمة له مسار استحواذ منفصل',
+      'registration_activation_resolution_required',
+      400
+    )};
+  }
+  if(body.confirmedNoExistingTenant!==true){
+    return {error:jsonError(
+      'يلزم تأكيد عدم وجود مساحة أودير قائمة قبل الإنشاء',
+      'registration_no_existing_tenant_confirmation_required',
+      400
+    )};
+  }
+  if(body.identityVerified!==true){
+    return {error:jsonError(
+      'يلزم تأكيد مراجعة هوية المنشأة قبل التفعيل',
+      'registration_identity_verification_required',
+      400
+    )};
+  }
+  const provision=provisionPayload(body);
+  if(provision.error)return provision;
+  return {
+    ...provision,
+    resolution,
+    confirmedNoExistingTenant:true,
+    identityVerified:true
+  };
+}
+
+async function rpc(token,name,body,{deadlineAt=null,maxMs=20_000}={}){
   const response=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`,{
     method:'POST',
     headers:{
@@ -118,7 +282,43 @@ async function rpc(token,name,body){
     },
     body:JSON.stringify(body),
     cache:'no-store',
-    signal:AbortSignal.timeout(10_000)
+    signal:deadlineSignal(deadlineAt,maxMs)
+  });
+  const text=await response.text();
+  let data={};
+  try{data=text?JSON.parse(text):{};}catch{data={detail:text};}
+  if(!response.ok){
+    const source=String(data?.message||data?.error||data?.detail||'request_failed');
+    throw new RpcError({
+      source,
+      status:translatedStatus(source,response.status),
+      rpcName:name,
+      databaseCode:String(data?.code||''),
+      responseStatus:response.status
+    });
+  }
+  return {data,status:response.status};
+}
+
+async function rpcService(name,body,{deadlineAt=null,maxMs=10_000}={}){
+  if(!SUPABASE_SECRET_KEY){
+    throw new PublicError(
+      'خدمة التحقق الخادمي غير متاحة؛ لم يُنفذ أي تفعيل',
+      'registration_attestation_unavailable',503,'ServiceKeyUnavailable'
+    );
+  }
+  const response=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`,{
+    method:'POST',
+    headers:{
+      apikey:SUPABASE_SECRET_KEY,
+      ...(looksLikeJwt(SUPABASE_SECRET_KEY)?{
+        Authorization:`Bearer ${SUPABASE_SECRET_KEY}`
+      }:{}),
+      'content-type':'application/json'
+    },
+    body:JSON.stringify(body),
+    cache:'no-store',
+    signal:deadlineSignal(deadlineAt,maxMs)
   });
   const text=await response.text();
   let data={};
@@ -141,8 +341,8 @@ async function limitedBody(request){
   if(declared>MAX_BODY_BYTES){
     return {error:jsonError('حجم الطلب أكبر من المسموح','request_too_large',413)};
   }
-  const text=await request.text();
-  if(Buffer.byteLength(text,'utf8')>MAX_BODY_BYTES){
+  const text=await boundedRequestText(request,MAX_BODY_BYTES);
+  if(text===null){
     return {error:jsonError('حجم الطلب أكبر من المسموح','request_too_large',413)};
   }
   try{
@@ -152,6 +352,29 @@ async function limitedBody(request){
   }catch{
     return {error:jsonError('بيانات الطلب غير صالحة','invalid_json',400)};
   }
+}
+
+async function boundedRequestText(request,maxBytes){
+  if(!request.body)return '';
+  const reader=request.body.getReader();
+  const chunks=[];
+  let total=0;
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>maxBytes){
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  }finally{reader.releaseLock();}
+  const merged=new Uint8Array(total);
+  let offset=0;
+  for(const chunk of chunks){merged.set(chunk,offset);offset+=chunk.byteLength;}
+  return new TextDecoder().decode(merged);
 }
 
 function provisionPayload(source){
@@ -186,7 +409,188 @@ function provisionPayload(source){
   };
 }
 
-function withInvitationUrl(value,request){
+async function verifyDirectoryInstitution({
+  externalAccountId,institutionName,deadlineAt
+}){
+  let directoryUrl;
+  try{
+    directoryUrl=new URL(DIRECTORY_API);
+  }catch{
+    throw new PublicError(
+      'خدمة سجل المنشآت غير مضبوطة بأمان؛ لم يُنفذ أي تفعيل',
+      'directory_verification_unavailable',503,'InvalidDirectoryUrl'
+    );
+  }
+  if(
+    directoryUrl.protocol!=='https:'
+    ||!directoryUrl.hostname.endsWith('.supabase.co')
+    ||directoryUrl.pathname!=='/functions/v1/marktone-free-trial'
+    ||directoryUrl.search||directoryUrl.hash
+  ){
+    throw new PublicError(
+      'خدمة سجل المنشآت غير مضبوطة بأمان؛ لم يُنفذ أي تفعيل',
+      'directory_verification_unavailable',503,'UntrustedDirectoryUrl'
+    );
+  }
+  let response;
+  try{
+    response=await fetch(directoryUrl,{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({action:'details',accountId:externalAccountId}),
+      cache:'no-store',
+      credentials:'omit',
+      redirect:'error',
+      referrerPolicy:'no-referrer',
+      signal:deadlineSignal(deadlineAt,6_000)
+    });
+  }catch(error){
+    throw new PublicError(
+      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
+      'directory_verification_unavailable',
+      503,
+      error instanceof Error?error.name:'UnknownError'
+    );
+  }
+  let raw;
+  try{
+    raw=await boundedResponseText(response,MAX_DIRECTORY_RESPONSE_BYTES);
+  }catch{
+    throw new PublicError(
+      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
+      'directory_verification_unavailable',
+      503,
+      'ResponseTooLarge'
+    );
+  }
+  let result={};
+  try{result=raw?JSON.parse(raw):{};}catch{
+    throw new PublicError(
+      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
+      'directory_verification_unavailable',
+      503,
+      'InvalidJson'
+    );
+  }
+  if(!response.ok){
+    throw new PublicError(
+      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
+      'directory_verification_unavailable',
+      503,
+      `Http${response.status}`
+    );
+  }
+  const institution=result?.institution;
+  if(result?.ok!==true||!institution
+     ||Array.isArray(institution)||typeof institution!=='object'){
+    throw new PublicError(
+      'لم نتمكن من مطابقة المنشأة مع السجل الرسمي؛ راجع الطلب قبل التفعيل',
+      'directory_identity_mismatch',
+      409,
+      'InstitutionMissing'
+    );
+  }
+  const returnedId=clean(valueOf(institution,[
+    'id','accountId','account_id','externalAccountId','external_account_id'
+  ]),64).toLowerCase();
+  const returnedName=clean(valueOf(institution,[
+    'name','institutionName','institution_name','organizationName','organization_name'
+  ]),240);
+  if(returnedId!==externalAccountId
+     ||!returnedName
+     ||normalizeInstitutionName(returnedName)!==normalizeInstitutionName(institutionName)){
+    throw new PublicError(
+      'لم نتمكن من مطابقة المنشأة مع السجل الرسمي؛ راجع الطلب قبل التفعيل',
+      'directory_identity_mismatch',
+      409,
+      'IdentityMismatch'
+    );
+  }
+  // The public directory does not expose a contractual completeness signal for
+  // displayed registration identifiers.  A masked value, label, or visible
+  // suffix must therefore never become an authoritative uniqueness claim.
+  // The exact directory account UUID is the only external identity evidence.
+  return {
+    sourceSystem:'marktone_directory',
+    accountId:externalAccountId,
+    institutionName:returnedName,
+    officialIdentifiers:null
+  };
+}
+
+async function boundedResponseText(response,maxBytes){
+  const declared=Number(response.headers.get('content-length')||0);
+  if(declared>maxBytes)throw new Error('response_too_large');
+  if(!response.body)return '';
+  const reader=response.body.getReader();
+  const chunks=[];
+  let total=0;
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>maxBytes){
+        await reader.cancel();
+        throw new Error('response_too_large');
+      }
+      chunks.push(value);
+    }
+  }finally{reader.releaseLock();}
+  const merged=new Uint8Array(total);
+  let offset=0;
+  for(const chunk of chunks){merged.set(chunk,offset);offset+=chunk.byteLength;}
+  return new TextDecoder().decode(merged);
+}
+
+function registrationRequestOf(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return null;
+  const candidate=value.request||value.item||value.registrationRequest
+    ||value.registration_request||value;
+  return candidate&&typeof candidate==='object'&&!Array.isArray(candidate)
+    ?candidate
+    :null;
+}
+
+function normalizeInstitutionName(value){
+  return clean(value,240)
+    .toLocaleLowerCase('ar')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function valueOf(source,keys,fallback=''){
+  for(const key of keys){
+    const value=source?.[key];
+    if(value!==undefined&&value!==null&&value!=='')return value;
+  }
+  return fallback;
+}
+
+function validActivationResult(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return false;
+  const requestRow=registrationRequestOf(value);
+  const provisioning=value.provisioning;
+  if(!requestRow||!provisioning||Array.isArray(provisioning)
+     ||typeof provisioning!=='object')return false;
+  const requestStatus=clean(valueOf(requestRow,[
+    'status','requestStatus','request_status'
+  ]),32).toLowerCase();
+  const requestTenantId=clean(valueOf(requestRow,[
+    'provisionedTenantId','provisioned_tenant_id','tenantId','tenant_id'
+  ]),64).toLowerCase();
+  const tenantId=clean(valueOf(provisioning,['id','tenantId','tenant_id']),64)
+    .toLowerCase();
+  const slug=clean(provisioning.slug,80).toLowerCase();
+  return requestStatus==='converted'
+    &&isUuid(requestTenantId)
+    &&tenantId===requestTenantId
+    &&/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
+    &&clean(provisioning.status,24).toLowerCase()==='active'
+    &&clean(provisioning.resolution,24).toLowerCase()==='create_new';
+}
+
+function withInvitationUrl(value){
   if(!value||typeof value!=='object'||Array.isArray(value))return value;
   const provisioning=value.provisioning;
   const owner=provisioning?.owner;
@@ -194,7 +598,7 @@ function withInvitationUrl(value,request){
     ?owner.invitationToken
     :'';
   if(!token)return value;
-  const invitationUrl=new URL('/accept-invite',request.nextUrl.origin);
+  const invitationUrl=new URL('/accept-invite',trustedPublicOrigin());
   invitationUrl.searchParams.set('token',token);
   return {
     ...value,
@@ -206,14 +610,33 @@ function withInvitationUrl(value,request){
   };
 }
 
+function trustedPublicOrigin(){
+  try{
+    const url=new URL(PUBLIC_APP_URL);
+    const local=url.hostname==='localhost'||url.hostname==='127.0.0.1';
+    if(
+      !['odeir.com','www.odeir.com','staging.odeir.com'].includes(url.hostname)
+      &&!local
+    )throw new Error();
+    if(url.protocol!=='https:'&&!(local&&url.protocol==='http:'))throw new Error();
+    return url.origin;
+  }catch{
+    return 'https://odeir.com';
+  }
+}
+
 function translatedStatus(source,fallback){
   if(source.includes('forbidden'))return 403;
   if(source.includes('not_found'))return 404;
-  if(source.includes('conflict')||source.includes('transition_invalid')
+  if(source.includes('conflict'))return 409;
+  if(source.includes('transition_invalid')
      ||source.includes('already_provisioned')||source.includes('slug_exists')
-     ||source.includes('domain_exists'))return 409;
+     ||source.includes('domain_exists')||source.includes('_claimed')
+     ||source.includes('_mismatch')
+     ||source.includes('_not_allowed')
+     ||source.includes('atomic_activation')||source.includes('manual_activation'))return 409;
   if(Number(fallback)===401)return 401;
-  if(source.includes('_invalid')||source.includes('_required')
+  if(source.includes('_invalid')||source.includes('_required')||source.includes('_missing')
      ||source.includes('plan_not_found'))return 400;
   return 503;
 }
@@ -233,6 +656,36 @@ function translate(source){
     registration_existing_institution_requires_manual_link:'المنشأة القائمة تحتاج تحققًا وربطًا يدويًا، ولن تُنشأ لها مساحة مكررة',
     registration_email_activation_managed:'هذا الطلب يتبع مسار تأكيد البريد ولا يقبل إجراءات التسجيل اليدوية',
     registration_identifier_already_provisioned:'هذه الهوية مرتبطة بمساحة منشأة أُنشئت مسبقًا',
+    registration_manual_activation_required:'هذا الطلب يتطلب مسار الاعتماد والتفعيل اليدوي الموحد',
+    registration_atomic_activation_required:'استخدم إجراء «اعتماد وتفعيل» حتى لا يبقى الطلب في حالة ناقصة',
+    registration_activation_target_missing:'تعذر تحديد مساحة المنشأة المستهدفة',
+    registration_identity_verification_required:'يلزم تأكيد مراجعة هوية المنشأة',
+    registration_activation_resolution_required:'هذا المسار ينشئ مساحة مستقلة فقط؛ ربط مساحة قائمة يتطلب إجراء استحواذ منفصلًا',
+    registration_activation_resolution_invalid:'طريقة معالجة الطلب لا تطابق نوع المنشأة',
+    registration_institution_state_invalid:'نوع طلب المنشأة غير صالح للتفعيل',
+    registration_new_institution_link_invalid:'طلب المنشأة الجديدة لا يمكن ربطه بمساحة قائمة',
+    registration_no_existing_tenant_confirmation_required:'يلزم تأكيد عدم وجود مساحة أودير قائمة قبل الإنشاء',
+    registration_external_account_required:'تعذر التحقق من هوية المنشأة القائمة',
+    registration_external_account_invalid:'معرّف المنشأة في السجل الرسمي غير صالح',
+    registration_external_account_mismatch:'معرّف المنشأة لا يطابق الطلب المحفوظ',
+    registration_external_account_already_claimed:'سجل المنشأة الرسمي مرتبط بالفعل بمساحة أخرى',
+    registration_server_verification_required:'تعذر إثبات التحقق الخادمي من سجل المنشأة',
+    registration_attestation_required:'انتهت أو لم تكتمل شهادة التحقق الخادمي؛ أعد المحاولة',
+    registration_attestation_invalid:'شهادة التحقق الخادمي غير صالحة أو استُخدمت من قبل',
+    registration_attestation_unavailable:'تعذر إكمال التحقق الخادمي الآن؛ لم يُنفذ أي تفعيل',
+    registration_activation_response_invalid:'تعذر التحقق من نتيجة التفعيل؛ أعد المحاولة بأمان',
+    registration_external_source_invalid:'مصدر سجل المنشأة غير معتمد',
+    registration_external_institution_mismatch:'اسم المنشأة لا يطابق السجل الرسمي المحفوظ',
+    registration_external_evidence_invalid:'بصمة دليل التحقق غير صالحة',
+    registration_official_identifiers_invalid:'تعذر اعتماد المعرّفات الرسمية للمنشأة',
+    registration_new_institution_external_account_invalid:'طلب المنشأة الجديدة يحتوي ارتباطًا رسميًا غير متوقع',
+    registration_target_tenant_required:'حدد الرابط المختصر لمساحة أودير القائمة',
+    registration_target_tenant_invalid:'الرابط المختصر للمساحة القائمة غير صالح',
+    registration_target_tenant_not_found:'لم يتم العثور على مساحة أودير نشطة بهذا الرابط',
+    registration_target_tenant_already_claimed:'المساحة القائمة مرتبطة بالفعل بطلب تسجيل آخر',
+    registration_created_tenant_activation_failed:'تعذر إكمال تفعيل المساحة الجديدة؛ لم يُحفظ الطلب كمنشأة مفعّلة',
+    registration_email_fallback_reason_required:'اكتب سببًا واضحًا لتحويل الطلب إلى المراجعة اليدوية',
+    registration_email_fallback_not_allowed:'لا يمكن تحويل هذا الطلب إلى المراجعة اليدوية في حالته الحالية',
     display_name_required:'اسم المنشأة مطلوب',
     invalid_slug:'الرابط المختصر غير صالح',
     slug_exists:'هذا الرابط المختصر مستخدم بالفعل',
@@ -247,6 +700,13 @@ function translate(source){
 }
 
 function unexpected(error){
+  if(error instanceof PublicError){
+    console.error('platform_registration_directory_verification_failed',{
+      publicCode:error.code,
+      failureClass:error.failureClass
+    });
+    return jsonError(error.publicMessage,error.code,error.status);
+  }
   if(error instanceof RpcError){
     console.error('platform_registration_rpc_failed',{
       rpcName:error.rpcName,
@@ -255,6 +715,15 @@ function unexpected(error){
       publicCode:error.code
     });
     return jsonError(translate(error.source),error.code,error.status);
+  }
+  if(error instanceof Error&&['TimeoutError','AbortError'].includes(error.name)){
+    console.error('platform_registration_operation_timeout',{
+      errorName:error.name
+    });
+    return jsonError(
+      'انتهت مهلة الاستجابة. حدّث الطلب قبل إعادة المحاولة؛ التكرار آمن ولن ينشئ مساحة ثانية.',
+      'registration_operation_timeout',503
+    );
   }
   console.error('platform_registration_request_failed',{
     errorName:error instanceof Error?error.name:'UnknownError'
@@ -271,9 +740,26 @@ function clean(value,max){
     .replace(/[\u0000-\u001F\u007F]/g,' ').trim().slice(0,max);
 }
 
+function looksLikeJwt(value){
+  return String(value||'').split('.').length===3;
+}
+
 function boundedInteger(value,min,max,fallback){
   const number=Number(value);
   return Number.isInteger(number)&&number>=min&&number<=max?number:fallback;
+}
+
+function deadlineSignal(deadlineAt,maxMs){
+  const remaining=deadlineAt===null
+    ?maxMs
+    :Math.floor(Number(deadlineAt)-Date.now());
+  if(!Number.isFinite(remaining)||remaining<250){
+    throw new PublicError(
+      'انتهت مهلة العملية قبل بدء أي خطوة جديدة؛ أعد المحاولة بأمان',
+      'registration_operation_deadline_exceeded',503,'DeadlineExceeded'
+    );
+  }
+  return AbortSignal.timeout(Math.max(250,Math.min(maxMs,remaining)));
 }
 
 function isUuid(value){
@@ -289,6 +775,36 @@ class RpcError extends Error{
       registration_transition_invalid:1,
       registration_trust_transition_invalid:1,
       registration_trust_target_invalid:1,
+      registration_activation_resolution_required:1,
+      registration_activation_resolution_invalid:1,
+      registration_institution_state_invalid:1,
+      registration_manual_activation_required:1,
+      registration_atomic_activation_required:1,
+      registration_activation_target_missing:1,
+      registration_identity_verification_required:1,
+      registration_new_institution_link_invalid:1,
+      registration_no_existing_tenant_confirmation_required:1,
+      registration_external_account_required:1,
+      registration_external_account_invalid:1,
+      registration_external_account_mismatch:1,
+      registration_external_account_already_claimed:1,
+      registration_server_verification_required:1,
+      registration_attestation_required:1,
+      registration_attestation_invalid:1,
+      registration_attestation_unavailable:1,
+      registration_activation_response_invalid:1,
+      registration_external_source_invalid:1,
+      registration_external_institution_mismatch:1,
+      registration_external_evidence_invalid:1,
+      registration_official_identifiers_invalid:1,
+      registration_new_institution_external_account_invalid:1,
+      registration_target_tenant_required:1,
+      registration_target_tenant_invalid:1,
+      registration_target_tenant_not_found:1,
+      registration_target_tenant_already_claimed:1,
+      registration_created_tenant_activation_failed:1,
+      registration_email_fallback_reason_required:1,
+      registration_email_fallback_not_allowed:1,
       registration_request_not_found:1,
       forbidden:1
     }).find(code=>source.includes(code))||(status===503?'service_unavailable':'request_failed');
@@ -296,5 +812,15 @@ class RpcError extends Error{
     this.rpcName=rpcName;
     this.databaseCode=databaseCode;
     this.responseStatus=responseStatus;
+  }
+}
+
+class PublicError extends Error{
+  constructor(publicMessage,code,status,failureClass){
+    super(code);
+    this.publicMessage=publicMessage;
+    this.code=code;
+    this.status=status;
+    this.failureClass=failureClass;
   }
 }

@@ -5,6 +5,8 @@ import test from 'node:test';
 const read=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 const MIGRATION='supabase/migrations/20260823194500_platform_email_verified_trial_v1.sql';
 const PASSWORD_GATE_HOTFIX='supabase/migrations/20260823203000_registration_restore_password_gate_v1.sql';
+const MANUAL_ACTIVATION_INTEGRITY=
+  'supabase/migrations/20260824170000_registration_manual_activation_integrity_v1.sql';
 
 function section(source,start,end){
   const from=source.indexOf(start);
@@ -12,6 +14,12 @@ function section(source,start,end){
   const to=end?source.indexOf(end,from+start.length):source.length;
   assert.notEqual(to,-1,`missing section end: ${end}`);
   return source.slice(from,to);
+}
+
+function positionOf(source,needle){
+  const at=source.indexOf(needle);
+  assert.notEqual(at,-1,`missing contract marker: ${needle}`);
+  return at;
 }
 
 test('activation policy and identity-claim storage stay behind RLS and narrow RPC grants',async()=>{
@@ -130,6 +138,43 @@ test('automatic activation is eligible only for a new unlinked institution with 
   assert.match(migration,/create trigger platform_registration_identity_claim_sync[\s\S]*?after insert or update of provisioned_tenant_id/);
 });
 
+test('public directory identifiers are null evidence and the account UUID is the only external claim',async()=>{
+  const [route,migration]=await Promise.all([
+    read('app/api/platform/registration-requests/route.js'),
+    read(MANUAL_ACTIVATION_INTEGRITY)
+  ]);
+  const directoryVerification=section(
+    route,
+    'async function verifyDirectoryInstitution',
+    'async function boundedResponseText'
+  );
+  const complete=section(
+    migration,
+    'create or replace function public.v1_registration_activation_attestation_complete',
+    'create or replace function public.v1_platform_registration_approve_and_activate'
+  );
+  const evidenceSnapshot=section(
+    complete,
+    'v_snapshot:=jsonb_strip_nulls',
+    'v_evidence_hash:='
+  );
+
+  assert.ok(directoryVerification.includes('accountId:externalAccountId'));
+  assert.ok(directoryVerification.includes('officialIdentifiers:null'));
+  for(const key of [
+    'commercialRegistration','nationalRegistration','tvtcLicense'
+  ])assert.equal(
+    directoryVerification.includes(`'${key}'`),
+    false,
+    `directory ${key} must remain display-only`
+  );
+  assert.equal(route.includes('function officialIdentifier'),false);
+  assert.ok(evidenceSnapshot.includes("'accountId',v_external_account_id"));
+  assert.ok(evidenceSnapshot.includes("'institutionName',v_verified_name"));
+  assert.equal(/officialIdentifiers|commercial|national|tvtc/i.test(evidenceSnapshot),false);
+  assert.equal(complete.includes("p_directory_evidence->'officialIdentifiers'"),false);
+});
+
 test('manual review is the default and the current policy is rechecked as a kill switch at confirmation',async()=>{
   const migration=await read(MIGRATION);
   const confirm=section(
@@ -199,12 +244,15 @@ test('activation policy is permission checked, server-gated, and wired to the pl
 
   assert.match(migration,/has_platform_permission\('platform\.settings\.manage'\)/);
   assert.match(migration,/v1_platform_registration_policy_save/);
-  assert.match(route,/registrationEmailReady\(\)/);
-  assert.match(route,/const emailReady=await registrationEmailReady\(\)/);
-  assert.match(route,/activationMode==='email_verified_trial'&&!emailReady/);
+  assert.match(route,/registrationEmailReadiness\(\)/);
+  assert.match(route,/const emailReadiness=await registrationEmailReadiness\(\)/);
+  assert.match(route,/activationMode==='email_verified_trial'&&!emailReadiness\.sendReady/);
   assert.match(route,/v1_platform_registration_policy_save/);
   assert.match(helper,/import 'server-only'/);
   assert.match(helper,/apikey:ingressToken\?SUPABASE_KEY:\(serverKey\|\|SUPABASE_KEY\)/);
+  assert.match(helper,/emailReady:emailReadiness\.sendReady/);
+  assert.match(helper,/emailTelemetryReady:emailReadiness\.telemetryReady/);
+  assert.match(helper,/telemetryDegraded:sendReady&&!telemetryReady/);
   assert.match(settings,/hasPlatformPermission\([\s\S]*?'platform\.settings\.manage'/);
   assert.match(settings,/RegistrationActivationPolicy/);
   assert.match(ui,/value="manual_review"/);
@@ -212,7 +260,11 @@ test('activation policy is permission checked, server-gated, and wired to the pl
   assert.match(ui,/disabled=\{!policy\.emailReady\}/);
   assert.match(ui,/data-block-reason=\{!policy\.emailReady\?emailBlockReason:undefined\}/);
   assert.match(ui,/data-block-next-step=\{!policy\.emailReady\?emailBlockNextStep:undefined\}/);
-  assert.match(ui,/مفتاح Resend وبريد إرسال موثّق/);
+  assert.ok(ui.includes('مسار إرسال بريد التسجيل غير جاهز'));
+  assert.ok(ui.includes('إثبات النطاق'));
+  assert.match(ui,/policy\.emailTelemetryDegraded===true/);
+  assert.ok(ui.includes('تتبع التسليم عبر Webhook غير مكتمل'));
+  assert.ok(ui.includes('يمكن تفعيل السياسة'));
   assert.match(ui,/data-block-reason=\{automaticFieldBlockReason\|\|undefined\}/);
   assert.match(ui,/data-block-reason=\{saveBlockReason\|\|undefined\}/);
   assert.match(ui,/fetch\('\/api\/platform\/registration-policy'/);
@@ -284,6 +336,31 @@ test('automatic activation never names or targets an existing tenant',async()=>{
   assert.doesNotMatch(provision,/tenant\.slug=|tenant\.name=|tenant\.organization_id=/);
 });
 
+test('existing-institution success copy promises neither automatic email nor tenant linking',async()=>{
+  const landing=await read('components/free-trial-landing.js');
+  const state=section(landing,'const manualExisting','async function requestRegistrationChallenge');
+  const success=section(
+    landing,
+    '{step === "success"',
+    '{!registrationOnly && <>'
+  );
+  const existingMessageStart=positionOf(
+    success,
+    ':"لن نرسل رابط تفعيل تلقائيًا لهذا الطلب حمايةً للحساب'
+  );
+  const existingMessageEnd=success.indexOf('}</p>',existingMessageStart);
+  assert.notEqual(existingMessageEnd,-1,'missing existing-institution message end');
+  const existingMessage=success.slice(existingMessageStart,existingMessageEnd);
+  const existingSteps=section(success,':manualExisting ? <>','</> : <>');
+
+  assert.ok(state.includes('!confirmationRequired && !isNew'));
+  assert.ok(existingMessage.includes('لن نرسل رابط تفعيل تلقائيًا'));
+  assert.equal(/(?:ستُرسل|أرسلنا|سيصل|افحص بريدك)/.test(existingMessage),false);
+  assert.ok(existingSteps.includes('تجهيز مساحة مستقلة'));
+  assert.ok(existingSteps.includes('من دون المساس بأي مساحة قائمة'));
+  assert.equal(/ربط|link/i.test(existingSteps),false);
+});
+
 test('the selected plan activates every entitled module in the new workspace',async()=>{
   const migration=await read(MIGRATION);
   const provision=section(
@@ -310,13 +387,28 @@ test('platform registration email transport is isolated from tenant automation',
   ]);
 
   assert.match(edge,/Deno\.env\.get\('ODEIR_REGISTRATION_RESEND_API_KEY'\)/);
+  assert.match(edge,/Deno\.env\.get\('ODEIR_REGISTRATION_DOMAIN_VERIFIED_NAME'\)/);
+  assert.match(edge,/Deno\.env\.get\('ODEIR_REGISTRATION_DOMAIN_VERIFIED_AT'\)/);
   assert.doesNotMatch(edge,/Deno\.env\.get\('RESEND_API_KEY'\)/);
   assert.doesNotMatch(edge,/Deno\.env\.get\('RESEND_FROM'\)/);
-  assert.match(edge,/registrationEmailConfigurationReady\(\)/);
+  assert.doesNotMatch(edge,/api\.resend\.com\/domains/);
+  assert.match(edge,/registrationEmailTransportReady\(\)/);
+  assert.match(edge,/registrationEmailHealth\(\)/);
   assert.match(edge,/isOdeirRegistrationSender/);
   assert.match(edge,/@odeir\\\.com/);
+  assert.match(edge,/REGISTRATION_DOMAIN_VERIFIED_NAME===senderDomain/);
+  assert.match(edge,/DOMAIN_VERIFICATION_MAX_AGE_MS=30\*24\*60\*60\*1000/);
+  assert.match(edge,/emailReady:sendReady/);
+  assert.match(edge,/telemetryDegraded:sendReady&&!telemetryReady/);
+  assert.match(edge,
+    /legacyUnrecoverable=nonNegativeInteger\(outbox\.legacyUnrecoverable\)/
+  );
+  assert.match(edge,/&&legacyUnrecoverable===0/);
+  assert.match(edge,/legacyUnrecoverable,/);
 
   assert.match(rootEnv,/^ODEIR_REGISTRATION_RESEND_API_KEY=$/m);
+  assert.match(rootEnv,/^ODEIR_REGISTRATION_DOMAIN_VERIFIED_NAME=odeir\.com$/m);
+  assert.match(rootEnv,/^ODEIR_REGISTRATION_DOMAIN_VERIFIED_AT=$/m);
   assert.doesNotMatch(rootEnv,/^RESEND_API_KEY=$/m);
   assert.match(tenantEnv,/^RESEND_API_KEY=$/m);
   assert.doesNotMatch(tenantEnv,/ODEIR_REGISTRATION_RESEND_API_KEY/);

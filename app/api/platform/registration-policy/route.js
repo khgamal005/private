@@ -1,6 +1,9 @@
 import {NextResponse} from 'next/server';
 import {accessToken} from '../../../../lib/server-auth';
-import {registrationEmailReady} from '../../../../lib/platform-registration-policy';
+import {
+  registrationEmailReadiness,
+  withEmailReadiness
+} from '../../../../lib/platform-registration-policy';
 import {SUPABASE_KEY,SUPABASE_URL} from '../../../../lib/config';
 
 const MODES=new Set(['manual_review','email_verified_trial']);
@@ -25,10 +28,10 @@ export async function POST(request){
     if(!/^[a-z0-9_]+$/.test(planKey)){
       return error('مفتاح الباقة غير صالح','invalid_plan_key',400);
     }
-    const emailReady=await registrationEmailReady();
-    if(activationMode==='email_verified_trial'&&!emailReady){
+    const emailReadiness=await registrationEmailReadiness();
+    if(activationMode==='email_verified_trial'&&!emailReadiness.sendReady){
       return error(
-        'أكمل إعداد بريد أودير المرسل والدومين قبل تفعيل هذا الخيار',
+        'أكمل إعداد إرسال بريد أودير والطابور ومفاتيح التأكيد قبل تفعيل هذا الخيار',
         'registration_email_not_ready',
         409
       );
@@ -38,10 +41,10 @@ export async function POST(request){
       p_email_confirmation_ttl_minutes:ttl,
       p_trial_plan_key:planKey
     });
-    return NextResponse.json({success:true,data:{
-      ...result,
-      emailReady
-    }});
+    return NextResponse.json({
+      success:true,
+      data:withEmailReadiness(result,emailReadiness)
+    });
   }catch(reason){
     const source=reason instanceof Error?reason.message:String(reason||'');
     const code=sourceCode(source);

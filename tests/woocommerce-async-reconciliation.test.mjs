@@ -95,6 +95,7 @@ test('cursor machine resumes nested pages and completes every planned scope',()=
   cursor=syncMachine.cursorAfterWooPlainPage(cursor,plan,false);
   cursor=syncMachine.recordWooSyncPage(cursor,'orders',45);
   assert.equal(cursor.mode,'complete');
+  assert.equal(cursor.retryCount,0);
   assert.equal(cursor.totals.attribute_terms,107);
   assert.equal(cursor.totals.orders,45);
   assert.equal(syncMachine.isWooSyncCursor(cursor),true);
@@ -140,7 +141,8 @@ test('durable worker processes one remote page per checkpoint invocation',()=>{
   assert.match(edge,/order: 'asc'/);
   assert.match(edge,/orderby: 'id'/);
   assert.match(edge,/v3_woocommerce_release_run/);
-  assert.match(edge,/retryCount < 5/);
+  assert.match(edge,/wooCheckpointRetryPolicy\(retryCount\)/);
+  assert.doesNotMatch(edge,/claim\.attemptCount|attemptCount\s*</);
 });
 
 test('both WooCommerce interfaces poll the same run instead of retrying it',()=>{
@@ -257,4 +259,3 @@ test('integration results remain visible while users stay on provider cards',()=
   assert.match(hub,/onProgress:run/);
   assert.match(legacyPanel,/onProgress:run/);
 });
-

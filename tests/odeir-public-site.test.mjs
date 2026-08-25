@@ -73,10 +73,11 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
     'tvtc-color.svg','mnar-color.svg','nelc-color.svg','zatca-color.svg',
     'zoom-color.svg','google-meet-color.svg','whatsapp-color.svg','lms.svg','certified-instructors.svg'
   ];
-  const [page,landing,styles,...journeyLogos]=await Promise.all([
+  const [page,landing,styles,layout,...journeyLogos]=await Promise.all([
     read('app/page.js'),
     read('components/odeir-landing-experience.tsx'),
     read('app/odeir-landing-experience.css'),
+    read('app/layout.js'),
     ...integrationLogoNames.map(name=>read(`public/integrations/${name}`))
   ]);
   assert.match(page,/OdeirLandingExperience/);
@@ -105,6 +106,8 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(landing,/شاهد كيف تعمل المنظومة/);
   assert.match(landing,/defaults\.includes\(text\) \? polished : text/);
   assert.match(landing,/className="hero-title hero-title--operating-system"/);
+  assert.match(landing,/className="hero-title-insight">عرفنا أين تنجح المنشآت…/);
+  assert.match(landing,/className="hero-title-friction">وأين <em>تتعطل\.<\/em>/);
   assert.match(landing,/className="hero-title-accent hero-title-resolution">ثم بنينا أودير\./);
   assert.doesNotMatch(landing,/hero-title-(?:desktop|mobile)|MobileHeroSnapshot|<DashboardWindow hero \/>|className="hero-visual"/);
   assert.match(landing,/OdeirRegistrationModal/);
@@ -130,7 +133,10 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(styles,/\.odeir-experience \.odeir-home-hero/);
   assert.match(styles,/\.hero-copy h1 \.hero-title/);
   assert.match(styles,/font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; letter-spacing: inherit/);
-  assert.match(styles,/\.hero-copy h1\.hero-heading--operating-system \{ max-width: 780px; font-size: clamp\(43px, 4\.3vw, 64px\)/);
+  assert.match(layout,/family=Alexandria:wght@700/);
+  assert.match(styles,/\.hero-copy h1\.hero-heading--operating-system \{ max-width: 760px; font-family: "Alexandria"/);
+  assert.match(styles,/font-size: clamp\(40px, 4vw, 58px\); font-weight: 700; line-height: 1\.28; letter-spacing: 0/);
+  assert.match(styles,/\.hero-title-friction em::after/);
   assert.match(styles,/\.hero-title-resolution::before/);
   assert.match(styles,/\.hero-copy > p\.hero-manifesto-body/);
   assert.match(styles,/\.site-header \.brand-link \{ padding: 12px; \}/);
@@ -145,7 +151,7 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(styles,/@media \(min-width: 921px\) and \(max-width: 1180px\)[\s\S]*\.hero-copy h1 \{ font-size: clamp\(36px, 4\.24vw, 51\.2px\); \}/);
   assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.odeir-home-hero \{ width: 100%; padding: 34px 20px 52px;/);
   assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.hero-copy h1 \{ max-width: 390px; margin: 15px 0 17px; font-size: clamp\(34px, 9\.4vw, 40px\);/);
-  assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.hero-copy h1\.hero-heading--operating-system \{ max-width: 380px; font-size: clamp\(31px, 8\.7vw, 38px\)/);
+  assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.hero-copy h1\.hero-heading--operating-system \{ max-width: 390px; font-size: clamp\(30px, 8\.5vw, 36px\)/);
   assert.doesNotMatch(styles,/hero-title-(?:desktop|mobile)|mobile-hero-snapshot|dashboard-window--hero|hero-orbit|floating-event|floating-result/);
   assert.match(styles,/\.morning-section/);
   assert.match(styles,/\.journey-network-map/);

@@ -384,7 +384,7 @@ function Hero({ cms, onRegister, variant = "default" }: { cms: LandingCms; onReg
         <h1 className={operatingSystemHero ? "hero-heading--operating-system" : undefined}>{managerPreview ? <>
           <span className="hero-title">شغّل مركزك من أول استفسار،<br /><span className="hero-title-accent">حتى الشهادة… من مكان واحد.</span></span>
         </> : operatingSystemHero ? <>
-          <span className="hero-title hero-title--operating-system"><span>عرفنا أين تنجح المنشآت…<br />وأين تتعطل.</span><span className="hero-title-accent hero-title-resolution">ثم بنينا أودير.</span></span>
+          <span className="hero-title hero-title--operating-system"><span className="hero-title-insight">عرفنا أين تنجح المنشآت…</span><span className="hero-title-friction">وأين <em>تتعطل.</em></span><span className="hero-title-accent hero-title-resolution">ثم بنينا أودير.</span></span>
         </> : title}</h1>
         <p className={operatingSystemHero ? "hero-manifesto-body" : undefined}>{body}</p>
         <div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${primaryHref}`} onClick={(event) => openRegistrationFromLink(event, primaryHref, onRegister)}>{primaryLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${secondaryHref}`}>{secondaryLabel}</a></div>

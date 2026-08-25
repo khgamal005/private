@@ -1,10 +1,28 @@
 /*
  * ODEIR public homepage typography.
- * Tajawal gives the Arabic UI a contemporary Gulf/Saudi character while
- * preserving IBM Plex Sans Arabic as a resilient fallback.
+ * Uses the Saudi typeface released by the Saudi Ministry of Culture.
+ * The font is loaded as a pinned webfont asset; IBM Plex Sans Arabic remains
+ * a resilient fallback if the remote font asset is temporarily unavailable.
+ * Ministry of Culture Saudi Font EULA applies to use of the typeface.
  */
+@font-face {
+  font-family: "Saudi";
+  src: url("https://cdn.jsdelivr.net/gh/thxa/activity-pulse-portfolio@3725ada7e185395ca7d5277eafec51d61f1469e3/public/fonts/SaudiWeb-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Saudi";
+  src: url("https://cdn.jsdelivr.net/gh/thxa/activity-pulse-portfolio@3725ada7e185395ca7d5277eafec51d61f1469e3/public/fonts/SaudiWeb-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 .odeir-experience {
-  --odeir-saudi-font: "Tajawal", "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
+  --odeir-saudi-font: "Saudi", "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
   font-family: var(--odeir-saudi-font);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -16,7 +34,7 @@
 }
 
 .odeir-experience :is(h1, h2, h3, h4) {
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .odeir-experience .hero-copy .eyebrow {
@@ -27,7 +45,7 @@
 
 .odeir-experience .hero-copy h1.hero-heading--operating-system {
   font-family: var(--odeir-saudi-font);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.24;
   letter-spacing: 0;
 }
@@ -43,11 +61,11 @@
 
 .odeir-experience .hero-copy > p.hero-manifesto-body {
   font-family: var(--odeir-saudi-font);
-  font-weight: 500 !important;
+  font-weight: 400 !important;
 }
 
 .odeir-experience .button {
-  font-weight: 800;
+  font-weight: 700;
 }
 
 @media (max-width: 620px) {
@@ -60,7 +78,7 @@
     max-width: 100%;
     margin: 14px 0 16px;
     font-size: clamp(31px, 8.2vw, 34px);
-    font-weight: 800;
+    font-weight: 700;
     line-height: 1.27;
   }
 

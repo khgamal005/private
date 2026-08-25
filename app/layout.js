@@ -7,12 +7,13 @@ import './data-pagination.css';
 import './followup-split-history.css';
 import './auth-mobile-input-fix.css';
 import './odeir-landing-experience.css';
+import './odeir-hero-copy-tuning.css';
 import SystemActionFeedback from '../components/system-action-feedback';
 import SystemDataPagination from '../components/system-data-pagination';
 
 export const metadata={title:'ODEIR | أودير لإدارة المنشآت',description:'منصة أودير لتشغيل وإدارة المنشآت من مكان واحد'};
 export default function RootLayout({children}){
-  return <html lang="ar" dir="rtl">
+  return <html lang="ar" dir="rtl">">
     <head>
       <link rel="preconnect" href="https://fonts.googleapis.com"/>
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>

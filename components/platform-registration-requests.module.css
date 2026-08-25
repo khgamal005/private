@@ -164,7 +164,7 @@
 .requestCard small{margin-top:4px;color:var(--request-muted);font-size:10px;line-height:1.55}
 .requestReference b{color:var(--request-blue);font-family:var(--font-latin),monospace;direction:ltr;text-align:right}
 .identity b{font-family:var(--font-latin),monospace;text-align:right;letter-spacing:.025em}
-.reviewButton,.primaryAction,.secondaryAction,.rejectAction,.tenantLink{
+.reviewButton,.primaryAction,.secondaryAction,.rejectAction,.reissueAction,.deleteTenantAction,.tenantLink{
   min-height:38px;
   display:inline-flex;
   align-items:center;
@@ -236,6 +236,10 @@
 .primaryAction,.tenantLink{border-color:var(--request-navy);background:var(--request-navy);color:#fff}
 .primaryAction:hover,.tenantLink:hover{border-color:#0b5d69;background:#0b5d69}
 .secondaryAction{background:#fff;color:var(--request-navy)}
+.reissueAction{border-color:#e2c77b;background:#fff9e8;color:#755710}
+.reissueAction:hover{border-color:#caa94f;background:#fff3cf;color:#624806}
+.deleteTenantAction{border-color:#edc5cb;background:#fff2f4;color:#a52d41}
+.deleteTenantAction:hover{border-color:#d88e9a;background:#ffe8ec;color:#8d2134}
 .rejectAction{border-color:#edc7ce;background:#fff4f5;color:#a83749}
 .rejectAction:hover{border-color:#d998a3;background:#ffebee}
 .waitingAction{min-height:38px;display:inline-flex;align-items:center;padding:8px 12px;border:1px solid #cbdce4;border-radius:10px;background:#f5f9fb;color:#3f5d70;font-size:10px;font-weight:900;line-height:1.6}
@@ -306,9 +310,10 @@
 .confirmError{padding:10px 12px;border-radius:10px;background:#fff0f2;color:#982e40;font-size:10px;font-weight:900}
 .confirmHelp{display:block;color:#455f72;font-size:10px;line-height:1.65}
 .confirmDialog>footer{display:flex;justify-content:flex-end;gap:8px;padding-top:3px}
-.cancelButton,.primaryConfirm,.dangerConfirm{min-height:40px;padding:8px 14px;border:1px solid #d5e1e8;border-radius:10px;background:#fff;color:#455f72;font-size:10px;font-weight:900}
+.cancelButton,.primaryConfirm,.dangerConfirm,.warningConfirm{min-height:40px;padding:8px 14px;border:1px solid #d5e1e8;border-radius:10px;background:#fff;color:#455f72;font-size:10px;font-weight:900}
 .primaryConfirm{border-color:var(--request-navy);background:var(--request-navy);color:#fff}
 .dangerConfirm{border-color:#ad3b4d;background:#ad3b4d;color:#fff}
+.warningConfirm{border-color:#b6851d;background:#b6851d;color:#fff}
 
 .handoffLayer{z-index:1400}
 .handoffDialog{

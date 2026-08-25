@@ -7,6 +7,7 @@ import {
   buildRegistrationOwnerWhatsAppMessage,
   normalizeRegistrationInvitationUrl
 } from '../lib/registration-owner-message.mjs';
+import TenantDeletionDialog from './tenant-deletion-dialog';
 import styles from './platform-registration-requests.module.css';
 
 const STATUS={
@@ -26,6 +27,7 @@ const ACTION_STATUS={
   start_review:'under_review',
   approve:'approved',
   approve_and_activate:'converted',
+  reissue_owner_invitation:'converted',
   reject:'rejected',
   reopen:'under_review',
   provision:'converted',
@@ -39,6 +41,7 @@ const ACTION_MESSAGES={
   start_review:'تم إسناد الطلب لك وبدء المراجعة.',
   approve:'تم قبول الطلب فقط. لم تُنشأ مساحة منشأة بعد.',
   approve_and_activate:'تم اعتماد الطلب وإنشاء مساحة مستقلة وتفعيلها في معاملة واحدة.',
+  reissue_owner_invitation:'تم إصدار دعوة جديدة للمالك الحالي وإلغاء صلاحية الرابط السابق.',
   reject:'تم رفض الطلب وحفظ سبب القرار دون حذف السجل.',
   reopen:'أُعيد الطلب إلى المراجعة مع حفظ سبب إعادة الفتح.',
   provision:'تم إنشاء مساحة المنشأة من الطلب المعتمد.',
@@ -113,6 +116,12 @@ function detailTenantSlug(detail,fallback=''){
   ],fallback),'');
 }
 
+function detailTenantId(detail,fallback=''){
+  return text(valueOf(detail,[
+    'provisionedTenantId','provisioned_tenant_id','tenantId','tenant_id'
+  ],fallback),'');
+}
+
 function detailTimeline(detail){
   const value=valueOf(detail,['history','events','auditTrail','audit_trail'],[]);
   return Array.isArray(value)?value:[];
@@ -140,6 +149,37 @@ function validActivationPayload(value){
     &&String(provisioning.resolution).toLowerCase()==='create_new';
 }
 
+function validOwnerInvitationReissuePayload(value,requestId,invitationUrl){
+  if(!validActivationPayload(value))return false;
+  const request=value.request;
+  const provisioning=value.provisioning;
+  const owner=provisioning.owner;
+  if(!owner||Array.isArray(owner)||typeof owner!=='object')return false;
+  const responseRequestId=String(valueOf(request,['id','requestId','request_id'],'')).toLowerCase();
+  const requestActivationMode=String(valueOf(request,[
+    'activationMode','activation_mode'
+  ],'')).toLowerCase();
+  const tenantActivationMode=String(valueOf(provisioning,[
+    'activationMode','activation_mode'
+  ],'')).toLowerCase();
+  const ownerStatus=String(valueOf(owner,['status'],'')).trim().toLowerCase();
+  const ownerName=text(valueOf(owner,['name','fullName','full_name'],''),'');
+  const ownerEmail=text(valueOf(owner,['email'],''),'').toLowerCase();
+  if(
+    responseRequestId!==String(requestId).toLowerCase()
+    ||requestActivationMode!=='manual_review'
+    ||tenantActivationMode!=='manual_review'
+    ||!['invited','linked'].includes(ownerStatus)
+    ||ownerName.length<2
+    ||!/^\S+@\S+\.\S+$/.test(ownerEmail)
+  )return false;
+  if(ownerStatus==='linked')return !invitationUrl;
+  const expiresAt=Date.parse(String(valueOf(owner,[
+    'invitationExpiresAt','invitation_expires_at'
+  ],'')));
+  return Boolean(invitationUrl)&&Number.isFinite(expiresAt)&&expiresAt>Date.now();
+}
+
 function eventLabel(event){
   const action=String(valueOf(event,['action','event','status'],'')).toLowerCase();
   return ({
@@ -153,6 +193,7 @@ function eventLabel(event){
     approve:'تم قبول الطلب',
     approved:'تم قبول الطلب',
     approve_and_activate:'تم اعتماد الطلب وتفعيل المنشأة',
+    reissue_owner_invitation:'تم إصدار دعوة جديدة للمالك',
     reject:'تم رفض الطلب',
     rejected:'تم رفض الطلب',
     reopen:'أُعيد فتح الطلب',
@@ -284,6 +325,7 @@ export default function PlatformRegistrationRequests({
   const [acknowledged,setAcknowledged]=useState(false);
   const [confirmedNoExistingTenant,setConfirmedNoExistingTenant]=useState(false);
   const [activationOutcome,setActivationOutcome]=useState(null);
+  const [deletionTenant,setDeletionTenant]=useState(null);
   const [provisionDraft,setProvisionDraft]=useState({
     displayName:'',legalName:'',slug:'',countryCode:'SA',timezone:'Asia/Riyadh',
     planKey:'free',ownerName:'',ownerEmail:'',hostname:''
@@ -293,9 +335,10 @@ export default function PlatformRegistrationRequests({
   const confirmRef=useRef(null);
   const handoffRef=useRef(null);
   const detailAbortRef=useRef(null);
+  const actionLockRef=useRef(false);
   const interactionRef=useRef({busy:'',confirm:null,activationOutcome:null});
   const confirmType=confirm?.type||'';
-  const blockingOverlay=Boolean(confirm||activationOutcome);
+  const blockingOverlay=Boolean(confirm||activationOutcome||deletionTenant);
 
   useEffect(()=>{
     interactionRef.current={busy,confirm,activationOutcome};
@@ -318,11 +361,11 @@ export default function PlatformRegistrationRequests({
       if(event.key==='Escape'){
         event.preventDefault();
         if(state.activationOutcome)return;
-        if(state.confirm&&!state.busy){
+        if(state.confirm&&!state.busy&&!actionLockRef.current){
           setConfirm(null);
           return;
         }
-        if(!state.busy){
+        if(!state.busy&&!actionLockRef.current){
           detailAbortRef.current?.abort();
           setSelected(null);
           setDetail(null);
@@ -347,7 +390,11 @@ export default function PlatformRegistrationRequests({
     const fallbackFocus=drawerRef.current;
     const frame=window.requestAnimationFrame(()=>confirmRef.current?.focus());
     function onKeyDown(event){
-      if(event.key==='Escape'&&!interactionRef.current.busy){
+      if(
+        event.key==='Escape'
+        &&!interactionRef.current.busy
+        &&!actionLockRef.current
+      ){
         event.preventDefault();
         setConfirm(null);
         return;
@@ -372,6 +419,7 @@ export default function PlatformRegistrationRequests({
   useEffect(()=>{
     if(!activationOutcome)return undefined;
     const previousFocus=document.activeElement;
+    const fallbackFocus=drawerRef.current;
     const frame=window.requestAnimationFrame(()=>handoffRef.current?.focus());
     function onKeyDown(event){
       if(event.key==='Escape')event.preventDefault();
@@ -381,9 +429,12 @@ export default function PlatformRegistrationRequests({
     return()=>{
       window.cancelAnimationFrame(frame);
       document.removeEventListener('keydown',onKeyDown);
-      if(previousFocus instanceof HTMLElement&&previousFocus.isConnected){
-        previousFocus.focus();
-      }
+      const restoreTarget=previousFocus instanceof HTMLElement
+        &&previousFocus!==document.body
+        &&previousFocus.isConnected
+        ?previousFocus
+        :fallbackFocus?.isConnected?fallbackFocus:null;
+      restoreTarget?.focus();
     };
   },[activationOutcome]);
 
@@ -400,6 +451,17 @@ export default function PlatformRegistrationRequests({
   const hasNext=offset+limit<total;
   const currentStatus=selected?detailStatus(detail,selected.status):'pending_review';
   const tenantSlug=selected?detailTenantSlug(detail,selected.tenantSlug):'';
+  const tenantId=selected?detailTenantId(detail,selected.tenantId):'';
+  const currentActivationMode=String(valueOf(
+    detail,
+    ['activationMode','activation_mode'],
+    selected?.activationMode||''
+  )).trim().toLowerCase();
+  const canReissueOwnerInvitation=Boolean(
+    currentStatus==='converted'
+    &&currentActivationMode==='manual_review'
+    &&tenantSlug
+  );
   const existingRequest=selected?isExistingInstitution(valueOf(
     detail,
     ['institutionState','institution_state'],
@@ -427,6 +489,27 @@ export default function PlatformRegistrationRequests({
       return {...current,summary:nextSummary,items:nextItems};
     });
     setSelected(current=>current?.id===id?{...current,...changes}:current);
+  }
+
+  function deletionCompleted(result){
+    const requestId=selected?.id;
+    const deletedStatus=selected?.status;
+    setData(current=>{
+      const nextSummary={...(current.summary||{})};
+      const key=summaryKey(deletedStatus);
+      if(key)nextSummary[key]=Math.max(0,number(nextSummary[key])-1);
+      return {
+        ...current,
+        summary:nextSummary,
+        total:Math.max(0,number(current.total)-1),
+        items:(current.items||[]).filter(item=>item.id!==requestId)
+      };
+    });
+    setDeletionTenant(null);
+    detailAbortRef.current?.abort();
+    setSelected(null);setDetail(null);setDetailError('');setError('');
+    setNotice(`تم حذف المنشأة ${result?.tenantSlug||tenantSlug} نهائيًا وأصبحت قابلة للتسجيل من الصفر.`);
+    router.refresh();
   }
 
   async function loadDetail(item){
@@ -458,7 +541,7 @@ export default function PlatformRegistrationRequests({
   }
 
   function closeDrawer(){
-    if(busy)return;
+    if(busy||actionLockRef.current)return;
     detailAbortRef.current?.abort();
     setSelected(null);
     setDetail(null);
@@ -467,12 +550,14 @@ export default function PlatformRegistrationRequests({
   }
 
   function closeActivationHandoff(){
-    detailAbortRef.current?.abort();
+    const keepRequestOpen=activationOutcome?.handoffReason==='reissued';
     setActivationOutcome(null);
+    setConfirm(null);
+    if(keepRequestOpen)return;
+    detailAbortRef.current?.abort();
     setSelected(null);
     setDetail(null);
     setDetailError('');
-    setConfirm(null);
   }
 
   function openConfirmation(type){
@@ -489,7 +574,8 @@ export default function PlatformRegistrationRequests({
   }
 
   async function runAction(action,{notes=null,payload={}}={}){
-    if(!selected?.id||busy)return false;
+    if(!selected?.id||busy||actionLockRef.current)return false;
+    actionLockRef.current=true;
     const requestId=selected.id;
     const expectedVersion=number(valueOf(
       detail,
@@ -499,7 +585,10 @@ export default function PlatformRegistrationRequests({
     setBusy(action);
     setError('');
     setNotice('');
-    if(action==='approve_and_activate')setActivationOutcome(null);
+    const handoffAction=[
+      'approve_and_activate','reissue_owner_invitation'
+    ].includes(action);
+    if(handoffAction)setActivationOutcome(null);
     try{
       const response=await fetch('/api/platform/registration-requests',{
         method:'POST',
@@ -531,7 +620,7 @@ export default function PlatformRegistrationRequests({
         ['slug','tenantSlug','tenant_slug'],
         valueOf(resultData,['tenantSlug','tenant_slug'],tenantSlug)
       ),'');
-      const invitationUrl=action==='approve_and_activate'
+      const invitationUrl=handoffAction
         ?normalizeRegistrationInvitationUrl(
           valueOf(resultData?.provisioning,['invitationUrl','invitation_url']),
           window.location.origin
@@ -540,6 +629,14 @@ export default function PlatformRegistrationRequests({
       const createdOwner=createdTenant?.owner&&typeof createdTenant.owner==='object'
         ?createdTenant.owner
         :{};
+      if(
+        action==='reissue_owner_invitation'
+        &&!validOwnerInvitationReissuePayload(resultData,requestId,invitationUrl)
+      ){
+        throw new Error(
+          'تعذر التحقق من نتيجة إصدار دعوة المالك؛ حدّث الطلب وأعد المحاولة بأمان.'
+        );
+      }
       const nextVersion=number(valueOf(
         serverRequest,
         ['version','rowVersion','row_version'],
@@ -565,7 +662,8 @@ export default function PlatformRegistrationRequests({
         ...(nextTenantSlug?{tenantSlug:nextTenantSlug}:{})
       }));
       setConfirm(null);
-      if(action==='approve_and_activate'){
+      if(handoffAction){
+        const reissued=action==='reissue_owner_invitation';
         const ownerStatus=String(valueOf(createdOwner,['status'],'')).trim().toLowerCase();
         const handoffMode=invitationUrl
           ?'invited'
@@ -581,16 +679,20 @@ export default function PlatformRegistrationRequests({
           tenantSlug:nextTenantSlug,
           institutionName:text(valueOf(createdTenant,[
             'name','displayName','display_name'
-          ],provisionDraft.displayName||selected.institutionName),''),
+          ],reissued?'':provisionDraft.displayName||selected.institutionName),''),
           ownerName:text(valueOf(createdOwner,[
             'name','fullName','full_name'
-          ],provisionDraft.ownerName),''),
+          ],reissued?'':provisionDraft.ownerName),''),
           ownerEmail:text(valueOf(
-            createdOwner,['email'],provisionDraft.ownerEmail
+            createdOwner,['email'],reissued?'':provisionDraft.ownerEmail
           ),''),
           ownerStatus,
           handoffMode,
+          handoffReason:reissued?'reissued':'created',
           invitationUrl,
+          invitationExpiresAt:valueOf(createdOwner,[
+            'invitationExpiresAt','invitation_expires_at'
+          ],''),
           loginUrl:loginUrl.toString()
         });
       }
@@ -601,6 +703,7 @@ export default function PlatformRegistrationRequests({
       setError(reasonValue instanceof Error?reasonValue.message:'تعذر تنفيذ الإجراء');
       return false;
     }finally{
+      actionLockRef.current=false;
       setBusy('');
     }
   }
@@ -622,6 +725,11 @@ export default function PlatformRegistrationRequests({
         notes:decisionNote.trim()||null,
         payload
       });
+      return;
+    }
+    if(confirm?.type==='reissue_owner_invitation'){
+      if(!acknowledged)return;
+      runAction('reissue_owner_invitation');
       return;
     }
     if(confirm?.type==='reject'){
@@ -824,6 +932,24 @@ export default function PlatformRegistrationRequests({
             {currentStatus==='approved'&&!tenantSlug&&<button type="button" className={styles.primaryAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('approve_and_activate')}>إكمال التفعيل</button>}
             {currentStatus==='approved'&&tenantSlug&&<Link className={styles.tenantLink} href={`/tenant/${encodeURIComponent(tenantSlug)}`}>فتح مساحة المنشأة</Link>}
             {currentStatus==='rejected'&&<button type="button" className={styles.secondaryAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('reopen')}>إعادة فتح للمراجعة</button>}
+            {canReissueOwnerInvitation&&<button
+              type="button"
+              className={styles.reissueAction}
+              disabled={Boolean(busy)}
+              aria-haspopup="dialog"
+              onClick={()=>openConfirmation('reissue_owner_invitation')}
+            >{busy==='reissue_owner_invitation'?'جارٍ إصدار الرابط…':'إصدار دعوة جديدة للمالك'}</button>}
+            {tenantSlug&&tenantId&&[
+              'approved','converted','trust_pending','trust_review','trust_restricted'
+            ].includes(currentStatus)&&<button
+              type="button"
+              className={styles.deleteTenantAction}
+              disabled={Boolean(busy)}
+              aria-haspopup="dialog"
+              onClick={()=>setDeletionTenant({
+                id:tenantId,name:selected.institutionName,slug:tenantSlug
+              })}
+            >حذف المنشأة نهائيًا</button>}
             {currentStatus==='converted'&&tenantSlug&&<Link className={styles.tenantLink} href={`/tenant/${encodeURIComponent(tenantSlug)}`}>فتح مساحة المنشأة</Link>}
             {currentStatus==='trust_pending'&&<button type="button" className={styles.primaryAction} disabled={Boolean(busy)} onClick={()=>runAction('trust_start')}>{busy==='trust_start'?'جارٍ البدء…':'بدء مراجعة الموثوقية'}</button>}
             {currentStatus==='trust_review'&&<>
@@ -855,7 +981,7 @@ export default function PlatformRegistrationRequests({
       existingRequest={existingRequest}
       confirmedNoExistingTenant={confirmedNoExistingTenant}
       setConfirmedNoExistingTenant={setConfirmedNoExistingTenant}
-      onClose={()=>!busy&&setConfirm(null)}
+      onClose={()=>!busy&&!actionLockRef.current&&setConfirm(null)}
       onSubmit={submitConfirmation}
     />}
 
@@ -863,6 +989,11 @@ export default function PlatformRegistrationRequests({
       ref={handoffRef}
       outcome={activationOutcome}
       onClose={closeActivationHandoff}
+    />}
+    {deletionTenant&&<TenantDeletionDialog
+      tenant={deletionTenant}
+      onClose={()=>setDeletionTenant(null)}
+      onDeleted={deletionCompleted}
     />}
   </section>;
 }
@@ -890,6 +1021,13 @@ function ActivationHandoffDialog({ref,outcome,onClose}){
 
   const invited=outcome.handoffMode==='invited'&&Boolean(outcome.invitationUrl);
   const linked=outcome.handoffMode==='linked';
+  const reissued=outcome.handoffReason==='reissued';
+  const headerEyebrow=reissued
+    ?invited?'تم إصدار رابط تفعيل جديد':'لا حاجة إلى رابط تفعيل جديد'
+    :'تم إنشاء المنشأة بنجاح';
+  const headerTitle=reissued&&linked
+    ?'المالك فعّل حسابه بالفعل'
+    :'رسالة واتساب جاهزة للمالك';
   return <div className={`${styles.confirmLayer} ${styles.handoffLayer}`}>
     <div className={styles.confirmBackdrop} aria-hidden="true"/>
     <section
@@ -904,11 +1042,13 @@ function ActivationHandoffDialog({ref,outcome,onClose}){
       <header className={styles.handoffHeader}>
         <span aria-hidden="true">✓</span>
         <div>
-          <small>تم إنشاء المنشأة بنجاح</small>
-          <h2 id="registration-handoff-title">رسالة واتساب جاهزة للمالك</h2>
+          <small>{headerEyebrow}</small>
+          <h2 id="registration-handoff-title">{headerTitle}</h2>
           <p id="registration-handoff-description">
             {invited
-              ?'انسخ الرسالة وأرسلها إلى صاحب المنشأة عبر محادثة خاصة.'
+              ?reissued
+                ?'انسخ الرسالة الجديدة وأرسلها إلى المالك في محادثة خاصة؛ الرابط السابق توقف فورًا.'
+                :'انسخ الرسالة وأرسلها إلى صاحب المنشأة عبر محادثة خاصة.'
               :linked
                 ?'حساب المالك مرتبط بالفعل؛ الرسالة تحتوي رابط تسجيل الدخول الصحيح.'
                 :'المنشأة نشطة، لكن لم يصل رابط دعوة صالح في نتيجة التفعيل.'}
@@ -921,6 +1061,7 @@ function ActivationHandoffDialog({ref,outcome,onClose}){
         <div><dt>المالك</dt><dd>{outcome.ownerName||'صاحب المنشأة'}</dd></div>
         <div><dt>البريد</dt><dd dir="ltr">{outcome.ownerEmail||'—'}</dd></div>
         <div><dt>الحالة</dt><dd>{invited?'بانتظار تفعيل المالك':linked?'حساب المالك مرتبط':'تحتاج إصدار دعوة جديدة'}</dd></div>
+        {invited&&outcome.invitationExpiresAt&&<div><dt>صلاحية الرابط</dt><dd>{formatDate(outcome.invitationExpiresAt)}</dd></div>}
       </dl>
 
       {message?<label className={styles.whatsappMessage}>
@@ -941,7 +1082,9 @@ function ActivationHandoffDialog({ref,outcome,onClose}){
       <div className={styles.handoffSecurity} role="note">
         <b>تنبيه أمني</b>
         <span>{invited
-          ?'رابط التفعيل خاص بالمالك ويُستخدم مرة واحدة. لا ترسله إلى مجموعة أو رقم غير مؤكد.'
+          ?reissued
+            ?'الرابط السابق لم يعد صالحًا. أرسل هذا الرابط الجديد فقط إلى المالك الصحيح في محادثة خاصة.'
+            :'رابط التفعيل خاص بالمالك ويُستخدم مرة واحدة. لا ترسله إلى مجموعة أو رقم غير مؤكد.'
           :'لن تتضمن الرسالة أي كلمة مرور أو رمز تحقق.'}</span>
       </div>
 
@@ -966,7 +1109,7 @@ function ActivationHandoffDialog({ref,outcome,onClose}){
           prefetch={false}
         >فتح المنشأة في نافذة جديدة</Link>}
         <button type="button" className={styles.cancelButton} onClick={onClose}>
-          تم، العودة لطلبات التسجيل
+          {reissued?'تم، العودة لتفاصيل الطلب':'تم، العودة لطلبات التسجيل'}
         </button>
       </footer>
     </section>
@@ -1073,6 +1216,7 @@ function DetailSkeleton(){
 
 function confirmationCopy(type){
   if(type==='move_to_manual_review')return {eyebrow:'مسار إنقاذ موثّق',title:'تحويل الطلب إلى المراجعة اليدوية',description:'ستُلغى كل روابط ومحاولات التأكيد لهذا الطلب، ثم ينتقل للمراجعة. لن تُنشأ مساحة من هذه الخطوة.',button:'تحويل للمراجعة'};
+  if(type==='reissue_owner_invitation')return {eyebrow:'تجديد وصول آمن',title:'إصدار رابط تفعيل جديد للمالك الحالي؟',description:'عند نجاح العملية سيتوقف رابط التفعيل السابق فورًا، وسيُصدر رابط جديد صالح لمدة 7 أيام. لن تتغير المنشأة أو المالك أو البريد أو الصلاحيات.',button:'إلغاء الرابط القديم وإصدار الجديد'};
   if(type==='approve_and_activate')return {eyebrow:'قرار ذري وآمن',title:'اعتماد الطلب وتفعيل المنشأة',description:'يُنفذ الاعتماد والتفعيل معًا. إذا تعذر أي تحقق فلن تُحفظ حالة قبول ناقصة.',button:'اعتماد وتفعيل'};
   if(type==='approve')return {eyebrow:'قرار المراجعة',title:'قبول طلب التسجيل',description:'سيُسجل القبول فقط. لن تُنشأ مساحة منشأة ولن تتغير بيانات أي منشأة قائمة.',button:'تأكيد قبول الطلب'};
   if(type==='reject')return {eyebrow:'قرار يحتاج سببًا',title:'رفض طلب التسجيل',description:'سيبقى الطلب محفوظًا في السجل ولن تُحذف بياناته.',button:'تأكيد رفض الطلب'};
@@ -1114,6 +1258,9 @@ const ConfirmationDialog=({
       :type==='provision'
         ?acknowledged&&provisionValid
         :acknowledged;
+  const busyLabel=type==='reissue_owner_invitation'
+    ?'جارٍ إصدار الرابط…'
+    :'جارٍ التنفيذ…';
   return <div className={styles.confirmLayer}>
       <button type="button" tabIndex={-1} className={styles.confirmBackdrop} aria-hidden="true" disabled={Boolean(busy)} onClick={onClose}/>
     <form
@@ -1136,13 +1283,14 @@ const ConfirmationDialog=({
       {type==='reject'&&<label className={styles.confirmField}><span>تصنيف سبب الرفض</span><select required value={reasonCategory} onChange={event=>setReasonCategory(event.target.value)}><option value="" disabled>اختر السبب</option>{REJECTION_REASONS.map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>}
       {requiresReason&&<label className={styles.confirmField}><span>{type==='reject'?'سبب الرفض':type==='trust_restrict'?'سبب تقييد المساحة':type==='move_to_manual_review'?'سبب التحويل للمراجعة اليدوية':'سبب إعادة الفتح'}</span><textarea required minLength="8" maxLength="1200" rows="4" value={reason} onChange={event=>setReason(event.target.value)} placeholder="اكتب سببًا واضحًا يمكن الرجوع إليه…"/></label>}
       {type==='approve_and_activate'&&existingRequest&&<div className={styles.confirmSummary} role="note"><span>عزل إلزامي</span><b>سيُعاد التحقق من السجل الرسمي خادميًا، ثم تُنشأ مساحة مستقلة فقط. ربط مساحة أودير قائمة غير متاح من هذا المسار.</b></div>}
+      {type==='reissue_owner_invitation'&&<div className={styles.confirmSummary} role="note"><span>ما الذي يتغير؟</span><b>رابط التفعيل فقط؛ لا يتغير مالك المنشأة أو بريده أو صلاحياته.</b><span>إن كان مفعّلًا</span><b>لن يُنشأ رابط جديد، وستظهر رسالة دخول جاهزة بدلًا منه.</b></div>}
       {type==='approve_and_activate'&&<ProvisionFields value={provisionDraft} onChange={setProvisionDraft}/>} 
       {type==='provision'&&<ProvisionFields value={provisionDraft} onChange={setProvisionDraft}/>} 
       {type==='approve_and_activate'&&<label className={styles.acknowledgement}><input type="checkbox" checked={confirmedNoExistingTenant} onChange={event=>setConfirmedNoExistingTenant(event.target.checked)}/><span>بحثت في منشآت أودير وأؤكد عدم وجود مساحة قائمة لهذه المنشأة؛ لن أربط الطلب بأي مساحة قائمة.</span></label>}
-      {!requiresReason&&<label className={styles.acknowledgement}><input type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/><span>{type==='approve_and_activate'?'راجعت هوية المنشأة وأؤكد صحة قرار إنشاء مساحة مستقلة بعد التحقق الخادمي.' :type==='provision'?'راجعت هوية المنشأة وأؤكد إنشاء مساحة مستقلة لها.':type==='trust_approve'?'راجعت مصادر التحقق وأؤكد اعتماد موثوقية هذه المنشأة.':'راجعت بيانات المنشأة وأؤكد أن هذا القرار لا ينشئ مساحة تلقائيًا.'}</span></label>}
+      {!requiresReason&&<label className={styles.acknowledgement}><input type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/><span>{type==='approve_and_activate'?'راجعت هوية المنشأة وأؤكد صحة قرار إنشاء مساحة مستقلة بعد التحقق الخادمي.' :type==='reissue_owner_invitation'?'أفهم أن الرابط السابق سيتوقف، وسأرسل الرابط الجديد فقط في محادثة خاصة إلى المالك الصحيح.':type==='provision'?'راجعت هوية المنشأة وأؤكد إنشاء مساحة مستقلة لها.':type==='trust_approve'?'راجعت مصادر التحقق وأؤكد اعتماد موثوقية هذه المنشأة.':'راجعت بيانات المنشأة وأؤكد أن هذا القرار لا ينشئ مساحة تلقائيًا.'}</span></label>}
       {error&&<div className={styles.confirmError} role="alert">{error}</div>}
       {!valid&&<small id="registration-confirm-help" className={styles.confirmHelp} role="status" aria-live="polite">استكمل الإقرار أو سبب القرار والحقول المطلوبة قبل المتابعة.</small>}
-      <footer><button type="button" className={styles.cancelButton} disabled={Boolean(busy)} onClick={onClose}>إلغاء</button><button type="submit" className={type==='reject'||type==='trust_restrict'?styles.dangerConfirm:styles.primaryConfirm} disabled={Boolean(busy)||!valid} aria-describedby={!valid?'registration-confirm-help':undefined}>{busy?'جارٍ التنفيذ…':copy.button}</button></footer>
+      <footer><button type="button" className={styles.cancelButton} disabled={Boolean(busy)} onClick={onClose}>إلغاء</button><button type="submit" className={type==='reject'||type==='trust_restrict'?styles.dangerConfirm:type==='reissue_owner_invitation'?styles.warningConfirm:styles.primaryConfirm} disabled={Boolean(busy)||!valid} aria-describedby={!valid?'registration-confirm-help':undefined}>{busy?busyLabel:copy.button}</button></footer>
     </form>
   </div>;
 };

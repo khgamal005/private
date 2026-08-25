@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import TenantDeletionDialog from './tenant-deletion-dialog';
 
 const money=value=>new Intl.NumberFormat('ar-SA',{
   style:'currency',currency:'SAR',maximumFractionDigits:0
@@ -17,7 +18,11 @@ export default function PlatformTenants({initialData}){
   const [message,setMessage]=useState('');
   const [error,setError]=useState('');
   const [provisioned,setProvisioned]=useState(null);
-  const tenants=useMemo(()=>initialData.tenants||[],[initialData.tenants]);
+  const [deletionTenant,setDeletionTenant]=useState(null);
+  const [deletedIds,setDeletedIds]=useState(()=>new Set());
+  const tenants=useMemo(()=>(initialData.tenants||[]).filter(
+    tenant=>!deletedIds.has(tenant.id)
+  ),[initialData.tenants,deletedIds]);
   const plans=initialData.plans||[];
   const shown=useMemo(()=>tenants.filter(tenant=>
     (status==='all'||tenant.status===status)&&
@@ -89,6 +94,15 @@ export default function PlatformTenants({initialData}){
     setMessage('تم نسخ رابط تفعيل مالك المنشأة');
   }
 
+  function deletionCompleted(result){
+    const deletedId=String(result?.tenantId||deletionTenant?.id||'');
+    setDeletedIds(current=>new Set([...current,deletedId]));
+    setDeletionTenant(null);
+    setError('');
+    setMessage('تم حذف المنشأة نهائيًا وتحرير بياناتها لإعادة التسجيل من الصفر.');
+    router.refresh();
+  }
+
   return <>
     <header className="mt-page-head">
       <div><small>TENANTS</small><h2>المنشآت</h2><p>إنشاء وإدارة كل مساحة مع مالكها وباقتها ودومينها وعزل بياناتها.</p></div>
@@ -142,7 +156,10 @@ export default function PlatformTenants({initialData}){
           <td><select value={tenant.planKey||''} disabled={busy} onChange={event=>updatePlan(tenant.id,event.target.value)}>
             <option value="">بدون باقة</option>{plans.map(plan=><option value={plan.key} key={plan.key}>{plan.nameAr}</option>)}
           </select></td>
-          <td><Link prefetch={false} className="mt-button soft" href={`/tenant/${tenant.slug}`}>فتح</Link></td>
+          <td><div className="mt-tenant-row-actions">
+            <Link prefetch={false} className="mt-button soft" href={`/tenant/${tenant.slug}`}>فتح</Link>
+            <button type="button" className="mt-button danger-outline" disabled={busy} onClick={()=>setDeletionTenant({id:tenant.id,name:tenant.name,slug:tenant.slug})}>حذف نهائي</button>
+          </div></td>
         </tr>)}</tbody>
       </table>{!shown.length&&<div className="mt-empty">لا توجد منشآت مطابقة.</div>}</div>
     </section>
@@ -167,6 +184,11 @@ export default function PlatformTenants({initialData}){
         <footer><button type="button" className="mt-button" onClick={()=>setModal(false)}>إلغاء</button><button className="mt-button primary" disabled={busy}>{busy?'جارٍ تجهيز المنصة…':'إنشاء وربط كل العناصر'}</button></footer>
       </form>
     </div>}
+    {deletionTenant&&<TenantDeletionDialog
+      tenant={deletionTenant}
+      onClose={()=>setDeletionTenant(null)}
+      onDeleted={deletionCompleted}
+    />}
   </>;
 }
 

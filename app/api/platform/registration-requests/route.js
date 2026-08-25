@@ -11,7 +11,7 @@ const PUBLIC_APP_URL=process.env.ODEIR_PUBLIC_APP_URL||'https://odeir.com';
 const TRUST_ACTIONS=new Set(['trust_start','trust_approve','trust_restrict']);
 const ACTIONS=new Set([
   'start_review','approve','reject','reopen','provision',...TRUST_ACTIONS,
-  'approve_and_activate','move_to_manual_review'
+  'approve_and_activate','move_to_manual_review','reissue_owner_invitation'
 ]);
 const STATUSES=new Set([
   'pending_review','under_review','approved','rejected','converted',
@@ -152,6 +152,8 @@ export async function POST(request){
         ?'v1_platform_registration_trust_action'
         :action==='approve_and_activate'
           ?'v1_platform_registration_approve_and_activate'
+          :action==='reissue_owner_invitation'
+            ?'v1_platform_registration_owner_invitation_reissue'
           :action==='move_to_manual_review'
             ?'v1_platform_registration_email_move_to_manual'
           :'v1_platform_registration_request_action',
@@ -165,6 +167,9 @@ export async function POST(request){
         p_expected_version:expectedVersion,
         p_notes:notes,
         p_payload:payload
+      }:action==='reissue_owner_invitation'?{
+        p_request_id:requestId,
+        p_expected_version:expectedVersion
       }:action==='move_to_manual_review'?{
         p_request_id:requestId,
         p_expected_version:expectedVersion,
@@ -182,6 +187,16 @@ export async function POST(request){
       throw new PublicError(
         'تمت معالجة الطلب لكن تعذر التحقق من نتيجة التفعيل؛ أعد المحاولة بأمان',
         'registration_activation_response_invalid',503,'InvalidActivationResponse'
+      );
+    }
+    if(
+      action==='reissue_owner_invitation'
+      &&!validOwnerInvitationReissueResult(result.data,requestId)
+    ){
+      throw new PublicError(
+        'تمت معالجة الطلب لكن تعذر التحقق من رابط المالك؛ حدّث الطلب وأعد المحاولة بأمان',
+        'registration_owner_invitation_response_invalid',503,
+        'InvalidOwnerInvitationReissueResponse'
       );
     }
     const data=withInvitationUrl(result.data);
@@ -449,6 +464,51 @@ function validActivationResult(value){
     &&clean(provisioning.resolution,24).toLowerCase()==='create_new';
 }
 
+function validOwnerInvitationReissueResult(value,requestId){
+  if(!validActivationResult(value))return false;
+  const requestRow=registrationRequestOf(value);
+  const provisioning=value.provisioning;
+  const owner=provisioning.owner;
+  if(!owner||Array.isArray(owner)||typeof owner!=='object')return false;
+  const responseRequestId=clean(valueOf(requestRow,['id','requestId','request_id']),64)
+    .toLowerCase();
+  const requestActivationMode=clean(valueOf(requestRow,[
+    'activationMode','activation_mode'
+  ]),32).toLowerCase();
+  const tenantActivationMode=clean(valueOf(provisioning,[
+    'activationMode','activation_mode'
+  ]),32).toLowerCase();
+  const ownerStatus=clean(owner.status,24).toLowerCase();
+  const institutionName=clean(valueOf(provisioning,[
+    'name','displayName','display_name'
+  ]),240);
+  const ownerName=clean(valueOf(owner,['name','fullName','full_name']),160);
+  const ownerEmail=clean(owner.email,240).toLowerCase();
+  const invitationToken=typeof owner.invitationToken==='string'
+    ?owner.invitationToken.trim()
+    :'';
+  const hasSnakeToken=Object.prototype.hasOwnProperty.call(owner,'invitation_token');
+  if(
+    responseRequestId!==requestId.toLowerCase()
+    ||requestActivationMode!=='manual_review'
+    ||tenantActivationMode!=='manual_review'
+    ||!['invited','linked'].includes(ownerStatus)
+    ||institutionName.length<2
+    ||ownerName.length<2
+    ||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)
+    ||hasSnakeToken
+  )return false;
+  if(ownerStatus==='linked')return invitationToken==='';
+  const invitationId=clean(valueOf(owner,['invitationId','invitation_id']),64);
+  const invitationExpiresAt=Date.parse(String(valueOf(owner,[
+    'invitationExpiresAt','invitation_expires_at'
+  ],'')));
+  return isUuid(invitationId)
+    &&/^[0-9a-f]{64}$/i.test(invitationToken)
+    &&Number.isFinite(invitationExpiresAt)
+    &&invitationExpiresAt>Date.now();
+}
+
 function withInvitationUrl(value){
   if(!value||typeof value!=='object'||Array.isArray(value))return value;
   const provisioning=value.provisioning;
@@ -499,6 +559,8 @@ function translatedStatus(source,fallback){
      ||source.includes('already_provisioned')||source.includes('slug_exists')
      ||source.includes('domain_exists')||source.includes('_claimed')
      ||source.includes('_mismatch')
+     ||source.includes('_revoked')||source.includes('_unavailable')
+     ||source.includes('_inactive')||source.includes('identity_conflict')
      ||source.includes('_not_allowed')
      ||source.includes('atomic_activation')||source.includes('manual_activation'))return 409;
   if(Number(fallback)===401)return 401;
@@ -546,6 +608,14 @@ function translate(source){
     registration_operation_timeout:'انتهت مهلة التحقق؛ حدّث الطلب ثم أعد المحاولة بأمان',
     registration_operation_deadline_exceeded:'انتهت مهلة العملية قبل بدء خطوة جديدة؛ أعد المحاولة بأمان',
     registration_activation_response_invalid:'تعذر التحقق من نتيجة التفعيل؛ أعد المحاولة بأمان',
+    registration_owner_invitation_reissue_not_allowed:'لا يمكن إصدار دعوة مالك من حالة الطلب أو المساحة الحالية',
+    registration_owner_invitation_provenance_mismatch:'تعذر مطابقة الطلب بالمنشأة والمالك المسجلين بأمان',
+    registration_owner_invitation_unavailable:'لا توجد دعوة مالك آمنة يمكن تجديدها؛ راجع المالك من «فريق العمل»',
+    registration_owner_invitation_revoked:'دعوة المالك ملغاة إداريًا؛ راجع المالك من «فريق العمل» قبل إصدار وصول جديد',
+    registration_owner_invitation_conflict:'تغيّرت دعوة المالك أثناء التنفيذ؛ حدّث الطلب ثم أعد المحاولة',
+    registration_owner_identity_conflict:'يوجد مالك نشط مختلف عن المالك المسجل في الطلب؛ استخدم مسار إدارة الملكية',
+    registration_owner_access_inactive:'حساب المالك كان مفعّلًا لكن عضويته أو صلاحية الملكية لم تعد نشطة؛ راجع «فريق العمل»',
+    registration_owner_invitation_response_invalid:'تعذر التحقق من نتيجة إصدار دعوة المالك؛ حدّث الطلب وأعد المحاولة بأمان',
     registration_external_source_invalid:'مصدر سجل المنشأة غير معتمد',
     registration_external_institution_mismatch:'اسم المنشأة لا يطابق السجل الرسمي المحفوظ',
     registration_external_evidence_invalid:'بصمة دليل التحقق غير صالحة',

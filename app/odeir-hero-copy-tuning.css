@@ -15,6 +15,21 @@
   font-size: clamp(34px, 3.4vw, 49.3px);
 }
 
+/* Replace the third quick-trust statement while preserving its check mark. */
+.odeir-experience .hero-trust li:nth-child(3) {
+  font-size: 0;
+}
+
+.odeir-experience .hero-trust li:nth-child(3) > span {
+  font-size: 13px;
+}
+
+.odeir-experience .hero-trust li:nth-child(3)::after {
+  content: "سرية بيانات ومعلومات كاملة";
+  font-family: var(--font-arabic), "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
+  font-size: 13px;
+}
+
 @media (max-width: 620px) {
   .odeir-experience .hero-copy .eyebrow::after {
     font-size: 12px;
@@ -22,5 +37,10 @@
 
   .odeir-experience .hero-copy h1.hero-heading--operating-system {
     font-size: clamp(25.5px, 7.225vw, 30.6px);
+  }
+
+  .odeir-experience .hero-trust li:nth-child(3) > span,
+  .odeir-experience .hero-trust li:nth-child(3)::after {
+    font-size: 12px;
   }
 }

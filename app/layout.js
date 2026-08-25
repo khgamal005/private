@@ -13,7 +13,7 @@ import SystemDataPagination from '../components/system-data-pagination';
 
 export const metadata={title:'ODEIR | أودير لإدارة المنشآت',description:'منصة أودير لتشغيل وإدارة المنشآت من مكان واحد'};
 export default function RootLayout({children}){
-  return <html lang="ar" dir="rtl">">
+  return <html lang="ar" dir="rtl">
     <head>
       <link rel="preconnect" href="https://fonts.googleapis.com"/>
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>

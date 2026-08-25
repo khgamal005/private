@@ -310,6 +310,44 @@
 .primaryConfirm{border-color:var(--request-navy);background:var(--request-navy);color:#fff}
 .dangerConfirm{border-color:#ad3b4d;background:#ad3b4d;color:#fff}
 
+.handoffLayer{z-index:1400}
+.handoffDialog{
+  position:relative;
+  z-index:1;
+  width:min(720px,100%);
+  max-height:calc(100dvh - 36px);
+  display:grid;
+  gap:14px;
+  overflow:auto;
+  padding:22px;
+  border:1px solid rgba(8,125,122,.24);
+  border-radius:22px;
+  background:#fff;
+  box-shadow:0 30px 90px rgba(2,18,31,.3);
+  animation:confirmEnter .18s ease-out both;
+}
+.handoffDialog:focus{outline:none}
+.handoffHeader{display:flex;align-items:flex-start;gap:13px}
+.handoffHeader>span{width:44px;height:44px;display:grid;place-items:center;flex:0 0 auto;border-radius:14px;background:#ddf5ec;color:#137657;font-size:21px;font-weight:900}
+.handoffHeader small{display:block;color:#16805f;font-size:10px;font-weight:900;letter-spacing:.04em}
+.handoffHeader h2{margin:5px 0 3px;color:var(--request-navy);font-size:21px}
+.handoffHeader p{margin:0;color:var(--request-muted);font-size:11px;line-height:1.7}
+.handoffSummary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0}
+.handoffSummary>div{min-width:0;padding:10px 11px;border-radius:11px;background:#f4f8fa}
+.handoffSummary dt{color:var(--request-muted);font-size:9px;font-weight:800}
+.handoffSummary dd{margin:5px 0 0;overflow-wrap:anywhere;color:var(--request-ink);font-size:11px;font-weight:900}
+.handoffSummary dd[dir="ltr"]{text-align:right}
+.whatsappMessage{display:grid;gap:7px;color:#315c4b;font-size:10px;font-weight:900}
+.whatsappMessage textarea{width:100%;min-height:250px;padding:14px;border:1px solid #b9dfcf;border-radius:14px;outline:0;resize:vertical;background:#f1faf6;color:#173d32;font-size:13px;line-height:1.9;white-space:pre-wrap}
+.whatsappMessage textarea:focus{border-color:#4da986;box-shadow:0 0 0 3px rgba(77,169,134,.1)}
+.handoffSecurity,.handoffWarning{display:flex;align-items:flex-start;gap:9px;padding:11px 12px;border:1px solid #ecdba9;border-radius:11px;background:#fff9e9;color:#6e5a22;font-size:10px;line-height:1.65}
+.handoffSecurity b,.handoffWarning b{flex:0 0 auto;color:#765b13}
+.handoffWarning{display:grid;gap:3px;border-color:#efc7cf;background:#fff2f4;color:#7a3b47}
+.handoffWarning b{color:#9d3144}.handoffWarning p{margin:0}
+.copyState{padding:9px 11px;border-radius:10px;background:#eaf8f2;color:#116b50;font-size:10px;font-weight:900}
+.handoffActions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.handoffActions .secondaryAction{min-height:40px}
+
 @keyframes drawerEnter{from{opacity:.7;transform:translateX(28px)}to{opacity:1;transform:translateX(0)}}
 @keyframes confirmEnter{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
 @keyframes skeletonMove{to{background-position:-200% 0}}
@@ -361,6 +399,9 @@
   .confirmLayer{align-items:end;padding:0}
   .confirmDialog{width:100%;max-height:94dvh;padding:18px 15px;padding-bottom:max(18px,env(safe-area-inset-bottom));border-radius:21px 21px 0 0;animation:confirmMobileEnter .2s ease-out both}
   .confirmDialog h2{font-size:18px}.confirmSummary{grid-template-columns:76px minmax(0,1fr)}
+  .handoffDialog{width:100%;max-height:96dvh;padding:17px 14px;padding-bottom:max(17px,env(safe-area-inset-bottom));border-radius:21px 21px 0 0}
+  .handoffHeader h2{font-size:18px}.handoffSummary{grid-template-columns:1fr}.whatsappMessage textarea{min-height:280px;font-size:16px}
+  .handoffActions{display:grid;grid-template-columns:1fr}.handoffActions>*{width:100%;min-height:44px}
   .search input,.confirmField input,.confirmField textarea,.confirmField select{font-size:16px}
   .drawerHeaderActions>button,.confirmDialog header>button{width:44px;height:44px}
   .requestCard b,.detailSection h3,.existingNotice b,.autoNotice b{font-size:12px}

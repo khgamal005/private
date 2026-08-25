@@ -40,7 +40,7 @@ export async function GET(request){
       const data=result.data&&typeof result.data==='object'&&!Array.isArray(result.data)
         ?{...result.data,emailDelivery:delivery.data?.emailDelivery??null}
         :result.data;
-      return NextResponse.json({success:true,data},{status:result.status});
+      return privateJson({success:true,data},{status:result.status});
     }
 
     const status=String(searchParams.get('status')||'').trim()||null;
@@ -56,7 +56,7 @@ export async function GET(request){
     const result=await rpc(token,'v1_platform_registration_requests_snapshot',{
       p_status:status,p_query:query,p_offset:offset,p_limit:limit
     });
-    return NextResponse.json({success:true,data:result.data},{status:result.status});
+    return privateJson({success:true,data:result.data},{status:result.status});
   }catch(error){
     return unexpected(error);
   }
@@ -185,7 +185,7 @@ export async function POST(request){
       );
     }
     const data=withInvitationUrl(result.data);
-    return NextResponse.json({success:true,data},{status:result.status});
+    return privateJson({success:true,data},{status:result.status});
   }catch(error){
     return unexpected(error);
   }
@@ -454,16 +454,23 @@ function withInvitationUrl(value){
   const provisioning=value.provisioning;
   const owner=provisioning?.owner;
   const token=typeof owner?.invitationToken==='string'
-    ?owner.invitationToken
+    ?owner.invitationToken.trim()
     :'';
-  if(!token)return value;
+  if(!owner||typeof owner!=='object'||Array.isArray(owner))return value;
+  const safeOwner={...owner};
+  delete safeOwner.invitationToken;
+  delete safeOwner.invitation_token;
+  const safeValue={
+    ...value,
+    provisioning:{...provisioning,owner:safeOwner}
+  };
+  if(!/^[0-9a-f]{64}$/i.test(token))return safeValue;
   const invitationUrl=new URL('/accept-invite',trustedPublicOrigin());
   invitationUrl.searchParams.set('token',token);
   return {
-    ...value,
+    ...safeValue,
     provisioning:{
-      ...provisioning,
-      owner:{...owner,invitationToken:undefined},
+      ...safeValue.provisioning,
       invitationUrl:invitationUrl.toString()
     }
   };
@@ -597,7 +604,21 @@ function unexpected(error){
 }
 
 function jsonError(message,code,status){
-  return NextResponse.json({success:false,error:message,code},{status});
+  return privateJson({success:false,error:message,code},{status});
+}
+
+function privateJson(body,init){
+  const response=NextResponse.json(body,init);
+  response.headers.set(
+    'Cache-Control',
+    'private, no-store, no-cache, max-age=0, must-revalidate'
+  );
+  response.headers.set('CDN-Cache-Control','no-store');
+  response.headers.set('Vercel-CDN-Cache-Control','no-store');
+  response.headers.set('Pragma','no-cache');
+  response.headers.set('Expires','0');
+  response.headers.set('Referrer-Policy','no-referrer');
+  return response;
 }
 
 function clean(value,max){

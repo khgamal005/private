@@ -3,6 +3,10 @@
 import Link from 'next/link';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import {
+  buildRegistrationOwnerWhatsAppMessage,
+  normalizeRegistrationInvitationUrl
+} from '../lib/registration-owner-message.mjs';
 import styles from './platform-registration-requests.module.css';
 
 const STATUS={
@@ -112,18 +116,6 @@ function detailTenantSlug(detail,fallback=''){
 function detailTimeline(detail){
   const value=valueOf(detail,['history','events','auditTrail','audit_trail'],[]);
   return Array.isArray(value)?value:[];
-}
-
-function safeInvitationUrl(value){
-  if(typeof window==='undefined')return '';
-  try{
-    const url=new URL(String(value||''),window.location.origin);
-    return url.origin===window.location.origin&&url.pathname==='/accept-invite'
-      ?url.toString()
-      :'';
-  }catch{
-    return '';
-  }
 }
 
 function validActivationPayload(value){
@@ -299,13 +291,15 @@ export default function PlatformRegistrationRequests({
   const [navigating,setNavigating]=useState(false);
   const drawerRef=useRef(null);
   const confirmRef=useRef(null);
+  const handoffRef=useRef(null);
   const detailAbortRef=useRef(null);
-  const interactionRef=useRef({busy:'',confirm:null});
+  const interactionRef=useRef({busy:'',confirm:null,activationOutcome:null});
   const confirmType=confirm?.type||'';
+  const blockingOverlay=Boolean(confirm||activationOutcome);
 
   useEffect(()=>{
-    interactionRef.current={busy,confirm};
-  },[busy,confirm]);
+    interactionRef.current={busy,confirm,activationOutcome};
+  },[busy,confirm,activationOutcome]);
 
   useEffect(()=>{
     setData(initialData||{summary:{},items:[],total:0,offset:0,limit:25});
@@ -323,6 +317,7 @@ export default function PlatformRegistrationRequests({
       const state=interactionRef.current;
       if(event.key==='Escape'){
         event.preventDefault();
+        if(state.activationOutcome)return;
         if(state.confirm&&!state.busy){
           setConfirm(null);
           return;
@@ -334,7 +329,7 @@ export default function PlatformRegistrationRequests({
         }
         return;
       }
-      if(!state.confirm)trapFocus(event,drawerRef.current);
+      if(!state.confirm&&!state.activationOutcome)trapFocus(event,drawerRef.current);
     }
 
     document.addEventListener('keydown',onKeyDown);
@@ -373,6 +368,24 @@ export default function PlatformRegistrationRequests({
   },[confirmType]);
 
   useEffect(()=>()=>detailAbortRef.current?.abort(),[]);
+
+  useEffect(()=>{
+    if(!activationOutcome)return undefined;
+    const previousFocus=document.activeElement;
+    const frame=window.requestAnimationFrame(()=>handoffRef.current?.focus());
+    function onKeyDown(event){
+      if(event.key==='Escape')event.preventDefault();
+      trapFocus(event,handoffRef.current);
+    }
+    document.addEventListener('keydown',onKeyDown);
+    return()=>{
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown',onKeyDown);
+      if(previousFocus instanceof HTMLElement&&previousFocus.isConnected){
+        previousFocus.focus();
+      }
+    };
+  },[activationOutcome]);
 
   const items=useMemo(()=>Array.isArray(data.items)?data.items:[],[data.items]);
   const visibleItems=items;
@@ -453,6 +466,15 @@ export default function PlatformRegistrationRequests({
     setConfirm(null);
   }
 
+  function closeActivationHandoff(){
+    detailAbortRef.current?.abort();
+    setActivationOutcome(null);
+    setSelected(null);
+    setDetail(null);
+    setDetailError('');
+    setConfirm(null);
+  }
+
   function openConfirmation(type){
     setDecisionNote('');
     setReasonCategory('');
@@ -477,6 +499,7 @@ export default function PlatformRegistrationRequests({
     setBusy(action);
     setError('');
     setNotice('');
+    if(action==='approve_and_activate')setActivationOutcome(null);
     try{
       const response=await fetch('/api/platform/registration-requests',{
         method:'POST',
@@ -509,8 +532,14 @@ export default function PlatformRegistrationRequests({
         valueOf(resultData,['tenantSlug','tenant_slug'],tenantSlug)
       ),'');
       const invitationUrl=action==='approve_and_activate'
-        ?safeInvitationUrl(valueOf(resultData?.provisioning,['invitationUrl','invitation_url']))
+        ?normalizeRegistrationInvitationUrl(
+          valueOf(resultData?.provisioning,['invitationUrl','invitation_url']),
+          window.location.origin
+        )
         :'';
+      const createdOwner=createdTenant?.owner&&typeof createdTenant.owner==='object'
+        ?createdTenant.owner
+        :{};
       const nextVersion=number(valueOf(
         serverRequest,
         ['version','rowVersion','row_version'],
@@ -537,7 +566,33 @@ export default function PlatformRegistrationRequests({
       }));
       setConfirm(null);
       if(action==='approve_and_activate'){
-        setActivationOutcome({requestId,tenantSlug:nextTenantSlug,invitationUrl});
+        const ownerStatus=String(valueOf(createdOwner,['status'],'')).trim().toLowerCase();
+        const handoffMode=invitationUrl
+          ?'invited'
+          :ownerStatus==='linked'||ownerStatus==='active'||ownerStatus==='accepted'
+            ?'linked'
+            :'unavailable';
+        const loginUrl=new URL('/login',window.location.origin);
+        if(nextTenantSlug){
+          loginUrl.searchParams.set('next',`/tenant/${nextTenantSlug}`);
+        }
+        setActivationOutcome({
+          requestId,
+          tenantSlug:nextTenantSlug,
+          institutionName:text(valueOf(createdTenant,[
+            'name','displayName','display_name'
+          ],provisionDraft.displayName||selected.institutionName),''),
+          ownerName:text(valueOf(createdOwner,[
+            'name','fullName','full_name'
+          ],provisionDraft.ownerName),''),
+          ownerEmail:text(valueOf(
+            createdOwner,['email'],provisionDraft.ownerEmail
+          ),''),
+          ownerStatus,
+          handoffMode,
+          invitationUrl,
+          loginUrl:loginUrl.toString()
+        });
       }
       setNotice(ACTION_MESSAGES[action]||'تم تنفيذ الإجراء بنجاح.');
       router.refresh();
@@ -627,15 +682,6 @@ export default function PlatformRegistrationRequests({
     router.push(navigationUrl(0,filter,query));
   }
 
-  async function copyInvitation(url){
-    try{
-      await navigator.clipboard.writeText(url);
-      setNotice('تم نسخ رابط دعوة المالك. شاركه عبر قناة موثوقة مع المسؤول الصحيح.');
-    }catch{
-      setError('تعذر نسخ رابط الدعوة تلقائيًا. أعد محاولة التفعيل لاستصدار رابط صالح.');
-    }
-  }
-
   return <section className={styles.page} dir="rtl">
     <header className={styles.pageHeader}>
       <div>
@@ -651,10 +697,6 @@ export default function PlatformRegistrationRequests({
 
     <div className={styles.liveRegion} aria-live="polite" aria-atomic="true">
       {notice&&<div className={styles.notice} role="status">{notice}</div>}
-      {activationOutcome&&<div className={styles.notice} role="status">
-        {activationOutcome.tenantSlug&&<Link href={`/tenant/${encodeURIComponent(activationOutcome.tenantSlug)}`}>فتح المنشأة النشطة</Link>}
-        {activationOutcome.invitationUrl&&<button type="button" onClick={()=>copyInvitation(activationOutcome.invitationUrl)}>نسخ رابط دعوة المالك</button>}
-      </div>}
       {error&&!confirm&&<div className={styles.error} role="alert">{error}</div>}
     </div>
 
@@ -740,7 +782,7 @@ export default function PlatformRegistrationRequests({
     </section>
 
     {selected&&<div className={styles.drawerLayer}>
-      <button className={styles.drawerBackdrop} type="button" tabIndex={-1} aria-hidden={confirm?'true':undefined} disabled={Boolean(confirm)} aria-label="إغلاق تفاصيل الطلب" onClick={closeDrawer}/>
+      <button className={styles.drawerBackdrop} type="button" tabIndex={-1} aria-hidden={blockingOverlay?'true':undefined} disabled={blockingOverlay} aria-label="إغلاق تفاصيل الطلب" onClick={closeDrawer}/>
       <section
         className={styles.drawer}
         ref={drawerRef}
@@ -748,8 +790,8 @@ export default function PlatformRegistrationRequests({
         aria-modal="true"
         aria-labelledby="registration-request-title"
         aria-describedby="registration-request-description"
-        aria-hidden={confirm?'true':undefined}
-        inert={Boolean(confirm)}
+        aria-hidden={blockingOverlay?'true':undefined}
+        inert={blockingOverlay}
         tabIndex={-1}
       >
         <header className={styles.drawerHeader}>
@@ -816,7 +858,119 @@ export default function PlatformRegistrationRequests({
       onClose={()=>!busy&&setConfirm(null)}
       onSubmit={submitConfirmation}
     />}
+
+    {activationOutcome&&<ActivationHandoffDialog
+      ref={handoffRef}
+      outcome={activationOutcome}
+      onClose={closeActivationHandoff}
+    />}
   </section>;
+}
+
+function ActivationHandoffDialog({ref,outcome,onClose}){
+  const [copyState,setCopyState]=useState('');
+  const message=useMemo(()=>buildRegistrationOwnerWhatsAppMessage({
+    mode:outcome.handoffMode,
+    institutionName:outcome.institutionName,
+    ownerName:outcome.ownerName,
+    ownerEmail:outcome.ownerEmail,
+    activationUrl:outcome.invitationUrl,
+    loginUrl:outcome.loginUrl
+  }),[outcome]);
+
+  async function copyValue(value,success){
+    if(!value)return;
+    try{
+      await navigator.clipboard.writeText(value);
+      setCopyState(success);
+    }catch{
+      setCopyState('تعذر النسخ التلقائي؛ حدّد النص من المربع وانسخه يدويًا.');
+    }
+  }
+
+  const invited=outcome.handoffMode==='invited'&&Boolean(outcome.invitationUrl);
+  const linked=outcome.handoffMode==='linked';
+  return <div className={`${styles.confirmLayer} ${styles.handoffLayer}`}>
+    <div className={styles.confirmBackdrop} aria-hidden="true"/>
+    <section
+      className={styles.handoffDialog}
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="registration-handoff-title"
+      aria-describedby="registration-handoff-description"
+      tabIndex={-1}
+    >
+      <header className={styles.handoffHeader}>
+        <span aria-hidden="true">✓</span>
+        <div>
+          <small>تم إنشاء المنشأة بنجاح</small>
+          <h2 id="registration-handoff-title">رسالة واتساب جاهزة للمالك</h2>
+          <p id="registration-handoff-description">
+            {invited
+              ?'انسخ الرسالة وأرسلها إلى صاحب المنشأة عبر محادثة خاصة.'
+              :linked
+                ?'حساب المالك مرتبط بالفعل؛ الرسالة تحتوي رابط تسجيل الدخول الصحيح.'
+                :'المنشأة نشطة، لكن لم يصل رابط دعوة صالح في نتيجة التفعيل.'}
+          </p>
+        </div>
+      </header>
+
+      <dl className={styles.handoffSummary}>
+        <div><dt>المنشأة</dt><dd>{outcome.institutionName||'المنشأة الجديدة'}</dd></div>
+        <div><dt>المالك</dt><dd>{outcome.ownerName||'صاحب المنشأة'}</dd></div>
+        <div><dt>البريد</dt><dd dir="ltr">{outcome.ownerEmail||'—'}</dd></div>
+        <div><dt>الحالة</dt><dd>{invited?'بانتظار تفعيل المالك':linked?'حساب المالك مرتبط':'تحتاج إصدار دعوة جديدة'}</dd></div>
+      </dl>
+
+      {message?<label className={styles.whatsappMessage}>
+        <span>نص الرسالة</span>
+        <textarea
+          readOnly
+          dir="rtl"
+          value={message}
+          rows="11"
+          onFocus={event=>event.currentTarget.select()}
+          aria-label="رسالة واتساب الجاهزة لصاحب المنشأة"
+        />
+      </label>:<div className={styles.handoffWarning} role="alert">
+        <b>لا ترسل رسالة ناقصة للعميل</b>
+        <p>أصدر دعوة مالك جديدة من إعدادات المنشأة، ثم انسخ الرابط الجديد فقط.</p>
+      </div>}
+
+      <div className={styles.handoffSecurity} role="note">
+        <b>تنبيه أمني</b>
+        <span>{invited
+          ?'رابط التفعيل خاص بالمالك ويُستخدم مرة واحدة. لا ترسله إلى مجموعة أو رقم غير مؤكد.'
+          :'لن تتضمن الرسالة أي كلمة مرور أو رمز تحقق.'}</span>
+      </div>
+
+      {copyState&&<div className={styles.copyState} role="status" aria-live="polite">{copyState}</div>}
+
+      <footer className={styles.handoffActions}>
+        {message&&<button
+          type="button"
+          className={styles.primaryConfirm}
+          onClick={()=>copyValue(message,'تم نسخ رسالة واتساب كاملة.')}
+        >نسخ رسالة واتساب</button>}
+        {invited&&<button
+          type="button"
+          className={styles.cancelButton}
+          onClick={()=>copyValue(outcome.invitationUrl,'تم نسخ رابط التفعيل فقط.')}
+        >نسخ رابط التفعيل فقط</button>}
+        {outcome.tenantSlug&&<Link
+          className={styles.secondaryAction}
+          href={`/tenant/${encodeURIComponent(outcome.tenantSlug)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          prefetch={false}
+        >فتح المنشأة في نافذة جديدة</Link>}
+        <button type="button" className={styles.cancelButton} onClick={onClose}>
+          تم، العودة لطلبات التسجيل
+        </button>
+      </footer>
+    </section>
+  </div>;
 }
 
 function StatusCard({label,value,active,onClick,tone}){

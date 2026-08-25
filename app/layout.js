@@ -5,7 +5,9 @@ import './action-feedback.css';
 import './tenant-shell-polish.css';
 import './data-pagination.css';
 import './followup-split-history.css';
+import './auth-mobile-input-fix.css';
 import './odeir-landing-experience.css';
+import './odeir-saudi-typography.css';
 import SystemActionFeedback from '../components/system-action-feedback';
 import SystemDataPagination from '../components/system-data-pagination';
 
@@ -15,7 +17,7 @@ export default function RootLayout({children}){
     <head>
       <link rel="preconnect" href="https://fonts.googleapis.com"/>
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
-      <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet"/>
+      <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Tajawal:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
     </head>
     <body style={{'--font-arabic':'IBM Plex Sans Arabic, Segoe UI, Tahoma, Arial, sans-serif','--font-latin':'Manrope, Arial, sans-serif',fontFamily:'var(--font-arabic)'}}>
       {children}

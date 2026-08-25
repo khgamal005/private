@@ -1,0 +1,96 @@
+/*
+ * ODEIR public homepage typography.
+ * Tajawal gives the Arabic UI a contemporary Gulf/Saudi character while
+ * preserving IBM Plex Sans Arabic as a resilient fallback.
+ */
+.odeir-experience {
+  --odeir-saudi-font: "Tajawal", "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
+  font-family: var(--odeir-saudi-font);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+.odeir-experience :is(h1, h2, h3, h4, .button, .main-nav, .login-link) {
+  font-family: var(--odeir-saudi-font);
+  letter-spacing: 0;
+}
+
+.odeir-experience :is(h1, h2, h3, h4) {
+  font-weight: 800;
+}
+
+.odeir-experience .hero-copy .eyebrow {
+  font-family: var(--odeir-saudi-font) !important;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.odeir-experience .hero-copy h1.hero-heading--operating-system {
+  font-family: var(--odeir-saudi-font);
+  font-weight: 800;
+  line-height: 1.24;
+  letter-spacing: 0;
+}
+
+.odeir-experience .hero-title-friction {
+  font-size: 1.02em;
+}
+
+.odeir-experience .hero-copy h1 .hero-title-resolution {
+  font-size: .91em;
+  line-height: 1.24;
+}
+
+.odeir-experience .hero-copy > p.hero-manifesto-body {
+  font-family: var(--odeir-saudi-font);
+  font-weight: 500 !important;
+}
+
+.odeir-experience .button {
+  font-weight: 800;
+}
+
+@media (max-width: 620px) {
+  .odeir-experience .hero-copy .eyebrow {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .odeir-experience .hero-copy h1.hero-heading--operating-system {
+    max-width: 100%;
+    margin: 14px 0 16px;
+    font-size: clamp(31px, 8.2vw, 34px);
+    font-weight: 800;
+    line-height: 1.27;
+  }
+
+  .odeir-experience .hero-title--operating-system {
+    gap: .035em;
+  }
+
+  .odeir-experience :is(
+    .hero-title-insight,
+    .hero-title-friction,
+    .hero-copy h1 .hero-title-resolution
+  ) {
+    max-width: 100%;
+    text-wrap: balance;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+
+  .odeir-experience .hero-title-friction {
+    font-size: 1em;
+  }
+
+  .odeir-experience .hero-copy h1 .hero-title-resolution {
+    margin-top: .2em;
+    font-size: .9em;
+    line-height: 1.25;
+  }
+
+  .odeir-experience .hero-copy > p.hero-manifesto-body {
+    font-size: 16px;
+    line-height: 1.9;
+  }
+}

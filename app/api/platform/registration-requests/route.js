@@ -1,13 +1,12 @@
 import {NextResponse} from 'next/server';
 import {accessToken} from '../../../../lib/server-auth';
-import {SUPABASE_SECRET_KEY} from '../../../../lib/admin-config';
 import {SUPABASE_KEY,SUPABASE_URL} from '../../../../lib/config';
 
 const MAX_BODY_BYTES=16*1024;
-const MAX_DIRECTORY_RESPONSE_BYTES=128*1024;
+const MAX_GATEWAY_RESPONSE_BYTES=128*1024;
 const POST_DEADLINE_MS=28_000;
-const DIRECTORY_API=process.env.ODEIR_REGISTRATION_DIRECTORY_API_URL
-  ||'https://jultamrxwrgzohoktbgr.supabase.co/functions/v1/marktone-free-trial';
+const ACTIVATION_GATEWAY=
+  `${SUPABASE_URL}/functions/v1/odeir-registration-manual-activation`;
 const PUBLIC_APP_URL=process.env.ODEIR_PUBLIC_APP_URL||'https://odeir.com';
 const TRUST_ACTIONS=new Set(['trust_start','trust_approve','trust_restrict']);
 const ACTIONS=new Set([
@@ -107,6 +106,7 @@ export async function POST(request){
     if(payload.error)return payload.error;
 
     const trustAction=TRUST_ACTIONS.has(action);
+    let delegatedActivation=null;
     if(action==='approve_and_activate'){
       const detailResult=await rpc(token,'v1_platform_registration_request_detail',{
         p_request_id:requestId
@@ -139,61 +139,14 @@ export async function POST(request){
         );
       }
       if(!completedReplay&&state==='existing'){
-        const externalAccountId=clean(valueOf(requestRow,[
-          'externalAccountId','external_account_id','accountId','account_id'
-        ]),64).toLowerCase();
-        const institutionName=clean(valueOf(requestRow,[
-          'institutionName','institution_name','organizationName','organization_name'
-        ]),240);
-        if(!isUuid(externalAccountId)){
-          return jsonError(
-            'تعذر التحقق من هوية المنشأة القائمة',
-            'registration_external_account_required',
-            409
-          );
-        }
-        const prepared=await rpc(
+        delegatedActivation=await activateExistingInstitution(
           token,
-          'v1_platform_registration_activation_attestation_prepare',
-          {p_request_id:requestId,p_expected_version:expectedVersion},
-          {deadlineAt,maxMs:5_000}
+          {requestId,expectedVersion,notes,payload},
+          {deadlineAt,maxMs:21_000}
         );
-        const attestationId=clean(prepared.data?.attestationId,48);
-        const attestationNonce=clean(prepared.data?.nonce,160);
-        const preparedRequestId=clean(prepared.data?.requestId,48);
-        const preparedVersion=Number(prepared.data?.requestVersion);
-        const expiresAt=Date.parse(String(prepared.data?.expiresAt||''));
-        if(
-          !isUuid(attestationId)
-          ||!/^[a-f0-9]{64}$/.test(attestationNonce)
-          ||preparedRequestId!==requestId
-          ||preparedVersion!==expectedVersion
-          ||!Number.isFinite(expiresAt)
-          ||expiresAt<=Date.now()
-        ){
-          throw new PublicError(
-            'تعذر بدء التحقق الآمن؛ لم يُنفذ أي تفعيل',
-            'registration_attestation_unavailable',503,'InvalidPrepareResponse'
-          );
-        }
-        const evidence=await verifyDirectoryInstitution({
-          externalAccountId,
-          institutionName,
-          deadlineAt
-        });
-        await rpcService(
-          'v1_registration_activation_attestation_complete',
-          {
-            p_attestation_id:attestationId,
-            p_nonce:attestationNonce,
-            p_directory_evidence:evidence
-          },
-          {deadlineAt,maxMs:5_000}
-        );
-        payload={...payload,attestationId};
       }
     }
-    const result=await rpc(
+    const result=delegatedActivation||await rpc(
       token,
       trustAction
         ?'v1_platform_registration_trust_action'
@@ -300,40 +253,62 @@ async function rpc(token,name,body,{deadlineAt=null,maxMs=20_000}={}){
   return {data,status:response.status};
 }
 
-async function rpcService(name,body,{deadlineAt=null,maxMs=10_000}={}){
-  if(!SUPABASE_SECRET_KEY){
+async function activateExistingInstitution(
+  token,body,{deadlineAt=null,maxMs=21_000}={}
+){
+  let response;
+  try{
+    response=await fetch(ACTIVATION_GATEWAY,{
+      method:'POST',
+      headers:{
+        apikey:SUPABASE_KEY,
+        Authorization:`Bearer ${token}`,
+        'content-type':'application/json'
+      },
+      body:JSON.stringify(body),
+      cache:'no-store',
+      signal:deadlineSignal(deadlineAt,maxMs)
+    });
+  }catch(error){
     throw new PublicError(
-      'خدمة التحقق الخادمي غير متاحة؛ لم يُنفذ أي تفعيل',
-      'registration_attestation_unavailable',503,'ServiceKeyUnavailable'
+      'تعذر الوصول إلى خدمة اعتماد المنشآت الآن؛ لم يُنفذ أي تفعيل',
+      'registration_activation_gateway_unavailable',503,
+      error instanceof Error?error.name:'UnknownError'
     );
   }
-  const response=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`,{
-    method:'POST',
-    headers:{
-      apikey:SUPABASE_SECRET_KEY,
-      ...(looksLikeJwt(SUPABASE_SECRET_KEY)?{
-        Authorization:`Bearer ${SUPABASE_SECRET_KEY}`
-      }:{}),
-      'content-type':'application/json'
-    },
-    body:JSON.stringify(body),
-    cache:'no-store',
-    signal:deadlineSignal(deadlineAt,maxMs)
-  });
-  const text=await response.text();
+  let textValue;
+  try{
+    textValue=await boundedResponseText(response,MAX_GATEWAY_RESPONSE_BYTES);
+  }catch{
+    throw new PublicError(
+      'استجابة خدمة اعتماد المنشآت غير صالحة؛ لم يُنفذ أي تفعيل',
+      'registration_activation_gateway_invalid',503,'ResponseTooLarge'
+    );
+  }
   let data={};
-  try{data=text?JSON.parse(text):{};}catch{data={detail:text};}
-  if(!response.ok){
-    const source=String(data?.message||data?.error||data?.detail||'request_failed');
+  try{data=textValue?JSON.parse(textValue):{};}catch{
+    throw new PublicError(
+      'استجابة خدمة اعتماد المنشآت غير صالحة؛ لم يُنفذ أي تفعيل',
+      'registration_activation_gateway_invalid',503,'InvalidJson'
+    );
+  }
+  if(!response.ok||data?.ok!==true){
+    const source=String(data?.error||data?.code||'registration_activation_gateway_unavailable');
     throw new RpcError({
       source,
       status:translatedStatus(source,response.status),
-      rpcName:name,
-      databaseCode:String(data?.code||''),
+      rpcName:'odeir-registration-manual-activation',
+      databaseCode:'',
       responseStatus:response.status
     });
   }
-  return {data,status:response.status};
+  if(!data.data||Array.isArray(data.data)||typeof data.data!=='object'){
+    throw new PublicError(
+      'استجابة خدمة اعتماد المنشآت غير صالحة؛ أعد المحاولة بأمان',
+      'registration_activation_gateway_invalid',503,'MissingResult'
+    );
+  }
+  return {data:data.data,status:response.status};
 }
 
 async function limitedBody(request){
@@ -409,115 +384,6 @@ function provisionPayload(source){
   };
 }
 
-async function verifyDirectoryInstitution({
-  externalAccountId,institutionName,deadlineAt
-}){
-  let directoryUrl;
-  try{
-    directoryUrl=new URL(DIRECTORY_API);
-  }catch{
-    throw new PublicError(
-      'خدمة سجل المنشآت غير مضبوطة بأمان؛ لم يُنفذ أي تفعيل',
-      'directory_verification_unavailable',503,'InvalidDirectoryUrl'
-    );
-  }
-  if(
-    directoryUrl.protocol!=='https:'
-    ||!directoryUrl.hostname.endsWith('.supabase.co')
-    ||directoryUrl.pathname!=='/functions/v1/marktone-free-trial'
-    ||directoryUrl.search||directoryUrl.hash
-  ){
-    throw new PublicError(
-      'خدمة سجل المنشآت غير مضبوطة بأمان؛ لم يُنفذ أي تفعيل',
-      'directory_verification_unavailable',503,'UntrustedDirectoryUrl'
-    );
-  }
-  let response;
-  try{
-    response=await fetch(directoryUrl,{
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body:JSON.stringify({action:'details',accountId:externalAccountId}),
-      cache:'no-store',
-      credentials:'omit',
-      redirect:'error',
-      referrerPolicy:'no-referrer',
-      signal:deadlineSignal(deadlineAt,6_000)
-    });
-  }catch(error){
-    throw new PublicError(
-      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
-      'directory_verification_unavailable',
-      503,
-      error instanceof Error?error.name:'UnknownError'
-    );
-  }
-  let raw;
-  try{
-    raw=await boundedResponseText(response,MAX_DIRECTORY_RESPONSE_BYTES);
-  }catch{
-    throw new PublicError(
-      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
-      'directory_verification_unavailable',
-      503,
-      'ResponseTooLarge'
-    );
-  }
-  let result={};
-  try{result=raw?JSON.parse(raw):{};}catch{
-    throw new PublicError(
-      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
-      'directory_verification_unavailable',
-      503,
-      'InvalidJson'
-    );
-  }
-  if(!response.ok){
-    throw new PublicError(
-      'تعذر التحقق من سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
-      'directory_verification_unavailable',
-      503,
-      `Http${response.status}`
-    );
-  }
-  const institution=result?.institution;
-  if(result?.ok!==true||!institution
-     ||Array.isArray(institution)||typeof institution!=='object'){
-    throw new PublicError(
-      'لم نتمكن من مطابقة المنشأة مع السجل الرسمي؛ راجع الطلب قبل التفعيل',
-      'directory_identity_mismatch',
-      409,
-      'InstitutionMissing'
-    );
-  }
-  const returnedId=clean(valueOf(institution,[
-    'id','accountId','account_id','externalAccountId','external_account_id'
-  ]),64).toLowerCase();
-  const returnedName=clean(valueOf(institution,[
-    'name','institutionName','institution_name','organizationName','organization_name'
-  ]),240);
-  if(returnedId!==externalAccountId
-     ||!returnedName
-     ||normalizeInstitutionName(returnedName)!==normalizeInstitutionName(institutionName)){
-    throw new PublicError(
-      'لم نتمكن من مطابقة المنشأة مع السجل الرسمي؛ راجع الطلب قبل التفعيل',
-      'directory_identity_mismatch',
-      409,
-      'IdentityMismatch'
-    );
-  }
-  // The public directory does not expose a contractual completeness signal for
-  // displayed registration identifiers.  A masked value, label, or visible
-  // suffix must therefore never become an authoritative uniqueness claim.
-  // The exact directory account UUID is the only external identity evidence.
-  return {
-    sourceSystem:'marktone_directory',
-    accountId:externalAccountId,
-    institutionName:returnedName,
-    officialIdentifiers:null
-  };
-}
-
 async function boundedResponseText(response,maxBytes){
   const declared=Number(response.headers.get('content-length')||0);
   if(declared>maxBytes)throw new Error('response_too_large');
@@ -550,13 +416,6 @@ function registrationRequestOf(value){
   return candidate&&typeof candidate==='object'&&!Array.isArray(candidate)
     ?candidate
     :null;
-}
-
-function normalizeInstitutionName(value){
-  return clean(value,240)
-    .toLocaleLowerCase('ar')
-    .replace(/\s+/g,' ')
-    .trim();
 }
 
 function valueOf(source,keys,fallback=''){
@@ -673,6 +532,12 @@ function translate(source){
     registration_attestation_required:'انتهت أو لم تكتمل شهادة التحقق الخادمي؛ أعد المحاولة',
     registration_attestation_invalid:'شهادة التحقق الخادمي غير صالحة أو استُخدمت من قبل',
     registration_attestation_unavailable:'تعذر إكمال التحقق الخادمي الآن؛ لم يُنفذ أي تفعيل',
+    registration_activation_gateway_unavailable:'خدمة اعتماد المنشآت غير متاحة الآن؛ لم يُنفذ أي تفعيل',
+    registration_activation_gateway_invalid:'تعذر التحقق من استجابة خدمة الاعتماد؛ أعد المحاولة بأمان',
+    directory_verification_unavailable:'تعذر الوصول إلى سجل المنشأة الآن؛ لم يُنفذ أي تفعيل',
+    directory_identity_mismatch:'بيانات المنشأة لا تطابق السجل الرسمي؛ راجع الطلب قبل التفعيل',
+    registration_operation_timeout:'انتهت مهلة التحقق؛ حدّث الطلب ثم أعد المحاولة بأمان',
+    registration_operation_deadline_exceeded:'انتهت مهلة العملية قبل بدء خطوة جديدة؛ أعد المحاولة بأمان',
     registration_activation_response_invalid:'تعذر التحقق من نتيجة التفعيل؛ أعد المحاولة بأمان',
     registration_external_source_invalid:'مصدر سجل المنشأة غير معتمد',
     registration_external_institution_mismatch:'اسم المنشأة لا يطابق السجل الرسمي المحفوظ',
@@ -740,10 +605,6 @@ function clean(value,max){
     .replace(/[\u0000-\u001F\u007F]/g,' ').trim().slice(0,max);
 }
 
-function looksLikeJwt(value){
-  return String(value||'').split('.').length===3;
-}
-
 function boundedInteger(value,min,max,fallback){
   const number=Number(value);
   return Number.isInteger(number)&&number>=min&&number<=max?number:fallback;
@@ -792,6 +653,12 @@ class RpcError extends Error{
       registration_attestation_required:1,
       registration_attestation_invalid:1,
       registration_attestation_unavailable:1,
+      registration_activation_gateway_unavailable:1,
+      registration_activation_gateway_invalid:1,
+      directory_verification_unavailable:1,
+      directory_identity_mismatch:1,
+      registration_operation_timeout:1,
+      registration_operation_deadline_exceeded:1,
       registration_activation_response_invalid:1,
       registration_external_source_invalid:1,
       registration_external_institution_mismatch:1,

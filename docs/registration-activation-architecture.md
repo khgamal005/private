@@ -29,16 +29,25 @@ whole transaction back.
 
 For an institution selected from the external directory, the browser cannot
 assert that verification occurred. The authenticated reviewer first prepares a
-five-minute attestation bound to reviewer, request, and row version. The Next.js
-server reloads the stored account ID, calls the fixed HTTPS directory endpoint,
-and completes the attestation through a service-role-only RPC. Activation
-consumes that exact attestation once. Masked identifier suffixes are discarded,
-never promoted to official identity claims.
+five-minute attestation bound to reviewer, request, and row version. A dedicated
+JWT-protected Supabase Edge gateway reloads the stored account ID with the
+reviewer's own authorization, calls the fixed HTTPS directory endpoint, and
+completes the attestation through a service-role-only RPC available only inside
+the Supabase runtime. Activation consumes that exact attestation once. The
+Hostinger application never needs a privileged Supabase key for this flow.
+Masked identifier suffixes are discarded, never promoted to official identity
+claims.
 
 A retry after a committed activation verifies tenant provenance and returns the
 same tenant. If the original response containing a pending owner invitation was
 lost, the retry rotates only that exact pending invitation and audits the
 rotation; it never creates a second tenant.
+
+The Edge gateway is an orchestration boundary, not a second source of truth. It
+does not write tenant rows itself. It performs user-scoped detail, prepare, and
+activation RPCs; only attestation completion uses the Supabase-provided service
+credential. Request bodies and upstream responses are bounded, every response is
+`no-store`, directory URLs are allowlisted, and logs contain error codes only.
 
 ## Email-verified trial
 
@@ -130,7 +139,8 @@ Production release is deliberately gated and ordered:
 4. configure the Vault-backed cron worker and versioned HMAC secrets;
 5. create a domain-restricted Resend `Sending access` key, independently verify
    `odeir.com`, and record the name and UTC attestation timestamp;
-6. deploy the Edge function and application;
+6. deploy and verify the manual-activation Edge gateway, then deploy the
+   application route that delegates existing-directory verification to it;
 7. require a healthy worker heartbeat and an end-to-end synthetic delivery;
 8. re-enable `email_verified_trial` gradually;
 9. register and test the signed Resend webhook when delivery telemetry is ready;

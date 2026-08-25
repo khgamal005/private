@@ -280,9 +280,9 @@ test('platform action API uses an allowlist and reports optimistic-lock conflict
   assert.match(route,/status===503\?'service_unavailable':'request_failed'/);
   assert.match(route,/platform_registration_rpc_failed/);
   assert.match(route,/databaseCode:error\.databaseCode\|\|'unknown'/);
-  assert.ok(route.includes("import {SUPABASE_SECRET_KEY} from '../../../../lib/admin-config'"));
-  assert.ok(route.includes('async function rpcService'));
-  assert.ok(route.includes('apikey:SUPABASE_SECRET_KEY'));
+  assert.doesNotMatch(route,/SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY|rpcService/);
+  assert.match(route,/async function activateExistingInstitution/);
+  assert.match(route,/apikey:SUPABASE_KEY/);
 });
 
 test('terminal email failures expose only the versioned manual-review rescue action',async()=>{
@@ -322,9 +322,11 @@ test('terminal email failures expose only the versioned manual-review rescue act
   assert.doesNotMatch(rescue,/provision_tenant_core|insert into core\.tenants/);
 });
 
-test('manual activation attests an existing directory account server-side before create-new activation',async()=>{
-  const [route,migration]=await Promise.all([
+test('manual activation delegates existing-directory proof to an authenticated Edge gateway',async()=>{
+  const [route,gateway,config,migration]=await Promise.all([
     read('app/api/platform/registration-requests/route.js'),
+    read('supabase/functions/odeir-registration-manual-activation/index.ts'),
+    read('supabase/config.toml'),
     read(MANUAL_ACTIVATION_INTEGRITY)
   ]);
   const post=section(route,'export async function POST','function activationPayload');
@@ -335,29 +337,40 @@ test('manual activation attests an existing directory account server-side before
     'revoke all on function public.v1_platform_registration_activation_attestation_prepare'
   );
 
-  assertOrdered(post,[
+  assert.match(post,/delegatedActivation=await activateExistingInstitution/);
+  assert.match(route,/functions\/v1\/odeir-registration-manual-activation/);
+  assert.match(route,/apikey:SUPABASE_KEY/);
+  assert.match(route,/Authorization:`Bearer \$\{token\}`/);
+  assert.doesNotMatch(route,/SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY|rpcService/);
+  assert.match(
+    config,
+    /\[functions\.odeir-registration-manual-activation\][\s\S]*?verify_jwt\s*=\s*true/
+  );
+
+  assertOrdered(gateway,[
     "'v1_platform_registration_request_detail'",
     "'v1_platform_registration_activation_attestation_prepare'",
     'const evidence=await verifyDirectoryInstitution',
     "'v1_registration_activation_attestation_complete'",
-    'payload={...payload,attestationId}',
-    "?'v1_platform_registration_approve_and_activate'"
+    'payload:{...(payload as JsonRecord),attestationId}',
+    "'v1_platform_registration_approve_and_activate'"
   ]);
-  const completeCall=section(
-    post,
-    'await rpcService(',
-    'payload={...payload,attestationId}'
+  assert.match(
+    gateway,
+    /const SERVICE_ROLE_KEY=environmentKey\('SUPABASE_SECRET_KEYS','SUPABASE_SERVICE_ROLE_KEY'\)/
   );
-  assert.ok(completeCall.includes("'v1_registration_activation_attestation_complete'"));
-  assert.ok(completeCall.includes('p_attestation_id:attestationId'));
-  assert.ok(completeCall.includes('p_nonce:attestationNonce'));
-  assert.ok(completeCall.includes('p_directory_evidence:evidence'));
+  assert.match(gateway,/rpcUser<JsonRecord>[\s\S]*?authorization/);
+  assert.match(gateway,/rpcService\([\s\S]*?'v1_registration_activation_attestation_complete'/);
+  assert.match(gateway,/p_attestation_id:attestationId/);
+  assert.match(gateway,/p_nonce:nonce/);
+  assert.match(gateway,/p_directory_evidence:evidence/);
 
   assert.ok(activation.includes("if(resolution!=='create_new')"));
   assert.ok(activation.includes('if(body.identityVerified!==true)'));
   assert.ok(activation.includes('identityVerified:true'));
   assert.equal(activation.includes('attestationId'),false);
   assert.equal(route.includes('attestationId:null'),false);
+  assert.doesNotMatch(gateway,/reef|ريف/i);
 
   const approveCompact=compact(approve);
   assert.ok(approveCompact.includes(

@@ -139,12 +139,12 @@ test('automatic activation is eligible only for a new unlinked institution with 
 });
 
 test('public directory identifiers are null evidence and the account UUID is the only external claim',async()=>{
-  const [route,migration]=await Promise.all([
-    read('app/api/platform/registration-requests/route.js'),
+  const [gateway,migration]=await Promise.all([
+    read('supabase/functions/odeir-registration-manual-activation/index.ts'),
     read(MANUAL_ACTIVATION_INTEGRITY)
   ]);
   const directoryVerification=section(
-    route,
+    gateway,
     'async function verifyDirectoryInstitution',
     'async function boundedResponseText'
   );
@@ -168,7 +168,7 @@ test('public directory identifiers are null evidence and the account UUID is the
     false,
     `directory ${key} must remain display-only`
   );
-  assert.equal(route.includes('function officialIdentifier'),false);
+  assert.equal(gateway.includes('function officialIdentifier'),false);
   assert.ok(evidenceSnapshot.includes("'accountId',v_external_account_id"));
   assert.ok(evidenceSnapshot.includes("'institutionName',v_verified_name"));
   assert.equal(/officialIdentifiers|commercial|national|tvtc/i.test(evidenceSnapshot),false);

@@ -60,3 +60,8 @@ verify_jwt = true
 # receives either this token or the service-role key.
 verify_jwt = false
 
+[functions.odeir-registration-manual-activation]
+# Only an authenticated platform reviewer can enter this gateway. Canonical
+# database permission checks still run inside every user-scoped RPC.
+verify_jwt = true
+

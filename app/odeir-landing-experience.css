@@ -140,7 +140,13 @@
 .odeir-experience .hero-copy h1 .hero-title,
 .odeir-experience .hero-copy h1 .hero-title-accent { font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; letter-spacing: inherit; }
 .odeir-experience .hero-copy h1 .hero-title-accent { color: var(--teal-soft); }
+.odeir-experience .hero-copy h1.hero-heading--operating-system { max-width: 780px; font-size: clamp(43px, 4.3vw, 64px); line-height: 1.13; letter-spacing: -.046em; }
+.odeir-experience .hero-title--operating-system > span { display: block; }
+.odeir-experience .hero-copy h1 .hero-title-resolution { position: relative; width: fit-content; margin-top: .14em; padding-inline-start: clamp(19px, 1.8vw, 27px); color: #8ce9df; text-shadow: 0 12px 34px rgba(8,200,187,.12); }
+.odeir-experience .hero-title-resolution::before { content: ""; position: absolute; right: 0; top: .61em; width: clamp(10px, .9vw, 14px); height: 2px; border-radius: 999px; background: var(--yellow); box-shadow: 0 0 18px rgba(245,201,52,.35); }
+.odeir-experience .hero-title-resolution::after { content: ""; position: absolute; right: clamp(19px, 1.8vw, 27px); bottom: -.12em; width: 58%; height: 1px; background: linear-gradient(90deg, transparent, rgba(140,233,223,.52)); }
 .odeir-experience .hero-copy > p { max-width: 620px; margin: 0; color: #c6d2df; font-size: 18px; line-height: 1.95; font-weight: 500 !important; }
+.odeir-experience .hero-copy > p.hero-manifesto-body { max-width: 690px; color: #d0dbe6; font-size: 16.5px; line-height: 1.92; }
 .odeir-experience .hero-actions { display: flex; flex-wrap: wrap; gap: 13px; margin-top: 35px; }
 .odeir-experience .hero-trust { display: flex; flex-wrap: wrap; gap: 9px; margin: 24px 0 0; padding: 0; list-style: none; color: #aebed0; font-size: 10px; }
 .odeir-experience .hero-trust li { padding: 8px 11px; display: flex; align-items: center; gap: 7px; border: 1px solid rgba(255,255,255,.075); border-radius: 999px; background: rgba(255,255,255,.04); }
@@ -772,6 +778,7 @@
   .odeir-experience .hero-copy { width: min(680px, 100%); max-width: none; margin: 0 auto; }
   .odeir-experience .eyebrow { justify-content: flex-start; }
   .odeir-experience .hero-copy h1 { max-width: 650px; }
+  .odeir-experience .hero-copy h1.hero-heading--operating-system { max-width: 720px; font-size: clamp(40px, 6.2vw, 52px); }
   .odeir-experience .hero-copy > p { margin: 0; }
   .odeir-experience .hero-actions, .odeir-experience .hero-trust { justify-content: flex-start; }
   .odeir-experience .hero-snapshot { width: min(620px, 100%); margin: 0 auto; }
@@ -1008,7 +1015,12 @@
   .odeir-experience .hero-copy { width: 100%; max-width: none; margin: 0; }
   .odeir-experience .eyebrow { max-width: none; margin: 0; justify-content: flex-start; font-size: 11px; line-height: 1.65; }
   .odeir-experience .hero-copy h1 { max-width: 390px; margin: 15px 0 17px; font-size: clamp(34px, 9.4vw, 40px); line-height: 1.16; letter-spacing: -.038em; }
+  .odeir-experience .hero-copy h1.hero-heading--operating-system { max-width: 380px; font-size: clamp(31px, 8.7vw, 38px); line-height: 1.18; letter-spacing: -.034em; }
+  .odeir-experience .hero-copy h1 .hero-title-resolution { margin-top: .18em; padding-inline-start: 17px; }
+  .odeir-experience .hero-title-resolution::before { width: 9px; }
+  .odeir-experience .hero-title-resolution::after { right: 17px; width: 52%; }
   .odeir-experience .hero-copy > p { max-width: 390px; margin: 0; color: #cbd7e2; font-size: 13.5px; line-height: 1.82; }
+  .odeir-experience .hero-copy > p.hero-manifesto-body { max-width: 390px; font-size: 13.25px; line-height: 1.86; }
   .odeir-experience .hero-actions { margin-top: 24px; gap: 9px; }
   .odeir-experience .button { min-height: 52px; padding-inline: 18px; border-radius: 13px; font-size: 14px; }
   .odeir-experience .hero-trust { width: 100%; margin: 15px 0 0; display: flex; justify-content: flex-start; gap: 7px; text-align: right; }

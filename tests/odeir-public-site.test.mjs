@@ -98,7 +98,14 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(landing,/className="odeir-home-hero"/);
   assert.match(landing,/function HeroSnapshot/);
   assert.match(landing,/<aside className="hero-snapshot"[^>]+aria-label="لوحة تشغيل توضيحية"/);
-  assert.match(landing,/className="hero-title">من أول استفسار،/);
+  assert.match(landing,/const OPERATING_SYSTEM_HERO = \{/);
+  assert.match(landing,/عرفنا أين تنجح المنشآت… وأين تتعطل\. ثم بنينا أودير\./);
+  assert.match(landing,/أودير منظومة تشغيل حديثة بُنيت من خبرة حقيقية بما ينجح في السوق/);
+  assert.match(landing,/معايير واضحة لكل وظيفة ومهمة ومسار/);
+  assert.match(landing,/شاهد كيف تعمل المنظومة/);
+  assert.match(landing,/defaults\.includes\(text\) \? polished : text/);
+  assert.match(landing,/className="hero-title hero-title--operating-system"/);
+  assert.match(landing,/className="hero-title-accent hero-title-resolution">ثم بنينا أودير\./);
   assert.doesNotMatch(landing,/hero-title-(?:desktop|mobile)|MobileHeroSnapshot|<DashboardWindow hero \/>|className="hero-visual"/);
   assert.match(landing,/OdeirRegistrationModal/);
   assert.match(landing,/openRegistrationFromLink/);
@@ -123,6 +130,9 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(styles,/\.odeir-experience \.odeir-home-hero/);
   assert.match(styles,/\.hero-copy h1 \.hero-title/);
   assert.match(styles,/font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; letter-spacing: inherit/);
+  assert.match(styles,/\.hero-copy h1\.hero-heading--operating-system \{ max-width: 780px; font-size: clamp\(43px, 4\.3vw, 64px\)/);
+  assert.match(styles,/\.hero-title-resolution::before/);
+  assert.match(styles,/\.hero-copy > p\.hero-manifesto-body/);
   assert.match(styles,/\.site-header \.brand-link \{ padding: 12px; \}/);
   assert.match(styles,/\.site-header \.brand \{ padding: 0 !important; gap: 0 !important; \}/);
   assert.match(styles,/grid-template-columns: minmax\(500px, 1\.08fr\) minmax\(420px, \.92fr\)/);
@@ -135,6 +145,7 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(styles,/@media \(min-width: 921px\) and \(max-width: 1180px\)[\s\S]*\.hero-copy h1 \{ font-size: clamp\(36px, 4\.24vw, 51\.2px\); \}/);
   assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.odeir-home-hero \{ width: 100%; padding: 34px 20px 52px;/);
   assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.hero-copy h1 \{ max-width: 390px; margin: 15px 0 17px; font-size: clamp\(34px, 9\.4vw, 40px\);/);
+  assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.hero-copy h1\.hero-heading--operating-system \{ max-width: 380px; font-size: clamp\(31px, 8\.7vw, 38px\)/);
   assert.doesNotMatch(styles,/hero-title-(?:desktop|mobile)|mobile-hero-snapshot|dashboard-window--hero|hero-orbit|floating-event|floating-result/);
   assert.match(styles,/\.morning-section/);
   assert.match(styles,/\.journey-network-map/);

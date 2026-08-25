@@ -60,6 +60,20 @@ const LEGACY_HERO = {
   secondaryHref: "/login",
 };
 
+const PREVIOUS_PUBLIC_HERO = {
+  eyebrow: "منصة تشغيل وإدارة للمنشآت التدريبية الأهلية المعتمدة",
+  title: "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك.",
+  body: "أودير يجمع المبيعات والتسجيل والقبول والبرامج والمهام والتقارير في مساحة واحدة؛ حتى يعمل فريقك بوضوح، وتتخذ إدارتك القرار في وقته.",
+  secondaryLabel: "جرّب أودير بنفسك",
+};
+
+const OPERATING_SYSTEM_HERO = {
+  eyebrow: "منظومة التشغيل الحديثة للمنشآت التدريبية",
+  title: "عرفنا أين تنجح المنشآت… وأين تتعطل. ثم بنينا أودير.",
+  body: "أودير منظومة تشغيل حديثة بُنيت من خبرة حقيقية بما ينجح في السوق، وبما يعطّل المنشآت من الداخل. حوّلنا تلك الخبرة إلى معايير واضحة لكل وظيفة ومهمة ومسار، ثم جعلناها مرنة لتعمل وفق رؤية إدارتك؛ فتترابط الأقسام، وتتناسق المسؤوليات، وتحقق المنشأة أقصى أثر من مواردها.",
+  secondaryLabel: "شاهد كيف تعمل المنظومة",
+};
+
 const LEGACY_CAPABILITIES = [
   ["العملاء والمبيعات", "من مصدر العميل والتوزيع إلى المتابعة والتحويل والتسجيل."],
   ["المهام والتقويم", "أولويات واضحة، مواعيد، تنبيهات وتسليم موثق بين أعضاء الفريق."],
@@ -84,6 +98,11 @@ const LEGACY_FAQ = [
 function cmsText(value: string | undefined, legacy: string, polished: string) {
   const text = String(value ?? "").trim();
   return !text || text === legacy ? polished : text;
+}
+
+function cmsDefaultText(value: string | undefined, defaults: readonly string[], polished: string) {
+  const text = String(value ?? "").trim();
+  return !text || defaults.includes(text) ? polished : text;
 }
 
 function cmsHref(value: string | undefined, legacy: string, polished: string) {
@@ -340,17 +359,18 @@ function Hero({ cms, onRegister, variant = "default" }: { cms: LandingCms; onReg
   const managerPreview = variant === "manager";
   const eyebrow = managerPreview
     ? "منصة تشغيل مصممة لمراكز التدريب السعودية"
-    : cmsText(cms.hero?.eyebrow, LEGACY_HERO.eyebrow, "منصة تشغيل وإدارة للمنشآت التدريبية الأهلية المعتمدة");
+    : cmsDefaultText(cms.hero?.eyebrow, [LEGACY_HERO.eyebrow, PREVIOUS_PUBLIC_HERO.eyebrow], OPERATING_SYSTEM_HERO.eyebrow);
   const title = managerPreview
     ? "شغّل مركزك من أول استفسار حتى الشهادة… من مكان واحد."
-    : cmsText(cms.hero?.title, LEGACY_HERO.title, "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك.");
+    : cmsDefaultText(cms.hero?.title, [LEGACY_HERO.title, PREVIOUS_PUBLIC_HERO.title], OPERATING_SYSTEM_HERO.title);
   const body = managerPreview
     ? "اعرف أين وصل كل عميل ومتدرب، ومن المسؤول عن الخطوة التالية، وما الذي يحتاج تدخلك الآن—بدون تجميع يدوي بين الواتساب والجداول والأنظمة المتفرقة."
-    : cmsText(cms.hero?.body, LEGACY_HERO.body, "أودير يجمع المبيعات والتسجيل والقبول والبرامج والمهام والتقارير في مساحة واحدة؛ حتى يعمل فريقك بوضوح، وتتخذ إدارتك القرار في وقته.");
+    : cmsDefaultText(cms.hero?.body, [LEGACY_HERO.body, PREVIOUS_PUBLIC_HERO.body], OPERATING_SYSTEM_HERO.body);
   const primaryLabel = cms.hero?.primaryLabel || "سجّل منشأتك مجانًا";
   const primaryHref = cms.hero?.primaryHref || "/free-trial/apply";
-  const secondaryLabel = managerPreview ? "شاهد رحلة متدرب كاملة" : cmsText(cms.hero?.secondaryLabel, LEGACY_HERO.secondaryLabel, "جرّب أودير بنفسك");
+  const secondaryLabel = managerPreview ? "شاهد رحلة متدرب كاملة" : cmsDefaultText(cms.hero?.secondaryLabel, [LEGACY_HERO.secondaryLabel, PREVIOUS_PUBLIC_HERO.secondaryLabel], OPERATING_SYSTEM_HERO.secondaryLabel);
   const secondaryHref = managerPreview ? "#journey" : cmsHref(cms.hero?.secondaryHref, LEGACY_HERO.secondaryHref, "#product");
+  const operatingSystemHero = !managerPreview && title === OPERATING_SYSTEM_HERO.title;
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = window.setInterval(() => setActiveEvent((value) => (value + 1) % journeyEvents.length), 2600);
@@ -361,12 +381,12 @@ function Hero({ cms, onRegister, variant = "default" }: { cms: LandingCms; onReg
       <div className="hero-glow hero-glow--one" aria-hidden="true" /><div className="hero-glow hero-glow--two" aria-hidden="true" />
       <div className="hero-copy" data-reveal>
         <div className="eyebrow"><span /> {eyebrow}</div>
-        <h1>{managerPreview ? <>
+        <h1 className={operatingSystemHero ? "hero-heading--operating-system" : undefined}>{managerPreview ? <>
           <span className="hero-title">شغّل مركزك من أول استفسار،<br /><span className="hero-title-accent">حتى الشهادة… من مكان واحد.</span></span>
-        </> : title === "من أول استفسار… إلى مقعد مكتمل، كل خطوة تحت عينك." ? <>
-          <span className="hero-title">من أول استفسار،<br /><span className="hero-title-accent">حتى مقعد مكتمل.</span></span>
+        </> : operatingSystemHero ? <>
+          <span className="hero-title hero-title--operating-system"><span>عرفنا أين تنجح المنشآت…<br />وأين تتعطل.</span><span className="hero-title-accent hero-title-resolution">ثم بنينا أودير.</span></span>
         </> : title}</h1>
-        <p>{body}</p>
+        <p className={operatingSystemHero ? "hero-manifesto-body" : undefined}>{body}</p>
         <div className="hero-actions"><a className="button button--primary" href={`${APP_ORIGIN}${primaryHref}`} onClick={(event) => openRegistrationFromLink(event, primaryHref, onRegister)}>{primaryLabel} <ArrowMark /></a><a className="button button--ghost" href={`${APP_ORIGIN}${secondaryHref}`}>{secondaryLabel}</a></div>
         {managerPreview ? <ul className="hero-trust" aria-label="مزايا البداية"><li><i /> يبدأ مجانًا</li><li><i /> لا يلزم نقل كل بياناتك</li><li><i /> جرّب مسارًا واحدًا أولًا</li></ul> : <ul className="hero-trust" aria-label="مزايا البداية"><li><i /> بدون بطاقة بنكية</li><li><i /> إعداد بخطوات واضحة</li><li><i /> بيانات مستقلة لكل منشأة</li></ul>}
       </div>

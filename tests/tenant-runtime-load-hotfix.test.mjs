@@ -6,7 +6,7 @@ const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 const migrationPath='supabase/migrations/20260822105500_tenant_runtime_load_hotfix_v1.sql';
 
-test('task calendar uses the lean scoped snapshot while sales keeps its workspace',async()=>{
+test('task calendar and sales use lean scoped snapshots',async()=>{
   const [tasksPage,salesPage,api]=await Promise.all([
     read('app/tenant/[slug]/tasks/page.js'),
     read('app/tenant/[slug]/sales/page.js'),
@@ -15,7 +15,9 @@ test('task calendar uses the lean scoped snapshot while sales keeps its workspac
 
   assert.match(tasksPage,/getTenantTaskCalendar\(slug,\{/);
   assert.doesNotMatch(tasksPage,/getTenantOperations/);
-  assert.match(salesPage,/getTenantOperations\(slug/);
+  assert.match(salesPage,/getTenantSalesWorkspace\(slug/);
+  assert.match(salesPage,/optionalServerRead\(/);
+  assert.doesNotMatch(salesPage,/getTenantOperations/);
 
   const calendarStart=api.indexOf(
     'export async function getTenantTaskCalendar'
@@ -32,6 +34,22 @@ test('task calendar uses the lean scoped snapshot while sales keeps its workspac
   assert.match(calendarRead,/timeoutMs:8000/);
   assert.doesNotMatch(
     calendarRead,
+    /v4_tenant_operations_snapshot|v4_tenant_sales_pipeline_snapshot|v1_tenant_lead_reassignment_snapshot/
+  );
+
+  const salesStart=api.indexOf(
+    'export async function getTenantSalesWorkspace'
+  );
+  const salesEnd=api.indexOf(
+    '\nconst SALES_TASK_ROLE_KEYS',
+    salesStart
+  );
+  const salesRead=api.slice(salesStart,salesEnd);
+  assert.match(salesRead,/v1_tenant_sales_workspace_snapshot/);
+  assert.doesNotMatch(salesRead,/retryTransient:true/);
+  assert.match(salesRead,/timeoutMs:4500/);
+  assert.doesNotMatch(
+    salesRead,
     /v4_tenant_operations_snapshot|v4_tenant_sales_pipeline_snapshot|v1_tenant_lead_reassignment_snapshot/
   );
 });

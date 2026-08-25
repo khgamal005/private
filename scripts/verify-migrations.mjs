@@ -118,7 +118,8 @@ const required=[
   '20260816160000_tenant_dashboard_resilience_v1.sql',
   '20260822050000_task_day_overdue_policy_v1.sql',
   '20260822105500_tenant_runtime_load_hotfix_v1.sql',
-  '20260823190000_tenant_brand_isolation_v1.sql'
+  '20260823190000_tenant_brand_isolation_v1.sql',
+  '20260825144111_tenant_sales_workspace_resilience_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();

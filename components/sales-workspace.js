@@ -1,19 +1,18 @@
 'use client';
 
-import {useEffect,useMemo,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
+import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import {
   formatCustomerPhone,
   toCustomerDialNumber,
   toWhatsAppNumber
 } from '../lib/customer-phone.mjs';
-import {isPastBusinessDay} from '../lib/task-timing.mjs';
 import CustomerHistoryDrawer from './customer-history-drawer';
 import CustomerEditModal from './customer-edit-modal';
 import SalesFollowupModal,{
   ACTIONS,
   ActionSelect,
-  OPEN_STATUSES,
   QualitySelect,
   SalesQualityBadge,
   SalesStatusBadge,
@@ -21,6 +20,9 @@ import SalesFollowupModal,{
 } from './sales-followup-modal';
 
 const EMPTY=[];
+const PAGE_SIZE=80;
+const SEARCH_DIGITS=/[0-9\u0660-\u0669\u06f0-\u06f9]/g;
+const SEARCH_LETTERS=/\p{L}/gu;
 
 const ACTIVITY={
   call:'مكالمة',
@@ -61,16 +63,28 @@ const money=value=>new Intl.NumberFormat('ar-SA',{
   maximumFractionDigits:0
 }).format((Number(value)||0)/100);
 
-function isClosed(value){
-  return !OPEN_STATUSES.has(value)
-    &&!['payment_submitted','paid'].includes(value);
+function inputDate(value,timeZone='UTC'){
+  try{
+    const parts=new Intl.DateTimeFormat('en-US',{
+      timeZone,
+      year:'numeric',
+      month:'2-digit',
+      day:'2-digit'
+    }).formatToParts(value);
+    const part=type=>parts.find(item=>item.type===type)?.value;
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  }catch{
+    return new Date(value).toISOString().slice(0,10);
+  }
 }
-function inputDate(value){
-  const date=new Date(value);
-  const year=date.getFullYear();
-  const month=String(date.getMonth()+1).padStart(2,'0');
-  const day=String(date.getDate()).padStart(2,'0');
-  return `${year}-${month}-${day}`;
+
+function searchableQuery(value){
+  const candidate=String(value||'').trim();
+  if(!candidate)return '';
+  const digitCount=(candidate.match(SEARCH_DIGITS)||[]).length;
+  const letterCount=(candidate.match(SEARCH_LETTERS)||[]).length;
+  if(!letterCount)return digitCount>=3?candidate:null;
+  return letterCount>=2?candidate:null;
 }
 
 export default function SalesWorkspace({
@@ -91,17 +105,48 @@ export default function SalesWorkspace({
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
   const [error,setError]=useState('');
+  const [listLoading,setListLoading]=useState(false);
+  const [listError,setListError]=useState('');
+  const [pageIndex,setPageIndex]=useState(0);
+  const [pageCursors,setPageCursors]=useState([null]);
+  const [focusVisible,setFocusVisible]=useState(Boolean(focusContactId));
+  const [auxiliaryRefreshVersion,setAuxiliaryRefreshVersion]=useState(0);
+  const requestSequence=useRef(0);
+  const initialFilterRead=useRef(true);
+  const completedAuxiliaryRefresh=useRef(0);
+  const lastCriteria=useRef(null);
+  const lastFailedRequest=useRef(null);
 
-  useEffect(()=>setData(initialData),[initialData]);
+  useEffect(()=>{
+    requestSequence.current+=1;
+    setData(initialData);
+    setView(focusContactId?'contacts':'pipeline');
+    setQuery('');
+    setQuickFilter('all');
+    setDatePreset('all');
+    setFromDate('');
+    setToDate('');
+    setFocusVisible(Boolean(focusContactId));
+    setListLoading(false);
+    setListError('');
+    setPageIndex(0);
+    setPageCursors([null]);
+    setAuxiliaryRefreshVersion(0);
+    initialFilterRead.current=true;
+    completedAuxiliaryRefresh.current=0;
+    lastCriteria.current=null;
+    lastFailedRequest.current=null;
+  },[focusContactId,initialData]);
 
   useEffect(()=>{
     if(!focusContactId)return;
-    const focused=(initialData.contacts||EMPTY).find(
-      contact=>contact.id===focusContactId
+    const focused=initialData.focusedContact
+      ||(initialData.contacts||EMPTY).find(
+        contact=>contact.id===focusContactId
     );
     if(!focused)return;
+    setFocusVisible(true);
     setView('contacts');
-    setQuery(focused.phone||focused.name||'');
     setQuickFilter('all');
     setDatePreset('all');
     setFromDate('');
@@ -115,36 +160,231 @@ export default function SalesWorkspace({
   const courses=data.courses||EMPTY;
   const courseRuns=data.courseRuns||EMPTY;
   const summary=data.summary||{};
+  const pagination=data.pagination||{};
+  const pipelineCounts=pagination.pipelineCounts||{};
   const timeZone=data.timezone||data.tenant?.timezone||'UTC';
   const canWrite=Boolean(data.viewer?.canWriteCrm);
   const canReassign=Boolean(data.viewer?.canReassign);
-  const paymentSubmittedCount=contacts.filter(
-    contact=>contact.leadStatus==='payment_submitted'
-  ).length;
+  const paymentSubmittedCount=Number(summary.paymentSubmitted||0);
+  const shownContacts=contacts;
+  const focusedContact=focusVisible?data.focusedContact:null;
+  const normalizedQuery=searchableQuery(query);
+  const shortContactQuery=['pipeline','contacts'].includes(view)
+    &&normalizedQuery===null;
+  const activeCriteriaKey=JSON.stringify([
+    normalizedQuery,
+    quickFilter,
+    fromDate,
+    toDate,
+    auxiliaryRefreshVersion
+  ]);
+  const shownActivities=activities.filter(activity=>
+    !query
+    ||`${activity.contactName} ${activity.contactPhone} ${activity.summary}`
+      .toLowerCase()
+      .includes(query.toLowerCase())
+  );
+  const shownHandoffs=handoffs.filter(item=>
+    !query
+    ||`${item.contactName} ${item.courseName} ${item.courseRunName} ${item.assignedStaffName}`
+      .toLowerCase()
+      .includes(query.toLowerCase())
+  );
 
-  const dateBounds=useMemo(()=>({
-    start:fromDate?new Date(`${fromDate}T00:00:00`):null,
-    end:toDate?new Date(`${toDate}T23:59:59.999`):null
-  }),[fromDate,toDate]);
+  const loadPage=useCallback(async({
+    cursor=null,
+    nextPage=0,
+    includeAuxiliary=false,
+    auxiliaryVersion=0,
+    criteriaKey=null,
+    criteria=null,
+    signal
+  }={})=>{
+    const sequence=++requestSequence.current;
+    setListLoading(true);
+    setListError('');
+    const requestCriteria=criteria||{
+      query:searchableQuery(query)||'',
+      filter:quickFilter,
+      from:fromDate,
+      to:toDate
+    };
+    const params=new URLSearchParams({
+      slug,
+      limit:String(PAGE_SIZE),
+      q:requestCriteria.query,
+      filter:requestCriteria.filter,
+      includeAuxiliary:String(includeAuxiliary)
+    });
+    if(requestCriteria.from)params.set('from',requestCriteria.from);
+    if(requestCriteria.to)params.set('to',requestCriteria.to);
+    if(cursor?.id){
+      params.set('afterId',cursor.id);
+      params.set('afterCreatedAt',cursor.createdAt);
+      params.set(
+        'afterNextActionIsNull',
+        String(Boolean(cursor.nextActionIsNull))
+      );
+      if(!cursor.nextActionIsNull&&cursor.nextActionAt){
+        params.set('afterNextActionAt',cursor.nextActionAt);
+      }
+    }
 
-  const shownContacts=useMemo(()=>contacts.filter(contact=>{
-    const haystack=`${contact.name||''} ${contact.organizationName||''} ${contact.phone||''} ${contact.interestCourseName||''} ${contact.source||''} ${contact.campaignName||''}`.toLowerCase();
-    if(!haystack.includes(query.trim().toLowerCase()))return false;
-    const filterMatches=quickFilter==='all'
-      ||(quickFilter==='excellent'&&contact.leadQuality==='excellent')
-      ||(quickFilter==='unqualified'&&(contact.leadQuality==='unqualified'||contact.leadStatus==='unqualified'))
-      ||(quickFilter==='overdue'
-        &&isPastBusinessDay(contact.nextActionAt,{timeZone}))
-      ||(quickFilter==='closed'&&isClosed(contact.leadStatus))
-      ||contact.leadStatus===quickFilter;
-    if(!filterMatches)return false;
-    if(!dateBounds.start&&!dateBounds.end)return true;
-    if(!contact.nextActionAt)return false;
-    const nextAction=new Date(contact.nextActionAt);
-    if(dateBounds.start&&nextAction<dateBounds.start)return false;
-    if(dateBounds.end&&nextAction>dateBounds.end)return false;
-    return true;
-  }),[contacts,query,quickFilter,dateBounds,timeZone]);
+    try{
+      const response=await fetch(
+        `/api/tenant/sales-workspace?${params.toString()}`,
+        {cache:'no-store',signal}
+      );
+      const payload=await response.json().catch(()=>({}));
+      if(response.status===401){
+        router.replace('/login?reason=session');
+        return;
+      }
+      if(!response.ok){
+        throw new Error(payload.error||'تعذر تحميل العملاء الآن');
+      }
+      if(sequence!==requestSequence.current)return;
+      const next=payload.data||{};
+      setData(current=>{
+        if(next.auxiliaryIncluded)return {...current,...next};
+        return {
+          ...current,
+          ...next,
+          activities:current.activities||EMPTY,
+          registrationHandoffs:current.registrationHandoffs||EMPTY,
+          staff:current.staff||EMPTY,
+          courses:current.courses||EMPTY,
+          courseRuns:current.courseRuns||EMPTY
+        };
+      });
+      setPageIndex(nextPage);
+      setPageCursors(current=>{
+        const updated=[...current];
+        updated[nextPage]=cursor;
+        return updated;
+      });
+      if(includeAuxiliary&&auxiliaryVersion){
+        completedAuxiliaryRefresh.current=Math.max(
+          completedAuxiliaryRefresh.current,
+          auxiliaryVersion
+        );
+      }
+      if(criteriaKey)lastCriteria.current=criteriaKey;
+      lastFailedRequest.current=null;
+    }catch(loadError){
+      if(loadError?.name==='AbortError')return;
+      if(sequence!==requestSequence.current)return;
+      lastFailedRequest.current={
+        cursor,
+        nextPage,
+        includeAuxiliary,
+        auxiliaryVersion,
+        criteriaKey,
+        criteria:requestCriteria
+      };
+      setListError(loadError.message||'تعذر تحميل العملاء الآن');
+    }finally{
+      if(sequence===requestSequence.current)setListLoading(false);
+    }
+  },[
+    fromDate,
+    query,
+    quickFilter,
+    router,
+    slug,
+    toDate
+  ]);
+
+  useEffect(()=>{
+    if(data.unavailable)return;
+    const refreshAuxiliary=auxiliaryRefreshVersion
+      >completedAuxiliaryRefresh.current;
+    if(['activities','admissions'].includes(view)&&!refreshAuxiliary)return;
+    if(
+      lastFailedRequest.current
+      &&lastFailedRequest.current.criteriaKey!==activeCriteriaKey
+    ){
+      lastFailedRequest.current=null;
+      setListError('');
+    }
+    if(initialFilterRead.current){
+      initialFilterRead.current=false;
+      lastCriteria.current=activeCriteriaKey;
+      return;
+    }
+    if(shortContactQuery&&!refreshAuxiliary)return;
+    if(lastCriteria.current===activeCriteriaKey)return;
+    const controller=new AbortController();
+    const delay=normalizedQuery?450:120;
+    const timer=setTimeout(()=>{
+      setPageCursors([null]);
+      loadPage({
+        cursor:null,
+        nextPage:0,
+        includeAuxiliary:refreshAuxiliary,
+        auxiliaryVersion:refreshAuxiliary
+          ?auxiliaryRefreshVersion
+          :0,
+        criteriaKey:activeCriteriaKey,
+        signal:controller.signal
+      });
+    },delay);
+    return ()=>{
+      clearTimeout(timer);
+      controller.abort();
+    };
+  },[
+    data.unavailable,
+    activeCriteriaKey,
+    auxiliaryRefreshVersion,
+    fromDate,
+    loadPage,
+    normalizedQuery,
+    quickFilter,
+    shortContactQuery,
+    toDate,
+    view
+  ]);
+
+  function reloadAfterMutation(){
+    setAuxiliaryRefreshVersion(value=>value+1);
+  }
+
+  function loadNextPage(){
+    const cursor=pagination.nextCursor;
+    if(listLoading||!pagination.hasMore||!cursor)return;
+    loadPage({
+      cursor,
+      nextPage:pageIndex+1,
+      criteriaKey:activeCriteriaKey
+    });
+  }
+
+  function loadPreviousPage(){
+    if(listLoading||pageIndex===0)return;
+    loadPage({
+      cursor:pageCursors[pageIndex-1]||null,
+      nextPage:pageIndex-1,
+      criteriaKey:activeCriteriaKey
+    });
+  }
+
+  function retryListLoad(){
+    const failed=lastFailedRequest.current;
+    if(failed?.criteriaKey===activeCriteriaKey){
+      loadPage(failed);
+      return;
+    }
+    const refreshAuxiliary=auxiliaryRefreshVersion
+      >completedAuxiliaryRefresh.current;
+    loadPage({
+      cursor:null,
+      nextPage:0,
+      includeAuxiliary:refreshAuxiliary,
+      auxiliaryVersion:refreshAuxiliary?auxiliaryRefreshVersion:0,
+      criteriaKey:activeCriteriaKey
+    });
+  }
 
   function openModal(type,record=null){
     setError('');
@@ -181,7 +421,7 @@ export default function SalesWorkspace({
       );
       setMessage(typeof successMessage==='function'?successMessage(result):successMessage);
       setModal(null);
-      router.refresh();
+      reloadAfterMutation();
     }catch(err){
       setError(err.message);
     }finally{
@@ -190,23 +430,47 @@ export default function SalesWorkspace({
   }
 
   function activateFilter(value){
+    setFocusVisible(false);
     setQuickFilter(value);
     if(['closed','payment_submitted','paid'].includes(value))setView('contacts');
   }
 
   function chooseDatePreset(value){
+    setFocusVisible(false);
     setDatePreset(value);
     if(value==='all'){
       setFromDate('');
       setToDate('');
       return;
     }
-    const start=new Date();
-    const end=new Date(start);
-    if(value==='7days')end.setDate(end.getDate()+6);
-    if(value==='month')end.setDate(end.getDate()+29);
-    setFromDate(inputDate(start));
-    setToDate(inputDate(end));
+    const start=inputDate(new Date(),timeZone);
+    const end=new Date(`${start}T00:00:00.000Z`);
+    if(value==='7days')end.setUTCDate(end.getUTCDate()+6);
+    if(value==='month')end.setUTCDate(end.getUTCDate()+29);
+    setFromDate(start);
+    setToDate(end.toISOString().slice(0,10));
+  }
+
+  if(data.unavailable){
+    return <>
+      <header className="mt-page-head">
+        <div>
+          <small>LEAD-CENTRIC SALES FLOW</small>
+          <h2>مسار المبيعات والمتابعات</h2>
+          <p>تعذر جلب بيانات المبيعات مؤقتًا، بينما بقية لوحة المنشأة ما زالت متاحة.</p>
+        </div>
+      </header>
+      <section className="mt-panel">
+        <div className="mt-empty">
+          <b>لم نفقد أي بيانات أو تنفيذ سابق</b>
+          <p>أعد المحاولة لتحميل مساحة المبيعات فقط.</p>
+          <button
+            className="mt-button primary"
+            onClick={()=>router.refresh()}
+          >إعادة تحميل المبيعات</button>
+        </div>
+      </section>
+    </>;
   }
 
   return <>
@@ -231,6 +495,13 @@ export default function SalesWorkspace({
 
     {message&&<div className="mt-alert">{message}</div>}
     {error&&!modal&&<div className="mt-alert error">{error}</div>}
+    {listError&&<div className="mt-alert error">
+      {listError}
+      <button
+        className="mt-button soft"
+        onClick={retryListLoad}
+      >إعادة المحاولة</button>
+    </div>}
 
     <section className="mt-kpis mt-sales-kpis">
       <button className="mt-kpi" onClick={()=>activateFilter('awaiting_payment')}>
@@ -271,7 +542,10 @@ export default function SalesWorkspace({
         <input
           className="mt-search"
           value={query}
-          onChange={event=>setQuery(event.target.value)}
+          onChange={event=>{
+            setFocusVisible(false);
+            setQuery(event.target.value);
+          }}
           placeholder="ابحث بالاسم أو الجوال أو الدورة أو الحملة"
         />
       </div>
@@ -294,18 +568,24 @@ export default function SalesWorkspace({
           <button className={datePreset==='7days'?'active':''} onClick={()=>chooseDatePreset('7days')}>7 أيام</button>
           <button className={datePreset==='month'?'active':''} onClick={()=>chooseDatePreset('month')}>شهر</button>
         </div>
-        <label>من<input type="date" value={fromDate} onChange={event=>{setFromDate(event.target.value);setDatePreset('custom')}}/></label>
-        <label>إلى<input type="date" value={toDate} min={fromDate||undefined} onChange={event=>{setToDate(event.target.value);setDatePreset('custom')}}/></label>
+        <label>من<input type="date" value={fromDate} onChange={event=>{setFocusVisible(false);setFromDate(event.target.value);setDatePreset('custom')}}/></label>
+        <label>إلى<input type="date" value={toDate} min={fromDate||undefined} onChange={event=>{setFocusVisible(false);setToDate(event.target.value);setDatePreset('custom')}}/></label>
         <button className={`mt-sales-date-clear ${datePreset==='all'?'active':''}`} onClick={()=>chooseDatePreset('all')}>كل التواريخ</button>
       </div>
 
-      {view==='pipeline'&&<div className="mt-lead-board">
+      {listLoading&&<div className="mt-alert">جارٍ تحميل صفحة العملاء…</div>}
+      {shortContactQuery&&<div className="mt-empty">
+        اكتب حرفين على الأقل للبحث بالاسم، أو ثلاثة أرقام للبحث بالجوال.
+      </div>}
+
+      {view==='pipeline'&&!shortContactQuery&&<div className="mt-lead-board">
         {PIPELINE.map(group=>{
           const items=shownContacts.filter(contact=>group.statuses.includes(contact.leadStatus));
+          const total=Number(pipelineCounts[group.key]??items.length);
           return <section className={`mt-lead-column status-${group.key}`} key={group.key}>
             <header>
-              <div><b>{group.label}</b><small>{items.length} عميل</small></div>
-              <span>{items.length}</span>
+              <div><b>{group.label}</b><small>{items.length} ظاهر من {total}</small></div>
+              <span>{total}</span>
             </header>
             <div>
               {items.map(contact=><LeadCard
@@ -317,13 +597,36 @@ export default function SalesWorkspace({
                 onHistory={()=>setHistoryContact(contact)}
                 onEdit={()=>openModal('edit',contact)}
               />)}
-              {!items.length&&<div className="mt-column-empty">لا يوجد عملاء</div>}
+              {!items.length&&<div className="mt-column-empty">
+                {total?'يوجد عملاء في صفحات أخرى':'لا يوجد عملاء'}
+              </div>}
             </div>
           </section>;
         })}
       </div>}
 
-      {view==='contacts'&&<div className="mt-table-wrap"><table className="mt-table mt-leads-table">
+      {view==='contacts'&&focusedContact&&<div className="mt-panel-body">
+        <div className="mt-inline-callout">
+          <div>
+            <b>العميل المطلوب من رابط البحث</b>
+            <small>يظهر هنا مستقلًا عن صفحات القائمة حتى لا تضيع نتيجة الرابط.</small>
+          </div>
+          <button
+            className="mt-button soft"
+            onClick={()=>setFocusVisible(false)}
+          >إخفاء</button>
+        </div>
+        <LeadCard
+          contact={focusedContact}
+          canWrite={canWrite}
+          canReassign={canReassign}
+          onFollowup={()=>openModal('followup',focusedContact)}
+          onHistory={()=>setHistoryContact(focusedContact)}
+          onEdit={()=>openModal('edit',focusedContact)}
+        />
+      </div>}
+
+      {view==='contacts'&&!shortContactQuery&&<div className="mt-table-wrap"><table className="mt-table mt-leads-table">
         <thead><tr><th>العميل</th><th>الحالة والجودة</th><th>الدورة</th><th>المصدر والحملة</th><th>المسؤول</th><th>الإجراء التالي</th><th>إجراء</th></tr></thead>
         <tbody>{shownContacts.map(contact=><tr key={contact.id}>
           <td><b>{contact.name}</b><small>{contact.phone||'لا يوجد جوال'}</small></td>
@@ -346,10 +649,38 @@ export default function SalesWorkspace({
         </tr>)}</tbody>
       </table>{!shownContacts.length&&<div className="mt-empty">لا توجد نتائج مطابقة.</div>}</div>}
 
+      {['pipeline','contacts'].includes(view)&&!shortContactQuery&&<div className="mt-toolbar">
+        <div>
+          <b>صفحة {pageIndex+1} من {Math.max(
+            1,
+            Math.ceil(Number(pagination.total||0)/Number(pagination.limit||PAGE_SIZE))
+          )}</b>
+          <small>
+            عرض {pagination.returned||shownContacts.length} من {pagination.total||0} عميل مطابق
+          </small>
+        </div>
+        <div className="mt-page-actions">
+          <button
+            className="mt-button soft"
+            disabled={listLoading||pageIndex===0}
+            onClick={loadPreviousPage}
+          >السابق</button>
+          <button
+            className="mt-button primary"
+            disabled={listLoading||!pagination.hasMore}
+            onClick={loadNextPage}
+          >التالي</button>
+        </div>
+      </div>}
+
       {view==='activities'&&<div className="mt-panel-body mt-list">
-        {activities.filter(activity=>
-          !query||`${activity.contactName} ${activity.contactPhone} ${activity.summary}`.toLowerCase().includes(query.toLowerCase())
-        ).map(activity=><div className="mt-list-row mt-activity-row" key={activity.id}>
+        <div className="mt-inline-callout">
+          <div>
+            <b>أحدث المتابعات فقط</b>
+            <small>يعرض هنا أحدث 150 متابعة كحد أقصى؛ سجل كل عميل يحتفظ بتاريخه الكامل.</small>
+          </div>
+        </div>
+        {shownActivities.map(activity=><div className="mt-list-row mt-activity-row" key={activity.id}>
           <div>
             <b>{ACTIVITY[activity.type]||activity.type} · {activity.contactName}</b>
             <small>{activity.summary} · {activity.actorName||'إدارة المنشأة'}</small>
@@ -361,17 +692,19 @@ export default function SalesWorkspace({
             {activity.nextActionAt&&<small>التالي: {when(activity.nextActionAt)}</small>}
           </div>
         </div>)}
-        {!activities.length&&<div className="mt-empty">لم تسجل متابعات بعد.</div>}
+        {!shownActivities.length&&<div className="mt-empty">
+          {query?'لا توجد متابعات مطابقة.':'لم تسجل متابعات بعد.'}
+        </div>}
       </div>}
 
       {view==='admissions'&&<div className="mt-table-wrap">
         <div className="mt-inline-callout">
-          <div><b>المبيعات ترسل بلاغ الدفع فقط</b><small>التأكيد والمستندات وإنشاء ملف المتدرب تتم داخل قسم التسجيل والقبول.</small></div>
-          <a className="mt-button primary" href={`/tenant/${encodeURIComponent(slug)}/admissions`}>فتح التسجيل والقبول</a>
+          <div><b>المبيعات ترسل بلاغ الدفع فقط</b><small>يعرض أحدث 100 بلاغ؛ التأكيد والمستندات وإنشاء ملف المتدرب تتم داخل قسم التسجيل والقبول.</small></div>
+          <Link className="mt-button primary" href={`/tenant/${encodeURIComponent(slug)}/admissions`}>فتح التسجيل والقبول</Link>
         </div>
         <table className="mt-table">
         <thead><tr><th>المتدرب</th><th>الدورة</th><th>الدفعة / البداية</th><th>المبلغ المبلّغ</th><th>المسند إليه</th><th>حالة المراجعة</th></tr></thead>
-        <tbody>{handoffs.map(item=><tr key={item.id}>
+        <tbody>{shownHandoffs.map(item=><tr key={item.id}>
           <td><b>{item.contactName}</b><small>بلاغ وارد من المبيعات</small></td>
           <td>{item.courseName}</td>
           <td><b>{item.courseRunName||'لم تحدد الدفعة'}</b><small>{dateOnly(item.preferredStartDate)}</small></td>
@@ -379,7 +712,9 @@ export default function SalesWorkspace({
           <td>{item.assignedStaffName||'قسم التسجيل والقبول'}</td>
           <td><span className="mt-status warning">{item.status==='pending'?'بانتظار التحقق':item.status==='in_review'?'قيد المراجعة':item.status==='completed'?'مكتمل':item.status}</span></td>
         </tr>)}</tbody>
-      </table>{!handoffs.length&&<div className="mt-empty">لا توجد بلاغات دفع مرسلة للتسجيل بعد.</div>}</div>}
+      </table>{!shownHandoffs.length&&<div className="mt-empty">
+        {query?'لا توجد بلاغات دفع مطابقة.':'لا توجد بلاغات دفع مرسلة للتسجيل بعد.'}
+      </div>}</div>}
     </section>
 
     {modal?.type==='lead'&&<div className="mt-modal-layer">
@@ -443,13 +778,16 @@ export default function SalesWorkspace({
       onSaved={(editMessage,updatedContact)=>{
         setData(current=>({
           ...current,
+          focusedContact:current.focusedContact?.id===updatedContact.id
+            ?{...current.focusedContact,...updatedContact}
+            :current.focusedContact,
           contacts:(current.contacts||EMPTY).map(item=>
             item.id===updatedContact.id?{...item,...updatedContact}:item
           )
         }));
         setMessage(editMessage);
         setModal(null);
-        router.refresh();
+        reloadAfterMutation();
       }}
     />}
 
@@ -462,7 +800,7 @@ export default function SalesWorkspace({
       onSaved={followupMessage=>{
         setMessage(followupMessage);
         setModal(null);
-        router.refresh();
+        reloadAfterMutation();
       }}
     />}
 
@@ -530,4 +868,3 @@ function ModalFooter({busy,onClose,label}){
     <button className="mt-button primary" disabled={busy}>{busy?'جارٍ الحفظ…':label}</button>
   </footer>;
 }
-

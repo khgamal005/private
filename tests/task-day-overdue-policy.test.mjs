@@ -67,6 +67,7 @@ test('the day policy is limited to customer follow-up tasks',()=>{
 test('calendar, sales, dashboards, history and RPCs use the day policy',async()=>{
   const [
     migration,
+    salesMigration,
     calendar,
     sales,
     followup,
@@ -78,6 +79,7 @@ test('calendar, sales, dashboards, history and RPCs use the day policy',async()=
     historyRoute
   ]=await Promise.all([
     read('supabase/migrations/20260822050000_task_day_overdue_policy_v1.sql'),
+    read('supabase/migrations/20260825144111_tenant_sales_workspace_resilience_v1.sql'),
     read('components/task-calendar-page.js'),
     read('components/sales-workspace.js'),
     read('components/sales-followup-modal.js'),
@@ -111,7 +113,12 @@ test('calendar, sales, dashboards, history and RPCs use the day policy',async()=
     calendar,
     /new Date\(task\.dueAt\)<new Date\(\)/
   );
-  assert.match(sales,/isPastBusinessDay\(contact\.nextActionAt/);
+  assert.match(salesMigration,/v_filter = 'overdue'/);
+  assert.match(
+    salesMigration,
+    /contact\.next_action_at at time zone v_timezone[\s\S]{0,80}\)::date < v_today/
+  );
+  assert.doesNotMatch(sales,/isPastBusinessDay/);
   assert.doesNotMatch(
     sales,
     /new Date\(contact\.nextActionAt\)<new Date\(\)/

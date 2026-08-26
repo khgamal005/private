@@ -15,7 +15,7 @@ function functionSql(source,name){
   return source.slice(from,to+4);
 }
 
-test('public registration proxy is challenge-only and never carries a privileged credential',async()=>{
+test('public confirmation is a one-time capability while admin operations require a verified JWT',async()=>{
   const [route,confirm,edge]=await Promise.all([
     read('app/api/public/registration/route.js'),
     read('app/api/public/registration/confirm/route.js'),
@@ -27,21 +27,33 @@ test('public registration proxy is challenge-only and never carries a privileged
   assert.doesNotMatch(route,
     /ODEIR_REGISTRATION_INGRESS_TOKEN|x-odeir-intake-token|SUPABASE_SECRET_KEY/
   );
-  assert.match(confirm,/ingressToken\.length<32/);
-  assert.match(confirm,/'x-odeir-intake-token':ingressToken/);
-  assert.doesNotMatch(confirm,/SUPABASE_SECRET_KEY|serverKey/);
+  assert.match(confirm,/body:JSON\.stringify\(\{action:'confirm',token\}\)/);
+  assert.match(confirm,/origin!==publicAppOrigin\(\)/);
+  assert.doesNotMatch(confirm,
+    /ODEIR_REGISTRATION_INGRESS_TOKEN|x-odeir-intake-token|SUPABASE_SECRET_KEY|serverKey/
+  );
   const submit=edge.slice(
     edge.indexOf("if(action!=='submit')"),
     edge.indexOf("const allowed=await rpc<boolean>('v1_registration_rate_limit_consume")
   );
   assert.match(submit,/if\(!challenge\)/);
-  assert.doesNotMatch(submit,/authorizedServerRequest/);
+  assert.doesNotMatch(submit,/authorizedPlatformAdminRequest/);
   assert.match(edge,
-    /if\(action==='confirm'\)\{[\s\S]*?!await authorizedServerRequest\(request\)/
+    /if\(action==='confirm'\)\{\s*return confirmRegistration\(body\);/
   );
   assert.match(edge,
-    /if\(action==='health'\)\{[\s\S]*?!await authorizedWorkerRequest\(request\)[\s\S]*?!await authorizedServerRequest\(request\)/
+    /if\(action==='health'\)\{[\s\S]*?!await authorizedWorkerRequest\(request\)[\s\S]*?!await authorizedPlatformAdminRequest\(request\)/
   );
+  assert.match(edge,
+    /v1_platform_registration_policy_snapshot[\s\S]*?authorization:`Bearer \$\{accessToken\}`/
+  );
+  assert.match(edge,/apikey:ANON_KEY/);
+  const adminAuthorization=edge.slice(
+    edge.indexOf('async function authorizedPlatformAdminRequest'),
+    edge.indexOf('async function authorizedWorkerRequest')
+  );
+  assert.doesNotMatch(adminAuthorization,/apikey:SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(edge,/ODEIR_REGISTRATION_INGRESS_TOKEN|x-odeir-intake-token/);
 });
 
 test('automatic activation requires send, signed telemetry, and a recent delivered canary',async()=>{
@@ -116,8 +128,12 @@ test('canary ledger is PII-minimized, service-only, and reconciles signed webhoo
   assert.match(edge,/v1_registration_email_canary_record_event/);
   assert.match(edge,/ODEIR REGISTRATION EMAIL/);
   assert.match(route,/v1_platform_registration_policy_snapshot/);
-  assert.match(route,/ODEIR_REGISTRATION_INGRESS_TOKEN/);
-  assert.doesNotMatch(route,/SUPABASE_SECRET_KEY/);
+  assert.match(route,/origin!==publicAppOrigin\(\)/);
+  assert.doesNotMatch(route,/request\.nextUrl\.origin/);
+  assert.match(route,/Authorization:`Bearer \$\{token\}`/);
+  assert.doesNotMatch(route,
+    /ODEIR_REGISTRATION_INGRESS_TOKEN|x-odeir-intake-token|SUPABASE_SECRET_KEY/
+  );
 });
 
 test('terminal, expired, and idempotency-conflict paths fail closed',async()=>{

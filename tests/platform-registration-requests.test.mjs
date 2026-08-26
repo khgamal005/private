@@ -165,20 +165,41 @@ test('public registration obtains a one-time Edge challenge without exposing pri
   assert.doesNotMatch(route,/NEXT_PUBLIC_[A-Z0-9_]*(?:SECRET|SERVICE)/i);
 });
 
-test('edge intake authenticates the server hop and rate limits anonymous submissions',async()=>{
-  const [edge,config,serviceAuth]=await Promise.all([
+test('edge intake verifies admin JWTs and rate limits public capabilities',async()=>{
+  const [edge,config]=await Promise.all([
     read('supabase/functions/odeir-registration-intake/index.ts'),
-    read('supabase/config.toml'),
-    read('supabase/migrations/20260823204500_registration_edge_service_auth_v1.sql')
+    read('supabase/config.toml')
   ]);
 
-  assert.match(edge,/ODEIR_REGISTRATION_INGRESS_TOKEN/);
-  assert.match(edge,/secureEqual\(/);
-  assert.match(edge,/x-odeir-intake-token/);
-  assert.match(edge,/v1_registration_edge_authorize/);
-  assert.match(edge,/apikey:apiKey/);
-  assert.match(serviceAuth,/revoke all on function public\.v1_registration_edge_authorize\(\)[\s\S]*?from public,anon,authenticated/);
-  assert.match(serviceAuth,/grant execute on function public\.v1_registration_edge_authorize\(\)[\s\S]*?to service_role/);
+  assert.doesNotMatch(edge,/ODEIR_REGISTRATION_INGRESS_TOKEN|x-odeir-intake-token/);
+  assert.match(edge,
+    /const RATE_SALT=Deno\.env\.get\('ODEIR_REGISTRATION_RATE_SALT'\)\?\.trim\(\)\?\?'';/
+  );
+  assert.doesNotMatch(edge,
+    /const RATE_SALT=[\s\S]{0,160}\|\|(?:SERVICE_ROLE_KEY|INTAKE_TOKEN)/
+  );
+  assert.match(edge,/authorizedPlatformAdminRequest/);
+  assert.match(edge,/v1_platform_registration_policy_snapshot/);
+  assert.match(edge,/apikey:ANON_KEY/);
+  assert.match(edge,/authorization:`Bearer \$\{accessToken\}`/);
+  const adminAuthorization=section(
+    edge,'async function authorizedPlatformAdminRequest',
+    'async function authorizedWorkerRequest'
+  );
+  assert.doesNotMatch(adminAuthorization,/apikey:SERVICE_ROLE_KEY/);
+  assert.match(edge,
+    /if\(action==='canary'\)\{[\s\S]*?authorizedPlatformAdminRequest\(request\)/
+  );
+  assert.match(edge,
+    /if\(action==='activation_grant'\)\{[\s\S]*?authorizedPlatformAdminRequest\(request\)/
+  );
+  assert.match(edge,
+    /p_rate_key:`confirm-capability-burst:\$\{shard\}`[\s\S]*?p_limit:30[\s\S]*?p_window_seconds:60/
+  );
+  assert.match(edge,
+    /p_rate_key:`confirm-capability-sustained:\$\{shard\}`[\s\S]*?p_limit:120[\s\S]*?p_window_seconds:600/
+  );
+  assert.doesNotMatch(edge,/confirm-source|x-odeir-client-ip/);
   assert.match(edge,/v1_registration_rate_limit_consume/);
   assert.match(edge,/request\.method==='OPTIONS'/);
   assert.match(edge,/'access-control-allow-origin':origin/);
@@ -221,7 +242,7 @@ test('edge intake authenticates the server hop and rate limits anonymous submiss
     edge,"if(action!=='submit')",'const allowed=await rpc<boolean>'
   );
   assert.match(submitIngress,/if\(!challenge\)/);
-  assert.doesNotMatch(submitIngress,/authorizedServerRequest/);
+  assert.doesNotMatch(submitIngress,/authorizedPlatformAdminRequest/);
   assert.match(config,/\[functions\.odeir-registration-intake\][\s\S]*?verify_jwt\s*=\s*false/);
 });
 

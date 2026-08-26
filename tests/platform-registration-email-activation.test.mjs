@@ -90,11 +90,16 @@ test('trial tenant access preserves the temporary-password security gate',async(
 });
 
 test('email confirmation GET is read-only and POST delegates the mutation only to the Edge intake',async()=>{
-  const route=await read('app/api/public/registration/confirm/route.js');
+  const [route,originHelper]=await Promise.all([
+    read('app/api/public/registration/confirm/route.js'),
+    read('lib/public-app-origin.js')
+  ]);
   const get=section(route,'export async function GET','export async function POST');
   const post=section(route,'export async function POST','function clearConfirmCookie');
 
   assert.match(get,/CONFIRM_COOKIE/);
+  assert.match(get,/searchParams\.getAll\('token'\)/);
+  assert.match(get,/clearConfirmCookie\(redirectState\('invalid'\)\)/);
   assert.match(get,/httpOnly:true/);
   assert.match(get,/sameSite:'strict'/);
   assert.doesNotMatch(get,/fetch\(|\/rest\/v1\/rpc|SUPABASE_URL|confirm_email_and_provision/);
@@ -103,11 +108,22 @@ test('email confirmation GET is read-only and POST delegates the mutation only t
   assert.match(post,/\$\{SUPABASE_URL\}\/functions\/v1\/\$\{EDGE_FUNCTION\}/);
   assert.match(post,/body:JSON\.stringify\(\{action:'confirm',token\}\)/);
   assert.match(post,/apikey:SUPABASE_KEY/);
-  assert.match(post,/'x-odeir-intake-token':ingressToken/);
-  assert.match(post,/ingressToken\.length<32/);
-  assert.doesNotMatch(post,/SUPABASE_SECRET_KEY|serverKey/);
+  assert.match(post,/origin!==publicAppOrigin\(\)/);
+  assert.doesNotMatch(post,
+    /ODEIR_REGISTRATION_INGRESS_TOKEN|x-odeir-intake-token|x-odeir-client-ip/
+  );
+  assert.doesNotMatch(post,/Authorization|SUPABASE_SECRET_KEY|serverKey/);
   assert.doesNotMatch(post,/\/rest\/v1\/rpc|v1_registration_confirm_email_and_provision/);
   assert.doesNotMatch(route,/SUPABASE_SERVICE_ROLE_KEY|service[_\s.-]?role/i);
+  assert.match(originHelper,/PRODUCTION_PUBLIC_ORIGIN='https:\/\/odeir\.com'/);
+  assert.match(originHelper,/ODEIR_PUBLIC_APP_URL/);
+  assert.match(originHelper,
+    /production\s*\?url\.origin===PRODUCTION_PUBLIC_ORIGIN/
+  );
+  assert.match(originHelper,/return PRODUCTION_PUBLIC_ORIGIN/);
+  assert.doesNotMatch(originHelper,/request\.nextUrl\.origin|0\.0\.0\.0/);
+  assert.doesNotMatch(route,/new URL\([^\n]*request\.nextUrl\.origin/);
+  assert.doesNotMatch(route,/x-forwarded-for|x-real-ip|x-vercel-forwarded-for/);
 });
 
 test('automatic activation is eligible only for a new unlinked institution with an unclaimed formal identifier',async()=>{
@@ -232,9 +248,12 @@ test('confirmation tokens are hashed, expiring, one-time, and protected by resen
   assert.match(confirm,/email_confirmation_expires_at=null/);
   assert.match(edge,/delete publicResult\._confirmationToken/);
   assert.match(edge,/delete publicResult\.contactEmail/);
-  assert.match(edge,/const clientIp=sourceClientIp\(request\)/);
-  assert.match(edge,/p_rate_key:`confirm-source:\$\{ipHash\}`[\s\S]*?p_limit:240[\s\S]*?p_window_seconds:3_600/);
-  assert.doesNotMatch(edge,/p_rate_key:`confirm:\$\{(?:token|tokenRateHash)/);
+  assert.match(edge,/hmacSha256\([\s\S]*?RATE_SALT,`registration-confirm:\$\{token\}`/);
+  assert.match(edge,/Number\.parseInt\(tokenRateHash\.slice\(0,2\),16\)%64/);
+  assert.match(edge,/p_rate_key:`confirm-capability-burst:\$\{shard\}`[\s\S]*?p_limit:30[\s\S]*?p_window_seconds:60/);
+  assert.match(edge,/p_rate_key:`confirm-capability-sustained:\$\{shard\}`[\s\S]*?p_limit:120[\s\S]*?p_window_seconds:600/);
+  assert.doesNotMatch(edge,/confirm-source|x-odeir-client-ip/);
+  assert.doesNotMatch(edge,/p_rate_key:`confirm-(?:token|capability):/);
 });
 
 test('a consumed confirmation can never replay or rotate an owner invitation',async()=>{
@@ -288,17 +307,21 @@ test('activation policy is permission checked, server-gated, and wired to the pl
 
   assert.match(migration,/has_platform_permission\('platform\.settings\.manage'\)/);
   assert.match(migration,/v1_platform_registration_policy_save/);
-  assert.match(route,/registrationEmailActivationGrant\(\)/);
+  assert.match(route,/registrationEmailActivationGrant\(token\)/);
   assert.match(route,/v1_platform_registration_policy_snapshot/);
   assert.match(route,/v1_platform_registration_policy_save_email/);
   assert.match(route,/if\(!emailReadiness\.activationReady\)/);
   assert.match(route,/activationMode==='manual_review'[\s\S]*?v1_platform_registration_policy_save/);
   assert.match(route,/v1_platform_registration_policy_save/);
   assert.match(route,/boundedRequestText\(request,MAX_BODY_BYTES\)/);
+  assert.match(route,/origin!==publicAppOrigin\(\)/);
+  assert.doesNotMatch(route,/request\.nextUrl\.origin/);
   assert.match(helper,/import 'server-only'/);
   assert.match(helper,/apikey:SUPABASE_KEY/);
-  assert.match(helper,/'x-odeir-intake-token':ingressToken/);
-  assert.doesNotMatch(helper,/SUPABASE_SECRET_KEY|serverKey/);
+  assert.match(helper,/Authorization:`Bearer \$\{token\}`/);
+  assert.doesNotMatch(helper,
+    /ODEIR_REGISTRATION_INGRESS_TOKEN|x-odeir-intake-token|SUPABASE_SECRET_KEY|serverKey/
+  );
   assert.match(helper,/emailReady:emailReadiness\.activationReady/);
   assert.match(helper,/emailCanaryReady:emailReadiness\.canaryReady/);
   assert.match(settings,/hasPlatformPermission\([\s\S]*?'platform\.settings\.manage'/);
@@ -459,7 +482,7 @@ test('platform registration email transport is isolated from tenant automation',
   assert.match(rootEnv,/^ODEIR_REGISTRATION_RESEND_API_KEY=$/m);
   assert.match(rootEnv,/^ODEIR_REGISTRATION_DOMAIN_VERIFIED_NAME=odeir\.com$/m);
   assert.match(rootEnv,/^ODEIR_REGISTRATION_DOMAIN_VERIFIED_AT=$/m);
-  assert.match(rootEnv,/^ODEIR_REGISTRATION_INGRESS_TOKEN=$/m);
+  assert.doesNotMatch(rootEnv,/^ODEIR_REGISTRATION_INGRESS_TOKEN=/m);
   assert.match(rootEnv,/^ODEIR_REGISTRATION_RATE_SALT=$/m);
   assert.doesNotMatch(rootEnv,/^RESEND_API_KEY=$/m);
   assert.match(tenantEnv,/^RESEND_API_KEY=$/m);

@@ -2,10 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const SUPABASE_URL=Deno.env.get('SUPABASE_URL')??'';
 const SERVICE_ROLE_KEY=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')??'';
-const INTAKE_TOKEN=Deno.env.get('ODEIR_REGISTRATION_INGRESS_TOKEN')??'';
-const RATE_SALT=Deno.env.get('ODEIR_REGISTRATION_RATE_SALT')
-  ||INTAKE_TOKEN
-  ||SERVICE_ROLE_KEY;
+const ANON_KEY=Deno.env.get('SUPABASE_ANON_KEY')?.trim()??'';
+const RATE_SALT=Deno.env.get('ODEIR_REGISTRATION_RATE_SALT')?.trim()??'';
 // Platform-registration email credentials are deliberately isolated from
 // every tenant-owned messaging provider and legacy training fallback.
 const REGISTRATION_RESEND_API_KEY=
@@ -111,7 +109,7 @@ Deno.serve(async(request:Request)=>{
   if(action==='health'){
     if(
       !await authorizedWorkerRequest(request)
-      &&!await authorizedServerRequest(request)
+      &&!await authorizedPlatformAdminRequest(request)
     ){
       return json({ok:false,error:'unauthorized'},401);
     }
@@ -119,13 +117,13 @@ Deno.serve(async(request:Request)=>{
     return json({ok:true,...publicRegistrationEmailHealth(health)});
   }
   if(action==='activation_grant'){
-    if(!await authorizedServerRequest(request)){
+    if(!await authorizedPlatformAdminRequest(request)){
       return json({ok:false,error:'unauthorized'},401);
     }
     return issueRegistrationEmailActivationGrant();
   }
   if(action==='canary'){
-    if(!await authorizedServerRequest(request)){
+    if(!await authorizedPlatformAdminRequest(request)){
       return json({ok:false,error:'unauthorized'},401);
     }
     return sendRegistrationEmailCanary(body);
@@ -133,7 +131,7 @@ Deno.serve(async(request:Request)=>{
   if(action==='drain'){
     if(
       !await authorizedWorkerRequest(request)
-      &&!await authorizedServerRequest(request)
+      &&!await authorizedPlatformAdminRequest(request)
     ){
       return json({ok:false,error:'unauthorized'},401);
     }
@@ -141,10 +139,7 @@ Deno.serve(async(request:Request)=>{
     return json({ok:true,...await drainConfirmationOutbox(limit)});
   }
   if(action==='confirm'){
-    if(!await authorizedServerRequest(request)){
-      return json({ok:false,error:'unauthorized'},401);
-    }
-    return confirmRegistration(body,request);
+    return confirmRegistration(body);
   }
   if(action!=='submit'){
     return json({ok:false,error:'invalid_action'},400);
@@ -413,23 +408,26 @@ function corsHeaders(origin:string){
   };
 }
 
-async function authorizedServerRequest(request:Request){
-  const ingress=clean(request.headers.get('x-odeir-intake-token'),256);
+async function authorizedPlatformAdminRequest(request:Request){
+  const authorization=clean(request.headers.get('authorization'),4_096);
+  const match=authorization.match(
+    /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/
+  );
+  const accessToken=match?.[1]??'';
   if(
-    INTAKE_TOKEN.length>=32
-    &&ingress
-    &&await secureEqual(ingress,INTAKE_TOKEN)
-  )return true;
-
-  const apiKey=clean(request.headers.get('apikey'),512);
-  if(apiKey.length<32)return false;
+    ANON_KEY.length<32
+    ||accessToken.length<64
+    ||accessToken.length>4_000
+  )return false;
   const response=await fetch(
-    `${SUPABASE_URL}/rest/v1/rpc/v1_registration_edge_authorize`,
+    `${SUPABASE_URL}/rest/v1/rpc/v1_platform_registration_policy_snapshot`,
     {
       method:'POST',
       headers:{
-        apikey:apiKey,
-        ...(looksLikeJwt(apiKey)?{authorization:`Bearer ${apiKey}`}:{}),
+        // The public key identifies the project only. Authorization and the
+        // permission-gated RPC both execute as the caller's user JWT.
+        apikey:ANON_KEY,
+        authorization:`Bearer ${accessToken}`,
         'content-type':'application/json'
       },
       body:'{}',
@@ -437,7 +435,14 @@ async function authorizedServerRequest(request:Request){
     }
   ).catch(()=>null);
   if(!response?.ok)return false;
-  return await response.json().catch(()=>false)===true;
+  try{
+    const snapshot=JSON.parse(await boundedResponseText(response,16_384));
+    return Boolean(
+      snapshot
+      &&!Array.isArray(snapshot)
+      &&typeof snapshot==='object'
+    );
+  }catch{return false;}
 }
 
 async function authorizedWorkerRequest(request:Request){
@@ -450,31 +455,36 @@ async function authorizedWorkerRequest(request:Request){
   }catch{return false;}
 }
 
-function looksLikeJwt(value:string){
-  return value.split('.').length===3;
-}
-
-async function confirmRegistration(body:JsonRecord,request:Request){
+async function confirmRegistration(body:JsonRecord){
   const token=clean(body.token,80).toLowerCase();
   if(!/^[a-f0-9]{64}$/.test(token)){
     return json({ok:false,error:'registration_confirmation_invalid'},400);
   }
   try{
-    const trustedProxy=await authorizedServerRequest(request);
-    const forwardedIp=trustedProxy
-      ?validClientIp(clean(request.headers.get('x-odeir-client-ip'),80))
-      :'';
-    const clientIp=forwardedIp||sourceClientIp(request);
-    if(!clientIp){
-      return json({ok:false,error:'registration_confirmation_unavailable'},503);
-    }
-    const ipHash=await sha256(`${clientIp}|${RATE_SALT}`);
-    const allowed=await rpc<boolean>('v1_registration_rate_limit_consume',{
-      p_rate_key:`confirm-source:${ipHash}`,
-      p_limit:240,
-      p_window_seconds:3_600
+    // Confirmation is a 256-bit, expiring, one-time capability. A caller
+    // cannot choose its fixed rate-limit shard because the mapping is keyed
+    // with an independent Edge-only salt. Sixty-four dual-window shards bound
+    // storage to 128 rows and avoid treating a shared Next/Hostinger egress IP
+    // as every customer.
+    const tokenRateHash=await hmacSha256(
+      RATE_SALT,`registration-confirm:${token}`
+    );
+    const shard=(Number.parseInt(tokenRateHash.slice(0,2),16)%64)
+      .toString(16).padStart(2,'0');
+    const burstAllowed=await rpc<boolean>(
+      'v1_registration_rate_limit_consume',{
+      p_rate_key:`confirm-capability-burst:${shard}`,
+      p_limit:30,
+      p_window_seconds:60
     });
-    if(!allowed)return json({ok:false,error:'rate_limited'},429);
+    if(!burstAllowed)return json({ok:false,error:'rate_limited'},429);
+    const sustainedAllowed=await rpc<boolean>(
+      'v1_registration_rate_limit_consume',{
+      p_rate_key:`confirm-capability-sustained:${shard}`,
+      p_limit:120,
+      p_window_seconds:600
+    });
+    if(!sustainedAllowed)return json({ok:false,error:'rate_limited'},429);
     const result=await rpc<JsonRecord>(
       'v1_registration_confirm_email_and_provision',
       {p_token:token}
@@ -482,21 +492,19 @@ async function confirmRegistration(body:JsonRecord,request:Request){
     return json({ok:true,...result});
   }catch(error){
     const code=databaseErrorCode(error);
-    const publicCode=code==='service_unavailable'
-      ?'registration_confirmation_unavailable'
-      :code;
+    const invalidConfirmation=[
+      'registration_confirmation_invalid',
+      'registration_confirmation_already_used'
+    ].includes(code);
+    const publicCode=invalidConfirmation
+      ?'registration_confirmation_invalid'
+      :code==='service_unavailable'
+        ?'registration_confirmation_unavailable'
+        :code;
     console.error('odeir-registration-confirm',publicCode);
     return json({ok:false,error:publicCode},
       publicCode==='registration_confirmation_unavailable'?503:400);
   }
-}
-
-function validClientIp(value:string){
-  if(value.length>64)return '';
-  if(/^\d{1,3}(?:\.\d{1,3}){3}$/.test(value)){
-    return value.split('.').every(part=>Number(part)<=255)?value:'';
-  }
-  return value.includes(':')&&/^[0-9a-f:.]+$/i.test(value)?value:'';
 }
 
 function registrationEmailTransportReady(){
@@ -1519,17 +1527,6 @@ async function hmacSha256(secret:string,value:string){
   );
   return Array.from(new Uint8Array(digest))
     .map(byte=>byte.toString(16).padStart(2,'0')).join('');
-}
-
-async function secureEqual(left:string,right:string){
-  if(!left||!right)return false;
-  const [leftHash,rightHash]=await Promise.all([sha256(left),sha256(right)]);
-  let difference=leftHash.length^rightHash.length;
-  const length=Math.max(leftHash.length,rightHash.length);
-  for(let index=0;index<length;index++){
-    difference|=(leftHash.charCodeAt(index)||0)^(rightHash.charCodeAt(index)||0);
-  }
-  return difference===0;
 }
 
 function json(payload:unknown,status=200,corsOrigin=''){

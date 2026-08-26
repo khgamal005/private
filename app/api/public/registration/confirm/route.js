@@ -1,16 +1,17 @@
 import {NextResponse} from 'next/server';
 import {SUPABASE_KEY,SUPABASE_URL} from '../../../../../lib/config';
+import {publicAppOrigin} from '../../../../../lib/public-app-origin';
 
 const EDGE_FUNCTION='odeir-registration-intake';
 const CONFIRM_COOKIE='odeir_registration_confirm';
 
 export async function GET(request){
-  const token=String(request.nextUrl.searchParams.get('token')||'')
-    .trim().toLowerCase();
+  const values=request.nextUrl.searchParams.getAll('token');
+  const token=String(values.length===1?values[0]:'').trim().toLowerCase();
   if(!/^[a-f0-9]{64}$/.test(token)){
-    return redirectState(request,'invalid');
+    return clearConfirmCookie(redirectState('invalid'));
   }
-  const destination=new URL('/registration-confirmation',request.nextUrl.origin);
+  const destination=new URL('/registration-confirmation',publicAppOrigin());
   destination.searchParams.set('state','ready');
   const response=privateRedirect(destination);
   response.cookies.set(CONFIRM_COOKIE,token,{
@@ -25,20 +26,13 @@ export async function GET(request){
 
 export async function POST(request){
   const origin=request.headers.get('origin');
-  if(origin&&origin!==request.nextUrl.origin){
-    return clearConfirmCookie(redirectState(request,'invalid'));
+  if(origin!==publicAppOrigin()){
+    return clearConfirmCookie(redirectState('invalid'));
   }
   const token=String(request.cookies.get(CONFIRM_COOKIE)?.value||'')
     .trim().toLowerCase();
   if(!/^[a-f0-9]{64}$/.test(token)){
-    return clearConfirmCookie(redirectState(request,'invalid'));
-  }
-  const ingressToken=(process.env.ODEIR_REGISTRATION_INGRESS_TOKEN||'').trim();
-  if(ingressToken.length<32){
-    console.error('odeir_registration_confirmation_failed',{
-      errorName:'IngressTokenUnavailable'
-    });
-    return clearConfirmCookie(redirectState(request,'unavailable'));
+    return clearConfirmCookie(redirectState('invalid'));
   }
 
   try{
@@ -48,10 +42,7 @@ export async function POST(request){
         method:'POST',
         headers:{
           apikey:SUPABASE_KEY,
-          'content-type':'application/json',
-          'x-odeir-intake-token':ingressToken,
-          'x-odeir-client-ip':clientIp(request),
-          'x-odeir-user-agent':clean(request.headers.get('user-agent'),300)
+          'content-type':'application/json'
         },
         body:JSON.stringify({action:'confirm',token}),
         cache:'no-store',
@@ -64,19 +55,19 @@ export async function POST(request){
         'registration_confirmation_invalid',
         'registration_confirmation_already_used'
       ].includes(result.error);
-      return clearConfirmCookie(redirectState(request,
+      return clearConfirmCookie(redirectState(
         invalidConfirmation?'invalid':'unavailable'));
     }
     if(result.manualReviewRequired===true){
-      return clearConfirmCookie(redirectState(request,'manual_review'));
+      return clearConfirmCookie(redirectState('manual_review'));
     }
     if(typeof result.invitationToken==='string'&&result.invitationToken.length>=32){
-      const destination=new URL('/accept-invite',request.nextUrl.origin);
+      const destination=new URL('/accept-invite',publicAppOrigin());
       destination.searchParams.set('token',result.invitationToken);
       destination.searchParams.set('source','email-confirmed-registration');
       return clearConfirmCookie(privateRedirect(destination));
     }
-    const destination=new URL('/login',request.nextUrl.origin);
+    const destination=new URL('/login',publicAppOrigin());
     destination.searchParams.set('reason','registration_confirmed');
     if(result.tenantSlug)destination.searchParams.set('tenant',String(result.tenantSlug));
     return clearConfirmCookie(privateRedirect(destination));
@@ -84,7 +75,7 @@ export async function POST(request){
     console.error('odeir_registration_confirmation_failed',{
       errorName:error instanceof Error?error.name:'UnknownError'
     });
-    return clearConfirmCookie(redirectState(request,'unavailable'));
+    return clearConfirmCookie(redirectState('unavailable'));
   }
 }
 
@@ -99,8 +90,8 @@ function clearConfirmCookie(response){
   return response;
 }
 
-function redirectState(request,state){
-  const destination=new URL('/registration-confirmation',request.nextUrl.origin);
+function redirectState(state){
+  const destination=new URL('/registration-confirmation',publicAppOrigin());
   destination.searchParams.set('state',state);
   return privateRedirect(destination);
 }
@@ -111,21 +102,4 @@ function privateRedirect(destination){
   response.headers.set('Referrer-Policy','no-referrer');
   response.headers.set('X-Robots-Tag','noindex, nofollow');
   return response;
-}
-
-function clientIp(request){
-  const forwarded=request.headers.get('x-vercel-forwarded-for')
-    ||request.headers.get('x-forwarded-for')
-    ||'';
-  return clean(
-    forwarded.split(',')[0]
-      ||request.headers.get('x-real-ip')
-      ||'unknown',
-    80
-  );
-}
-
-function clean(value,max){
-  return String(value??'').replace(/[\u0000-\u001F\u007F]/g,' ')
-    .trim().slice(0,max);
 }

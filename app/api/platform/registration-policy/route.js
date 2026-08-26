@@ -6,6 +6,7 @@ import {
   withEmailReadiness
 } from '../../../../lib/platform-registration-policy';
 import {SUPABASE_KEY,SUPABASE_URL} from '../../../../lib/config';
+import {publicAppOrigin} from '../../../../lib/public-app-origin';
 
 const MODES=new Set(['manual_review','email_verified_trial']);
 const MAX_BODY_BYTES=2*1024;
@@ -15,7 +16,7 @@ export async function POST(request){
     const token=await accessToken();
     if(!token)return error('انتهت جلسة الدخول','authentication_required',401);
     const origin=request.headers.get('origin');
-    if(origin&&origin!==request.nextUrl.origin){
+    if(origin!==publicAppOrigin()){
       return error('تعذر التحقق من مصدر الطلب','invalid_origin',403);
     }
     const contentLength=Number(request.headers.get('content-length')||0);
@@ -58,7 +59,7 @@ export async function POST(request){
       // Authorize with the caller's JWT before the server acts as a privileged
       // deputy and asks Edge to mint a one-time activation grant.
       await rpc(token,'v1_platform_registration_policy_snapshot',{});
-      const issued=await registrationEmailActivationGrant();
+      const issued=await registrationEmailActivationGrant(token);
       emailReadiness=issued.readiness;
       if(!emailReadiness.activationReady){
         return error(

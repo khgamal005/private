@@ -5,6 +5,7 @@ import {
   withEmailReadiness
 } from '../../../../lib/platform-registration-policy';
 import {SUPABASE_KEY,SUPABASE_URL} from '../../../../lib/config';
+import {publicAppOrigin} from '../../../../lib/public-app-origin';
 
 const EDGE_FUNCTION='odeir-registration-intake';
 const MAX_BODY_BYTES=2*1024;
@@ -14,7 +15,7 @@ export async function GET(){
     const token=await accessToken();
     if(!token)return error('انتهت جلسة الدخول','authentication_required',401);
     await authorize(token);
-    const readiness=await registrationEmailReadiness();
+    const readiness=await registrationEmailReadiness(token);
     return NextResponse.json({
       success:true,
       data:withEmailReadiness({},readiness)
@@ -29,7 +30,7 @@ export async function POST(request){
     const token=await accessToken();
     if(!token)return error('انتهت جلسة الدخول','authentication_required',401);
     const origin=request.headers.get('origin');
-    if(origin&&origin!==request.nextUrl.origin){
+    if(origin!==publicAppOrigin()){
       return error('تعذر التحقق من مصدر الطلب','invalid_origin',403);
     }
     await authorize(token);
@@ -51,18 +52,11 @@ export async function POST(request){
       return error('أدخل بريد اختبار صالحًا','invalid_email',400);
     }
 
-    const readiness=await registrationEmailReadiness();
+    const readiness=await registrationEmailReadiness(token);
     if(!readiness.sendReady||!readiness.telemetryReady){
       return error(
         'أكمل إعداد المرسل وWebhook قبل إرسال اختبار الإنتاج',
         'registration_email_canary_not_ready',409
-      );
-    }
-    const ingressToken=(process.env.ODEIR_REGISTRATION_INGRESS_TOKEN||'').trim();
-    if(ingressToken.length<32){
-      return error(
-        'اتصال التطبيق الداخلي بوظيفة التسجيل غير مكتمل',
-        'registration_email_canary_unavailable',503
       );
     }
     const response=await fetch(
@@ -72,7 +66,7 @@ export async function POST(request){
         headers:{
           apikey:SUPABASE_KEY,
           'content-type':'application/json',
-          'x-odeir-intake-token':ingressToken
+          Authorization:`Bearer ${token}`
         },
         body:JSON.stringify({action:'canary',recipient}),
         cache:'no-store',

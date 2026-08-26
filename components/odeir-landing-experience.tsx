@@ -262,6 +262,7 @@ function Header({ cms, onRegister, variant = "default" }: { cms: LandingCms; onR
           <a href="#story" onClick={() => setOpen(false)}>التكاملات</a>
           <a href="#product" onClick={() => setOpen(false)}>جولة داخل أودير</a>
           <a href="#journey" onClick={() => setOpen(false)}>رحلة العميل</a>
+          <a href="#marketplace" onClick={() => setOpen(false)}>متاجر أودير</a>
           <a href="#security" onClick={() => setOpen(false)}>الحماية</a>
         </>}
         <a className="mobile-nav-only" href={`${APP_ORIGIN}${loginHref}`} onClick={() => setOpen(false)}>{loginLabel}</a>
@@ -404,9 +405,9 @@ const morningFallback = [
     mark: "نبض",
   },
   {
-    category: "فرص ومنافسات",
-    title: "فرص تستحق أن تكون على رادارك.",
-    excerpt: "مساحة للفرص العامة والمنافسات بعد مراجعتها ونشرها من إدارة أودير.",
+    category: "مناقصات ومنافسات",
+    title: "فرص لها موعد… وتستحق قرارًا في وقته.",
+    excerpt: "مناقصات ومنافسات وفرص عامة ذات صلة بالتعليم والتدريب، بعد مراجعتها ونشرها من إدارة أودير.",
     mark: "فرصة",
   },
   {
@@ -456,10 +457,11 @@ function MorningBriefing({ articles = [] }: { articles?: LandingArticle[] }) {
       <div className="morning-inner section">
         <div className="morning-copy" data-reveal>
           <div className="morning-kicker"><i /> أول فنجان</div>
-          <h2>قبل أول اجتماع…<br /><span>خذ زبدة السوق مع قهوتك.</span></h2>
-          <p>موجز يومي ذكي يجمع أخبار قطاع التدريب، الفرص والمنافسات، ومعرفة عملية تساعدك تبدأ يومك بقرار أوضح.</p>
-          <ul><li><i /> من المواد العامة المنشورة</li><li><i /> مختصر ومباشر لصاحب القرار</li><li><i /> بدون خلط مع بيانات أي منشأة</li></ul>
-          <a className="morning-link" href="/articles">افتح الأخبار والمعارف <ArrowMark /></a>
+          <h2>قبل أول اجتماع…<br /><span>اعرف أين توجد الفرصة.</span></h2>
+          <p>ليس كل صباح يحتاج عشرات الروابط. «أول فنجان» يجمع لك أخبار القطاع، التحديثات التنظيمية، فرص الشراكات، والمناقصات والمنافسات ذات الصلة بالتعليم والتدريب؛ في موجز واضح يساعدك تعرف ما يستحق المتابعة قبل فوات موعده.</p>
+          <ul><li><i /> أخبار ومعرفة من المواد العامة المنشورة</li><li><i /> مناقصات ومنافسات بمواعيدها</li><li><i /> فرص وشراكات تستحق المتابعة</li></ul>
+          <p className="morning-punchline">الفرصة التي لا تصل لصاحب القرار في وقتها… تتحول ببساطة إلى خبر قديم.</p>
+          <a className="morning-link" href="/articles">ابدأ يومك مع أول فنجان <ArrowMark /></a>
         </div>
         <div className="morning-feed" data-reveal>
           <header><span><i /> موجز اليوم</span><small>المواد المنشورة والمعتمدة فقط</small></header>
@@ -1283,31 +1285,146 @@ function RoleSwitcher({ kickerNumber = "05" }: { kickerNumber?: string } = {}) {
   );
 }
 
+const serviceMarketplaceCategories = [
+  "المحاضرون والمدربون",
+  "التصميم والإبداع",
+  "المحتوى والحقائب",
+  "التسويق والنمو",
+  "المبيعات وخدمة العملاء",
+  "الاستشارات والتشغيل",
+  "التقنية والمنصات",
+] as const;
+
+const addonMarketplaceCategories = [
+  ["التواصل وقنوات الرسائل", "قنوات"],
+  ["المتاجر ووسائل الدفع", "تجارة"],
+  ["الأتمتة وسير العمل", "أتمتة"],
+  ["التسويق والتحليلات", "قياس"],
+  ["الاتصالات وأنظمة CRM", "مبيعات"],
+  ["المواقع والتدريب الإلكتروني", "تشغيل"],
+] as const;
+
+const marketplacePaymentMethods = [
+  { label: "تحويل بنكي", className: "is-bank" },
+  { label: "تمارا", className: "is-tamara" },
+  { label: "Paymob", className: "is-paymob" },
+  { label: "مدى", className: "is-mada" },
+  { label: "VISA", className: "is-visa" },
+  { label: "Mastercard", className: "is-mastercard" },
+] as const;
+
+function MarketplaceShowcase({ onRegister, kickerNumber = "06" }: { onRegister: () => void; kickerNumber?: string }) {
+  const registerHref = "/free-trial/apply";
+  return (
+    <section className="marketplace-section" id="marketplace">
+      <div className="marketplace-inner section">
+        <div className="marketplace-heading" data-reveal>
+          <div>
+            <div className="section-kicker">{kickerNumber === "06" ? <span>06</span> : <span>{kickerNumber}</span>} متاجر أودير</div>
+            <h2>احتياج جديد؟<br /><span>لا تبدأ رحلة البحث من الصفر.</span></h2>
+          </div>
+          <p>من داخل أودير، اطلب الخدمة التي تحتاجها منشأتك، أو فعّل الإضافة التي توسّع قدرات منظومتك. نطاق واضح، تنفيذ يمكن متابعته، وخيارات دفع مرنة بحسب الخدمة والتوفر.</p>
+        </div>
+
+        <div className="marketplace-showcase">
+          <article className="marketplace-card marketplace-card--services" data-reveal>
+            <header>
+              <span><small>01</small> متجر الخدمات</span>
+              <em className="marktone-assurance-badge"><Image src="/marktone-mark.svg" width={28} height={28} alt="" /> خدمات بضمان ماركتون</em>
+            </header>
+            <div className="marketplace-card-copy">
+              <small>خبرات تتحول إلى تنفيذ</small>
+              <h3>كل تخصص تحتاجه منشأتك… في نطاق واضح يمكن متابعته.</h3>
+              <p>خدمات مختارة لواقع المنشآت التعليمية والتدريبية، تُدار من الطلب حتى التسليم تحت إشراف ماركتون.</p>
+            </div>
+            <ul className="service-category-cloud" aria-label="أقسام متجر الخدمات">
+              {serviceMarketplaceCategories.map((category, index) => <li key={category}><i>{String(index + 1).padStart(2, "0")}</i>{category}</li>)}
+            </ul>
+            <div className="marktone-assurance">
+              <span className="marktone-assurance-mark"><Image src="/marktone-mark.svg" width={44} height={44} alt="" /></span>
+              <span><small>ماذا يعني ضمان ماركتون؟</small><b>نطاق متفق عليه، متابعة واضحة، وتسليم يُراجع وفق شروط الخدمة.</b></span>
+            </div>
+          </article>
+
+          <article className="marketplace-card marketplace-card--addons" data-reveal>
+            <header>
+              <span><small>02</small> متجر الإضافات والتكاملات</span>
+              <em>فعّل ما تحتاجه فقط</em>
+            </header>
+            <div className="marketplace-card-copy">
+              <small>منظومة تنمو معك</small>
+              <h3>وسّع أودير بالطريقة التي تناسب منشأتك.</h3>
+              <p>ابدأ بما تحتاجه اليوم، ثم أضف القنوات والربط والأتمتة كلما اتسع العمل—بدون تحميل فريقك أدوات لا يستخدمها.</p>
+            </div>
+            <div className="addon-marketplace-map" aria-label="أقسام متجر الإضافات والتكاملات">
+              <span className="addon-marketplace-core"><Brand compact /><small>جاهز للتوسّع</small></span>
+              <ul>
+                {addonMarketplaceCategories.map(([category, label], index) => <li className={`addon-marketplace-item addon-marketplace-item--${index + 1}`} key={category}><i /><span><small>{label}</small><b>{category}</b></span></li>)}
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <div className="marketplace-payment-rail" data-reveal>
+          <div className="marketplace-payment-copy">
+            <span><i /> دفع مرن عبر القنوات المفعّلة</span>
+            <h3>ادفع بالطريقة الأنسب لمنشأتك.</h3>
+            <p>تظهر لك وسائل الدفع المتاحة بحسب الخدمة، بلد الإصدار، أهلية العميل، وحالة تفعيل مزوّد الدفع.</p>
+          </div>
+          <div className="marketplace-payment-methods" aria-label="وسائل الدفع التي قد تتوفر">
+            {marketplacePaymentMethods.map((method) => <span className={method.className} dir="auto" key={method.label}>{method.label}</span>)}
+          </div>
+          <a className="button button--primary marketplace-cta" href={registerHref} onClick={(event) => openRegistrationFromLink(event, registerHref, onRegister)}>افتح حساب منشأتك <ArrowMark /></a>
+        </div>
+        <p className="marketplace-availability-note">تعرض هذه الوسائل لتوضيح الخيارات التي يمكن إتاحتها، ولا يعني ظهورها تفعيلها لكل خدمة أو منشأة؛ ويظهر الخيار المؤهل فعليًا داخل صفحة الطلب.</p>
+      </div>
+    </section>
+  );
+}
+
 function SecuritySection({ cms, kickerNumber = "06" }: { cms: LandingCms; kickerNumber?: string }) {
   const defaults = [
-    ["عزل بيانات كل منشأة", "مساحة وسياق مستقلان يمنعان اختلاط بيانات منشأة بغيرها."],
-    ["صلاحيات حسب الدور", "كل مستخدم يرى وينفذ ما يحتاجه لأداء عمله فقط."],
-    ["سجل واضح للأنشطة", "أثر للإجراءات الحساسة يدعم المتابعة والمساءلة."],
-    ["مراجعة مستمرة", "ضوابط وصول وتحديثات تتطور مع الخدمة ومتطلباتها."],
+    ["عزل بيانات كل منشأة", "تُدار بيانات كل منشأة داخل سياق مستقل للحد من اختلاطها ببيانات منشأة أخرى."],
+    ["وصول بحسب الصلاحية والحاجة", "يُقصر الوصول على المستخدمين المخولين وبالقدر اللازم لأداء مسؤولياتهم."],
+    ["استخدام ومشاركة محددان", "تُستخدم البيانات للأغراض اللازمة لتقديم الخدمة، وتُشارك بالقدر اللازم أو وفق ما يجيزه أو يوجبه النظام."],
+    ["تدابير حماية مناسبة", "تدابير تنظيمية وإدارية وتقنية مناسبة للحد من مخاطر الوصول أو الاستخدام أو الإفصاح غير المصرح به."],
+  ] as const;
+  const previousTitles = [
+    ["عزل بيانات كل منشأة", "عزل بيانات المنشآت"],
+    ["صلاحيات حسب الدور"],
+    ["سجل واضح للأنشطة", "سجل للأنشطة"],
+    ["مراجعة مستمرة"],
+  ] as const;
+  const previousDescriptions = [
+    ["مساحة وسياق مستقلان يمنعان اختلاط بيانات منشأة بغيرها.", "سياق مستقل لكل منشأة يقلل خطر اختلاط البيانات."],
+    ["كل مستخدم يرى وينفذ ما يحتاجه لأداء عمله فقط.", "كل مستخدم يصل فقط إلى ما يحتاجه لأداء عمله."],
+    ["أثر للإجراءات الحساسة يدعم المتابعة والمساءلة.", "تتبع للإجراءات الحساسة يدعم المراجعة والمساءلة."],
+    ["ضوابط وصول وتحديثات تتطور مع الخدمة ومتطلباتها.", "تتطور ضوابط الوصول والحماية مع تطور الخدمة."],
   ] as const;
   const cards = defaults.map(([title, description], index) => ({
-    title: cmsText(cms.trust?.items?.[index]?.title, LEGACY_TRUST[index][0], title),
-    description: cmsText(cms.trust?.items?.[index]?.description, LEGACY_TRUST[index][1], description),
+    title: cmsDefaultText(cms.trust?.items?.[index]?.title, [LEGACY_TRUST[index][0], ...previousTitles[index]], title),
+    description: cmsDefaultText(cms.trust?.items?.[index]?.description, [LEGACY_TRUST[index][1], ...previousDescriptions[index]], description),
   }));
-  const kicker = cmsText(cms.trust?.eyebrow, "حماية ووضوح", "ثقة بدون شعارات مبهمة");
-  const title = cmsText(cms.trust?.title, "بيانات منشأتك لا تختلط بغيرها", "بيانات منشأتك تبقى منشأتك.");
-  const body = cmsText(cms.trust?.body, "ضوابط عملية للصلاحيات والوصول والمتابعة، دون ادعاءات أو شعارات أمنية مبهمة.", "أودير يضع الصلاحيات والعزل وسجل الأنشطة في صلب التشغيل؛ حتى يصل كل شخص لما يحتاجه فقط، وتبقى الحركة الحساسة قابلة للمراجعة.");
+  const kicker = cmsDefaultText(cms.trust?.eyebrow, ["حماية ووضوح", "ثقة بدون شعارات مبهمة"], "سرية المعلومات مسؤولية");
+  const title = cmsDefaultText(cms.trust?.title, ["بيانات منشأتك لا تختلط بغيرها", "بيانات منشأتك تبقى في مساحتها", "بيانات منشأتك تبقى منشأتك."], "بيانات منشأتك… أمانة تُدار بمسؤولية.");
+  const body = cmsDefaultText(cms.trust?.body, ["ضوابط عملية للصلاحيات والوصول والمتابعة، دون ادعاءات أو شعارات أمنية مبهمة.", "ضوابط عملية للصلاحيات والوصول والمتابعة، بلغة واضحة دون مبالغة.", "أودير يضع الصلاحيات والعزل وسجل الأنشطة في صلب التشغيل؛ حتى يصل كل شخص لما يحتاجه فقط، وتبقى الحركة الحساسة قابلة للمراجعة."], "نتعامل مع بيانات منشأتك ومعلوماتها التشغيلية بسرية، ونقصر الوصول إليها واستخدامها على ما يلزم لتقديم الخدمة وتشغيلها. وتُعالج البيانات الشخصية وفق سياسة الخصوصية، وبما يراعي أحكام نظام حماية البيانات الشخصية ولائحته التنفيذية والأنظمة ذات الصلة في المملكة العربية السعودية.");
   return (
     <section className="security-section" id="security">
       <div className="security-inner section">
-        <div className="security-copy" data-reveal><div className="section-kicker section-kicker--light">{kickerNumber === "06" ? <span>06</span> : <span>{kickerNumber}</span>} {kicker}</div><h2>{title === "بيانات منشأتك تبقى منشأتك." ? <>بيانات منشأتك<br /><span>تبقى منشأتك.</span></> : title}</h2><p>{body}</p><a href={`${APP_ORIGIN}/p/information-security`}>اقرأ عن أمن المعلومات <ArrowMark /></a></div>
+        <div className="security-copy" data-reveal>
+          <div className="section-kicker section-kicker--light"><span>{kickerNumber}</span> {kicker}</div>
+          <h2>{title === "بيانات منشأتك… أمانة تُدار بمسؤولية." ? <>بيانات منشأتك…<br /><span>أمانة تُدار بمسؤولية.</span></> : title}</h2>
+          <p>{body}</p>
+          <p className="security-legal-note">ولا يتم الإفصاح عن المعلومات إلا بالقدر اللازم لتقديم الخدمة، أو وفق موافقة صاحب الصلاحية، أو متى أجاز أو أوجب النظام ذلك، على النحو الموضح في سياسة الخصوصية.</p>
+          <div className="security-links"><a href={`${APP_ORIGIN}/p/privacy-policy`}>سياسة الخصوصية <ArrowMark /></a><a href={`${APP_ORIGIN}/p/information-security`}>أمن المعلومات <ArrowMark /></a></div>
+        </div>
         <div className="security-grid" data-reveal>
           <article><span className="security-icon security-icon--layers"><i /><i /><i /></span><b>{cards[0].title}</b><p>{cards[0].description}</p></article>
           <article><span className="security-icon security-icon--key"><i /></span><b>{cards[1].title}</b><p>{cards[1].description}</p></article>
           <article><span className="security-icon security-icon--history"><i /></span><b>{cards[2].title}</b><p>{cards[2].description}</p></article>
           <article><span className="security-icon security-icon--shield"><i /></span><b>{cards[3].title}</b><p>{cards[3].description}</p></article>
         </div>
-        <p className="independence-note">أودير منتج تقني مستقل مصمم لواقع المنشآت التدريبية الأهلية، ولا يمثل جهة اعتماد حكومية.</p>
+        <p className="independence-note">توضح هذه المبادئ نهج التعامل مع البيانات، وتُقرأ مع سياسة الخصوصية وشروط الاستخدام. أودير منتج تقني مستقل ولا يمثل جهة اعتماد حكومية.</p>
       </div>
     </section>
   );
@@ -1401,8 +1518,9 @@ export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms 
       <JourneyLab />
       <OperationalStories cms={cms} />
       <RoleSwitcher />
-      <SecuritySection cms={cms} />
-      <FAQ cms={cms} />
+      <MarketplaceShowcase onRegister={openRegistration} />
+      <SecuritySection cms={cms} kickerNumber="07" />
+      <FAQ cms={cms} kickerNumber="08" />
       <FinalCTA cms={cms} onRegister={openRegistration} />
       <footer className="site-footer">
         <div className="footer-brand"><Brand /><p>تشغيل أوضح وإدارة مترابطة للمنشآت التدريبية.</p></div>

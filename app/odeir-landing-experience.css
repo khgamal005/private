@@ -279,6 +279,7 @@
 .odeir-experience .morning-copy li { display: flex; align-items: center; gap: 9px; }
 .odeir-experience .morning-copy li i { position: relative; width: 17px; height: 17px; flex: 0 0 auto; border-radius: 50%; background: #d9f2ed; }
 .odeir-experience .morning-copy li i::after { content: ""; position: absolute; width: 6px; height: 3px; left: 5px; top: 5px; border-left: 1.5px solid #0a8e84; border-bottom: 1.5px solid #0a8e84; transform: rotate(-45deg); }
+.odeir-experience .morning-copy > p.morning-punchline { margin-top: 25px; padding: 14px 16px; border-right: 2px solid #d3aa2e; color: #263d4e; background: rgba(255,255,255,.42); font-size: 11px; font-weight: 850; line-height: 1.8; }
 .odeir-experience .morning-link { min-height: 48px; margin-top: 31px; padding: 0 18px; display: inline-flex; align-items: center; gap: 13px; border-radius: 13px; color: #fff; background: #061c39; font-size: 12px; font-weight: 900; box-shadow: 0 15px 35px rgba(5,25,49,.15); transition: transform .25s ease, background .25s ease; }
 .odeir-experience .morning-link:hover { transform: translateY(-2px); background: #0a315a; }
 .odeir-experience .morning-feed { min-width: 0; padding: 19px; border: 1px solid rgba(12,26,49,.1); border-radius: 30px; background: rgba(255,255,255,.64); box-shadow: 0 30px 85px rgba(19,51,56,.1); backdrop-filter: blur(16px); }
@@ -649,6 +650,88 @@
 .odeir-experience .priority-panel p small { margin-top: 3px; color: #8b97a5; font-size: 7px; }
 .odeir-experience .priority-panel p button { padding: 5px 9px; border: 0; border-radius: 7px; color: #086d67; background: #e7faf7; font-size: 7px; cursor: pointer; }
 
+.odeir-experience .marketplace-section { position: relative; overflow: hidden; padding: 140px 0 150px; color: var(--ink); background: radial-gradient(circle at 8% 11%, rgba(8,200,187,.13), transparent 24%), radial-gradient(circle at 91% 88%, rgba(245,201,52,.18), transparent 25%), linear-gradient(155deg, #f2f6f7, #fbfcfb 48%, #f7f1e1); }
+.odeir-experience .marketplace-section::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .42; background-image: linear-gradient(rgba(11,33,60,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(11,33,60,.035) 1px, transparent 1px); background-size: 62px 62px; mask-image: linear-gradient(to bottom, #000, transparent 82%); }
+.odeir-experience .marketplace-section::after { content: ""; position: absolute; width: 470px; height: 470px; left: -290px; top: 13%; border: 1px solid rgba(8,200,187,.17); border-radius: 50%; box-shadow: 0 0 0 52px rgba(8,200,187,.025), 0 0 0 104px rgba(8,200,187,.018); }
+.odeir-experience .marketplace-inner { position: relative; z-index: 1; }
+.odeir-experience .marketplace-heading { display: grid; grid-template-columns: 1.08fr .92fr; align-items: end; gap: clamp(45px, 7vw, 105px); }
+.odeir-experience .marketplace-heading h2 { margin: 28px 0 0; color: var(--ink); font-size: clamp(42px, 4.7vw, 66px); line-height: 1.18; letter-spacing: -.05em; }
+.odeir-experience .marketplace-heading h2 span { color: #0b8b84; }
+.odeir-experience .marketplace-heading > p { max-width: 570px; margin: 0 0 5px; color: #596a7c; font-size: 15px; line-height: 1.95; }
+.odeir-experience .marketplace-showcase { margin-top: 66px; display: grid; grid-template-columns: 1.08fr .92fr; gap: 18px; align-items: stretch; }
+.odeir-experience .marketplace-card { position: relative; overflow: hidden; min-width: 0; min-height: 655px; padding: 34px; display: flex; flex-direction: column; border-radius: 32px; box-shadow: 0 30px 75px rgba(8,30,53,.09); }
+.odeir-experience .marketplace-card > header { position: relative; z-index: 2; min-height: 39px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.odeir-experience .marketplace-card > header > span { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 900; }
+.odeir-experience .marketplace-card > header > span small { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 50%; font-size: 8px; }
+.odeir-experience .marketplace-card > header > em { min-height: 31px; padding: 6px 10px; display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; font-size: 8px; font-style: normal; font-weight: 900; white-space: nowrap; }
+.odeir-experience .marketplace-card-copy { position: relative; z-index: 2; margin-top: 45px; }
+.odeir-experience .marketplace-card-copy > small { font-size: 9px; font-weight: 900; letter-spacing: .04em; }
+.odeir-experience .marketplace-card-copy h3 { max-width: 620px; margin: 10px 0 13px; font-size: clamp(28px, 3vw, 42px); line-height: 1.32; letter-spacing: -.04em; }
+.odeir-experience .marketplace-card-copy p { max-width: 610px; margin: 0; font-size: 12px; line-height: 1.85; }
+.odeir-experience .marketplace-card--services { border: 1px solid rgba(149,112,16,.16); background: radial-gradient(circle at 7% 88%, rgba(245,201,52,.22), transparent 25%), linear-gradient(145deg, #fffdf8, #f9f3df); }
+.odeir-experience .marketplace-card--services::before { content: "MARKTONE"; position: absolute; left: -20px; bottom: 15px; color: rgba(135,99,6,.045); font: 900 94px/1 Arial,sans-serif; letter-spacing: -.06em; transform: rotate(-90deg) translateY(100%); transform-origin: left bottom; }
+.odeir-experience .marketplace-card--services > header > span { color: #3d351d; }
+.odeir-experience .marketplace-card--services > header > span small { color: #6e550d; background: rgba(245,201,52,.22); }
+.odeir-experience .marketplace-card--services > header > em { color: #173b4b; background: rgba(255,255,255,.72); border: 1px solid rgba(8,200,187,.18); }
+.odeir-experience .marktone-assurance-badge img { width: 25px; height: 25px; }
+.odeir-experience .marketplace-card--services .marketplace-card-copy > small { color: #98720b; }
+.odeir-experience .marketplace-card--services .marketplace-card-copy h3 { color: #172d40; }
+.odeir-experience .marketplace-card--services .marketplace-card-copy p { color: #64717c; }
+.odeir-experience .service-category-cloud { position: relative; z-index: 2; margin: 31px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; list-style: none; }
+.odeir-experience .service-category-cloud li { min-height: 49px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; border: 1px solid rgba(76,70,49,.1); border-radius: 13px; color: #394b56; background: rgba(255,255,255,.7); font-size: 9px; font-weight: 800; }
+.odeir-experience .service-category-cloud li:last-child { grid-column: 1 / -1; }
+.odeir-experience .service-category-cloud i { width: 25px; height: 25px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 8px; color: #8c6a0c; background: #f8edc4; font-size: 7px; font-style: normal; font-weight: 900; }
+.odeir-experience .marktone-assurance { position: relative; z-index: 2; margin-top: auto; padding: 15px 16px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 13px; border: 1px solid rgba(8,200,187,.19); border-radius: 17px; background: rgba(255,255,255,.72); backdrop-filter: blur(8px); }
+.odeir-experience .marktone-assurance-mark { width: 47px; height: 47px; display: grid; place-items: center; border-radius: 14px; background: #061d39; }
+.odeir-experience .marktone-assurance-mark img { width: 38px; height: 38px; }
+.odeir-experience .marktone-assurance > span:last-child { display: grid; gap: 4px; }
+.odeir-experience .marktone-assurance small { color: #8c6a0c; font-size: 7px; font-weight: 900; }
+.odeir-experience .marktone-assurance b { color: #2e4555; font-size: 9px; line-height: 1.65; }
+.odeir-experience .marketplace-card--addons { border: 1px solid rgba(105,217,212,.17); color: #fff; background: radial-gradient(circle at 80% 18%, rgba(8,200,187,.18), transparent 29%), radial-gradient(circle at 14% 86%, rgba(245,201,52,.08), transparent 24%), linear-gradient(145deg, #03142c, #082b4d); box-shadow: 0 34px 85px rgba(2,18,40,.22); }
+.odeir-experience .marketplace-card--addons::before { content: ""; position: absolute; inset: 0; opacity: .18; background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px); background-size: 35px 35px; mask-image: radial-gradient(circle at 50% 58%,#000,transparent 72%); }
+.odeir-experience .marketplace-card--addons > header > span { color: #d8e8f5; }
+.odeir-experience .marketplace-card--addons > header > span small { color: #8ce9df; background: rgba(8,200,187,.12); border: 1px solid rgba(8,200,187,.25); }
+.odeir-experience .marketplace-card--addons > header > em { color: #f8d75b; background: rgba(245,201,52,.08); border: 1px solid rgba(245,201,52,.17); }
+.odeir-experience .marketplace-card--addons .marketplace-card-copy > small { color: #71e2df; }
+.odeir-experience .marketplace-card--addons .marketplace-card-copy h3 { color: #fff; }
+.odeir-experience .marketplace-card--addons .marketplace-card-copy p { color: #9eb2c5; }
+.odeir-experience .addon-marketplace-map { position: relative; z-index: 2; min-height: 345px; margin-top: 24px; flex: 1; overflow: hidden; border: 1px solid rgba(255,255,255,.08); border-radius: 25px; background: rgba(1,14,32,.25); }
+.odeir-experience .addon-marketplace-map::before { content: ""; position: absolute; width: 230px; height: 230px; left: 50%; top: 52%; border: 1px solid rgba(8,200,187,.18); border-radius: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 0 42px rgba(8,200,187,.025), 0 0 0 84px rgba(8,200,187,.018); animation: marketplace-orbit 9s linear infinite; }
+.odeir-experience .addon-marketplace-core { position: absolute; z-index: 3; width: 148px; height: 148px; left: 50%; top: 52%; display: grid; place-content: center; justify-items: center; gap: 9px; border: 1px solid rgba(113,226,223,.32); border-radius: 50%; background: radial-gradient(circle at 45% 38%, #0d4164, #041a34 70%); box-shadow: 0 0 0 9px rgba(8,200,187,.05), 0 18px 48px rgba(0,0,0,.32); transform: translate(-50%,-50%); }
+.odeir-experience .addon-marketplace-core .brand-logo { width: 105px; height: auto; }
+.odeir-experience .addon-marketplace-core small { color: #70dcd6; font-size: 7px; font-weight: 900; }
+.odeir-experience .addon-marketplace-map ul { position: absolute; inset: 0; margin: 0; padding: 0; list-style: none; }
+.odeir-experience .addon-marketplace-item { position: absolute; z-index: 4; width: 154px; min-height: 52px; padding: 9px 10px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,.09); border-radius: 13px; background: rgba(7,34,61,.9); box-shadow: 0 10px 26px rgba(0,0,0,.16); }
+.odeir-experience .addon-marketplace-item > i { width: 25px; height: 25px; border: 1px solid rgba(8,200,187,.35); border-radius: 8px; background: rgba(8,200,187,.09); }
+.odeir-experience .addon-marketplace-item > i::after { content: ""; width: 7px; height: 7px; margin: 8px; display: block; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 4px rgba(8,200,187,.1); }
+.odeir-experience .addon-marketplace-item > span { min-width: 0; display: grid; gap: 2px; }
+.odeir-experience .addon-marketplace-item small { color: #65bbb9; font-size: 6px; font-weight: 900; }
+.odeir-experience .addon-marketplace-item b { overflow: hidden; color: #dce9f3; font-size: 7.5px; white-space: nowrap; text-overflow: ellipsis; }
+.odeir-experience .addon-marketplace-item--1 { right: 16px; top: 19px; }
+.odeir-experience .addon-marketplace-item--2 { left: 16px; top: 19px; }
+.odeir-experience .addon-marketplace-item--3 { right: 5px; top: 50%; transform: translateY(-50%); }
+.odeir-experience .addon-marketplace-item--4 { left: 5px; top: 50%; transform: translateY(-50%); }
+.odeir-experience .addon-marketplace-item--5 { right: 16px; bottom: 19px; }
+.odeir-experience .addon-marketplace-item--6 { left: 16px; bottom: 19px; }
+.odeir-experience .marketplace-payment-rail { position: relative; overflow: hidden; margin-top: 18px; padding: 29px 31px; display: grid; grid-template-columns: 1fr 1.15fr auto; align-items: center; gap: 28px; border: 1px solid rgba(8,200,187,.15); border-radius: 27px; color: #fff; background: linear-gradient(115deg, #06182f, #0a3455); box-shadow: 0 24px 60px rgba(4,27,49,.14); }
+.odeir-experience .marketplace-payment-rail::before { content: ""; position: absolute; width: 260px; height: 260px; right: -125px; top: -160px; border: 1px solid rgba(8,200,187,.15); border-radius: 50%; box-shadow: 0 0 0 33px rgba(8,200,187,.025), 0 0 0 66px rgba(8,200,187,.017); }
+.odeir-experience .marketplace-payment-copy { position: relative; z-index: 1; }
+.odeir-experience .marketplace-payment-copy > span { display: flex; align-items: center; gap: 8px; color: #78dcd7; font-size: 8px; font-weight: 900; }
+.odeir-experience .marketplace-payment-copy > span i { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 5px rgba(8,200,187,.1); }
+.odeir-experience .marketplace-payment-copy h3 { margin: 8px 0 5px; color: #fff; font-size: 22px; }
+.odeir-experience .marketplace-payment-copy p { max-width: 460px; margin: 0; color: #8ea5b9; font-size: 8px; line-height: 1.7; }
+.odeir-experience .marketplace-payment-methods { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 7px; }
+.odeir-experience .marketplace-payment-methods > span { min-height: 42px; padding: 8px 11px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.1); border-radius: 11px; color: #dce7f0; background: rgba(255,255,255,.055); font: 800 11px/1.1 Arial,sans-serif; text-align: center; }
+.odeir-experience .marketplace-payment-methods .is-bank { color: #e8f0f7; font-family: inherit; }
+.odeir-experience .marketplace-payment-methods .is-tamara { color: #49e0ad; }
+.odeir-experience .marketplace-payment-methods .is-paymob { color: #64d6ff; }
+.odeir-experience .marketplace-payment-methods .is-mada { color: #8be4dd; font-family: inherit; }
+.odeir-experience .marketplace-payment-methods .is-visa { color: #f4ca3e; letter-spacing: .07em; }
+.odeir-experience .marketplace-payment-methods .is-mastercard { color: #ff9c70; font-size: 9px; }
+.odeir-experience .marketplace-cta { position: relative; z-index: 1; min-width: 166px; justify-content: center; white-space: nowrap; }
+.odeir-experience .marketplace-availability-note { margin: 13px 8px 0; color: #778391; font-size: 8px; line-height: 1.7; text-align: center; }
+@keyframes marketplace-orbit { to { transform: translate(-50%,-50%) rotate(360deg); } }
+
 .odeir-experience .security-section { position: relative; padding: 140px 0 95px; overflow: hidden; color: #fff; background: linear-gradient(145deg, #061831, #082749 55%, #03142b); }
 .odeir-experience .security-section::before { content: ""; position: absolute; width: 620px; height: 620px; left: -310px; top: -280px; border: 1px solid rgba(8,200,187,.16); border-radius: 50%; box-shadow: 0 0 0 70px rgba(8,200,187,.025), 0 0 0 140px rgba(8,200,187,.018); }
 .odeir-experience .security-inner { position: relative; }
@@ -656,7 +739,9 @@
 .odeir-experience .security-copy h2 { margin: 32px 0 18px; color: #fff; font-size: clamp(44px, 5vw, 70px); line-height: 1.2; letter-spacing: -.05em; }
 .odeir-experience .security-copy h2 span { color: var(--teal-soft); }
 .odeir-experience .security-copy > p { margin: 0; color: #9fb0c3; font-size: 15px; line-height: 1.95; }
-.odeir-experience .security-copy > a { margin-top: 25px; display: inline-flex; align-items: center; gap: 11px; color: var(--yellow); font-size: 11px; font-weight: 850; }
+.odeir-experience .security-copy > p.security-legal-note { margin-top: 17px; padding: 14px 16px; border-right: 2px solid rgba(8,200,187,.55); color: #829ab1; background: rgba(255,255,255,.025); font-size: 10px; line-height: 1.85; }
+.odeir-experience .security-links { margin-top: 25px; display: flex; flex-wrap: wrap; gap: 18px; }
+.odeir-experience .security-links a { display: inline-flex; align-items: center; gap: 10px; color: var(--yellow); font-size: 10px; font-weight: 850; }
 .odeir-experience .security-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .odeir-experience .security-grid article { min-height: 205px; padding: 28px; display: grid; align-content: start; border: 1px solid rgba(255,255,255,.1); border-radius: 22px; background: rgba(255,255,255,.035); backdrop-filter: blur(10px); }
 .odeir-experience .security-grid article b { margin-top: 22px; color: #fff; font-size: 14px; }
@@ -821,6 +906,15 @@
   .odeir-experience .journey-stage-card { grid-template-columns: minmax(0,1fr) 220px; }
   .odeir-experience .role-switcher { grid-template-columns: 180px 1fr; }
   .odeir-experience .role-screen { padding: 30px 25px; }
+  .odeir-experience .marketplace-section { padding-block: 105px 112px; }
+  .odeir-experience .marketplace-heading { grid-template-columns: 1fr; align-items: start; gap: 24px; }
+  .odeir-experience .marketplace-heading > p { max-width: 700px; }
+  .odeir-experience .marketplace-showcase { margin-top: 50px; grid-template-columns: 1fr; }
+  .odeir-experience .marketplace-card { min-height: auto; }
+  .odeir-experience .marketplace-card--services { min-height: 640px; }
+  .odeir-experience .addon-marketplace-map { min-height: 410px; }
+  .odeir-experience .marketplace-payment-rail { grid-template-columns: 1fr 1fr; }
+  .odeir-experience .marketplace-cta { grid-column: 1 / -1; width: fit-content; }
   .odeir-experience .security-section { padding-block: 105px 78px; }
   .odeir-experience .security-inner { grid-template-columns: 1fr; gap: 55px; }
   .odeir-experience .faq-section { padding-block: 105px; grid-template-columns: 1fr; gap: 55px; }
@@ -978,6 +1072,14 @@
   .odeir-experience .priority-panel { padding: 14px; }
   .odeir-experience .priority-panel > p { grid-template-columns: auto 1fr; }
   .odeir-experience .priority-panel p button { display: none; }
+  .odeir-experience .marketplace-section { padding-block: 86px 92px; }
+  .odeir-experience .marketplace-heading h2 { font-size: 45px; }
+  .odeir-experience .marketplace-card { padding: 27px; border-radius: 27px; }
+  .odeir-experience .marketplace-card > header { align-items: flex-start; }
+  .odeir-experience .marketplace-card-copy { margin-top: 35px; }
+  .odeir-experience .marketplace-payment-rail { grid-template-columns: 1fr; }
+  .odeir-experience .marketplace-payment-methods { width: 100%; }
+  .odeir-experience .marketplace-cta { grid-column: auto; width: 100%; }
   .odeir-experience .security-section { padding-block: 86px 65px; }
   .odeir-experience .security-inner { gap: 38px; }
   .odeir-experience .security-copy h2 { margin-top: 25px; font-size: 45px; }
@@ -1085,6 +1187,7 @@
   .odeir-experience .features-section,
   .odeir-experience .roles-section,
   .odeir-experience .journey-section,
+  .odeir-experience .marketplace-section,
   .odeir-experience .faq-section { padding-block: 72px 78px; }
   .odeir-experience .product-section { padding: 72px 16px 80px; }
   .odeir-experience .security-section { padding-block: 72px 60px; }
@@ -1093,6 +1196,7 @@
   .odeir-experience .features-heading h2,
   .odeir-experience .roles-heading h2,
   .odeir-experience .journey-heading h2,
+  .odeir-experience .marketplace-heading h2,
   .odeir-experience .security-copy h2,
   .odeir-experience .faq-heading h2,
   .odeir-experience .final-cta h2 { font-size: clamp(30px, 8.6vw, 36px); line-height: 1.25; letter-spacing: -.035em; }
@@ -1101,6 +1205,7 @@
   .odeir-experience .features-heading p,
   .odeir-experience .roles-heading p,
   .odeir-experience .journey-heading p { font-size: 13.5px; line-height: 1.82; }
+  .odeir-experience .marketplace-heading > p { font-size: 13.5px; line-height: 1.82; }
   .odeir-experience .story-flow { margin-top: 34px; }
 
   .odeir-experience .demo-tabs { margin: 30px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; overflow: visible; border: 0; scroll-snap-type: none; }
@@ -1141,7 +1246,30 @@
   .odeir-experience .role-stats { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; }
   .odeir-experience .role-stats article:last-child { grid-column: 1 / -1; }
 
+  .odeir-experience .marketplace-showcase { margin-top: 34px; gap: 12px; }
+  .odeir-experience .marketplace-card { min-height: auto; padding: 21px 18px; border-radius: 23px; }
+  .odeir-experience .marketplace-card > header { display: grid; justify-items: start; gap: 10px; }
+  .odeir-experience .marketplace-card > header > em { white-space: normal; }
+  .odeir-experience .marketplace-card-copy { margin-top: 28px; }
+  .odeir-experience .marketplace-card-copy h3 { font-size: 26px; line-height: 1.38; }
+  .odeir-experience .marketplace-card-copy p { font-size: 11px; }
+  .odeir-experience .service-category-cloud { margin-top: 24px; grid-template-columns: 1fr; gap: 7px; }
+  .odeir-experience .service-category-cloud li:last-child { grid-column: auto; }
+  .odeir-experience .marktone-assurance { margin-top: 22px; padding: 13px; }
+  .odeir-experience .addon-marketplace-map { min-height: auto; margin-top: 24px; padding: 18px 12px; display: grid; gap: 14px; }
+  .odeir-experience .addon-marketplace-map::before { width: 180px; height: 180px; top: 96px; }
+  .odeir-experience .addon-marketplace-core { position: relative; width: 132px; height: 132px; left: auto; top: auto; margin: 0 auto 5px; transform: none; }
+  .odeir-experience .addon-marketplace-core .brand-logo { width: 92px; }
+  .odeir-experience .addon-marketplace-map ul { position: relative; inset: auto; display: grid; grid-template-columns: 1fr; gap: 7px; }
+  .odeir-experience .addon-marketplace-item { position: static; width: 100%; min-height: 51px; transform: none; }
+  .odeir-experience .marketplace-payment-rail { margin-top: 12px; padding: 22px 18px; gap: 20px; border-radius: 22px; }
+  .odeir-experience .marketplace-payment-copy h3 { font-size: 20px; }
+  .odeir-experience .marketplace-payment-methods { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .odeir-experience .marketplace-payment-methods > span { min-height: 44px; }
+  .odeir-experience .marketplace-availability-note { margin-inline: 2px; font-size: 7px; text-align: right; }
   .odeir-experience .security-copy h2 { margin-top: 22px; }
+  .odeir-experience .security-links { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .odeir-experience .security-links a { min-height: 42px; padding: 0 13px; justify-content: space-between; border: 1px solid rgba(245,201,52,.18); border-radius: 11px; background: rgba(245,201,52,.035); }
   .odeir-experience .faq-section { gap: 34px; }
   .odeir-experience .final-cta { padding-block: 82px 94px; }
   .odeir-experience .final-cta-inner > p { font-size: 13.5px; }

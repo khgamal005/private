@@ -93,8 +93,26 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(landing,/WooCommerce/);
   assert.match(landing,/بيانات منشأتك/);
   assert.match(landing,/id="morning-brief"/);
-  assert.match(landing,/خذ زبدة السوق مع قهوتك/);
+  assert.match(landing,/اعرف أين توجد الفرصة/);
+  assert.match(landing,/المناقصات والمنافسات ذات الصلة بالتعليم والتدريب/);
+  assert.match(landing,/الفرصة التي لا تصل لصاحب القرار في وقتها/);
   assert.match(landing,/المواد العامة المنشورة/);
+  assert.match(landing,/function MarketplaceShowcase/);
+  assert.match(landing,/id="marketplace"/);
+  assert.match(landing,/خدمات بضمان ماركتون/);
+  assert.match(landing,/ماذا يعني ضمان ماركتون؟/);
+  for(const category of ['المحاضرون والمدربون','التصميم والإبداع','المحتوى والحقائب','التسويق والنمو','المبيعات وخدمة العملاء','الاستشارات والتشغيل','التقنية والمنصات']){
+    assert.match(landing,new RegExp(category));
+  }
+  for(const method of ['تحويل بنكي','تمارا','Paymob','مدى','VISA','Mastercard']){
+    assert.match(landing,new RegExp(method));
+  }
+  assert.match(landing,/تعرض هذه الوسائل لتوضيح الخيارات التي يمكن إتاحتها/);
+  assert.match(landing,/<RoleSwitcher \/>[\s\S]*<MarketplaceShowcase onRegister=\{openRegistration\} \/>[\s\S]*<SecuritySection cms=\{cms\} kickerNumber="07" \/>/);
+  assert.match(landing,/بيانات منشأتك… أمانة تُدار بمسؤولية/);
+  assert.match(landing,/نظام حماية البيانات الشخصية ولائحته التنفيذية/);
+  assert.match(landing,/تدابير تنظيمية وإدارية وتقنية/);
+  assert.doesNotMatch(landing,/مضمونة 100%|متوافقون بالكامل|معتمدون من سدايا/);
   assert.match(landing,/heroShellRef/);
   assert.match(landing,/className="odeir-home-hero"/);
   assert.match(landing,/function HeroSnapshot/);
@@ -154,6 +172,14 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.hero-copy h1\.hero-heading--operating-system \{ max-width: 390px; font-size: clamp\(30px, 8\.5vw, 36px\)/);
   assert.doesNotMatch(styles,/hero-title-(?:desktop|mobile)|mobile-hero-snapshot|dashboard-window--hero|hero-orbit|floating-event|floating-result/);
   assert.match(styles,/\.morning-section/);
+  assert.match(styles,/\.marketplace-section/);
+  assert.match(styles,/\.marketplace-showcase/);
+  assert.match(styles,/\.marketplace-payment-methods/);
+  assert.match(styles,/@keyframes marketplace-orbit/);
+  assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.service-category-cloud \{ margin-top: 24px; grid-template-columns: 1fr;/);
+  assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.addon-marketplace-item \{ position: static; width: 100%;/);
+  assert.match(styles,/\.security-legal-note/);
+  assert.match(styles,/\.security-links/);
   assert.match(styles,/\.journey-network-map/);
   assert.match(styles,/\.journey-category-tabs/);
   assert.match(styles,/scroll-snap-type: x mandatory/);
@@ -188,6 +214,8 @@ test('the isolated design preview is static, noindex, and includes all policy ro
   assert.match(content,/#06182e/);
   assert.match(content,/#13c7d1/);
   assert.match(content,/#f0c534/);
+  assert.match(content,/بيانات منشأتك… أمانة تُدار بمسؤولية/);
+  assert.match(content,/نظام حماية البيانات الشخصية ولائحته التنفيذية/);
   for(const slug of ['privacy-policy','information-security','terms-of-use','cookie-policy','data-rights']){
     assert.match(content,new RegExp(`'${slug}'`));
   }

@@ -5,7 +5,7 @@ import test from 'node:test';
 const read=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 const MIGRATION='supabase/migrations/20260825213500_registration_owner_invitation_reissue_v1.sql';
 const EMAIL_RECOVERY=
-  'supabase/migrations/20260826170000_registration_confirmation_strict_one_time_v1.sql';
+  'supabase/migrations/20260826143141_registration_confirmation_strict_one_time_v1.sql';
 
 function section(source,start,end){
   const from=source.indexOf(start);

@@ -8,7 +8,7 @@ const PASSWORD_GATE_HOTFIX='supabase/migrations/20260823203000_registration_rest
 const MANUAL_ACTIVATION_INTEGRITY=
   'supabase/migrations/20260824170000_registration_manual_activation_integrity_v1.sql';
 const STRICT_ONE_TIME=
-  'supabase/migrations/20260826170000_registration_confirmation_strict_one_time_v1.sql';
+  'supabase/migrations/20260826143141_registration_confirmation_strict_one_time_v1.sql';
 
 function section(source,start,end){
   const from=source.indexOf(start);

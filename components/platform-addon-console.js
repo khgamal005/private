@@ -13,7 +13,7 @@ const TABS=[
 const STATUS={
   pending:'بانتظار القرار',trialing:'تجريبية',active:'نشطة',paused:'موقوفة',
   cancelled:'ملغاة',expired:'منتهية',draft:'مسودة',configured:'جاهزة للاختبار',
-  disabled:'معطلة',error:'خطأ اتصال'
+  disabled:'معطلة',error:'خطأ اتصال',published:'منشورة',archived:'مؤرشفة'
 };
 const PUBLIC_CONFIG_LABEL={
   merchantId:'معرّف التاجر',merchantAccountId:'معرّف حساب التاجر',
@@ -71,7 +71,8 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
     const source=tab==='catalog'?products:tab==='licenses'?subscriptions:tab==='providers'?providers:categories;
     return source.filter(item=>!needle||[
       item.name,item.key,item.productName,item.productKey,
-      item.tenantName,item.tenantSlug,item.status,item.categoryName
+      item.nameEn,item.description,item.badge,item.tenantName,
+      item.tenantSlug,item.status,item.categoryName
     ].some(value=>String(value||'').toLocaleLowerCase('ar').includes(needle)));
   },[categories,products,providers,query,subscriptions,tab]);
 
@@ -101,6 +102,31 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
       });
       setModal(null);
       setNotice('تمت إضافة نسخة سعر سنوية جديدة دون تغيير الأسعار التاريخية.');
+      router.refresh();
+    }catch(err){setError(err.message)}finally{setBusy('')}
+  }
+
+  async function saveProduct(event){
+    event.preventDefault();
+    setBusy('product');setError('');setNotice('');
+    const form=new FormData(event.currentTarget);
+    const marketplaceVisible=form.get('marketplace_visible')==='on';
+    try{
+      await platformAction('update_product_catalog',{
+        productId:modal.item.id,
+        expectedUpdatedAt:modal.item.updatedAt,
+        nameAr:String(form.get('name_ar')||'').trim(),
+        nameEn:String(form.get('name_en')||'').trim()||null,
+        descriptionAr:String(form.get('description_ar')||'').trim(),
+        badgeAr:String(form.get('badge_ar')||'').trim()||null,
+        displayOrder:Number(form.get('display_order')||100),
+        marketplaceVisible,
+        reason:String(form.get('reason')||'').trim()
+      });
+      setModal(null);
+      setNotice(marketplaceVisible
+        ?'تم تحديث معلومات الإضافة وإظهارها في المتجر.'
+        :'تم إخفاء الإضافة من المتجر فقط؛ تراخيص المنشآت وبياناتها ما زالت تعمل.');
       router.refresh();
     }catch(err){setError(err.message)}finally{setBusy('')}
   }
@@ -222,9 +248,9 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
     </header>
 
     {section!=='providers'&&<section className={styles.kpis}>
-      <article><span>الإضافات المنشورة</span><b>{summary.publishedProducts??summary.products??0}</b><small>بعقد إصدار مستقل</small></article>
+      <article><span>ظاهرة في المتجر</span><b>{summary.visibleProducts??summary.publishedProducts??summary.products??0}</b><small>متاحة للاشتراك أو التفعيل</small></article>
+      <article><span>مخفية من المتجر</span><b>{summary.hiddenProducts??0}</b><small>تظل فعالة للمشتركين الحاليين</small></article>
       <article><span>التراخيص النشطة</span><b>{summary.activeLicenses||0}</b><small>مع فحص تاريخ الانتهاء</small></article>
-      <article><span>أقسام الإضافات</span><b>{categories.length}</b><small>تصنيف مستقل وواضح</small></article>
       <article><span>تنتهي خلال 30 يومًا</span><b>{summary.expiringWithin30Days||0}</b><small>تحتاج متابعة تجديد</small></article>
     </section>}
 
@@ -241,13 +267,14 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
     </section>
 
     <section role="tabpanel" id={`addon-panel-${tab}`} aria-labelledby={`addon-tab-${tab}`}>
-      {tab==='catalog'&&<Catalog rows={filtered} onPrice={item=>setModal({type:'price',item})} onCategory={item=>setModal({type:'assign-category',item})}/>} 
+      {tab==='catalog'&&<Catalog rows={filtered} onEdit={item=>setModal({type:'product',item})} onPrice={item=>setModal({type:'price',item})} onCategory={item=>setModal({type:'assign-category',item})}/>} 
       {tab==='categories'&&<Categories rows={filtered} onEdit={item=>setModal({type:'category',item})}/>} 
       {tab==='licenses'&&<Licenses rows={filtered} busy={busy} onDecision={decide} onStatus={setLicenseStatus}/>} 
       {tab==='providers'&&<Providers rows={filtered} onConfigure={item=>setModal({type:'provider',item})}/>} 
     </section>
 
     {modal?.type==='price'&&<PriceModal item={modal.item} busy={busy} onClose={closeModal} onSubmit={savePrice}/>} 
+    {modal?.type==='product'&&<ProductModal item={modal.item} busy={busy} onClose={closeModal} onSubmit={saveProduct}/>} 
     {modal?.type==='grant'&&<GrantModal products={products} tenants={tenants} busy={busy} onClose={closeModal} onSubmit={grantLicense}/>} 
     {modal?.type==='category'&&<CategoryModal item={modal.item} busy={busy} onClose={closeModal} onSubmit={saveCategory}/>} 
     {modal?.type==='assign-category'&&<AssignCategoryModal item={modal.item} categories={categories} busy={busy} onClose={closeModal} onSubmit={assignCategory}/>} 
@@ -255,19 +282,20 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
   </section>;
 }
 
-function Catalog({rows,onPrice,onCategory}){
+function Catalog({rows,onEdit,onPrice,onCategory}){
   return <div className={styles.table}>
-    <header><span>الإضافة</span><span>القسم</span><span>السعر السنوي</span><span>الإصدار والظهور</span><span>الحالة</span><span/></header>
+    <header><span>الإضافة</span><span>القسم</span><span>السعر السنوي</span><span>الإصدار والمتجر</span><span>حالة التشغيل</span><span/></header>
     {rows.map(item=>{
       const price=item.price||{};
       const activeMedia=(item.media||EMPTY).filter(media=>media.status==='active').length;
+      const marketplaceVisible=item.marketplaceVisible!==false;
       return <article key={item.id||item.key}>
         <div><b>{item.name}</b><small>{item.key}</small></div>
         <div><b>{item.categoryName||'غير مصنفة'}</b><small>{item.surfaces?.length||0} موضع ظهور</small></div>
         <div><b>{money(price.amountMinor,price.currency)}</b><small>من {formatDate(price.validFrom)}</small></div>
-        <div><b>{item.manifest?.version||'—'}</b><small>{activeMedia} صور معتمدة · {item.media?.length||0} خانات</small></div>
+        <div><b>{item.manifest?.version||'—'}</b><span className={`${styles.storeState} ${marketplaceVisible?styles.storeVisible:styles.storeHidden}`}>{marketplaceVisible?'ظاهرة في المتجر':'مخفية من المتجر'}</span><small>{activeMedia} صور معتمدة · {item.media?.length||0} خانات</small></div>
         <Status value={item.manifest?.status||item.status}/>
-        <div className={styles.actions}><button type="button" onClick={()=>onCategory(item)}>تصنيف</button><button type="button" onClick={()=>onPrice(item)}>تسعير</button></div>
+        <div className={styles.actions}><button type="button" className={styles.manage} onClick={()=>onEdit(item)}>إدارة</button><button type="button" onClick={()=>onCategory(item)}>تصنيف</button><button type="button" onClick={()=>onPrice(item)}>تسعير</button></div>
       </article>;
     })}
     {!rows.length&&<Empty/>}
@@ -324,6 +352,22 @@ function PriceModal({item,busy,onClose,onSubmit}){
     <label>ساري من<input name="valid_from" type="date" min={today()} defaultValue={today()} required/></label>
     <label className={styles.wide}>سبب التغيير<input name="reason" maxLength="500" required/></label>
     <footer><button type="button" onClick={onClose}>إلغاء</button><button className={styles.primary} disabled={busy==='price'}>{busy==='price'?'جارٍ الحفظ…':'حفظ نسخة سعر جديدة'}</button></footer>
+  </form></Modal>;
+}
+
+function ProductModal({item,busy,onClose,onSubmit}){
+  const marketplaceVisible=item.marketplaceVisible!==false;
+  return <Modal title={`إدارة ${item.name}`} onClose={onClose}><form onSubmit={onSubmit} className={styles.form}>
+    <aside className={styles.productIdentity}><span>المفتاح البرمجي الثابت</span><b dir="ltr">{item.key}</b><small>لا يتغير حتى لا تتأثر التكاملات أو بيانات المنشآت.</small></aside>
+    <label>الاسم العربي<input name="name_ar" minLength="2" maxLength="120" defaultValue={item.name||''} required/></label>
+    <label>الاسم الإنجليزي<input name="name_en" dir="ltr" maxLength="120" defaultValue={item.nameEn||''}/></label>
+    <label className={styles.wide}>وصف بطاقة المتجر<textarea name="description_ar" minLength="10" maxLength="1000" defaultValue={item.description||''} required/></label>
+    <label>شارة العرض <small>اختياري: مثل «الأكثر طلبًا»</small><input name="badge_ar" maxLength="60" defaultValue={item.badge||''}/></label>
+    <label>ترتيب الظهور<input name="display_order" type="number" min="0" max="10000" defaultValue={item.displayOrder??100} required/></label>
+    <label className={`${styles.check} ${styles.visibilityCheck}`}><input name="marketplace_visible" type="checkbox" defaultChecked={marketplaceVisible}/><span><b>إظهار الإضافة في متجر المنشآت</b><small>إلغاء الاختيار يخفيها ويمنع طلبات وتفعيلات جديدة فقط.</small></span></label>
+    <aside className={styles.safety}>الإخفاء لا يوقف الإضافة لدى أي منشأة مشتركة، ولا يلغي ترخيصًا، ولا يحذف إعدادات أو بيانات. يمكنك أيضًا منح الإضافة يدويًا وهي مخفية.</aside>
+    <label className={styles.wide}>سبب التعديل<input name="reason" minLength="3" maxLength="500" placeholder="مثال: تحديث الاسم وإيقاف البيع مؤقتًا" required/></label>
+    <footer><button type="button" onClick={onClose}>إلغاء</button><button className={styles.primary} disabled={busy==='product'}>{busy==='product'?'جارٍ الحفظ…':'حفظ معلومات الإضافة'}</button></footer>
   </form></Modal>;
 }
 

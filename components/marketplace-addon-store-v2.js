@@ -29,7 +29,10 @@ const ADDON_CATEGORIES={
   marketing:'التسويق',
   telephony:'الاتصالات',
   website:'الموقع',
-  training:'التدريب'
+  training:'التدريب',
+  integrations:'التكاملات والمتاجر',
+  websites:'المواقع والمحتوى',
+  analytics:'التحليلات والقياس'
 };
 const ADDON_LINKS={
   yeastar:'yeastar',
@@ -67,6 +70,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   const router=useRouter();
   const data=initialData||{};
   const addons=data.addons||EMPTY;
+  const addonCategories=data.addonCategories||EMPTY;
   const orders=data.orders||EMPTY;
   const paymentMethods=data.paymentMethods||EMPTY;
   const transfers=data.bankTransferSubmissions||EMPTY;
@@ -85,6 +89,21 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   const [error,setError]=useState('');
 
   const transferByOrder=useMemo(()=>new Map(transfers.map(item=>[item.orderId,item])),[transfers]);
+  const categoryOptions=useMemo(()=>{
+    const result=[{key:'all',name:'كل الإضافات'}];
+    const seen=new Set(['all']);
+    for(const item of addonCategories){
+      const key=String(item.key||'').trim();
+      if(!key||seen.has(key))continue;
+      seen.add(key);result.push({key,name:item.name||ADDON_CATEGORIES[key]||key});
+    }
+    for(const item of addons){
+      const key=String(item.categoryKey||'').trim();
+      if(!key||seen.has(key))continue;
+      seen.add(key);result.push({key,name:item.categoryName||ADDON_CATEGORIES[key]||'إضافات أخرى'});
+    }
+    return result;
+  },[addonCategories,addons]);
   const filtered=useMemo(()=>{
     const needle=query.trim().toLocaleLowerCase('ar');
     return addons.filter(item=>(category==='all'||item.categoryKey===category)
@@ -200,7 +219,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
 
     <section className={styles.filters}>
       <label><span aria-hidden="true">⌕</span><input aria-label="البحث في الإضافات" value={query} onChange={event=>setQuery(event.target.value)} placeholder="ابحث في الإضافات…"/></label>
-      <div>{Object.entries(ADDON_CATEGORIES).map(([key,name])=><button type="button" key={key} className={category===key?styles.selected:''} onClick={()=>setCategory(key)}>{name}</button>)}</div>
+      <div>{categoryOptions.map(item=><button type="button" key={item.key} className={category===item.key?styles.selected:''} onClick={()=>setCategory(item.key)}>{item.name}</button>)}</div>
     </section>
 
     <section className={styles.grid}>
@@ -269,7 +288,7 @@ function AddonCard({slug,item,canPurchase,pending,busy,onActivateFree,onBuy}){
   const free=item.pricingMode==='free'||Number(item.amountMinor||0)===0;
   const target=ADDON_LINKS[item.key]||'settings?tab=addons';
   return <article className={[styles.card,styles.addon,enabled?styles.installed:''].join(' ')}>
-    <header><span>{ADDON_CATEGORIES[item.categoryKey]||'إضافة أودير'}</span>{item.badge&&<b>{item.badge}</b>}</header>
+    <header><span>{item.categoryName||ADDON_CATEGORIES[item.categoryKey]||'إضافة أودير'}</span>{item.badge&&<b>{item.badge}</b>}</header>
     <div className={styles.addonTitle}><i aria-hidden="true">+</i><h2>{item.name}</h2></div>
     <p>{item.description}</p>
     <div className={styles.details}>

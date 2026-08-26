@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import test from 'node:test';
 import {
   applyOdeirSecurityContrastCss,
+  applyOdeirSecurityVisualPolishCss,
   getOdeirInformationSecurityContent
 } from '../lib/odeir-information-security-content.js';
 import {getOdeirLegalContent} from '../lib/odeir-preview-content.js';
@@ -12,6 +13,8 @@ const migrationPath=
   'supabase/migrations/20260826174500_odeir_information_security_policy_v2.sql';
 const contrastMigrationPath=
   'supabase/migrations/20260826182000_odeir_information_security_contrast_v1.sql';
+const visualPolishMigrationPath=
+  'supabase/migrations/20260826190000_odeir_information_security_visual_polish_v2.sql';
 
 function migrationDocument(source){
   const match=source.match(/\$document\$\n([\s\S]*?)\n  \$document\$::jsonb/);
@@ -51,9 +54,12 @@ test('ODEIR information-security publication is isolated and preserves a diverge
 test('published and static-preview information-security documents stay identical',async()=>{
   const migration=await read(migrationPath);
   const published=migrationDocument(migration);
-  published.settings.customCss=applyOdeirSecurityContrastCss(
-    published.settings.customCss
+  published.settings.customCss=applyOdeirSecurityVisualPolishCss(
+    applyOdeirSecurityContrastCss(published.settings.customCss)
   );
+  const hero=published.blocks.find(block=>block.id==='odeir-security-hero');
+  hero.props.imageUrl='/odeir/odeir-logo-transparent.webp';
+  hero.props.imageAlt='قفل أمني يحمل شعار أودير';
   const preview=getOdeirInformationSecurityContent('/p').content;
   assert.deepEqual(preview,published);
   assert.equal(published.blocks.length,14);
@@ -97,6 +103,61 @@ test('contrast hotfix is isolated, versioned, and preserves concurrent drafts',a
     '.odeir-security-hero a:last-of-type{color:#fff!important;border-color:'
   ]) assert.ok(migration.includes(fragment),`missing contrast fragment: ${fragment}`);
   assert.doesNotMatch(migration,/delete\s+from|core\.tenants|reef_skills|شركة ريف/i);
+});
+
+test('visual polish is isolated, versioned, guarded, and matches the preview CSS',async()=>{
+  const [baseMigration,visualMigration]=await Promise.all([
+    read(migrationPath),read(visualPolishMigrationPath)
+  ]);
+  assert.match(visualMigration,/^begin;/);
+  assert.match(visualMigration,/commit;\s*$/);
+  assert.match(visualMigration,
+    /site\.site_key='marktone-main'[\s\S]*site\.site_scope='platform'[\s\S]*site\.tenant_id is null/
+  );
+  assert.match(visualMigration,/limit 1\s+for update of document;/);
+  assert.match(visualMigration,
+    /perform 1\s+from website\.pages page[\s\S]*for update;[\s\S]*if not found/
+  );
+  assert.match(visualMigration,
+    /v_preserve_draft:=v_existing_draft is not null[\s\S]*v_existing_draft is distinct from v_previous_published/
+  );
+  assert.match(visualMigration,
+    /draft_document=case\s+when v_preserve_draft then draft_document else v_document\s+end/
+  );
+  assert.match(visualMigration,/website_builder_validate_document/);
+  assert.match(visualMigration,/visual_polish_already_applied/);
+  assert.match(visualMigration,/visual_polish_source_changed/);
+  assert.match(visualMigration,/visual_polish_hero_changed/);
+  assert.match(visualMigration,
+    /private_app\.cms_record_version\([\s\S]*'published'[\s\S]*رسم القفل الأمني/
+  );
+  assert.match(visualMigration,/odeir-logo-transparent\.webp/);
+  assert.match(visualMigration,/قفل أمني يحمل شعار أودير/);
+  assert.doesNotMatch(visualMigration,
+    /delete\s+from|core\.tenants|reef_skills|شركة ريف/i
+  );
+
+  const sourceDocument=migrationDocument(baseMigration);
+  const contrasted=applyOdeirSecurityContrastCss(
+    sourceDocument.settings.customCss
+  );
+  const migrationCss=visualMigration.match(
+    /v_css:=v_css\|\|\$visual_css\$\n([\s\S]*?)\n\$visual_css\$/
+  );
+  assert.ok(migrationCss,'visual polish CSS must be embedded in the migration');
+  assert.equal(
+    applyOdeirSecurityVisualPolishCss(contrasted),
+    `${contrasted}\n${migrationCss[1]}\n`
+  );
+});
+
+test('information-security CSS transforms are idempotent',async()=>{
+  const migration=await read(migrationPath);
+  const source=migrationDocument(migration).settings.customCss;
+  const contrasted=applyOdeirSecurityContrastCss(source);
+  const polished=applyOdeirSecurityVisualPolishCss(contrasted);
+  assert.equal(applyOdeirSecurityContrastCss(contrasted),contrasted);
+  assert.equal(applyOdeirSecurityVisualPolishCss(polished),polished);
 });
 
 test('ODEIR preview routes the policy through the shared document and rewrites related links',()=>{
@@ -144,6 +205,7 @@ test('information-security copy is comprehensive, qualified, and evidence-bounde
 
 test('information-security references are official and the design is responsive',async()=>{
   const document=getOdeirInformationSecurityContent('/p').content;
+  const hero=document.blocks.find(block=>block.id==='odeir-security-hero');
   const frameworks=document.blocks.find(block=>block.id==='odeir-security-frameworks');
   const css=document.settings.customCss;
   const allowedHosts=new Set(['dgp.sdaia.gov.sa','nca.gov.sa','www.iso.org','www.nist.gov']);
@@ -160,9 +222,20 @@ test('information-security references are official and the design is responsive'
   assert.match(css,/\.odeir-security-hero h1\{color:#fff!important/);
   assert.match(css,/\.odeir-security-hero h1\+p\{color:#dce8f3!important/);
   assert.match(css,/\.odeir-security-hero a:last-of-type\{color:#fff!important/);
+  assert.match(css,/ODEIR_SECURITY_VISUAL_POLISH_V2/);
+  assert.equal(css.split('ODEIR_SECURITY_VISUAL_POLISH_V2').length-1,1);
+  assert.match(css,/\.odeir-security-hero>div:last-child:before\{content:''/);
+  assert.match(css,/odeir-logo-transparent\.webp/);
+  assert.match(css,/\.odeir-security-controls>div:last-child\{grid-template-columns:repeat\(2/);
+  assert.match(css,/\.odeir-security-principles article strong\{display:grid!important/);
+  assert.match(css,/\.odeir-security-data>div:first-child h2\{color:#fff!important/);
+  assert.match(css,/\.odeir-security-faq summary>span:last-child\{display:grid!important/);
   assert.match(css,/\.odeir-security-toc\{position:sticky/);
   assert.match(css,/scroll-snap-type:x mandatory/);
   assert.match(css,/@media\(max-width:620px\)/);
   assert.match(css,/\.odeir-security-responsibility table\{font-size:11px\}/);
+  assert.match(css,/grid-template-columns:1fr!important/);
+  assert.equal(hero.props.imageUrl,'/odeir/odeir-logo-transparent.webp');
+  assert.equal(hero.props.imageAlt,'قفل أمني يحمل شعار أودير');
   assert.doesNotMatch(css,/@import|<\/style/i);
 });

@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import test from 'node:test';
-import {getOdeirInformationSecurityContent} from '../lib/odeir-information-security-content.js';
+import {
+  applyOdeirSecurityContrastCss,
+  getOdeirInformationSecurityContent
+} from '../lib/odeir-information-security-content.js';
 import {getOdeirLegalContent} from '../lib/odeir-preview-content.js';
 
 const read=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 const migrationPath=
   'supabase/migrations/20260826174500_odeir_information_security_policy_v2.sql';
+const contrastMigrationPath=
+  'supabase/migrations/20260826182000_odeir_information_security_contrast_v1.sql';
 
 function migrationDocument(source){
   const match=source.match(/\$document\$\n([\s\S]*?)\n  \$document\$::jsonb/);
@@ -33,7 +38,7 @@ test('ODEIR information-security publication is isolated and preserves a diverge
     /perform 1\s+from website\.pages page[\s\S]*page\.slug='information-security'[\s\S]*for update;[\s\S]*if not found/
   );
   assert.match(migration,
-    /draft_document=case when v_preserve_draft then draft_document else v_document end/
+    /draft_document=case\s+when v_preserve_draft then draft_document else v_document\s+end/
   );
   assert.match(migration,/published_document=v_document/);
   assert.match(migration,
@@ -46,6 +51,9 @@ test('ODEIR information-security publication is isolated and preserves a diverge
 test('published and static-preview information-security documents stay identical',async()=>{
   const migration=await read(migrationPath);
   const published=migrationDocument(migration);
+  published.settings.customCss=applyOdeirSecurityContrastCss(
+    published.settings.customCss
+  );
   const preview=getOdeirInformationSecurityContent('/p').content;
   assert.deepEqual(preview,published);
   assert.equal(published.blocks.length,14);
@@ -62,6 +70,35 @@ test('published and static-preview information-security documents stay identical
   );
 });
 
+test('contrast hotfix is isolated, versioned, and preserves concurrent drafts',async()=>{
+  const migration=await read(contrastMigrationPath);
+  assert.match(migration,/^begin;/);
+  assert.match(migration,/commit;\s*$/);
+  assert.match(migration,
+    /site\.site_key='marktone-main'[\s\S]*site\.site_scope='platform'[\s\S]*site\.tenant_id is null/
+  );
+  assert.match(migration,/limit 1\s+for update of document;/);
+  assert.match(migration,
+    /perform 1\s+from website\.pages page[\s\S]*for update;[\s\S]*if not found/
+  );
+  assert.match(migration,
+    /v_preserve_draft:=v_existing_draft is not null[\s\S]*v_existing_draft is distinct from v_previous_published/
+  );
+  assert.match(migration,
+    /draft_document=case\s+when v_preserve_draft then draft_document else v_document\s+end/
+  );
+  assert.match(migration,
+    /private_app\.cms_record_version\([\s\S]*'published'[\s\S]*تحسين تباين/
+  );
+  for(const fragment of [
+    '.odeir-security-hero{color:#fff!important;min-height:560px!important;',
+    '.odeir-security-hero h1{color:#fff!important;max-width:',
+    '.odeir-security-hero h1+p{color:#dce8f3!important;opacity:.86!important}',
+    '.odeir-security-hero a:last-of-type{color:#fff!important;border-color:'
+  ]) assert.ok(migration.includes(fragment),`missing contrast fragment: ${fragment}`);
+  assert.doesNotMatch(migration,/delete\s+from|core\.tenants|reef_skills|شركة ريف/i);
+});
+
 test('ODEIR preview routes the policy through the shared document and rewrites related links',()=>{
   const direct=getOdeirInformationSecurityContent('/odeir-preview');
   const wired=getOdeirLegalContent('information-security');
@@ -75,8 +112,7 @@ test('ODEIR preview routes the policy through the shared document and rewrites r
 });
 
 test('information-security copy is comprehensive, qualified, and evidence-bounded',async()=>{
-  const migration=await read(migrationPath);
-  const document=migrationDocument(migration);
+  const document=getOdeirInformationSecurityContent('/p').content;
   const text=JSON.stringify(document);
   const controls=document.blocks.find(block=>block.id==='odeir-security-controls');
   const frameworks=document.blocks.find(block=>block.id==='odeir-security-frameworks');
@@ -107,8 +143,7 @@ test('information-security copy is comprehensive, qualified, and evidence-bounde
 });
 
 test('information-security references are official and the design is responsive',async()=>{
-  const migration=await read(migrationPath);
-  const document=migrationDocument(migration);
+  const document=getOdeirInformationSecurityContent('/p').content;
   const frameworks=document.blocks.find(block=>block.id==='odeir-security-frameworks');
   const css=document.settings.customCss;
   const allowedHosts=new Set(['dgp.sdaia.gov.sa','nca.gov.sa','www.iso.org','www.nist.gov']);
@@ -121,6 +156,10 @@ test('information-security references are official and the design is responsive'
   assert.match(css,/#06182e/);
   assert.match(css,/#08b8b1/);
   assert.match(css,/#f0c534/);
+  assert.match(css,/\.odeir-security-hero\{color:#fff!important/);
+  assert.match(css,/\.odeir-security-hero h1\{color:#fff!important/);
+  assert.match(css,/\.odeir-security-hero h1\+p\{color:#dce8f3!important/);
+  assert.match(css,/\.odeir-security-hero a:last-of-type\{color:#fff!important/);
   assert.match(css,/\.odeir-security-toc\{position:sticky/);
   assert.match(css,/scroll-snap-type:x mandatory/);
   assert.match(css,/@media\(max-width:620px\)/);

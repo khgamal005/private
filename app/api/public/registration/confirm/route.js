@@ -1,6 +1,5 @@
 import {NextResponse} from 'next/server';
 import {SUPABASE_KEY,SUPABASE_URL} from '../../../../../lib/config';
-import {SUPABASE_SECRET_KEY} from '../../../../../lib/admin-config';
 
 const EDGE_FUNCTION='odeir-registration-intake';
 const CONFIRM_COOKIE='odeir_registration_confirm';
@@ -34,8 +33,13 @@ export async function POST(request){
   if(!/^[a-f0-9]{64}$/.test(token)){
     return clearConfirmCookie(redirectState(request,'invalid'));
   }
-  const ingressToken=process.env.ODEIR_REGISTRATION_INGRESS_TOKEN||'';
-  const serverKey=SUPABASE_SECRET_KEY||'';
+  const ingressToken=(process.env.ODEIR_REGISTRATION_INGRESS_TOKEN||'').trim();
+  if(ingressToken.length<32){
+    console.error('odeir_registration_confirmation_failed',{
+      errorName:'IngressTokenUnavailable'
+    });
+    return clearConfirmCookie(redirectState(request,'unavailable'));
+  }
 
   try{
     const response=await fetch(
@@ -43,9 +47,9 @@ export async function POST(request){
       {
         method:'POST',
         headers:{
-          apikey:ingressToken?SUPABASE_KEY:(serverKey||SUPABASE_KEY),
+          apikey:SUPABASE_KEY,
           'content-type':'application/json',
-          ...(ingressToken?{'x-odeir-intake-token':ingressToken}:{}),
+          'x-odeir-intake-token':ingressToken,
           'x-odeir-client-ip':clientIp(request),
           'x-odeir-user-agent':clean(request.headers.get('user-agent'),300)
         },

@@ -28,17 +28,24 @@ const CONFIRMATION_KEY_VERSION=Math.max(
 );
 const PUBLIC_APP_URL=Deno.env.get('ODEIR_PUBLIC_APP_URL')
   ||'https://odeir.com';
+const PRODUCTION_PROJECT_REF='gswpbwdactcstkasddta';
+const IS_PRODUCTION_PROJECT=(()=>{
+  try{
+    return new URL(SUPABASE_URL).hostname===
+      `${PRODUCTION_PROJECT_REF}.supabase.co`;
+  }catch{return false;}
+})();
 const CHALLENGE_AUDIENCE='registration-submit';
 const CHALLENGE_TTL_SECONDS=300;
 const DOMAIN_VERIFICATION_MAX_AGE_MS=30*24*60*60*1000;
 const DOMAIN_VERIFICATION_FUTURE_SKEW_MS=5*60*1000;
-const ALLOWED_CHALLENGE_ORIGINS=new Set([
-  'https://odeir.com',
-  'https://www.odeir.com',
-  'https://staging.odeir.com',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000'
-]);
+const ALLOWED_CHALLENGE_ORIGINS=new Set(IS_PRODUCTION_PROJECT
+  ?['https://odeir.com','https://www.odeir.com']
+  :[
+    'https://odeir.com','https://www.odeir.com','https://staging.odeir.com',
+    'http://localhost:3000','http://127.0.0.1:3000'
+  ]
+);
 
 const JSON_HEADERS={
   'content-type':'application/json; charset=utf-8',
@@ -102,16 +109,31 @@ Deno.serve(async(request:Request)=>{
     return issueRegistrationChallenge(request,corsOrigin);
   }
   if(action==='health'){
-    if(!await authorizedServerRequest(request)){
+    if(
+      !await authorizedWorkerRequest(request)
+      &&!await authorizedServerRequest(request)
+    ){
       return json({ok:false,error:'unauthorized'},401);
     }
     const health=await registrationEmailHealth();
-    return json({ok:true,...health});
+    return json({ok:true,...publicRegistrationEmailHealth(health)});
+  }
+  if(action==='activation_grant'){
+    if(!await authorizedServerRequest(request)){
+      return json({ok:false,error:'unauthorized'},401);
+    }
+    return issueRegistrationEmailActivationGrant();
+  }
+  if(action==='canary'){
+    if(!await authorizedServerRequest(request)){
+      return json({ok:false,error:'unauthorized'},401);
+    }
+    return sendRegistrationEmailCanary(body);
   }
   if(action==='drain'){
     if(
-      !await authorizedServerRequest(request)
-      &&!await authorizedWorkerRequest(request)
+      !await authorizedWorkerRequest(request)
+      &&!await authorizedServerRequest(request)
     ){
       return json({ok:false,error:'unauthorized'},401);
     }
@@ -119,6 +141,9 @@ Deno.serve(async(request:Request)=>{
     return json({ok:true,...await drainConfirmationOutbox(limit)});
   }
   if(action==='confirm'){
+    if(!await authorizedServerRequest(request)){
+      return json({ok:false,error:'unauthorized'},401);
+    }
     return confirmRegistration(body,request);
   }
   if(action!=='submit'){
@@ -134,21 +159,12 @@ Deno.serve(async(request:Request)=>{
   try{
     const payload=validatedPayload(body);
     const challenge=clean(body.challenge,1024);
-    let ipHash:string;
-    let userAgentHash:string|null;
-    if(challenge){
-      const claims=await consumeRegistrationChallenge(challenge);
-      ipHash=claims.ipHash;
-      userAgentHash=claims.userAgentHash;
-    }else{
-      if(!await authorizedServerRequest(request)){
-        return json({ok:false,error:'unauthorized'},401);
-      }
-      const clientIp=clean(request.headers.get('x-odeir-client-ip'),80)||'unknown';
-      const userAgent=clean(request.headers.get('x-odeir-user-agent'),300);
-      ipHash=await sha256(`${clientIp}|${RATE_SALT}`);
-      userAgentHash=userAgent?await sha256(`${userAgent}|${RATE_SALT}`):null;
+    if(!challenge){
+      return json({ok:false,error:'registration_challenge_invalid'},400);
     }
+    const claims=await consumeRegistrationChallenge(challenge);
+    const ipHash=claims.ipHash;
+    const userAgentHash=claims.userAgentHash;
     const allowed=await rpc<boolean>('v1_registration_rate_limit_consume',{
       p_rate_key:`submit:${ipHash}`,
       p_limit:3,
@@ -166,27 +182,43 @@ Deno.serve(async(request:Request)=>{
     if(!emailAllowed)return json({ok:false,error:'rate_limited'},429);
 
     let result:JsonRecord;
-    let durableOutbox=true;
-    try{
+    if(payload.institutionState==='new'&&!payload.accountId){
+      // Only a genuinely new, unlinked institution can enter automatic email
+      // activation.  Guarding and inserting happen in one DB transaction.
+      const runtimeHealth=await registrationEmailHealth(false);
+      let liveReady=runtimeHealth.activationReady===true;
+      let completed:JsonRecord|null=null;
+      for(let attempt=0;attempt<3;attempt++){
+        const guarded=await rpc<JsonRecord>(
+          'v3_public_submit_registration_request',{
+          p_payload:payload,
+          p_ip_hash:ipHash,
+          p_user_agent_hash:userAgentHash,
+          p_configuration_fingerprint:runtimeHealth.configurationFingerprint,
+          p_email_activation_ready:liveReady
+        });
+        if(guarded._retryManual!==true){
+          completed=guarded;
+          break;
+        }
+        // The short transaction committed the emergency kill switch without
+        // request locks. Re-enter the guarded RPC (never bare v2): its shared
+        // lock keeps a concurrent admin re-enable from crossing this submit.
+        liveReady=false;
+      }
+      if(!completed)throw new PublicError('service_unavailable',503);
+      result=completed;
+    }else{
+      // Existing/linked institutions remain on their isolated manual path and
+      // never depend on the registration-email transport or canary gate.
       result=await rpc<JsonRecord>('v2_public_submit_registration_request',{
-        p_payload:payload,
-        p_ip_hash:ipHash,
-        p_user_agent_hash:userAgentHash
-      });
-    }catch(error){
-      // Expand/contract rollout: deploy this Edge version first.  Until the v2
-      // database RPC exists it keeps the old flow alive; after migration every
-      // new confirmation is committed to the durable outbox.
-      if(!isMissingRpc(error,'v2_public_submit_registration_request'))throw error;
-      durableOutbox=false;
-      result=await rpc<JsonRecord>('v1_public_submit_registration_request',{
         p_payload:payload,
         p_ip_hash:ipHash,
         p_user_agent_hash:userAgentHash
       });
     }
 
-    if(durableOutbox&&result.confirmationRequired===true){
+    if(result.confirmationRequired===true){
       const deliveryId=clean(result.deliveryId,48);
       if(!isUuid(deliveryId)){
         throw new Error('registration_confirmation_delivery_invalid');
@@ -194,12 +226,6 @@ Deno.serve(async(request:Request)=>{
       scheduleBackgroundDelivery(deliveryId);
       result.confirmationQueued=true;
       result.confirmationAlreadySent=result.confirmationAlreadySent===true;
-    }else if(
-      !durableOutbox
-      &&result.confirmationRequired===true
-      &&result.confirmationAlreadySent!==true
-    ){
-      await sendLegacyConfirmation(result);
     }
     const publicResult={...result};
     delete publicResult._confirmationToken;
@@ -481,6 +507,10 @@ function registrationEmailTransportReady(){
   try{
     const url=new URL(PUBLIC_APP_URL);
     const localHost=url.hostname==='localhost'||url.hostname==='127.0.0.1';
+    if(IS_PRODUCTION_PROJECT){
+      return url.origin==='https://odeir.com'&&url.pathname==='/'
+        &&!url.search&&!url.hash;
+    }
     const trustedHost=
       url.hostname==='odeir.com'
       ||url.hostname==='www.odeir.com'
@@ -541,7 +571,7 @@ function strictUtcTimestamp(value:string){
     :null;
 }
 
-async function registrationEmailHealth(){
+async function registrationEmailHealth(includeMetrics=true){
   const transportConfigured=registrationEmailTransportReady();
   const domainAttestation=registrationDomainAttestation();
   const webhookSecretConfigured=/^whsec_[A-Za-z0-9+/=_-]{20,}$/.test(
@@ -550,7 +580,9 @@ async function registrationEmailHealth(){
   let outboxReady=false;
   let outbox:JsonRecord={};
   try{
-    outbox=await rpc<JsonRecord>('v1_registration_email_delivery_health',{});
+    outbox=await rpc<JsonRecord>(includeMetrics
+      ?'v1_registration_email_delivery_health'
+      :'v1_registration_email_runtime_readiness',{});
     outboxReady=outbox.outboxReady===true;
   }catch{
     // During the expand phase the old Edge can be deployed before the outbox.
@@ -567,6 +599,7 @@ async function registrationEmailHealth(){
   const missingKeyVersions=requiredKeyVersions.filter(
     version=>!confirmationSecret(version)
   );
+  const configurationFingerprint=await registrationEmailConfigurationFingerprint();
   const keyConfigurationReady=
     activeKeyVersion!==null
     &&activeKeyVersion===CONFIRMATION_KEY_VERSION
@@ -582,13 +615,32 @@ async function registrationEmailHealth(){
     &&legacyUnrecoverable===0
   );
   const telemetryReady=webhookSecretConfigured;
+  let canary:JsonRecord={};
+  if(sendReady&&telemetryReady){
+    try{
+      canary=await rpc<JsonRecord>('v1_registration_email_canary_health',{
+        p_configuration_fingerprint:configurationFingerprint
+      });
+    }catch{
+      // The activation gate remains closed during a migration/Edge rolling deploy.
+    }
+  }
+  const canaryReady=canary.canaryReady===true;
+  const activationReady=sendReady&&telemetryReady&&canaryReady;
   return {
-    // Compatibility alias used by the policy UI. Delivery readiness is
-    // independent from optional webhook telemetry.
-    emailReady:sendReady,
+    // The compatibility alias is deliberately fail-closed: a sender that can
+    // hand off mail but cannot prove a recent signed delivery is not ready for
+    // automatic registration activation.
+    emailReady:activationReady,
+    activationReady,
+    configurationFingerprint,
     sendReady,
     telemetryReady,
     telemetryDegraded:sendReady&&!telemetryReady,
+    canaryReady,
+    canaryState:canary.canaryState??'not_run',
+    canaryDeliveredAt:canary.canaryDeliveredAt??null,
+    canaryExpiresAt:canary.canaryExpiresAt??null,
     emailConfigured:transportConfigured,
     webhookSecretConfigured,
     domainAttestationReady:domainAttestation.ready,
@@ -614,6 +666,169 @@ async function registrationEmailHealth(){
       deliveredLast24h:nonNegativeInteger(outbox.deliveredLast24h)
     }
   };
+}
+
+function publicRegistrationEmailHealth(health:Awaited<
+  ReturnType<typeof registrationEmailHealth>
+>){
+  const {configurationFingerprint:_configurationFingerprint,...safe}=health;
+  return safe;
+}
+
+async function registrationEmailConfigurationFingerprint(){
+  const canonical=[
+    'odeir-registration-email-configuration-v1',
+    REGISTRATION_RESEND_API_KEY,
+    REGISTRATION_FROM_EMAIL,
+    REGISTRATION_RESEND_WEBHOOK_SECRET,
+    PUBLIC_APP_URL,
+    REGISTRATION_DOMAIN_VERIFIED_NAME,
+    REGISTRATION_DOMAIN_VERIFIED_AT,
+    String(CONFIRMATION_KEY_VERSION),
+    confirmationSecret(CONFIRMATION_KEY_VERSION)
+  ].join('\u001f');
+  return hmacSha256(RATE_SALT,canonical);
+}
+
+async function issueRegistrationEmailActivationGrant(){
+  const health=await registrationEmailHealth(false);
+  if(health.activationReady!==true){
+    return json({
+      ok:false,
+      error:'registration_email_activation_not_ready',
+      ...publicRegistrationEmailHealth(health)
+    },409);
+  }
+  try{
+    const result=await rpc<JsonRecord>(
+      'v1_registration_email_activation_grant_issue',
+      {p_configuration_fingerprint:health.configurationFingerprint}
+    );
+    const activationGrant=clean(result.activationGrant,80);
+    if(!/^[a-f0-9]{64}$/.test(activationGrant))throw new Error();
+    return json({
+      ok:true,
+      ...publicRegistrationEmailHealth(health),
+      activationGrant
+    });
+  }catch{
+    return json({
+      ok:false,error:'registration_email_activation_grant_unavailable'
+    },503);
+  }
+}
+
+async function sendRegistrationEmailCanary(body:JsonRecord){
+  const health=await registrationEmailHealth(false);
+  if(health.sendReady!==true||health.telemetryReady!==true){
+    return json({
+      ok:false,
+      error:'registration_email_canary_not_ready',
+      sendReady:health.sendReady===true,
+      telemetryReady:health.telemetryReady===true
+    },409);
+  }
+  const recipient=clean(body.recipient,240).toLowerCase();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(recipient)){
+    return json({ok:false,error:'registration_email_canary_invalid'},400);
+  }
+
+  let started:JsonRecord;
+  try{
+    started=await rpc<JsonRecord>('v1_registration_email_canary_start',{
+      p_recipient_hash:await sha256(`${recipient}|${RATE_SALT}`),
+      p_configuration_fingerprint:health.configurationFingerprint
+    });
+  }catch(error){
+    const code=databaseErrorCode(error);
+    return json({
+      ok:false,
+      error:code==='registration_email_canary_rate_limited'
+        ?code:'registration_email_canary_unavailable'
+    },code==='registration_email_canary_rate_limited'?429:503);
+  }
+  const canaryId=clean(started.canaryId,48);
+  const idempotencyKey=clean(started.idempotencyKey,200);
+  if(!isUuid(canaryId)||!/^[a-z0-9/_-]{1,200}$/.test(idempotencyKey)){
+    return json({ok:false,error:'registration_email_canary_unavailable'},503);
+  }
+
+  const reference=canaryId.slice(0,8).toUpperCase();
+  const message={
+    from:REGISTRATION_FROM_EMAIL,
+    to:[recipient],
+    subject:`اختبار جاهزية بريد تفعيل أودير — ${reference}`,
+    html:`<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f4f8fb;font-family:Arial,sans-serif;color:#0b2942"><main style="max-width:620px;margin:32px auto;background:#fff;border:1px solid #d9e6ec;border-radius:18px;padding:28px"><p style="color:#0b8e88;font-weight:700">ODEIR REGISTRATION EMAIL</p><h1 style="font-size:24px">تم إرسال اختبار الإنتاج بنجاح</h1><p style="line-height:1.9">هذه رسالة Canary معزولة للتحقق من أن بريد تفعيل المنشآت يصل من نطاق أودير الموثّق وأن إشعار التسليم الموقّع يعمل.</p><p style="line-height:1.9"><strong>المرجع:</strong> ${escapeHtml(reference)}</p><p style="color:#607989;font-size:13px;line-height:1.8">لا تنشئ هذه الرسالة طلب تسجيل أو مساحة منشأة، ولا تتطلب منك أي إجراء.</p></main></body></html>`,
+    text:`اختبار جاهزية بريد تفعيل أودير\n\nتم إرسال Canary الإنتاج المعزول بنجاح.\nالمرجع: ${reference}\n\nلا تنشئ هذه الرسالة طلب تسجيل أو مساحة منشأة، ولا تتطلب أي إجراء.`
+  };
+
+  let response:Response;
+  try{
+    response=await fetch('https://api.resend.com/emails',{
+      method:'POST',
+      headers:{
+        authorization:`Bearer ${REGISTRATION_RESEND_API_KEY}`,
+        'content-type':'application/json',
+        'Idempotency-Key':idempotencyKey
+      },
+      body:JSON.stringify(message),
+      signal:AbortSignal.timeout(8_000)
+    });
+  }catch(error){
+    const errorCode=error instanceof DOMException&&error.name==='TimeoutError'
+      ?'resend_timeout':'resend_transport_error';
+    await finishRegistrationEmailCanary({
+      canaryId,outcome:'failed',providerMessageId:null,httpStatus:null,errorCode
+    }).catch(()=>null);
+    return json({ok:false,error:'registration_email_canary_send_failed'},503);
+  }
+
+  if(!response.ok){
+    const errorCode=await resendFailureCode(response);
+    await finishRegistrationEmailCanary({
+      canaryId,outcome:'failed',providerMessageId:null,
+      httpStatus:response.status,errorCode
+    }).catch(()=>null);
+    return json({
+      ok:false,error:'registration_email_canary_send_failed',code:errorCode
+    },response.status>=500||[408,409,425,429].includes(response.status)?503:409);
+  }
+  const providerMessageId=await resendMessageId(response);
+  if(!providerMessageId){
+    await finishRegistrationEmailCanary({
+      canaryId,outcome:'failed',providerMessageId:null,
+      httpStatus:response.status,errorCode:'resend_invalid_response'
+    }).catch(()=>null);
+    return json({ok:false,error:'registration_email_canary_send_failed'},503);
+  }
+  const completed=await finishRegistrationEmailCanary({
+    canaryId,outcome:'accepted',providerMessageId,
+    httpStatus:response.status,errorCode:null
+  });
+  return json({
+    ok:true,
+    canaryId,
+    providerMessageId,
+    state:completed.state??'accepted'
+  },202);
+}
+
+async function finishRegistrationEmailCanary({
+  canaryId,outcome,providerMessageId,httpStatus,errorCode
+}:{
+  canaryId:string;
+  outcome:'accepted'|'failed';
+  providerMessageId:string|null;
+  httpStatus:number|null;
+  errorCode:string|null;
+}){
+  return await rpc<JsonRecord>('v1_registration_email_canary_finish',{
+    p_canary_id:canaryId,
+    p_outcome:outcome,
+    p_provider_message_id:providerMessageId,
+    p_http_status:httpStatus,
+    p_error_code:errorCode
+  });
 }
 
 function positiveInteger(value:unknown){
@@ -650,23 +865,35 @@ async function drainConfirmationOutbox(limit:number){
     ))
     .filter(isUuid)
     .slice(0,limit);
-  const outcomes=await Promise.allSettled(
-    deliveryIds.map(deliveryId=>processEmailDelivery(deliveryId))
-  );
-  const failed=outcomes.filter(item=>item.status==='rejected').length;
+  let cursor=0;
+  let processed=0;
+  let failed=0;
+  const concurrency=Math.min(4,deliveryIds.length);
+  await Promise.all(Array.from({length:concurrency},async()=>{
+    while(cursor<deliveryIds.length){
+      const deliveryId=deliveryIds[cursor++];
+      try{
+        await processEmailDelivery(deliveryId);
+        processed++;
+      }catch{
+        failed++;
+      }
+    }
+  }));
   await rpc<JsonRecord>('v1_registration_email_delivery_worker_heartbeat',{
-    p_processed:outcomes.length-failed,
+    p_processed:processed,
     p_failed:failed
   }).catch(()=>null);
-  return {claimed:deliveryIds.length,processed:outcomes.length-failed,failed};
+  return {claimed:deliveryIds.length,processed,failed};
 }
 
 async function processEmailDelivery(deliveryId:string){
-  if(
-    !registrationEmailTransportReady()
-    ||!registrationDomainAttestation().ready
-  ){
-    throw new PublicError('email_configuration_unavailable',503);
+  const failSafe=await rpc<JsonRecord>(
+    'v1_registration_email_delivery_fail_safe',
+    {p_delivery_id:deliveryId}
+  );
+  if(failSafe.handled===true){
+    return {deliveryId,state:'manual_review',sent:false};
   }
   const claim=await rpc<JsonRecord>('v1_registration_email_delivery_claim',{
     p_delivery_id:deliveryId
@@ -677,6 +904,20 @@ async function processEmailDelivery(deliveryId:string){
 
   const requestId=clean(claim.requestId,48);
   const leaseId=clean(claim.leaseId,48);
+  if(!isUuid(leaseId)){
+    throw new Error('registration_confirmation_delivery_invalid');
+  }
+  if(
+    !registrationEmailTransportReady()
+    ||!registrationDomainAttestation().ready
+  ){
+    await finishEmailDelivery({
+      deliveryId,leaseId,outcome:'retryable',providerMessageId:null,
+      httpStatus:null,errorCode:'email_configuration_unavailable',
+      retryAfterSeconds:300
+    });
+    throw new PublicError('email_configuration_unavailable',503);
+  }
   const idempotencyKey=clean(claim.idempotencyKey,200);
   const recipient=clean(claim.recipient,240).toLowerCase();
   const generation=Number(claim.generation);
@@ -749,9 +990,10 @@ async function processEmailDelivery(deliveryId:string){
 
   if(!response.ok){
     const errorCode=await resendFailureCode(response);
-    const retryable=[408,409,425,429].includes(response.status)
-      ||response.status>=500;
-    await finishEmailDelivery({
+    const retryable=response.status===409
+      ?errorCode==='resend_concurrent_idempotent_requests'
+      :[408,425,429].includes(response.status)||response.status>=500;
+    const completed=await finishEmailDelivery({
       deliveryId,leaseId,
       outcome:retryable?'retryable':'terminal_failed',
       providerMessageId:null,
@@ -759,6 +1001,11 @@ async function processEmailDelivery(deliveryId:string){
       errorCode,
       retryAfterSeconds:retryable?retryAfter(response):null
     });
+    if(!retryable&&completed.state==='terminal_failed'){
+      await rpc<JsonRecord>('v1_registration_email_delivery_fail_safe',{
+        p_delivery_id:deliveryId
+      });
+    }
     throw new Error(errorCode);
   }
 
@@ -947,7 +1194,8 @@ async function resendFailureCode(response:Response){
     'invalid_api_key','invalid_from_address','invalid_parameter',
     'invalid_region','method_not_allowed','missing_api_key',
     'missing_required_field','not_found','rate_limit_exceeded',
-    'validation_error'
+    'validation_error','concurrent_idempotent_requests',
+    'invalid_idempotent_request'
   ]);
   const code=allowedProviderCodes.has(providerCode)
     ?`resend_${providerCode}`
@@ -1001,7 +1249,16 @@ async function handleResendWebhook(rawBody:string,request:Request){
         p_occurred_at:occurredAt
       }
     );
-    return json({ok:true,duplicate:result.duplicate===true});
+    const canary=await rpc<JsonRecord>(
+      'v1_registration_email_canary_record_event',{
+        p_provider_message_id:providerMessageId
+      }
+    );
+    return json({
+      ok:true,
+      duplicate:result.duplicate===true,
+      matched:result.matched===true||canary.matched===true
+    });
   }catch{
     console.error('odeir-registration-email-webhook','event_persistence_failed');
     return json({ok:false,error:'webhook_persistence_unavailable'},503);
@@ -1113,7 +1370,7 @@ const PUBLIC_DATABASE_ERRORS=new Set([
   'registration_identifier_invalid','invalid_external_account',
   'institution_required','registration_payload_invalid',
   'registration_confirmation_invalid','registration_confirmation_already_used',
-  'confirmation_email_in_progress'
+  'confirmation_email_in_progress','registration_email_canary_rate_limited'
 ]);
 
 function validatedPayload(body:JsonRecord){
@@ -1248,6 +1505,18 @@ function escapeHtml(value:unknown){
 
 async function sha256(value:string){
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest))
+    .map(byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+
+async function hmacSha256(secret:string,value:string){
+  const key=await crypto.subtle.importKey(
+    'raw',new TextEncoder().encode(secret),
+    {name:'HMAC',hash:'SHA-256'},false,['sign']
+  );
+  const digest=await crypto.subtle.sign(
+    'HMAC',key,new TextEncoder().encode(value)
+  );
   return Array.from(new Uint8Array(digest))
     .map(byte=>byte.toString(16).padStart(2,'0')).join('');
 }

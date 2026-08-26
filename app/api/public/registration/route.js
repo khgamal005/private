@@ -1,14 +1,10 @@
 import {NextResponse} from 'next/server';
 import {SUPABASE_KEY,SUPABASE_URL} from '../../../../lib/config';
-import {SUPABASE_SECRET_KEY} from '../../../../lib/admin-config';
 
 const MAX_BODY_BYTES=16*1024;
 const EDGE_FUNCTION='odeir-registration-intake';
 
 export async function POST(request){
-  const ingressToken=process.env.ODEIR_REGISTRATION_INGRESS_TOKEN||'';
-  const serverKey=SUPABASE_SECRET_KEY||'';
-
   try{
     const contentLength=Number(request.headers.get('content-length')||0);
     if(contentLength>MAX_BODY_BYTES){
@@ -40,17 +36,26 @@ export async function POST(request){
         }
       });
     }
+    if(body.action!=='submit'){
+      return NextResponse.json({ok:false,error:'invalid_action'},{status:400});
+    }
+    if(
+      typeof body.challenge!=='string'
+      ||body.challenge.length<64
+      ||body.challenge.length>1024
+    ){
+      return NextResponse.json({
+        ok:false,error:'registration_challenge_invalid'
+      },{status:400});
+    }
 
     const response=await fetch(
       `${SUPABASE_URL}/functions/v1/${EDGE_FUNCTION}`,
       {
         method:'POST',
         headers:{
-          apikey:ingressToken?SUPABASE_KEY:(serverKey||SUPABASE_KEY),
-          'content-type':'application/json',
-          ...(ingressToken?{'x-odeir-intake-token':ingressToken}:{}),
-          'x-odeir-client-ip':clientIp(request),
-          'x-odeir-user-agent':clean(request.headers.get('user-agent'),300)
+          apikey:SUPABASE_KEY,
+          'content-type':'application/json'
         },
         body:JSON.stringify(body),
         cache:'no-store',
@@ -93,23 +98,6 @@ async function boundedRequestText(request,maxBytes){
   let offset=0;
   for(const chunk of chunks){merged.set(chunk,offset);offset+=chunk.byteLength;}
   return new TextDecoder().decode(merged);
-}
-
-function clientIp(request){
-  const forwarded=request.headers.get('x-vercel-forwarded-for')
-    ||request.headers.get('x-forwarded-for')
-    ||'';
-  return clean(
-    forwarded.split(',')[0]
-      ||request.headers.get('x-real-ip')
-      ||'unknown',
-    80
-  );
-}
-
-function clean(value,max){
-  return String(value??'').replace(/[\u0000-\u001F\u007F]/g,' ')
-    .trim().slice(0,max);
 }
 
 function publicStatus(code,fallback){

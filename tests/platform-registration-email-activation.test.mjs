@@ -100,8 +100,10 @@ test('email confirmation GET is read-only and POST delegates the mutation only t
   assert.match(post,/fetch\(/);
   assert.match(post,/\$\{SUPABASE_URL\}\/functions\/v1\/\$\{EDGE_FUNCTION\}/);
   assert.match(post,/body:JSON\.stringify\(\{action:'confirm',token\}\)/);
-  assert.match(post,/apikey:ingressToken\?SUPABASE_KEY:\(serverKey\|\|SUPABASE_KEY\)/);
-  assert.doesNotMatch(post,/if\(!ingressToken&&!serverKey\)/);
+  assert.match(post,/apikey:SUPABASE_KEY/);
+  assert.match(post,/'x-odeir-intake-token':ingressToken/);
+  assert.match(post,/ingressToken\.length<32/);
+  assert.doesNotMatch(post,/SUPABASE_SECRET_KEY|serverKey/);
   assert.doesNotMatch(post,/\/rest\/v1\/rpc|v1_registration_confirm_email_and_provision/);
   assert.doesNotMatch(route,/SUPABASE_SERVICE_ROLE_KEY|service[_\s.-]?role/i);
 });
@@ -244,15 +246,19 @@ test('activation policy is permission checked, server-gated, and wired to the pl
 
   assert.match(migration,/has_platform_permission\('platform\.settings\.manage'\)/);
   assert.match(migration,/v1_platform_registration_policy_save/);
-  assert.match(route,/registrationEmailReadiness\(\)/);
-  assert.match(route,/const emailReadiness=await registrationEmailReadiness\(\)/);
-  assert.match(route,/activationMode==='email_verified_trial'&&!emailReadiness\.sendReady/);
+  assert.match(route,/registrationEmailActivationGrant\(\)/);
+  assert.match(route,/v1_platform_registration_policy_snapshot/);
+  assert.match(route,/v1_platform_registration_policy_save_email/);
+  assert.match(route,/if\(!emailReadiness\.activationReady\)/);
+  assert.match(route,/activationMode==='manual_review'[\s\S]*?v1_platform_registration_policy_save/);
   assert.match(route,/v1_platform_registration_policy_save/);
+  assert.match(route,/boundedRequestText\(request,MAX_BODY_BYTES\)/);
   assert.match(helper,/import 'server-only'/);
-  assert.match(helper,/apikey:ingressToken\?SUPABASE_KEY:\(serverKey\|\|SUPABASE_KEY\)/);
-  assert.match(helper,/emailReady:emailReadiness\.sendReady/);
-  assert.match(helper,/emailTelemetryReady:emailReadiness\.telemetryReady/);
-  assert.match(helper,/telemetryDegraded:sendReady&&!telemetryReady/);
+  assert.match(helper,/apikey:SUPABASE_KEY/);
+  assert.match(helper,/'x-odeir-intake-token':ingressToken/);
+  assert.doesNotMatch(helper,/SUPABASE_SECRET_KEY|serverKey/);
+  assert.match(helper,/emailReady:emailReadiness\.activationReady/);
+  assert.match(helper,/emailCanaryReady:emailReadiness\.canaryReady/);
   assert.match(settings,/hasPlatformPermission\([\s\S]*?'platform\.settings\.manage'/);
   assert.match(settings,/RegistrationActivationPolicy/);
   assert.match(ui,/value="manual_review"/);
@@ -260,11 +266,9 @@ test('activation policy is permission checked, server-gated, and wired to the pl
   assert.match(ui,/disabled=\{!policy\.emailReady\}/);
   assert.match(ui,/data-block-reason=\{!policy\.emailReady\?emailBlockReason:undefined\}/);
   assert.match(ui,/data-block-next-step=\{!policy\.emailReady\?emailBlockNextStep:undefined\}/);
-  assert.ok(ui.includes('مسار إرسال بريد التسجيل غير جاهز'));
-  assert.ok(ui.includes('إثبات النطاق'));
-  assert.match(ui,/policy\.emailTelemetryDegraded===true/);
-  assert.ok(ui.includes('تتبع التسليم عبر Webhook غير مكتمل'));
-  assert.ok(ui.includes('يمكن تفعيل السياسة'));
+  assert.ok(ui.includes('اختبار تسليم الإنتاج المعزول'));
+  assert.ok(ui.includes('Webhook'));
+  assert.match(ui,/registration-email-canary/);
   assert.match(ui,/data-block-reason=\{automaticFieldBlockReason\|\|undefined\}/);
   assert.match(ui,/data-block-reason=\{saveBlockReason\|\|undefined\}/);
   assert.match(ui,/fetch\('\/api\/platform\/registration-policy'/);
@@ -398,7 +402,11 @@ test('platform registration email transport is isolated from tenant automation',
   assert.match(edge,/@odeir\\\.com/);
   assert.match(edge,/REGISTRATION_DOMAIN_VERIFIED_NAME===senderDomain/);
   assert.match(edge,/DOMAIN_VERIFICATION_MAX_AGE_MS=30\*24\*60\*60\*1000/);
-  assert.match(edge,/emailReady:sendReady/);
+  assert.match(edge,/emailReady:activationReady/);
+  assert.match(edge,/const activationReady=sendReady&&telemetryReady&&canaryReady/);
+  assert.match(edge,/registrationEmailConfigurationFingerprint/);
+  assert.match(edge,/hmacSha256\(RATE_SALT,canonical\)/);
+  assert.match(edge,/PRODUCTION_PROJECT_REF='gswpbwdactcstkasddta'/);
   assert.match(edge,/telemetryDegraded:sendReady&&!telemetryReady/);
   assert.match(edge,
     /legacyUnrecoverable=nonNegativeInteger\(outbox\.legacyUnrecoverable\)/
@@ -409,7 +417,10 @@ test('platform registration email transport is isolated from tenant automation',
   assert.match(rootEnv,/^ODEIR_REGISTRATION_RESEND_API_KEY=$/m);
   assert.match(rootEnv,/^ODEIR_REGISTRATION_DOMAIN_VERIFIED_NAME=odeir\.com$/m);
   assert.match(rootEnv,/^ODEIR_REGISTRATION_DOMAIN_VERIFIED_AT=$/m);
+  assert.match(rootEnv,/^ODEIR_REGISTRATION_INGRESS_TOKEN=$/m);
+  assert.match(rootEnv,/^ODEIR_REGISTRATION_RATE_SALT=$/m);
   assert.doesNotMatch(rootEnv,/^RESEND_API_KEY=$/m);
   assert.match(tenantEnv,/^RESEND_API_KEY=$/m);
   assert.doesNotMatch(tenantEnv,/ODEIR_REGISTRATION_RESEND_API_KEY/);
 });
+

@@ -151,13 +151,15 @@ test('public registration obtains a one-time Edge challenge without exposing pri
   assert.match(landing,/submitLockRef\.current/);
   assert.match(landing,/aria-busy=\{busy === "submit"\}/);
   assert.match(route,/odeir-registration-intake/);
-  assert.match(route,/ODEIR_REGISTRATION_INGRESS_TOKEN/);
-  assert.match(route,/x-odeir-intake-token/);
   assert.match(route,/SUPABASE_KEY/);
-  assert.match(route,/SUPABASE_SECRET_KEY/);
   assert.match(route,/body\.action==='challenge_bootstrap'/);
   assert.match(route,/publishableKey:SUPABASE_KEY/);
-  assert.match(route,/apikey:ingressToken\?SUPABASE_KEY:\(serverKey\|\|SUPABASE_KEY\)/);
+  assert.match(route,/body\.action!=='submit'/);
+  assert.match(route,/typeof body\.challenge!=='string'/);
+  assert.match(route,/apikey:SUPABASE_KEY/);
+  assert.doesNotMatch(route,
+    /ODEIR_REGISTRATION_INGRESS_TOKEN|x-odeir-intake-token|SUPABASE_SECRET_KEY/
+  );
   assert.doesNotMatch(landing,/SUPABASE_SERVICE_ROLE_KEY|service[_\s.-]?role|SUPABASE_SECRET/i);
   assert.doesNotMatch(landing,/NEXT_PUBLIC_[A-Z0-9_]*(?:SECRET|SERVICE)/i);
   assert.doesNotMatch(route,/NEXT_PUBLIC_[A-Z0-9_]*(?:SECRET|SERVICE)/i);
@@ -193,21 +195,33 @@ test('edge intake authenticates the server hop and rate limits anonymous submiss
   assert.match(edge,/p_limit:3/);
   assert.match(edge,/p_window_seconds:86_400/);
   assert.match(edge,/SUPABASE_SERVICE_ROLE_KEY/);
-  assert.match(edge,/v1_public_submit_registration_request/);
+  assert.match(edge,/v3_public_submit_registration_request/);
+  assert.match(edge,
+    /payload\.institutionState==='new'&&!payload\.accountId[\s\S]*?registrationEmailHealth\(false\)[\s\S]*?v3_public_submit_registration_request/
+  );
+  assert.match(edge,
+    /for\(let attempt=0;attempt<3;attempt\+\+\)[\s\S]*?v3_public_submit_registration_request[\s\S]*?liveReady=false/
+  );
   const challengeConsumed=position(
     edge,
     'const claims=await consumeRegistrationChallenge(challenge)'
+  );
+  const v3Submit=position(
+    edge,
+    'const guarded=await rpc<JsonRecord>('
   );
   const v2Submit=position(
     edge,
     "result=await rpc<JsonRecord>('v2_public_submit_registration_request'"
   );
-  const v1Fallback=position(
-    edge,
-    "result=await rpc<JsonRecord>('v1_public_submit_registration_request'"
-  );
+  assert.ok(challengeConsumed<v3Submit,'challenge must precede the guarded v3 submit');
   assert.ok(challengeConsumed<v2Submit,'challenge must precede the v2 submit');
-  assert.ok(challengeConsumed<v1Fallback,'challenge must precede the v1 fallback');
+  assert.doesNotMatch(edge,/result=await rpc<JsonRecord>\('v1_public_submit_registration_request'/);
+  const submitIngress=section(
+    edge,"if(action!=='submit')",'const allowed=await rpc<boolean>'
+  );
+  assert.match(submitIngress,/if\(!challenge\)/);
+  assert.doesNotMatch(submitIngress,/authorizedServerRequest/);
   assert.match(config,/\[functions\.odeir-registration-intake\][\s\S]*?verify_jwt\s*=\s*false/);
 });
 
@@ -218,7 +232,7 @@ test('every anonymous or platform JSON ingress bounds the streamed body before p
     read('supabase/functions/odeir-registration-intake/index.ts')
   ]);
   const readers=[
-    section(publicRoute,'async function boundedRequestText','function clientIp'),
+    section(publicRoute,'async function boundedRequestText','function publicStatus'),
     section(platformRoute,'async function boundedRequestText','function provisionPayload'),
     section(edge,'async function boundedRequestText','function bytesToHex')
   ];

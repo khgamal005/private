@@ -95,9 +95,27 @@ Resend webhook requests are verified against their exact raw bytes with the
 Svix signature and replay window before a service-role-only RPC stores the
 event. Events are idempotent by provider event ID and tolerate arrival before
 the provider message ID is committed or arrival out of order. Webhook telemetry
-is an independent degraded state: its absence does not block sending or policy
-activation, but delivered/bounced/complained status remains unavailable until it
-is configured.
+is mandatory for automatic activation: provider acceptance alone never proves
+delivery.
+
+Before `email_verified_trial` can be saved, an authorized operator sends an
+isolated production canary. It creates neither a registration request nor a
+tenant and persists only a salted recipient hash. A signed `delivered` webhook
+must reconcile the latest canary for the exact current configuration
+fingerprint. Edge then issues a hashed, single-use, 90-second database grant
+bound to that canary and the current policy version. The legacy policy RPC can
+only select `manual_review`; the guarded email RPC atomically consumes the
+grant. A policy change, a newer canary, secret rotation, or grant expiry closes
+the gate.
+
+Every genuinely new, unlinked submission rechecks live readiness. The runtime
+guard and durable request insert share one database transaction. Healthy
+submissions use a shared advisory lock and can run concurrently; policy and
+canary transitions use the matching exclusive lock. If sender, webhook,
+worker, key, attestation, or current canary readiness degrades, the policy is
+atomically returned to manual review before the request is created. Existing
+or linked institutions bypass this email dependency and always use their
+isolated manual path.
 
 ## Isolation boundary
 
@@ -124,6 +142,7 @@ The authorized email health action reports:
 - queued, retryable, stale-lease, terminal-failure, accepted, and delivered
   counts;
 - webhook-secret configuration.
+- a recent signed `delivered` canary matching the current configuration.
 
 Alert on a stale worker heartbeat, missing HMAC versions, stale leases,
 terminal failures, approved requests without a tenant, external-claim
@@ -141,10 +160,10 @@ Production release is deliberately gated and ordered:
    `odeir.com`, and record the name and UTC attestation timestamp;
 6. deploy and verify the manual-activation Edge gateway, then deploy the
    application route that delegates existing-directory verification to it;
-7. require a healthy worker heartbeat and an end-to-end synthetic delivery;
-8. re-enable `email_verified_trial` gradually;
-9. register and test the signed Resend webhook when delivery telemetry is ready;
-   it is not a sending gate.
+7. register the signed Resend webhook and verify its signing secret;
+8. require a healthy worker heartbeat, then run the isolated production canary;
+9. wait for the signed `delivered` event and use its one-time activation grant
+   to enable `email_verified_trial`.
 
 Rollback first switches to `manual_review`, unschedules the worker if needed,
 and rolls back application/Edge versions. Additive tables remain in place so

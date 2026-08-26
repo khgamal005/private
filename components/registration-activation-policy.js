@@ -11,6 +11,8 @@ export default function RegistrationActivationPolicy({initialPolicy}){
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
+  const [canaryRecipient,setCanaryRecipient]=useState('');
+  const [canaryBusy,setCanaryBusy]=useState(false);
   const [killSwitchAcknowledged,setKillSwitchAcknowledged]=useState(false);
 
   function edit(callback){
@@ -41,13 +43,55 @@ export default function RegistrationActivationPolicy({initialPolicy}){
     }finally{setBusy(false);}
   }
 
+  async function sendCanary(){
+    setCanaryBusy(true);setError('');setNotice('');
+    try{
+      const response=await fetch('/api/platform/registration-email-canary',{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({recipient:canaryRecipient})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||'تعذر إرسال الاختبار');
+      setNotice('قبل Resend رسالة الاختبار. ننتظر الآن إثبات التسليم الموقّع…');
+      for(let attempt=0;attempt<20;attempt++){
+        await new Promise(resolve=>setTimeout(resolve,3_000));
+        const statusResponse=await fetch(
+          '/api/platform/registration-email-canary',
+          {cache:'no-store'}
+        );
+        const status=await statusResponse.json().catch(()=>({}));
+        if(!statusResponse.ok)continue;
+        setPolicy(current=>({...current,...status.data}));
+        if(status.data?.emailCanaryReady===true){
+          setNotice('تم إثبات تسليم رسالة الاختبار. أصبح مسار البريد جاهزًا للتفعيل.');
+          return;
+        }
+        if(['failed','bounced','suppressed','complained'].includes(
+          status.data?.emailCanaryState
+        )){
+          throw new Error('فشل تسليم رسالة الاختبار. راجع حالة الرسالة في Resend ثم أعد المحاولة.');
+        }
+      }
+      setNotice('تم قبول الاختبار وما زلنا ننتظر إشعار التسليم. يمكنك تحديث الصفحة بعد قليل.');
+    }catch(reason){
+      setError(reason instanceof Error?reason.message:'تعذر إرسال الاختبار');
+    }finally{setCanaryBusy(false);}
+  }
+
   const changed=mode!==policy.activationMode
     ||Number(ttl)!==Number(policy.emailConfirmationTtlMinutes)
     ||planKey!==policy.trialPlanKey;
-  const telemetryDegraded=policy.emailTelemetryDegraded===true
-    ||(policy.emailReady===true&&policy.emailTelemetryReady===false);
-  const emailBlockReason='مسار إرسال بريد التسجيل غير جاهز؛ تحقق من المرسل، إثبات النطاق، مفتاح التوقيع، وعامل الطابور.';
-  const emailBlockNextStep='أكمل فحص صحة مسار البريد، ثم حدّث الشاشة وأعد فحص الجاهزية.';
+  const emailBlockReason=policy.emailSendReady===true
+    ?policy.emailTelemetryReady!==true
+      ?'إرسال البريد جاهز، لكن Webhook الموقّع غير جاهز لإثبات التسليم والارتداد.'
+      :'الإرسال وWebhook جاهزان، ويلزم نجاح اختبار تسليم إنتاجي معزول قبل فتح التفعيل.'
+    :'مسار إرسال بريد التسجيل غير جاهز؛ تحقق من المرسل، إثبات النطاق، مفتاح التوقيع، وعامل الطابور.';
+  const emailBlockNextStep=policy.emailSendReady===true
+    ?policy.emailTelemetryReady!==true
+      ?'اربط Webhook الخاص بالتسجيل، ثم حدّث الشاشة.'
+      :'أرسل اختبار الإنتاج من البطاقة أدناه وانتظر ظهور إثبات التسليم.'
+    :'أكمل فحص صحة مسار البريد، ثم حدّث الشاشة وأعد فحص الجاهزية.';
   const automaticFieldBlockReason=mode!=='email_verified_trial'
     ?'اختر «تفعيل بعد تأكيد البريد» أولًا لتعديل هذا الإعداد.'
     :'';
@@ -76,7 +120,10 @@ export default function RegistrationActivationPolicy({initialPolicy}){
       </div>
       <p id="registration-mode-help" className={styles.modeHelp}>المسار يطبّق على الطلبات الجديدة فقط؛ المنشأة القائمة لا تتفعّل تلقائيًا.</p>
       {!policy.emailReady&&<div id="registration-email-help" className={styles.emailAlert} role="alert">{emailBlockReason} سيظل المسار اليدوي يعمل بأمان حتى اكتمال الإعداد.</div>}
-      {telemetryDegraded?<div className={styles.emailAlert} role="status">إرسال رسائل التأكيد جاهز ويمكن تفعيل السياسة. تتبع التسليم عبر Webhook غير مكتمل حاليًا؛ سيظل سجل قبول Resend ومحاولات الطابور متاحًا، لكن حالات التسليم والارتداد ستبقى محدودة حتى ربط Webhook.</div>:null}
+      <section className={styles.canary} aria-labelledby="registration-canary-title">
+        <div><b id="registration-canary-title">اختبار تسليم الإنتاج المعزول</b><small>{policy.emailCanaryReady?'تم إثبات التسليم خلال آخر 30 يومًا.':'يرسل رسالة اختبار فقط؛ لا ينشئ طلبًا أو منشأة أو مساحة.'}</small></div>
+        {policy.emailSendReady===true&&policy.emailTelemetryReady===true?<div className={styles.canaryAction}><input dir="ltr" type="email" value={canaryRecipient} onChange={event=>setCanaryRecipient(event.target.value.trim())} placeholder="name@example.com" aria-label="بريد مستلم اختبار الإنتاج" disabled={canaryBusy}/><button type="button" onClick={sendCanary} disabled={canaryBusy||!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(canaryRecipient)}>{canaryBusy?'جارٍ التحقق…':policy.emailCanaryReady?'إعادة اختبار التسليم':'إرسال اختبار التسليم'}</button></div>:<small>يظهر زر الاختبار تلقائيًا بعد اكتمال المرسل وWebhook.</small>}
+      </section>
       <div className={styles.fields}>
         <label><span>صلاحية رابط البريد</span><select value={ttl} onChange={event=>edit(()=>setTtl(Number(event.target.value)))} disabled={mode!=='email_verified_trial'} data-block-reason={automaticFieldBlockReason||undefined} data-block-next-step={automaticFieldBlockReason?'جهّز بريد التأكيد ثم اختر وضع التفعيل البريدي.':undefined}><option value="30">30 دقيقة</option><option value="60">ساعة</option><option value="180">3 ساعات</option><option value="1440">24 ساعة</option></select></label>
         <label><span>باقة المساحة بعد التفعيل</span><input dir="ltr" value={planKey} onChange={event=>edit(()=>setPlanKey(event.target.value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'')))} disabled={mode!=='email_verified_trial'} data-block-reason={automaticFieldBlockReason||undefined} data-block-next-step={automaticFieldBlockReason?'جهّز بريد التأكيد ثم اختر وضع التفعيل البريدي.':undefined} placeholder="free"/></label>

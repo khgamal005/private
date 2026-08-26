@@ -11,7 +11,8 @@ const PUBLIC_APP_URL=process.env.ODEIR_PUBLIC_APP_URL||'https://odeir.com';
 const TRUST_ACTIONS=new Set(['trust_start','trust_approve','trust_restrict']);
 const ACTIONS=new Set([
   'start_review','approve','reject','reopen','provision',...TRUST_ACTIONS,
-  'approve_and_activate','move_to_manual_review','reissue_owner_invitation'
+  'approve_and_activate','move_to_manual_review','reissue_owner_invitation',
+  'cancel_email_registration'
 ]);
 const STATUSES=new Set([
   'pending_review','under_review','approved','rejected','converted',
@@ -88,7 +89,8 @@ export async function POST(request){
     }
 
     const requiresReason=[
-      'reject','reopen','trust_restrict','move_to_manual_review'
+      'reject','reopen','trust_restrict','move_to_manual_review',
+      'cancel_email_registration'
     ].includes(action);
     const notes=requiresReason
       ?clean(body.reason??body.notes,1200)
@@ -100,7 +102,7 @@ export async function POST(request){
       ?provisionPayload(body.payload)
       :action==='approve_and_activate'
         ?activationPayload(body.payload)
-      :action==='reject'
+      :['reject','cancel_email_registration'].includes(action)
         ?{category:clean(body.category,60)||null}
         :{};
     if(payload.error)return payload.error;
@@ -154,6 +156,8 @@ export async function POST(request){
           ?'v1_platform_registration_approve_and_activate'
           :action==='reissue_owner_invitation'
             ?'v1_platform_registration_owner_invitation_reissue'
+          :action==='cancel_email_registration'
+            ?'v1_platform_registration_email_cancel'
           :action==='move_to_manual_review'
             ?'v1_platform_registration_email_move_to_manual'
           :'v1_platform_registration_request_action',
@@ -170,6 +174,11 @@ export async function POST(request){
       }:action==='reissue_owner_invitation'?{
         p_request_id:requestId,
         p_expected_version:expectedVersion
+      }:action==='cancel_email_registration'?{
+        p_request_id:requestId,
+        p_expected_version:expectedVersion,
+        p_notes:notes,
+        p_category:payload.category
       }:action==='move_to_manual_review'?{
         p_request_id:requestId,
         p_expected_version:expectedVersion,
@@ -631,6 +640,9 @@ function translate(source){
     registration_created_tenant_activation_failed:'تعذر إكمال تفعيل المساحة الجديدة؛ لم يُحفظ الطلب كمنشأة مفعّلة',
     registration_email_fallback_reason_required:'اكتب سببًا واضحًا لتحويل الطلب إلى المراجعة اليدوية',
     registration_email_fallback_not_allowed:'لا يمكن تحويل هذا الطلب إلى المراجعة اليدوية في حالته الحالية',
+    registration_email_cancel_reason_required:'اكتب سببًا واضحًا لإلغاء طلب تأكيد البريد',
+    registration_email_cancel_category_invalid:'تصنيف سبب إلغاء الطلب غير صالح',
+    registration_email_cancel_not_allowed:'لا يمكن إلغاء هذا الطلب؛ ربما تم تأكيد البريد أو تفعيل المساحة بالفعل',
     display_name_required:'اسم المنشأة مطلوب',
     invalid_slug:'الرابط المختصر غير صالح',
     slug_exists:'هذا الرابط المختصر مستخدم بالفعل',
@@ -766,6 +778,9 @@ class RpcError extends Error{
       registration_created_tenant_activation_failed:1,
       registration_email_fallback_reason_required:1,
       registration_email_fallback_not_allowed:1,
+      registration_email_cancel_reason_required:1,
+      registration_email_cancel_category_invalid:1,
+      registration_email_cancel_not_allowed:1,
       registration_request_not_found:1,
       forbidden:1
     }).find(code=>source.includes(code))||(status===503?'service_unavailable':'request_failed');

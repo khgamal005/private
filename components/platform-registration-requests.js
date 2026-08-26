@@ -34,7 +34,8 @@ const ACTION_STATUS={
   trust_start:'trust_review',
   trust_approve:'converted',
   trust_restrict:'trust_restricted',
-  move_to_manual_review:'pending_review'
+  move_to_manual_review:'pending_review',
+  cancel_email_registration:'rejected'
 };
 
 const ACTION_MESSAGES={
@@ -48,7 +49,8 @@ const ACTION_MESSAGES={
   trust_start:'بدأت مراجعة موثوقية المنشأة، والمساحة تواصل العمل بصورة طبيعية.',
   trust_approve:'اكتملت مراجعة الموثوقية وأصبحت المنشأة موثوقة.',
   trust_restrict:'قُيّدت هذه المساحة الجديدة فقط، مع حفظ سبب القرار.',
-  move_to_manual_review:'تم إلغاء مسار البريد لهذا الطلب وتحويله بأمان إلى المراجعة اليدوية.'
+  move_to_manual_review:'تم إلغاء مسار البريد لهذا الطلب وتحويله بأمان إلى المراجعة اليدوية.',
+  cancel_email_registration:'تم رفض طلب البريد وإبطال رابط التفعيل دون إنشاء مساحة.'
 };
 
 const REJECTION_REASONS=[
@@ -602,7 +604,8 @@ export default function PlatformRegistrationRequests({
           expectedVersion,
           notes,
           payload,
-          ...(action==='reject'&&payload.category?{category:payload.category}:{})
+          ...(['reject','cancel_email_registration'].includes(action)&&payload.category
+            ?{category:payload.category}:{})
         })
       });
       const result=await response.json().catch(()=>({}));
@@ -737,6 +740,13 @@ export default function PlatformRegistrationRequests({
     }
     if(confirm?.type==='reject'){
       runAction('reject',{
+        notes:reason.trim(),
+        payload:{category:reasonCategory}
+      });
+      return;
+    }
+    if(confirm?.type==='cancel_email_registration'){
+      runAction('cancel_email_registration',{
         notes:reason.trim(),
         payload:{category:reasonCategory}
       });
@@ -927,6 +937,7 @@ export default function PlatformRegistrationRequests({
             {currentStatus==='awaiting_email'&&<>
               <span className={styles.waitingAction}>{selectedEmailDeliveryState==='terminal_failed'?'فشل إرسال التأكيد نهائيًا؛ يمكن إنقاذ الطلب يدويًا.':'بانتظار تأكيد مقدم الطلب من بريده'}</span>
               {selectedEmailDeliveryState==='terminal_failed'&&<button type="button" className={styles.secondaryAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('move_to_manual_review')}>تحويل للمراجعة اليدوية</button>}
+              <button type="button" className={styles.rejectAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('cancel_email_registration')}>رفض وإبطال الرابط</button>
             </>}
             {currentStatus==='under_review'&&<>
               <button type="button" className={styles.rejectAction} disabled={Boolean(busy)} onClick={()=>openConfirmation('reject')}>رفض الطلب</button>
@@ -1152,14 +1163,20 @@ function RequestDetails({detail,selected}){
   const activationMode=valueOf(detail,['activationMode','activation_mode'],selected.activationMode||'manual_review');
   const currentTrust=valueOf(detail,['trustStatus','trust_status'],selected.trustStatus||'pending_review');
   const emailConfirmedAt=valueOf(detail,['emailConfirmedAt','email_confirmed_at'],selected.emailConfirmedAt);
+  const provisionedTenantId=valueOf(detail,[
+    'provisionedTenantId','provisioned_tenant_id','tenantId','tenant_id'
+  ],selected.provisionedTenantId);
   const emailDelivery=valueOf(detail,['emailDelivery','email_delivery'],{});
   const hasEmailDelivery=emailDelivery&&typeof emailDelivery==='object'
     &&!Array.isArray(emailDelivery)&&Object.keys(emailDelivery).length>0;
   const autoActivated=activationMode==='email_verified_trial';
+  const awaitingAutomaticActivation=autoActivated&&!emailConfirmedAt&&!provisionedTenantId;
+  const automaticWorkspaceReady=autoActivated&&Boolean(provisionedTenantId);
 
   return <div className={styles.details}>
     {String(state).toLowerCase()==='existing'&&<aside className={styles.existingNotice}><span>✓</span><div><b>الطلب يشير إلى منشأة في السجل الخارجي</b><p>سيُتحقق من التطابق خادميًا ثم تُنشأ مساحة مستقلة فقط؛ هذا المسار لا يربط أو يعدّل أي مساحة أودير قائمة.</p></div></aside>}
-    {autoActivated&&<aside className={styles.autoNotice}><span>◎</span><div><b>المساحة تعمل أثناء مراجعة الموثوقية</b><p>تأكيد البريد فعّل مساحة جديدة مستقلة وفق الباقة المحددة. المراجعة لا تعطل وظائفها إلا إذا صدر قرار تقييد موثّق.</p></div></aside>}
+    {awaitingAutomaticActivation&&<aside className={styles.autoNotice}><span>◎</span><div><b>لم تُنشأ مساحة بعد</b><p>تم إرسال رابط التأكيد إلى مقدم الطلب. لا يبدأ إنشاء المساحة أو تفعيلها إلا بعد تأكيد البريد بنجاح.</p></div></aside>}
+    {automaticWorkspaceReady&&<aside className={styles.autoNotice}><span>◎</span><div><b>المساحة تعمل أثناء مراجعة الموثوقية</b><p>تأكيد البريد فعّل مساحة جديدة مستقلة وفق الباقة المحددة. المراجعة لا تعطل وظائفها إلا إذا صدر قرار تقييد موثّق.</p></div></aside>}
 
     <section className={styles.detailSection}>
       <header><span>01</span><div><h3>بيانات المنشأة</h3><p>الهوية النظامية التي قُدم بها الطلب</p></div></header>
@@ -1183,7 +1200,7 @@ function RequestDetails({detail,selected}){
     </section>
 
     <section className={styles.detailSection}>
-      <header><span>03</span><div><h3>التفعيل والموثوقية</h3><p>{autoActivated?'التشغيل فوري، والموثوقية لها مسار قرار مستقل':'قرار بشري موثّق قبل تجهيز أي مساحة'}</p></div></header>
+      <header><span>03</span><div><h3>التفعيل والموثوقية</h3><p>{awaitingAutomaticActivation?'ينتظر تأكيد البريد؛ لم تُنشأ مساحة بعد':automaticWorkspaceReady?'تم التشغيل، والموثوقية لها مسار قرار مستقل':'قرار بشري موثّق قبل تجهيز أي مساحة'}</p></div></header>
       <div className={styles.detailGrid}>
         <DetailItem label="مسار التفعيل" value={activationLabel(activationMode)}/>
         <DetailItem label="حالة الموثوقية" value={trustLabel(currentTrust)}/>
@@ -1218,6 +1235,7 @@ function DetailSkeleton(){
 }
 
 function confirmationCopy(type){
+  if(type==='cancel_email_registration')return {eyebrow:'إلغاء ذري وآمن',title:'رفض الطلب وإبطال رابط البريد',description:'سيُرفض الطلب وتُبطل جميع روابط التأكيد في معاملة واحدة. إذا سبق تأكيد البريد فلن ينفذ الإجراء ولن تتغير أي مساحة.',button:'رفض الطلب وإبطال الرابط'};
   if(type==='move_to_manual_review')return {eyebrow:'مسار إنقاذ موثّق',title:'تحويل الطلب إلى المراجعة اليدوية',description:'ستُلغى كل روابط ومحاولات التأكيد لهذا الطلب، ثم ينتقل للمراجعة. لن تُنشأ مساحة من هذه الخطوة.',button:'تحويل للمراجعة'};
   if(type==='reissue_owner_invitation')return {eyebrow:'تجديد وصول آمن',title:'إصدار رابط تفعيل جديد للمالك الحالي؟',description:'عند نجاح العملية سيتوقف رابط التفعيل السابق فورًا، وسيُصدر رابط جديد صالح لمدة 7 أيام. لن تتغير المنشأة أو المالك أو البريد أو الصلاحيات.',button:'إلغاء الرابط القديم وإصدار الجديد'};
   if(type==='approve_and_activate')return {eyebrow:'قرار ذري وآمن',title:'اعتماد الطلب وتفعيل المنشأة',description:'يُنفذ الاعتماد والتفعيل معًا. إذا تعذر أي تحقق فلن تُحفظ حالة قبول ناقصة.',button:'اعتماد وتفعيل'};
@@ -1237,8 +1255,8 @@ const ConfirmationDialog=({
   confirmedNoExistingTenant,setConfirmedNoExistingTenant,onClose,onSubmit
 })=>{
   const copy=confirmationCopy(type);
-  const requiresReason=type==='reject'||type==='reopen'||type==='trust_restrict'
-    ||type==='move_to_manual_review';
+  const requiresReason=type==='reject'||type==='cancel_email_registration'
+    ||type==='reopen'||type==='trust_restrict'||type==='move_to_manual_review';
   const provisionValid=Boolean(
     provisionDraft.displayName.trim()
     &&provisionDraft.legalName.trim()
@@ -1252,7 +1270,7 @@ const ConfirmationDialog=({
   const activationValid=Boolean(
     acknowledged&&confirmedNoExistingTenant&&provisionValid
   );
-  const valid=type==='reject'
+  const valid=type==='reject'||type==='cancel_email_registration'
     ?Boolean(reasonCategory&&reason.trim().length>=8)
     :type==='reopen'||type==='trust_restrict'||type==='move_to_manual_review'
       ?reason.trim().length>=8
@@ -1283,8 +1301,8 @@ const ConfirmationDialog=({
 
       {(type==='approve'||type==='approve_and_activate')&&<label className={styles.confirmField}><span>ملاحظة داخلية اختيارية</span><textarea value={decisionNote} onChange={event=>setDecisionNote(event.target.value)} maxLength="1000" rows="3" placeholder="أي ملاحظة يحتاجها فريق التجهيز…"/></label>}
       {type==='trust_approve'&&<label className={styles.confirmField}><span>ملاحظة تحقق اختيارية</span><textarea value={decisionNote} onChange={event=>setDecisionNote(event.target.value)} maxLength="1000" rows="3" placeholder="مصادر أو ملخص التحقق…"/></label>}
-      {type==='reject'&&<label className={styles.confirmField}><span>تصنيف سبب الرفض</span><select required value={reasonCategory} onChange={event=>setReasonCategory(event.target.value)}><option value="" disabled>اختر السبب</option>{REJECTION_REASONS.map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>}
-      {requiresReason&&<label className={styles.confirmField}><span>{type==='reject'?'سبب الرفض':type==='trust_restrict'?'سبب تقييد المساحة':type==='move_to_manual_review'?'سبب التحويل للمراجعة اليدوية':'سبب إعادة الفتح'}</span><textarea required minLength="8" maxLength="1200" rows="4" value={reason} onChange={event=>setReason(event.target.value)} placeholder="اكتب سببًا واضحًا يمكن الرجوع إليه…"/></label>}
+      {(type==='reject'||type==='cancel_email_registration')&&<label className={styles.confirmField}><span>تصنيف سبب الرفض</span><select required value={reasonCategory} onChange={event=>setReasonCategory(event.target.value)}><option value="" disabled>اختر السبب</option>{REJECTION_REASONS.map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>}
+      {requiresReason&&<label className={styles.confirmField}><span>{type==='reject'||type==='cancel_email_registration'?'سبب الرفض':type==='trust_restrict'?'سبب تقييد المساحة':type==='move_to_manual_review'?'سبب التحويل للمراجعة اليدوية':'سبب إعادة الفتح'}</span><textarea required minLength="8" maxLength="1200" rows="4" value={reason} onChange={event=>setReason(event.target.value)} placeholder="اكتب سببًا واضحًا يمكن الرجوع إليه…"/></label>}
       {type==='approve_and_activate'&&existingRequest&&<div className={styles.confirmSummary} role="note"><span>عزل إلزامي</span><b>سيُعاد التحقق من السجل الرسمي خادميًا، ثم تُنشأ مساحة مستقلة فقط. ربط مساحة أودير قائمة غير متاح من هذا المسار.</b></div>}
       {type==='reissue_owner_invitation'&&<div className={styles.confirmSummary} role="note"><span>ما الذي يتغير؟</span><b>رابط التفعيل فقط؛ لا يتغير مالك المنشأة أو بريده أو صلاحياته.</b><span>إن كان مفعّلًا</span><b>لن يُنشأ رابط جديد، وستظهر رسالة دخول جاهزة بدلًا منه.</b></div>}
       {type==='approve_and_activate'&&<ProvisionFields value={provisionDraft} onChange={setProvisionDraft}/>} 
@@ -1293,7 +1311,7 @@ const ConfirmationDialog=({
       {!requiresReason&&<label className={styles.acknowledgement}><input type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/><span>{type==='approve_and_activate'?'راجعت هوية المنشأة وأؤكد صحة قرار إنشاء مساحة مستقلة بعد التحقق الخادمي.' :type==='reissue_owner_invitation'?'أفهم أن الرابط السابق سيتوقف، وسأرسل الرابط الجديد فقط في محادثة خاصة إلى المالك الصحيح.':type==='provision'?'راجعت هوية المنشأة وأؤكد إنشاء مساحة مستقلة لها.':type==='trust_approve'?'راجعت مصادر التحقق وأؤكد اعتماد موثوقية هذه المنشأة.':'راجعت بيانات المنشأة وأؤكد أن هذا القرار لا ينشئ مساحة تلقائيًا.'}</span></label>}
       {error&&<div className={styles.confirmError} role="alert">{error}</div>}
       {!valid&&<small id="registration-confirm-help" className={styles.confirmHelp} role="status" aria-live="polite">استكمل الإقرار أو سبب القرار والحقول المطلوبة قبل المتابعة.</small>}
-      <footer><button type="button" className={styles.cancelButton} disabled={Boolean(busy)} onClick={onClose}>إلغاء</button><button type="submit" className={type==='reject'||type==='trust_restrict'?styles.dangerConfirm:type==='reissue_owner_invitation'?styles.warningConfirm:styles.primaryConfirm} disabled={Boolean(busy)||!valid} aria-describedby={!valid?'registration-confirm-help':undefined}>{busy?busyLabel:copy.button}</button></footer>
+      <footer><button type="button" className={styles.cancelButton} disabled={Boolean(busy)} onClick={onClose}>إلغاء</button><button type="submit" className={type==='reject'||type==='cancel_email_registration'||type==='trust_restrict'?styles.dangerConfirm:type==='reissue_owner_invitation'?styles.warningConfirm:styles.primaryConfirm} disabled={Boolean(busy)||!valid} aria-describedby={!valid?'registration-confirm-help':undefined}>{busy?busyLabel:copy.button}</button></footer>
     </form>
   </div>;
 };

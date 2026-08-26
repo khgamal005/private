@@ -721,13 +721,27 @@
 .odeir-experience .marketplace-payment-copy h3 { margin: 8px 0 5px; color: #fff; font-size: 22px; }
 .odeir-experience .marketplace-payment-copy p { max-width: 460px; margin: 0; color: #8ea5b9; font-size: 8px; line-height: 1.7; }
 .odeir-experience .marketplace-payment-methods { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 7px; }
-.odeir-experience .marketplace-payment-methods > span { min-height: 42px; padding: 8px 11px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.1); border-radius: 11px; color: #dce7f0; background: rgba(255,255,255,.055); font: 800 11px/1.1 Arial,sans-serif; text-align: center; }
-.odeir-experience .marketplace-payment-methods .is-bank { color: #e8f0f7; font-family: inherit; }
-.odeir-experience .marketplace-payment-methods .is-tamara { color: #49e0ad; }
-.odeir-experience .marketplace-payment-methods .is-paymob { color: #64d6ff; }
-.odeir-experience .marketplace-payment-methods .is-mada { color: #8be4dd; font-family: inherit; }
-.odeir-experience .marketplace-payment-methods .is-visa { color: #f4ca3e; letter-spacing: .07em; }
-.odeir-experience .marketplace-payment-methods .is-mastercard { color: #ff9c70; font-size: 9px; }
+.odeir-experience .marketplace-payment-logo-card { min-height: 50px; padding: 7px 10px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(255,255,255,.68); border-radius: 12px; background: linear-gradient(145deg,#fff,#f5f8fb); box-shadow: 0 8px 18px rgba(0,12,31,.13), inset 0 0 0 1px rgba(6,24,47,.035); transition: transform .2s ease, box-shadow .2s ease; }
+.odeir-experience .marketplace-payment-logo-card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(0,12,31,.2), inset 0 0 0 1px rgba(6,24,47,.035); }
+.odeir-experience .payment-logo { width: 100%; height: 31px; display: grid; place-items: center; }
+.odeir-experience .payment-logo svg { display: block; width: 100%; max-width: 112px; height: 31px; overflow: visible; }
+.odeir-experience .payment-logo--bank { color: #0b4668; }
+.odeir-experience .payment-logo--bank svg { width: 46px; }
+.odeir-experience .payment-logo--tamara svg text { fill: #1b1b1d; font: 800 24px/1 Arial,sans-serif; letter-spacing: -.8px; }
+.odeir-experience .payment-logo--tamara .tamara-symbol { fill: #ff5a8a; }
+.odeir-experience .payment-logo--paymob svg text { fill: #143a72; font: 800 24px/1 Arial,sans-serif; letter-spacing: -.7px; }
+.odeir-experience .payment-logo--paymob .paymob-symbol circle { fill: #2864dc; }
+.odeir-experience .payment-logo--paymob .paymob-symbol path { fill: #fff; }
+.odeir-experience .payment-logo--mada .mada-signal path:nth-child(1) { fill: #12898c; }
+.odeir-experience .payment-logo--mada .mada-signal path:nth-child(2) { fill: #42a98d; }
+.odeir-experience .payment-logo--mada .mada-signal path:nth-child(3) { fill: #7bc579; }
+.odeir-experience .payment-logo--mada .mada-en { fill: #147f86; font: 800 22px/1 Arial,sans-serif; letter-spacing: -.6px; }
+.odeir-experience .payment-logo--mada .mada-ar { fill: #58a477; font: 800 15px/1 var(--font-arabic),Arial,sans-serif; text-anchor: end; }
+.odeir-experience .payment-logo--visa svg text { fill: #1434cb; font: italic 900 29px/1 Arial,sans-serif; letter-spacing: -2px; }
+.odeir-experience .payment-logo--mastercard .mastercard-red { fill: #eb001b; }
+.odeir-experience .payment-logo--mastercard .mastercard-orange { fill: #f79e1b; }
+.odeir-experience .payment-logo--mastercard .mastercard-overlap { fill: #ff5f00; }
+.odeir-experience .payment-logo--mastercard svg text { fill: #1e252d; font: 700 10px/1 Arial,sans-serif; letter-spacing: -.25px; }
 .odeir-experience .marketplace-cta { position: relative; z-index: 1; min-width: 166px; justify-content: center; white-space: nowrap; }
 .odeir-experience .marketplace-availability-note { margin: 13px 8px 0; color: #778391; font-size: 8px; line-height: 1.7; text-align: center; }
 @keyframes marketplace-orbit { to { transform: translate(-50%,-50%) rotate(360deg); } }
@@ -1265,7 +1279,9 @@
   .odeir-experience .marketplace-payment-rail { margin-top: 12px; padding: 22px 18px; gap: 20px; border-radius: 22px; }
   .odeir-experience .marketplace-payment-copy h3 { font-size: 20px; }
   .odeir-experience .marketplace-payment-methods { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .odeir-experience .marketplace-payment-methods > span { min-height: 44px; }
+  .odeir-experience .marketplace-payment-logo-card { min-height: 52px; padding: 8px 10px; }
+  .odeir-experience .payment-logo { height: 32px; }
+  .odeir-experience .payment-logo svg { height: 32px; }
   .odeir-experience .marketplace-availability-note { margin-inline: 2px; font-size: 7px; text-align: right; }
   .odeir-experience .security-copy h2 { margin-top: 22px; }
   .odeir-experience .security-links { display: grid; grid-template-columns: 1fr; gap: 12px; }

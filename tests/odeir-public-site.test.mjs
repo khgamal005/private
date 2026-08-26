@@ -107,6 +107,10 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   for(const method of ['تحويل بنكي','تمارا','Paymob','مدى','VISA','Mastercard']){
     assert.match(landing,new RegExp(method));
   }
+  assert.match(landing,/function PaymentMethodLogo/);
+  assert.match(landing,/className={`payment-logo payment-logo--\${kind}`} role="img" aria-label=\{label\}/);
+  assert.match(landing,/marketplace-payment-logo-card/);
+  assert.doesNotMatch(landing,/className=\{method\.className\}[^>]*>\{method\.label\}<\/span>/);
   assert.match(landing,/تعرض هذه الوسائل لتوضيح الخيارات التي يمكن إتاحتها/);
   assert.match(landing,/<RoleSwitcher \/>[\s\S]*<MarketplaceShowcase onRegister=\{openRegistration\} \/>[\s\S]*<SecuritySection cms=\{cms\} kickerNumber="07" \/>/);
   assert.match(landing,/بيانات منشأتك… أمانة تُدار بمسؤولية/);
@@ -175,6 +179,12 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(styles,/\.marketplace-section/);
   assert.match(styles,/\.marketplace-showcase/);
   assert.match(styles,/\.marketplace-payment-methods/);
+  assert.match(styles,/\.marketplace-payment-logo-card/);
+  assert.match(styles,/\.payment-logo--tamara/);
+  assert.match(styles,/\.payment-logo--paymob/);
+  assert.match(styles,/\.payment-logo--mada/);
+  assert.match(styles,/\.payment-logo--visa/);
+  assert.match(styles,/\.payment-logo--mastercard/);
   assert.match(styles,/@keyframes marketplace-orbit/);
   assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.service-category-cloud \{ margin-top: 24px; grid-template-columns: 1fr;/);
   assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.addon-marketplace-item \{ position: static; width: 100%;/);

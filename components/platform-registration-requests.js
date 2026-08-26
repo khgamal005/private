@@ -165,10 +165,13 @@ function validOwnerInvitationReissuePayload(value,requestId,invitationUrl){
   const ownerStatus=String(valueOf(owner,['status'],'')).trim().toLowerCase();
   const ownerName=text(valueOf(owner,['name','fullName','full_name'],''),'');
   const ownerEmail=text(valueOf(owner,['email'],''),'').toLowerCase();
+  const supportedActivationMode=[
+    'manual_review','email_verified_trial'
+  ].includes(requestActivationMode);
   if(
     responseRequestId!==String(requestId).toLowerCase()
-    ||requestActivationMode!=='manual_review'
-    ||tenantActivationMode!=='manual_review'
+    ||!supportedActivationMode
+    ||tenantActivationMode!==requestActivationMode
     ||!['invited','linked'].includes(ownerStatus)
     ||ownerName.length<2
     ||!/^\S+@\S+\.\S+$/.test(ownerEmail)
@@ -457,11 +460,11 @@ export default function PlatformRegistrationRequests({
     ['activationMode','activation_mode'],
     selected?.activationMode||''
   )).trim().toLowerCase();
-  const canReissueOwnerInvitation=Boolean(
-    currentStatus==='converted'
-    &&currentActivationMode==='manual_review'
-    &&tenantSlug
-  );
+  const canReissueOwnerInvitation=Boolean(tenantSlug&&(
+    (currentActivationMode==='manual_review'&&currentStatus==='converted')
+    ||(currentActivationMode==='email_verified_trial'
+      &&['trust_pending','trust_review','converted'].includes(currentStatus))
+  ));
   const existingRequest=selected?isExistingInstitution(valueOf(
     detail,
     ['institutionState','institution_state'],

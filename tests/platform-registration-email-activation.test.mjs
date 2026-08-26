@@ -7,6 +7,8 @@ const MIGRATION='supabase/migrations/20260823194500_platform_email_verified_tria
 const PASSWORD_GATE_HOTFIX='supabase/migrations/20260823203000_registration_restore_password_gate_v1.sql';
 const MANUAL_ACTIVATION_INTEGRITY=
   'supabase/migrations/20260824170000_registration_manual_activation_integrity_v1.sql';
+const STRICT_ONE_TIME=
+  'supabase/migrations/20260826170000_registration_confirmation_strict_one_time_v1.sql';
 
 function section(source,start,end){
   const from=source.indexOf(start);
@@ -235,6 +237,46 @@ test('confirmation tokens are hashed, expiring, one-time, and protected by resen
   assert.doesNotMatch(edge,/p_rate_key:`confirm:\$\{(?:token|tokenRateHash)/);
 });
 
+test('a consumed confirmation can never replay or rotate an owner invitation',async()=>{
+  const [migration,route]=await Promise.all([
+    read(STRICT_ONE_TIME),
+    read('app/api/public/registration/confirm/route.js')
+  ]);
+  const wrapper=section(
+    migration,
+    'create or replace function public.v1_registration_confirm_email_and_provision',
+    '$$;'
+  );
+
+  assert.match(migration,
+    /alter function public\.v1_registration_confirm_email_and_provision\(text\)[\s\S]*?set schema private_app/);
+  assert.match(migration,
+    /rename to registration_confirm_email_and_provision_legacy/);
+  assert.match(wrapper,/pg_catalog\.pg_advisory_xact_lock/);
+  assert.match(wrapper,/select alias\.id,alias\.request_id,alias\.delivery_id[\s\S]*?where alias\.token_hash=v_hash/);
+  assert.match(wrapper,/if v_alias_id is null or v_request_id is null or v_delivery_id is null then[\s\S]*?registration_confirmation_invalid/);
+  const requestLock=wrapper.indexOf('from platform.registration_requests request');
+  const aliasLock=wrapper.indexOf('select alias.consumed_at,alias.expires_at');
+  assert.ok(requestLock>=0&&aliasLock>requestLock,'lock request before alias');
+  assert.match(wrapper,/from platform\.registration_requests request[\s\S]*?for update/);
+  assert.match(wrapper,/from platform\.registration_confirmation_token_aliases alias[\s\S]*?for update/);
+  assert.match(wrapper,/if v_consumed_at is not null then[\s\S]*?registration_confirmation_already_used/);
+  assert.match(wrapper,/where alias\.id=v_alias_id[\s\S]*?for update/);
+  assert.match(wrapper,/if v_expires_at<=clock_timestamp\(\) then[\s\S]*?registration_confirmation_invalid/);
+  assert.ok(
+    wrapper.indexOf("raise exception 'registration_confirmation_already_used'")
+      <wrapper.indexOf('private_app.registration_confirm_email_and_provision_legacy'),
+    'consumption must be rejected before the legacy transaction is entered'
+  );
+  assert.doesNotMatch(wrapper,/tenant_invitations|invitationToken|token_hash=encode/);
+  assert.match(migration,
+    /revoke all on function[\s\S]*?registration_confirm_email_and_provision_legacy\(text\)[\s\S]*?from public,anon,authenticated,service_role/);
+  assert.match(migration,
+    /grant execute on function public\.v1_registration_confirm_email_and_provision\(text\)[\s\S]*?to service_role/);
+  assert.match(route,
+    /registration_confirmation_invalid[\s\S]*?registration_confirmation_already_used[\s\S]*?invalidConfirmation\?'invalid':'unavailable'/);
+});
+
 test('activation policy is permission checked, server-gated, and wired to the platform settings UI',async()=>{
   const [migration,route,helper,settings,ui]=await Promise.all([
     read(MIGRATION),
@@ -423,4 +465,3 @@ test('platform registration email transport is isolated from tenant automation',
   assert.match(tenantEnv,/^RESEND_API_KEY=$/m);
   assert.doesNotMatch(tenantEnv,/ODEIR_REGISTRATION_RESEND_API_KEY/);
 });
-

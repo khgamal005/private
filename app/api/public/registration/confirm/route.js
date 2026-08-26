@@ -60,8 +60,12 @@ export async function POST(request){
     );
     const result=await response.json().catch(()=>({}));
     if(!response.ok||result.ok!==true){
+      const invalidConfirmation=[
+        'registration_confirmation_invalid',
+        'registration_confirmation_already_used'
+      ].includes(result.error);
       return clearConfirmCookie(redirectState(request,
-        result.error==='registration_confirmation_invalid'?'invalid':'unavailable'));
+        invalidConfirmation?'invalid':'unavailable'));
     }
     if(result.manualReviewRequired===true){
       return clearConfirmCookie(redirectState(request,'manual_review'));

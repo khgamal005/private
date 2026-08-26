@@ -488,10 +488,13 @@ function validOwnerInvitationReissueResult(value,requestId){
     ?owner.invitationToken.trim()
     :'';
   const hasSnakeToken=Object.prototype.hasOwnProperty.call(owner,'invitation_token');
+  const supportedActivationMode=[
+    'manual_review','email_verified_trial'
+  ].includes(requestActivationMode);
   if(
     responseRequestId!==requestId.toLowerCase()
-    ||requestActivationMode!=='manual_review'
-    ||tenantActivationMode!=='manual_review'
+    ||!supportedActivationMode
+    ||tenantActivationMode!==requestActivationMode
     ||!['invited','linked'].includes(ownerStatus)
     ||institutionName.length<2
     ||ownerName.length<2

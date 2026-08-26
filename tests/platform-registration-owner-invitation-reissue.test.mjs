@@ -4,6 +4,8 @@ import test from 'node:test';
 
 const read=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 const MIGRATION='supabase/migrations/20260825213500_registration_owner_invitation_reissue_v1.sql';
+const EMAIL_RECOVERY=
+  'supabase/migrations/20260826170000_registration_confirmation_strict_one_time_v1.sql';
 
 function section(source,start,end){
   const from=source.indexOf(start);
@@ -166,8 +168,8 @@ test('API exposes only the dedicated RPC and validates before converting the tok
     'const data=withInvitationUrl(result.data)'
   ]);
   for(const contract of [
-    "requestActivationMode!=='manual_review'",
-    "tenantActivationMode!=='manual_review'",
+    "'manual_review','email_verified_trial'",
+    'tenantActivationMode!==requestActivationMode',
     "!['invited','linked'].includes(ownerStatus)",
     'isUuid(invitationId)',
     '/^[0-9a-f]{64}$/i.test(invitationToken)',
@@ -175,6 +177,43 @@ test('API exposes only the dedicated RPC and validates before converting the tok
   ])assert.ok(validator.includes(contract),`missing API response contract: ${contract}`);
   assert.match(route,/delete safeOwner\.invitationToken/);
   assert.match(route,/private, no-store, no-cache, max-age=0, must-revalidate/);
+});
+
+test('email-confirmed invitation recovery proves the delivery and consumed alias chain',async()=>{
+  const migration=await read(EMAIL_RECOVERY);
+  const rpc=section(
+    migration,
+    'create or replace function public.v1_platform_registration_owner_invitation_reissue',
+    'revoke all on function public.v1_platform_registration_owner_invitation_reissue'
+  );
+
+  assert.match(rpc,/activation_mode not in \(\s*'manual_review','email_verified_trial'/);
+  assert.match(rpc,/if v_request\.activation_mode='manual_review' then/);
+  for(const contract of [
+    "v_request.institution_state is distinct from 'new'",
+    'v_request.external_account_id is not null',
+    'v_request.email_confirmed_at is null',
+    'v_request.email_confirmation_token_hash is not null',
+    "v_tenant.settings->>'registrationRequestId' is distinct from",
+    "v_tenant.settings->>'registrationActivationMode' is distinct from",
+    "v_request.metadata->>'confirmedDeliveryId'",
+    'delivery.id=v_confirmed_delivery_id',
+    'delivery.request_id=v_request.id',
+    "delivery.message_kind='confirmation'",
+    "delivery.state='accepted'",
+    'delivery.provider_message_id is not null',
+    'delivery.accepted_at is not null',
+    'alias.delivery_id=delivery.id',
+    'alias.request_id=delivery.request_id',
+    'alias.token_hash=delivery.confirmation_token_hash',
+    'alias.consumed_at is not null'
+  ])assert.ok(rpc.includes(contract),`missing email recovery contract: ${contract}`);
+  assert.match(rpc,/v_request\.trust_status not in \(\s*'pending_review','under_review','trusted'/);
+  assert.match(rpc,/v_tenant\.status<>'active'/);
+  assert.match(rpc,/v_request\.trust_status='pending_review' then 'trust_pending'/);
+  assert.match(rpc,/v_request\.trust_status='under_review' then 'trust_review'/);
+  assert.equal((rpc.match(/'queueStatus',v_queue_status/g)||[]).length,3);
+  assert.match(rpc,/registration_owner_invitation_provenance_mismatch/);
 });
 
 test('UI confirms invalidation, prevents double submit, and reuses the secure WhatsApp handoff',async()=>{
@@ -191,7 +230,15 @@ test('UI confirms invalidation, prevents double submit, and reuses the secure Wh
     'تم، العودة لتفاصيل الطلب'
   ])assert.ok(component.includes(copy),`missing reissue UI copy: ${copy}`);
 
-  assert.match(component,/currentStatus==='converted'[\s\S]*?currentActivationMode==='manual_review'/);
+  assert.match(component,
+    /currentActivationMode==='manual_review'&&currentStatus==='converted'[\s\S]*?currentActivationMode==='email_verified_trial'[\s\S]*?\['trust_pending','trust_review','converted'\]\.includes\(currentStatus\)/);
+  const clientValidator=section(
+    component,
+    'function validOwnerInvitationReissuePayload',
+    'function eventLabel'
+  );
+  assert.match(clientValidator,/'manual_review','email_verified_trial'/);
+  assert.match(clientValidator,/tenantActivationMode!==requestActivationMode/);
   assert.match(component,/aria-haspopup="dialog"/);
   assert.match(component,/const actionLockRef=useRef\(false\)/);
   assert.match(component,/if\(!selected\?\.id\|\|busy\|\|actionLockRef\.current\)return false/);

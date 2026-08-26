@@ -405,7 +405,7 @@ test('automatic activation never names or targets an existing tenant',async()=>{
   assert.doesNotMatch(provision,/tenant\.slug=|tenant\.name=|tenant\.organization_id=/);
 });
 
-test('existing-institution success copy promises neither automatic email nor tenant linking',async()=>{
+test('existing-institution success copy promises a receipt without an activation link or tenant linking',async()=>{
   const landing=await read('components/free-trial-landing.js');
   const state=section(landing,'const manualExisting','async function requestRegistrationChallenge');
   const success=section(
@@ -415,7 +415,7 @@ test('existing-institution success copy promises neither automatic email nor ten
   );
   const existingMessageStart=positionOf(
     success,
-    ':"لن نرسل رابط تفعيل تلقائيًا لهذا الطلب حمايةً للحساب'
+    ':`${reviewReceiptAlreadySent?"أرسلنا":"سنرسل"}'
   );
   const existingMessageEnd=success.indexOf('}</p>',existingMessageStart);
   assert.notEqual(existingMessageEnd,-1,'missing existing-institution message end');
@@ -423,10 +423,10 @@ test('existing-institution success copy promises neither automatic email nor ten
   const existingSteps=section(success,':manualExisting ? <>','</> : <>');
 
   assert.ok(state.includes('!confirmationRequired && !isNew'));
-  assert.ok(existingMessage.includes('لن نرسل رابط تفعيل تلقائيًا'));
-  assert.equal(/(?:ستُرسل|أرسلنا|سيصل|افحص بريدك)/.test(existingMessage),false);
-  assert.ok(existingSteps.includes('تجهيز مساحة مستقلة'));
-  assert.ok(existingSteps.includes('من دون المساس بأي مساحة قائمة'));
+  assert.ok(existingMessage.includes('إشعار استلام بلا رابط تفعيل'));
+  assert.ok(existingMessage.includes('دعوة المالك الآمنة تلقائيًا'));
+  assert.ok(existingSteps.includes('إشعار الاستلام'));
+  assert.ok(existingSteps.includes('دعوة المالك'));
   assert.equal(/ربط|link/i.test(existingSteps),false);
 });
 

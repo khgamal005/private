@@ -222,6 +222,32 @@ Deno.serve(async(request:Request)=>{
       result.confirmationQueued=true;
       result.confirmationAlreadySent=result.confirmationAlreadySent===true;
     }
+    if(payload.institutionState==='existing'){
+      const requestId=clean(result.requestId,48);
+      if(isUuid(requestId)){
+        try{
+          const receipt=await rpc<JsonRecord>(
+            'v1_registration_review_receipt_ensure',
+            {p_request_id:requestId}
+          );
+          const deliveryId=clean(receipt.deliveryId,48);
+          if(isUuid(deliveryId)){
+            scheduleBackgroundDelivery(deliveryId);
+            result.reviewReceiptQueued=receipt.queued===true;
+            result.reviewReceiptAlreadySent=receipt.alreadySent===true;
+          }
+        }catch{
+          // A committed duplicate may already be rejected/converted. New open
+          // existing requests are protected by the atomic database trigger and
+          // the periodic drain remains authoritative if this scheduling hint
+          // fails after commit.
+          console.error(
+            'odeir-registration-review-receipt',
+            'immediate_schedule_unavailable'
+          );
+        }
+      }
+    }
     const publicResult={...result};
     delete publicResult._confirmationToken;
     delete publicResult.contactEmail;
@@ -897,13 +923,17 @@ async function drainConfirmationOutbox(limit:number){
 
 async function processEmailDelivery(deliveryId:string){
   const failSafe=await rpc<JsonRecord>(
-    'v1_registration_email_delivery_fail_safe',
+    'v2_registration_email_delivery_fail_safe',
     {p_delivery_id:deliveryId}
   );
   if(failSafe.handled===true){
-    return {deliveryId,state:'manual_review',sent:false};
+    return {
+      deliveryId,
+      state:clean(failSafe.state,32)||'terminal_failed',
+      sent:false
+    };
   }
-  const claim=await rpc<JsonRecord>('v1_registration_email_delivery_claim',{
+  const claim=await rpc<JsonRecord>('v2_registration_email_delivery_claim',{
     p_delivery_id:deliveryId
   });
   if(claim.accepted===true||claim.sendRequired===false){
@@ -933,6 +963,15 @@ async function processEmailDelivery(deliveryId:string){
   const tokenNonce=clean(claim.tokenNonce,80).toLowerCase();
   const tokenExpiresEpoch=Number(claim.tokenExpiresEpoch);
   const templateVersion=clean(claim.templateVersion,64);
+  const messageKind=clean(claim.messageKind,32)||'confirmation';
+  const invitationId=clean(claim.invitationId,48);
+  const expectedTemplate=messageKind==='confirmation'
+    ?'registration-confirmation-ar-v1'
+    :messageKind==='review_receipt'
+      ?'registration-review-receipt-ar-v1'
+      :messageKind==='owner_invitation'
+        ?'registration-owner-invitation-ar-v1'
+        :'';
   if(
     !isUuid(deliveryId)||!isUuid(requestId)||!isUuid(leaseId)
     ||!Number.isInteger(generation)||generation<1
@@ -941,14 +980,21 @@ async function processEmailDelivery(deliveryId:string){
     ||!/^[a-f0-9]{64}$/.test(tokenNonce)
     ||!/^[a-z0-9/_-]{1,200}$/.test(idempotencyKey)
     ||!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(recipient)
-    ||templateVersion!=='registration-confirmation-ar-v1'
-  )throw new Error('registration_confirmation_delivery_invalid');
+    ||!expectedTemplate||templateVersion!==expectedTemplate
+    ||(messageKind==='owner_invitation'&&!isUuid(invitationId))
+    ||(messageKind!=='owner_invitation'&&invitationId!=='')
+  )throw new Error('registration_lifecycle_delivery_invalid');
 
   let token:string;
   try{
-    token=await deriveConfirmationToken({
-      requestId,generation,keyVersion,tokenNonce,tokenExpiresEpoch
-    });
+    token=messageKind==='confirmation'
+      ?await deriveConfirmationToken({
+        requestId,generation,keyVersion,tokenNonce,tokenExpiresEpoch
+      })
+      :await deriveLifecycleEmailToken({
+        messageKind,requestId,invitationId,generation,keyVersion,
+        tokenNonce,tokenExpiresEpoch
+      });
   }catch{
     await finishEmailDelivery({
       deliveryId,leaseId,outcome:'retryable',providerMessageId:null,
@@ -958,15 +1004,17 @@ async function processEmailDelivery(deliveryId:string){
     throw new Error('confirmation_key_unavailable');
   }
   const tokenHash=await sha256(token);
-  const message=confirmationMessage({
+  const message=lifecycleEmailMessage({
+    messageKind,
     email:recipient,
     contactName:clean(claim.contactName,160),
     institutionName:clean(claim.institutionName,240),
+    tenantSlug:clean(claim.tenantSlug,80),
     reference:clean(claim.reference,40),
     token
   });
   const contentFingerprint=await sha256(JSON.stringify(message));
-  await rpc<JsonRecord>('v1_registration_email_delivery_bind',{
+  await rpc<JsonRecord>('v2_registration_email_delivery_bind',{
     p_delivery_id:deliveryId,
     p_lease_id:leaseId,
     p_token_hash:tokenHash,
@@ -1010,7 +1058,7 @@ async function processEmailDelivery(deliveryId:string){
       retryAfterSeconds:retryable?retryAfter(response):null
     });
     if(!retryable&&completed.state==='terminal_failed'){
-      await rpc<JsonRecord>('v1_registration_email_delivery_fail_safe',{
+      await rpc<JsonRecord>('v2_registration_email_delivery_fail_safe',{
         p_delivery_id:deliveryId
       });
     }
@@ -1034,7 +1082,7 @@ async function processEmailDelivery(deliveryId:string){
     httpStatus:response.status,errorCode:null,retryAfterSeconds:null
   });
   if(completed.state!=='accepted'){
-    throw new Error('registration_confirmation_delivery_invalid');
+    throw new Error('registration_lifecycle_delivery_invalid');
   }
   return {deliveryId,state:'accepted',sent:true};
 }
@@ -1051,7 +1099,7 @@ async function finishEmailDelivery({
   errorCode:string|null;
   retryAfterSeconds:number|null;
 }){
-  return await rpc<JsonRecord>('v1_registration_email_delivery_finish',{
+  return await rpc<JsonRecord>('v2_registration_email_delivery_finish',{
     p_delivery_id:deliveryId,
     p_lease_id:leaseId,
     p_outcome:outcome,
@@ -1101,6 +1149,51 @@ async function sendLegacyConfirmation(result:JsonRecord){
   }
 }
 
+function lifecycleEmailMessage({
+  messageKind,email,contactName,institutionName,tenantSlug,reference,token
+}:{
+  messageKind:string;
+  email:string;
+  contactName:string;
+  institutionName:string;
+  tenantSlug:string;
+  reference:string;
+  token:string;
+}){
+  if(messageKind==='confirmation'){
+    return confirmationMessage({
+      email,contactName,institutionName,reference,token
+    });
+  }
+
+  const safeName=escapeHtml(contactName);
+  const safeInstitution=escapeHtml(institutionName);
+  const safeReference=escapeHtml(reference);
+  if(messageKind==='review_receipt'){
+    return {
+      from:REGISTRATION_FROM_EMAIL,
+      to:[email],
+      subject:'استلمنا طلب منشأتك في أودير',
+      html:`<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f3f7f9;font-family:Tahoma,Arial,sans-serif;color:#0b2942"><div style="max-width:580px;margin:24px auto;padding:28px;background:#fff;border:1px solid #dbe7ec;border-radius:18px"><div style="font-size:12px;font-weight:800;color:#07948d">أودير | منصة إدارة المنشآت</div><h1 style="font-size:25px;line-height:1.5;margin:18px 0 8px">استلمنا طلبك يا ${safeName}</h1><p style="font-size:14px;line-height:1.9;color:#526b7c">تم تسجيل طلب <strong>${safeInstitution}</strong> بنجاح، وهو الآن قيد المراجعة اليدوية للتحقق من المنشأة القائمة وحماية صلاحياتها.</p><div style="margin:22px 0;padding:16px;border-radius:12px;background:#f0f7f8;color:#36596b;font-size:13px;line-height:1.9">لم تُنشأ مساحة جديدة بعد، ولا تحتوي هذه الرسالة على رابط تفعيل. سنرسل دعوة المالك الآمنة إلى هذا البريد بعد اعتماد الطلب وتفعيل المساحة.</div><p style="font-size:11px;line-height:1.8;color:#78909e">رقم الطلب: <strong>${safeReference}</strong></p><p style="font-size:10px;color:#91a2ad">إذا لم ترسل هذا الطلب، تجاهل الرسالة وتواصل مع فريق أودير.</p></div></body></html>`,
+      text:`مرحبًا ${contactName}\n\nاستلمنا طلب ${institutionName} وهو الآن قيد المراجعة اليدوية.\nلم تُنشأ مساحة جديدة بعد، ولا تحتوي هذه الرسالة على رابط تفعيل. سنرسل دعوة المالك الآمنة بعد اعتماد الطلب وتفعيل المساحة.\n\nرقم الطلب: ${reference}`,
+      tags:[{name:'category',value:'registration_review_receipt'}]
+    };
+  }
+
+  const invitationUrl=new URL('/accept-invite',PUBLIC_APP_URL);
+  invitationUrl.searchParams.set('token',token);
+  const safeUrl=escapeHtml(invitationUrl.toString());
+  const safeSlug=escapeHtml(tenantSlug);
+  return {
+    from:REGISTRATION_FROM_EMAIL,
+    to:[email],
+    subject:'مرحبًا بك في أودير — فعّل حساب المالك',
+    html:`<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f3f7f9;font-family:Tahoma,Arial,sans-serif;color:#0b2942"><div style="max-width:580px;margin:24px auto;padding:28px;background:#fff;border:1px solid #dbe7ec;border-radius:18px"><div style="font-size:12px;font-weight:800;color:#07948d">أودير | منصة إدارة المنشآت</div><h1 style="font-size:25px;line-height:1.5;margin:18px 0 8px">مرحبًا ${safeName}</h1><p style="font-size:14px;line-height:1.9;color:#526b7c">تم اعتماد وتفعيل مساحة <strong>${safeInstitution}</strong>. استخدم الزر التالي لإنشاء دخول المالك وربطه بالمساحة.</p><a href="${safeUrl}" rel="noreferrer" style="display:block;margin:24px 0;padding:15px 18px;border-radius:12px;background:#082f4d;color:#fff;text-align:center;text-decoration:none;font-weight:800">تفعيل حساب المالك</a><p style="font-size:11px;line-height:1.8;color:#78909e">رقم الطلب: <strong>${safeReference}</strong>${safeSlug?`<br>معرّف المساحة: <strong>${safeSlug}</strong>`:''}<br>الرابط أحادي الاستخدام وصالح لمدة سبعة أيام.</p><p style="font-size:10px;color:#91a2ad">إذا لم تتوقع هذه الدعوة، لا تفتح الرابط وتواصل مع فريق أودير.</p></div></body></html>`,
+    text:`مرحبًا ${contactName}\n\nتم اعتماد وتفعيل مساحة ${institutionName} في أودير. فعّل حساب المالك من الرابط الآمن التالي:\n${invitationUrl.toString()}\n\nرقم الطلب: ${reference}\nالرابط أحادي الاستخدام وصالح لمدة سبعة أيام.`,
+    tags:[{name:'category',value:'registration_owner_invitation'}]
+  };
+}
+
 function confirmationMessage({
   email,contactName,institutionName,reference,token
 }:{
@@ -1138,6 +1231,35 @@ async function deriveConfirmationToken({
   const canonical=[
     'odeir-registration-confirmation:v1',requestId,String(generation),
     tokenNonce,String(tokenExpiresEpoch)
+  ].join('\n');
+  const signature=await crypto.subtle.sign(
+    'HMAC',await confirmationSigningKey(keyVersion),
+    new TextEncoder().encode(canonical)
+  );
+  return bytesToHex(new Uint8Array(signature));
+}
+
+async function deriveLifecycleEmailToken({
+  messageKind,requestId,invitationId,generation,keyVersion,tokenNonce,
+  tokenExpiresEpoch
+}:{
+  messageKind:string;
+  requestId:string;
+  invitationId:string;
+  generation:number;
+  keyVersion:number;
+  tokenNonce:string;
+  tokenExpiresEpoch:number;
+}){
+  const domain=messageKind==='review_receipt'
+    ?'odeir-registration-review-receipt:v1'
+    :messageKind==='owner_invitation'
+      ?'odeir-registration-owner-invitation:v1'
+      :'';
+  if(!domain)throw new Error('registration_lifecycle_delivery_invalid');
+  const canonical=[
+    domain,requestId,invitationId,String(generation),tokenNonce,
+    String(tokenExpiresEpoch)
   ].join('\n');
   const signature=await crypto.subtle.sign(
     'HMAC',await confirmationSigningKey(keyVersion),

@@ -7,7 +7,6 @@ const MAX_GATEWAY_RESPONSE_BYTES=128*1024;
 const POST_DEADLINE_MS=28_000;
 const ACTIVATION_GATEWAY=
   `${SUPABASE_URL}/functions/v1/odeir-registration-manual-activation`;
-const PUBLIC_APP_URL=process.env.ODEIR_PUBLIC_APP_URL||'https://odeir.com';
 const TRUST_ACTIONS=new Set(['trust_start','trust_approve','trust_restrict']);
 const ACTIONS=new Set([
   'start_review','approve','reject','reopen','provision',...TRUST_ACTIONS,
@@ -39,7 +38,11 @@ export async function GET(request){
         })
       ]);
       const data=result.data&&typeof result.data==='object'&&!Array.isArray(result.data)
-        ?{...result.data,emailDelivery:delivery.data?.emailDelivery??null}
+        ?{
+          ...result.data,
+          emailDelivery:delivery.data?.emailDelivery??null,
+          emailDeliveries:delivery.data?.emailDeliveries??{}
+        }
         :result.data;
       return privateJson({success:true,data},{status:result.status});
     }
@@ -203,12 +206,26 @@ export async function POST(request){
       &&!validOwnerInvitationReissueResult(result.data,requestId)
     ){
       throw new PublicError(
-        'تمت معالجة الطلب لكن تعذر التحقق من رابط المالك؛ حدّث الطلب وأعد المحاولة بأمان',
+        'تمت معالجة الطلب لكن تعذر التحقق من دعوة المالك؛ حدّث الطلب وأعد المحاولة بأمان',
         'registration_owner_invitation_response_invalid',503,
         'InvalidOwnerInvitationReissueResponse'
       );
     }
-    const data=withInvitationUrl(result.data);
+    let lifecycleDeliveries={};
+    if(['approve_and_activate','reissue_owner_invitation'].includes(action)){
+      try{
+        const delivery=await rpc(
+          token,'v1_platform_registration_email_delivery_status',
+          {p_request_id:requestId},{deadlineAt,maxMs:3_000}
+        );
+        lifecycleDeliveries=delivery.data?.emailDeliveries??{};
+      }catch{
+        // Activation already committed atomically. The outbox trigger and cron
+        // remain authoritative; never expose the transient raw invitation just
+        // because this read-after-write status snapshot was unavailable.
+      }
+    }
+    const data=withInvitationEmailState(result.data,lifecycleDeliveries);
     return privateJson({success:true,data},{status:result.status});
   }catch(error){
     return unexpected(error);
@@ -521,46 +538,31 @@ function validOwnerInvitationReissueResult(value,requestId){
     &&invitationExpiresAt>Date.now();
 }
 
-function withInvitationUrl(value){
+function withInvitationEmailState(value,emailDeliveries={}){
   if(!value||typeof value!=='object'||Array.isArray(value))return value;
   const provisioning=value.provisioning;
   const owner=provisioning?.owner;
-  const token=typeof owner?.invitationToken==='string'
-    ?owner.invitationToken.trim()
-    :'';
   if(!owner||typeof owner!=='object'||Array.isArray(owner))return value;
   const safeOwner={...owner};
   delete safeOwner.invitationToken;
   delete safeOwner.invitation_token;
+  const ownerInvitation=emailDeliveries?.ownerInvitation;
+  if(
+    ownerInvitation
+    &&typeof ownerInvitation==='object'
+    &&!Array.isArray(ownerInvitation)
+  ){
+    safeOwner.invitationEmail=ownerInvitation;
+  }
+  const safeProvisioning={...provisioning,owner:safeOwner};
+  delete safeProvisioning.invitationUrl;
+  delete safeProvisioning.invitation_url;
   const safeValue={
     ...value,
-    provisioning:{...provisioning,owner:safeOwner}
+    provisioning:safeProvisioning,
+    emailDeliveries
   };
-  if(!/^[0-9a-f]{64}$/i.test(token))return safeValue;
-  const invitationUrl=new URL('/accept-invite',trustedPublicOrigin());
-  invitationUrl.searchParams.set('token',token);
-  return {
-    ...safeValue,
-    provisioning:{
-      ...safeValue.provisioning,
-      invitationUrl:invitationUrl.toString()
-    }
-  };
-}
-
-function trustedPublicOrigin(){
-  try{
-    const url=new URL(PUBLIC_APP_URL);
-    const local=url.hostname==='localhost'||url.hostname==='127.0.0.1';
-    if(
-      !['odeir.com','www.odeir.com','staging.odeir.com'].includes(url.hostname)
-      &&!local
-    )throw new Error();
-    if(url.protocol!=='https:'&&!(local&&url.protocol==='http:'))throw new Error();
-    return url.origin;
-  }catch{
-    return 'https://odeir.com';
-  }
+  return safeValue;
 }
 
 function translatedStatus(source,fallback){

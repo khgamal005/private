@@ -150,13 +150,13 @@ test('token is returned once, while metadata, event, and audit keep only safe id
   ));
 });
 
-test('API exposes only the dedicated RPC and validates before converting the token to a URL',async()=>{
+test('API validates the dedicated RPC then suppresses the token and exposes only email state',async()=>{
   const route=await read('app/api/platform/registration-requests/route.js');
   const post=section(route,'export async function POST','function activationPayload');
   const validator=section(
     route,
     'function validOwnerInvitationReissueResult',
-    'function withInvitationUrl'
+    'function withInvitationEmailState'
   );
 
   assert.match(route,/'reissue_owner_invitation'/);
@@ -165,7 +165,7 @@ test('API exposes only the dedicated RPC and validates before converting the tok
   assertOrdered(post,[
     "action==='reissue_owner_invitation'",
     'validOwnerInvitationReissueResult(result.data,requestId)',
-    'const data=withInvitationUrl(result.data)'
+    'const data=withInvitationEmailState(result.data,lifecycleDeliveries)'
   ]);
   for(const contract of [
     "'manual_review','email_verified_trial'",
@@ -175,7 +175,10 @@ test('API exposes only the dedicated RPC and validates before converting the tok
     '/^[0-9a-f]{64}$/i.test(invitationToken)',
     'invitationExpiresAt>Date.now()'
   ])assert.ok(validator.includes(contract),`missing API response contract: ${contract}`);
+  assert.match(route,/v1_platform_registration_email_delivery_status/);
+  assert.match(route,/safeOwner\.invitationEmail=ownerInvitation/);
   assert.match(route,/delete safeOwner\.invitationToken/);
+  assert.doesNotMatch(route,/new URL\('\/accept-invite'/);
   assert.match(route,/private, no-store, no-cache, max-age=0, must-revalidate/);
 });
 
@@ -216,16 +219,16 @@ test('email-confirmed invitation recovery proves the delivery and consumed alias
   assert.match(rpc,/registration_owner_invitation_provenance_mismatch/);
 });
 
-test('UI confirms invalidation, prevents double submit, and reuses the secure WhatsApp handoff',async()=>{
+test('UI confirms invalidation, prevents double submit, and hands off through lifecycle email',async()=>{
   const component=await read('components/platform-registration-requests.js');
 
   for(const copy of [
-    'إصدار دعوة جديدة للمالك',
-    'إصدار رابط تفعيل جديد للمالك الحالي؟',
-    'سيتوقف رابط التفعيل السابق فورًا',
-    'إلغاء الرابط القديم وإصدار الجديد',
-    'سأرسل الرابط الجديد فقط في محادثة خاصة إلى المالك الصحيح',
-    'تم إصدار رابط تفعيل جديد',
+    'إعادة إرسال دعوة المالك',
+    'إعادة إرسال دعوة المالك؟',
+    'سيتوقف رابط الدعوة السابق فورًا',
+    'إبطال السابقة وإرسال دعوة جديدة',
+    'النظام سيرسل الدعوة الجديدة تلقائيًا إلى بريد المالك المسجل',
+    'تم تدوير الدعوة بأمان',
     'المالك فعّل حسابه بالفعل',
     'تم، العودة لتفاصيل الطلب'
   ])assert.ok(component.includes(copy),`missing reissue UI copy: ${copy}`);
@@ -247,6 +250,7 @@ test('UI confirms invalidation, prevents double submit, and reuses the secure Wh
   assert.match(component,/handoffReason:reissued\?'reissued':'created'/);
   assert.match(component,/keepRequestOpen=activationOutcome\?\.handoffReason==='reissued'/);
   assert.match(component,/fallbackFocus\?\.isConnected\?fallbackFocus:null/);
-  assert.match(component,/buildRegistrationOwnerWhatsAppMessage/);
-  assert.doesNotMatch(component,/wa\.me|localStorage|sessionStorage/);
+  assert.match(component,/invitationEmailState/);
+  assert.match(component,/دعوة المالك في طريقها بالبريد/);
+  assert.doesNotMatch(component,/wa\.me|localStorage|sessionStorage|navigator\.clipboard/);
 });

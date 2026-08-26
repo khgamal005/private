@@ -99,18 +99,19 @@ test('activation handoff accepts only the expected one-time invitation URL',()=>
   );
 });
 
-test('activation UI presents a secure copy handoff without persisting the token',async()=>{
+test('activation UI presents lifecycle email state without exposing or copying a token',async()=>{
   const component=await read('components/platform-registration-requests.js');
 
-  assert.match(component,/buildRegistrationOwnerWhatsAppMessage/);
-  assert.match(component,/نسخ رسالة واتساب/);
-  assert.match(component,/نسخ رابط التفعيل فقط/);
+  assert.match(component,/دعوة المالك في طريقها بالبريد/);
+  assert.match(component,/emailDeliveryLabel\(outcome\.invitationEmail\)/);
+  assert.match(component,/الرابط الخام لا يظهر في لوحة الإدارة/);
   assert.match(component,/فتح المنشأة في نافذة جديدة/);
   assert.match(component,/target="_blank"/);
   assert.match(component,/rel="noopener noreferrer"/);
   assert.match(component,/تم، العودة لطلبات التسجيل/);
   assert.match(component,/inert=\{blockingOverlay\}/);
-  assert.doesNotMatch(component,/wa\.me|localStorage|sessionStorage/);
+  assert.doesNotMatch(component,/wa\.me|localStorage|sessionStorage|navigator\.clipboard/);
+  assert.doesNotMatch(component,/outcome\.invitationUrl/);
 });
 
 test('registration API strips raw tokens and disables caching of invitation responses',async()=>{

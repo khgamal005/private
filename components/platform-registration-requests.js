@@ -3,10 +3,6 @@
 import Link from 'next/link';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
-import {
-  buildRegistrationOwnerWhatsAppMessage,
-  normalizeRegistrationInvitationUrl
-} from '../lib/registration-owner-message.mjs';
 import TenantDeletionDialog from './tenant-deletion-dialog';
 import styles from './platform-registration-requests.module.css';
 
@@ -42,7 +38,7 @@ const ACTION_MESSAGES={
   start_review:'تم إسناد الطلب لك وبدء المراجعة.',
   approve:'تم قبول الطلب فقط. لم تُنشأ مساحة منشأة بعد.',
   approve_and_activate:'تم اعتماد الطلب وإنشاء مساحة مستقلة وتفعيلها في معاملة واحدة.',
-  reissue_owner_invitation:'تم إصدار دعوة جديدة للمالك الحالي وإلغاء صلاحية الرابط السابق.',
+  reissue_owner_invitation:'تم إبطال الدعوة السابقة ووضع دعوة مالك جديدة في طابور البريد.',
   reject:'تم رفض الطلب وحفظ سبب القرار دون حذف السجل.',
   reopen:'أُعيد الطلب إلى المراجعة مع حفظ سبب إعادة الفتح.',
   provision:'تم إنشاء مساحة المنشأة من الطلب المعتمد.',
@@ -151,7 +147,7 @@ function validActivationPayload(value){
     &&String(provisioning.resolution).toLowerCase()==='create_new';
 }
 
-function validOwnerInvitationReissuePayload(value,requestId,invitationUrl){
+function validOwnerInvitationReissuePayload(value,requestId){
   if(!validActivationPayload(value))return false;
   const request=value.request;
   const provisioning=value.provisioning;
@@ -178,11 +174,17 @@ function validOwnerInvitationReissuePayload(value,requestId,invitationUrl){
     ||ownerName.length<2
     ||!/^\S+@\S+\.\S+$/.test(ownerEmail)
   )return false;
-  if(ownerStatus==='linked')return !invitationUrl;
-  const expiresAt=Date.parse(String(valueOf(owner,[
-    'invitationExpiresAt','invitation_expires_at'
-  ],'')));
-  return Boolean(invitationUrl)&&Number.isFinite(expiresAt)&&expiresAt>Date.now();
+  if(ownerStatus==='linked')return true;
+  const invitationEmail=valueOf(
+    owner,['invitationEmail','invitation_email'],
+    value?.emailDeliveries?.ownerInvitation||{}
+  );
+  const messageKind=String(valueOf(
+    invitationEmail,['messageKind','message_kind'],'owner_invitation'
+  )).toLowerCase();
+  const state=String(valueOf(invitationEmail,['state','status'],'')).toLowerCase();
+  return messageKind==='owner_invitation'
+    &&['queued','leased','retryable','accepted'].includes(state);
 }
 
 function eventLabel(event){
@@ -205,6 +207,8 @@ function eventLabel(event){
     provision:'تم إنشاء مساحة المنشأة',
     provisioned:'تم إنشاء مساحة المنشأة',
     email_confirmation_sent:'أُرسلت رسالة تأكيد البريد',
+    review_receipt_sent:'أُرسل إشعار استلام الطلب',
+    owner_invitation_email_sent:'أُرسلت دعوة المالك بالبريد',
     email_confirmed:'تم تأكيد البريد',
     email_fallback_manual:'تم تحويل الطلب إلى المراجعة اليدوية',
     auto_provision:'تفعّلت المساحة تلقائيًا',
@@ -626,18 +630,12 @@ export default function PlatformRegistrationRequests({
         ['slug','tenantSlug','tenant_slug'],
         valueOf(resultData,['tenantSlug','tenant_slug'],tenantSlug)
       ),'');
-      const invitationUrl=handoffAction
-        ?normalizeRegistrationInvitationUrl(
-          valueOf(resultData?.provisioning,['invitationUrl','invitation_url']),
-          window.location.origin
-        )
-        :'';
       const createdOwner=createdTenant?.owner&&typeof createdTenant.owner==='object'
         ?createdTenant.owner
         :{};
       if(
         action==='reissue_owner_invitation'
-        &&!validOwnerInvitationReissuePayload(resultData,requestId,invitationUrl)
+        &&!validOwnerInvitationReissuePayload(resultData,requestId)
       ){
         throw new Error(
           'تعذر التحقق من نتيجة إصدار دعوة المالك؛ حدّث الطلب وأعد المحاولة بأمان.'
@@ -671,11 +669,21 @@ export default function PlatformRegistrationRequests({
       if(handoffAction){
         const reissued=action==='reissue_owner_invitation';
         const ownerStatus=String(valueOf(createdOwner,['status'],'')).trim().toLowerCase();
-        const handoffMode=invitationUrl
-          ?'invited'
-          :ownerStatus==='linked'||ownerStatus==='active'||ownerStatus==='accepted'
+        const invitationEmail=valueOf(
+          createdOwner,['invitationEmail','invitation_email'],
+          resultData?.emailDeliveries?.ownerInvitation||{}
+        );
+        const invitationEmailState=String(valueOf(
+          invitationEmail,['state','status'],'unknown'
+        )).trim().toLowerCase();
+        const handoffMode=ownerStatus==='linked'
+          ||ownerStatus==='active'||ownerStatus==='accepted'
             ?'linked'
-            :'unavailable';
+            :['queued','leased','retryable','accepted'].includes(
+              invitationEmailState
+            )
+              ?'email'
+              :'unavailable';
         const loginUrl=new URL('/login',window.location.origin);
         if(nextTenantSlug){
           loginUrl.searchParams.set('next',`/tenant/${nextTenantSlug}`);
@@ -695,10 +703,7 @@ export default function PlatformRegistrationRequests({
           ownerStatus,
           handoffMode,
           handoffReason:reissued?'reissued':'created',
-          invitationUrl,
-          invitationExpiresAt:valueOf(createdOwner,[
-            'invitationExpiresAt','invitation_expires_at'
-          ],''),
+          invitationEmail,
           loginUrl:loginUrl.toString()
         });
       }
@@ -952,7 +957,7 @@ export default function PlatformRegistrationRequests({
               disabled={Boolean(busy)}
               aria-haspopup="dialog"
               onClick={()=>openConfirmation('reissue_owner_invitation')}
-            >{busy==='reissue_owner_invitation'?'جارٍ إصدار الرابط…':'إصدار دعوة جديدة للمالك'}</button>}
+            >{busy==='reissue_owner_invitation'?'جارٍ تجهيز البريد…':'إعادة إرسال دعوة المالك'}</button>}
             {tenantSlug&&tenantId&&[
               'approved','converted','trust_pending','trust_review','trust_restricted'
             ].includes(currentStatus)&&<button
@@ -1013,35 +1018,15 @@ export default function PlatformRegistrationRequests({
 }
 
 function ActivationHandoffDialog({ref,outcome,onClose}){
-  const [copyState,setCopyState]=useState('');
-  const message=useMemo(()=>buildRegistrationOwnerWhatsAppMessage({
-    mode:outcome.handoffMode,
-    institutionName:outcome.institutionName,
-    ownerName:outcome.ownerName,
-    ownerEmail:outcome.ownerEmail,
-    activationUrl:outcome.invitationUrl,
-    loginUrl:outcome.loginUrl
-  }),[outcome]);
-
-  async function copyValue(value,success){
-    if(!value)return;
-    try{
-      await navigator.clipboard.writeText(value);
-      setCopyState(success);
-    }catch{
-      setCopyState('تعذر النسخ التلقائي؛ حدّد النص من المربع وانسخه يدويًا.');
-    }
-  }
-
-  const invited=outcome.handoffMode==='invited'&&Boolean(outcome.invitationUrl);
+  const emailed=outcome.handoffMode==='email';
   const linked=outcome.handoffMode==='linked';
   const reissued=outcome.handoffReason==='reissued';
   const headerEyebrow=reissued
-    ?invited?'تم إصدار رابط تفعيل جديد':'لا حاجة إلى رابط تفعيل جديد'
+    ?emailed?'تم تدوير الدعوة بأمان':'لا حاجة إلى دعوة جديدة'
     :'تم إنشاء المنشأة بنجاح';
   const headerTitle=reissued&&linked
     ?'المالك فعّل حسابه بالفعل'
-    :'رسالة واتساب جاهزة للمالك';
+    :emailed?'دعوة المالك في طريقها بالبريد':'تحتاج متابعة دعوة المالك';
   return <div className={`${styles.confirmLayer} ${styles.handoffLayer}`}>
     <div className={styles.confirmBackdrop} aria-hidden="true"/>
     <section
@@ -1059,13 +1044,13 @@ function ActivationHandoffDialog({ref,outcome,onClose}){
           <small>{headerEyebrow}</small>
           <h2 id="registration-handoff-title">{headerTitle}</h2>
           <p id="registration-handoff-description">
-            {invited
+            {emailed
               ?reissued
-                ?'انسخ الرسالة الجديدة وأرسلها إلى المالك في محادثة خاصة؛ الرابط السابق توقف فورًا.'
-                :'انسخ الرسالة وأرسلها إلى صاحب المنشأة عبر محادثة خاصة.'
+                ?'أُبطل الرابط السابق، ووُضعت دعوة أحادية الاستخدام في طابور البريد تلقائيًا.'
+                :'وُضعت دعوة المالك الآمنة في طابور البريد تلقائيًا؛ لا يلزم نسخ أي رابط أو إرساله يدويًا.'
               :linked
-                ?'حساب المالك مرتبط بالفعل؛ الرسالة تحتوي رابط تسجيل الدخول الصحيح.'
-                :'المنشأة نشطة، لكن لم يصل رابط دعوة صالح في نتيجة التفعيل.'}
+                ?'حساب المالك مرتبط بالفعل، ويمكنه تسجيل الدخول مباشرة.'
+                :'المنشأة نشطة، لكن تعذر التحقق من طابور دعوة المالك؛ حدّث الطلب قبل أي إعادة محاولة.'}
           </p>
         </div>
       </header>
@@ -1074,47 +1059,25 @@ function ActivationHandoffDialog({ref,outcome,onClose}){
         <div><dt>المنشأة</dt><dd>{outcome.institutionName||'المنشأة الجديدة'}</dd></div>
         <div><dt>المالك</dt><dd>{outcome.ownerName||'صاحب المنشأة'}</dd></div>
         <div><dt>البريد</dt><dd dir="ltr">{outcome.ownerEmail||'—'}</dd></div>
-        <div><dt>الحالة</dt><dd>{invited?'بانتظار تفعيل المالك':linked?'حساب المالك مرتبط':'تحتاج إصدار دعوة جديدة'}</dd></div>
-        {invited&&outcome.invitationExpiresAt&&<div><dt>صلاحية الرابط</dt><dd>{formatDate(outcome.invitationExpiresAt)}</dd></div>}
+        <div><dt>الحالة</dt><dd>{emailed?emailDeliveryLabel(outcome.invitationEmail):linked?'حساب المالك مرتبط':'تحتاج فحص طابور البريد'}</dd></div>
       </dl>
 
-      {message?<label className={styles.whatsappMessage}>
-        <span>نص الرسالة</span>
-        <textarea
-          readOnly
-          dir="rtl"
-          value={message}
-          rows="11"
-          onFocus={event=>event.currentTarget.select()}
-          aria-label="رسالة واتساب الجاهزة لصاحب المنشأة"
-        />
-      </label>:<div className={styles.handoffWarning} role="alert">
-        <b>لا ترسل رسالة ناقصة للعميل</b>
-        <p>أصدر دعوة مالك جديدة من إعدادات المنشأة، ثم انسخ الرابط الجديد فقط.</p>
+      {!emailed&&!linked&&<div className={styles.handoffWarning} role="alert">
+        <b>لا ترسل رابطًا يدويًا</b>
+        <p>حدّث تفاصيل الطلب وتحقق من حالة بريد دعوة المالك؛ الرابط الخام لا يظهر في لوحة الإدارة.</p>
       </div>}
 
       <div className={styles.handoffSecurity} role="note">
-        <b>تنبيه أمني</b>
-        <span>{invited
-          ?reissued
-            ?'الرابط السابق لم يعد صالحًا. أرسل هذا الرابط الجديد فقط إلى المالك الصحيح في محادثة خاصة.'
-            :'رابط التفعيل خاص بالمالك ويُستخدم مرة واحدة. لا ترسله إلى مجموعة أو رقم غير مؤكد.'
-          :'لن تتضمن الرسالة أي كلمة مرور أو رمز تحقق.'}</span>
+        <b>حماية دعوة المالك</b>
+        <span>{emailed
+          ?'الرابط أحادي الاستخدام، ولا يُخزّن أو يظهر في لوحة الإدارة. يعيد العامل إرسال الرسالة نفسها بأمان إذا حدث عطل مؤقت.'
+          :'لن تتضمن واجهة الإدارة أي كلمة مرور أو رمز دعوة خام.'}</span>
       </div>
 
-      {copyState&&<div className={styles.copyState} role="status" aria-live="polite">{copyState}</div>}
-
       <footer className={styles.handoffActions}>
-        {message&&<button
-          type="button"
-          className={styles.primaryConfirm}
-          onClick={()=>copyValue(message,'تم نسخ رسالة واتساب كاملة.')}
-        >نسخ رسالة واتساب</button>}
-        {invited&&<button
-          type="button"
-          className={styles.cancelButton}
-          onClick={()=>copyValue(outcome.invitationUrl,'تم نسخ رابط التفعيل فقط.')}
-        >نسخ رابط التفعيل فقط</button>}
+        {linked&&<a className={styles.primaryConfirm} href={outcome.loginUrl}>
+          فتح تسجيل الدخول
+        </a>}
         {outcome.tenantSlug&&<Link
           className={styles.secondaryAction}
           href={`/tenant/${encodeURIComponent(outcome.tenantSlug)}`}
@@ -1166,15 +1129,29 @@ function RequestDetails({detail,selected}){
   const provisionedTenantId=valueOf(detail,[
     'provisionedTenantId','provisioned_tenant_id','tenantId','tenant_id'
   ],selected.provisionedTenantId);
-  const emailDelivery=valueOf(detail,['emailDelivery','email_delivery'],{});
+  const emailDeliveries=valueOf(detail,['emailDeliveries','email_deliveries'],{});
+  const emailDelivery=valueOf(
+    emailDeliveries,['confirmation'],
+    valueOf(detail,['emailDelivery','email_delivery'],{})
+  );
+  const reviewReceipt=valueOf(
+    emailDeliveries,['reviewReceipt','review_receipt'],{}
+  );
+  const ownerInvitation=valueOf(
+    emailDeliveries,['ownerInvitation','owner_invitation'],{}
+  );
   const hasEmailDelivery=emailDelivery&&typeof emailDelivery==='object'
     &&!Array.isArray(emailDelivery)&&Object.keys(emailDelivery).length>0;
+  const hasReviewReceipt=reviewReceipt&&typeof reviewReceipt==='object'
+    &&!Array.isArray(reviewReceipt)&&Object.keys(reviewReceipt).length>0;
+  const hasOwnerInvitation=ownerInvitation&&typeof ownerInvitation==='object'
+    &&!Array.isArray(ownerInvitation)&&Object.keys(ownerInvitation).length>0;
   const autoActivated=activationMode==='email_verified_trial';
   const awaitingAutomaticActivation=autoActivated&&!emailConfirmedAt&&!provisionedTenantId;
   const automaticWorkspaceReady=autoActivated&&Boolean(provisionedTenantId);
 
   return <div className={styles.details}>
-    {String(state).toLowerCase()==='existing'&&<aside className={styles.existingNotice}><span>✓</span><div><b>الطلب يشير إلى منشأة في السجل الخارجي</b><p>سيُتحقق من التطابق خادميًا ثم تُنشأ مساحة مستقلة فقط؛ هذا المسار لا يربط أو يعدّل أي مساحة أودير قائمة.</p></div></aside>}
+    {String(state).toLowerCase()==='existing'&&<aside className={styles.existingNotice}><span>✓</span><div><b>الطلب يشير إلى منشأة في السجل الخارجي</b><p>أُرسل إشعار استلام بلا رابط تفعيل. سيُتحقق من التطابق خادميًا، وبعد الاعتماد تُرسل دعوة المالك تلقائيًا؛ هذا المسار لا يربط أو يعدّل أي مساحة أودير قائمة.</p></div></aside>}
     {awaitingAutomaticActivation&&<aside className={styles.autoNotice}><span>◎</span><div><b>لم تُنشأ مساحة بعد</b><p>تم إرسال رابط التأكيد إلى مقدم الطلب. لا يبدأ إنشاء المساحة أو تفعيلها إلا بعد تأكيد البريد بنجاح.</p></div></aside>}
     {automaticWorkspaceReady&&<aside className={styles.autoNotice}><span>◎</span><div><b>المساحة تعمل أثناء مراجعة الموثوقية</b><p>تأكيد البريد فعّل مساحة جديدة مستقلة وفق الباقة المحددة. المراجعة لا تعطل وظائفها إلا إذا صدر قرار تقييد موثّق.</p></div></aside>}
 
@@ -1210,6 +1187,11 @@ function RequestDetails({detail,selected}){
           {valueOf(emailDelivery,['nextAttemptAt','next_attempt_at'])&&<DetailItem label="المحاولة التالية" value={formatDate(valueOf(emailDelivery,['nextAttemptAt','next_attempt_at']))}/>} 
           {valueOf(emailDelivery,['lastErrorCode','last_error_code'])&&<DetailItem label="رمز عطل البريد" value={valueOf(emailDelivery,['lastErrorCode','last_error_code'])} ltr/>}
         </>}
+        {hasReviewReceipt&&<DetailItem label="إشعار استلام الطلب" value={emailDeliveryLabel(reviewReceipt)}/>} 
+        {hasOwnerInvitation&&<>
+          <DetailItem label="دعوة المالك بالبريد" value={emailDeliveryLabel(ownerInvitation)}/>
+          <DetailItem label="محاولات دعوة المالك" value={valueOf(ownerInvitation,['attemptCount','attempt_count'],0)} ltr/>
+        </>}
         {emailConfirmedAt&&<DetailItem label="تأكيد البريد" value={formatDate(emailConfirmedAt)}/>} 
         <DetailItem label="مسؤول المراجعة" value={reviewer||'لم يُسند بعد'}/>
         <DetailItem label="وقت الاستلام" value={formatDate(valueOf(detail,['createdAt','created_at','submittedAt','submitted_at'],selected.createdAt))}/>
@@ -1237,7 +1219,7 @@ function DetailSkeleton(){
 function confirmationCopy(type){
   if(type==='cancel_email_registration')return {eyebrow:'إلغاء ذري وآمن',title:'رفض الطلب وإبطال رابط البريد',description:'سيُرفض الطلب وتُبطل جميع روابط التأكيد في معاملة واحدة. إذا سبق تأكيد البريد فلن ينفذ الإجراء ولن تتغير أي مساحة.',button:'رفض الطلب وإبطال الرابط'};
   if(type==='move_to_manual_review')return {eyebrow:'مسار إنقاذ موثّق',title:'تحويل الطلب إلى المراجعة اليدوية',description:'ستُلغى كل روابط ومحاولات التأكيد لهذا الطلب، ثم ينتقل للمراجعة. لن تُنشأ مساحة من هذه الخطوة.',button:'تحويل للمراجعة'};
-  if(type==='reissue_owner_invitation')return {eyebrow:'تجديد وصول آمن',title:'إصدار رابط تفعيل جديد للمالك الحالي؟',description:'عند نجاح العملية سيتوقف رابط التفعيل السابق فورًا، وسيُصدر رابط جديد صالح لمدة 7 أيام. لن تتغير المنشأة أو المالك أو البريد أو الصلاحيات.',button:'إلغاء الرابط القديم وإصدار الجديد'};
+  if(type==='reissue_owner_invitation')return {eyebrow:'تجديد وصول آمن',title:'إعادة إرسال دعوة المالك؟',description:'عند نجاح العملية سيتوقف رابط الدعوة السابق فورًا، وتُرسل دعوة أحادية الاستخدام جديدة إلى بريد المالك. لن تتغير المنشأة أو المالك أو الصلاحيات.',button:'إبطال السابقة وإرسال دعوة جديدة'};
   if(type==='approve_and_activate')return {eyebrow:'قرار ذري وآمن',title:'اعتماد الطلب وتفعيل المنشأة',description:'يُنفذ الاعتماد والتفعيل معًا. إذا تعذر أي تحقق فلن تُحفظ حالة قبول ناقصة.',button:'اعتماد وتفعيل'};
   if(type==='approve')return {eyebrow:'قرار المراجعة',title:'قبول طلب التسجيل',description:'سيُسجل القبول فقط. لن تُنشأ مساحة منشأة ولن تتغير بيانات أي منشأة قائمة.',button:'تأكيد قبول الطلب'};
   if(type==='reject')return {eyebrow:'قرار يحتاج سببًا',title:'رفض طلب التسجيل',description:'سيبقى الطلب محفوظًا في السجل ولن تُحذف بياناته.',button:'تأكيد رفض الطلب'};
@@ -1280,7 +1262,7 @@ const ConfirmationDialog=({
         ?acknowledged&&provisionValid
         :acknowledged;
   const busyLabel=type==='reissue_owner_invitation'
-    ?'جارٍ إصدار الرابط…'
+    ?'جارٍ تجهيز البريد…'
     :'جارٍ التنفيذ…';
   return <div className={styles.confirmLayer}>
       <button type="button" tabIndex={-1} className={styles.confirmBackdrop} aria-hidden="true" disabled={Boolean(busy)} onClick={onClose}/>
@@ -1304,11 +1286,11 @@ const ConfirmationDialog=({
       {(type==='reject'||type==='cancel_email_registration')&&<label className={styles.confirmField}><span>تصنيف سبب الرفض</span><select required value={reasonCategory} onChange={event=>setReasonCategory(event.target.value)}><option value="" disabled>اختر السبب</option>{REJECTION_REASONS.map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>}
       {requiresReason&&<label className={styles.confirmField}><span>{type==='reject'||type==='cancel_email_registration'?'سبب الرفض':type==='trust_restrict'?'سبب تقييد المساحة':type==='move_to_manual_review'?'سبب التحويل للمراجعة اليدوية':'سبب إعادة الفتح'}</span><textarea required minLength="8" maxLength="1200" rows="4" value={reason} onChange={event=>setReason(event.target.value)} placeholder="اكتب سببًا واضحًا يمكن الرجوع إليه…"/></label>}
       {type==='approve_and_activate'&&existingRequest&&<div className={styles.confirmSummary} role="note"><span>عزل إلزامي</span><b>سيُعاد التحقق من السجل الرسمي خادميًا، ثم تُنشأ مساحة مستقلة فقط. ربط مساحة أودير قائمة غير متاح من هذا المسار.</b></div>}
-      {type==='reissue_owner_invitation'&&<div className={styles.confirmSummary} role="note"><span>ما الذي يتغير؟</span><b>رابط التفعيل فقط؛ لا يتغير مالك المنشأة أو بريده أو صلاحياته.</b><span>إن كان مفعّلًا</span><b>لن يُنشأ رابط جديد، وستظهر رسالة دخول جاهزة بدلًا منه.</b></div>}
+      {type==='reissue_owner_invitation'&&<div className={styles.confirmSummary} role="note"><span>ما الذي يتغير؟</span><b>دعوة البريد فقط؛ لا يتغير مالك المنشأة أو بريده أو صلاحياته.</b><span>إن كان مفعّلًا</span><b>لن تُنشأ دعوة جديدة، وسيظهر خيار تسجيل الدخول بدلًا منها.</b></div>}
       {type==='approve_and_activate'&&<ProvisionFields value={provisionDraft} onChange={setProvisionDraft}/>} 
       {type==='provision'&&<ProvisionFields value={provisionDraft} onChange={setProvisionDraft}/>} 
       {type==='approve_and_activate'&&<label className={styles.acknowledgement}><input type="checkbox" checked={confirmedNoExistingTenant} onChange={event=>setConfirmedNoExistingTenant(event.target.checked)}/><span>بحثت في منشآت أودير وأؤكد عدم وجود مساحة قائمة لهذه المنشأة؛ لن أربط الطلب بأي مساحة قائمة.</span></label>}
-      {!requiresReason&&<label className={styles.acknowledgement}><input type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/><span>{type==='approve_and_activate'?'راجعت هوية المنشأة وأؤكد صحة قرار إنشاء مساحة مستقلة بعد التحقق الخادمي.' :type==='reissue_owner_invitation'?'أفهم أن الرابط السابق سيتوقف، وسأرسل الرابط الجديد فقط في محادثة خاصة إلى المالك الصحيح.':type==='provision'?'راجعت هوية المنشأة وأؤكد إنشاء مساحة مستقلة لها.':type==='trust_approve'?'راجعت مصادر التحقق وأؤكد اعتماد موثوقية هذه المنشأة.':'راجعت بيانات المنشأة وأؤكد أن هذا القرار لا ينشئ مساحة تلقائيًا.'}</span></label>}
+      {!requiresReason&&<label className={styles.acknowledgement}><input type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/><span>{type==='approve_and_activate'?'راجعت هوية المنشأة وأؤكد صحة قرار إنشاء مساحة مستقلة بعد التحقق الخادمي.' :type==='reissue_owner_invitation'?'أفهم أن الدعوة السابقة ستتوقف، وأن النظام سيرسل الدعوة الجديدة تلقائيًا إلى بريد المالك المسجل.':type==='provision'?'راجعت هوية المنشأة وأؤكد إنشاء مساحة مستقلة لها.':type==='trust_approve'?'راجعت مصادر التحقق وأؤكد اعتماد موثوقية هذه المنشأة.':'راجعت بيانات المنشأة وأؤكد أن هذا القرار لا ينشئ مساحة تلقائيًا.'}</span></label>}
       {error&&<div className={styles.confirmError} role="alert">{error}</div>}
       {!valid&&<small id="registration-confirm-help" className={styles.confirmHelp} role="status" aria-live="polite">استكمل الإقرار أو سبب القرار والحقول المطلوبة قبل المتابعة.</small>}
       <footer><button type="button" className={styles.cancelButton} disabled={Boolean(busy)} onClick={onClose}>إلغاء</button><button type="submit" className={type==='reject'||type==='cancel_email_registration'||type==='trust_restrict'?styles.dangerConfirm:type==='reissue_owner_invitation'?styles.warningConfirm:styles.primaryConfirm} disabled={Boolean(busy)||!valid} aria-describedby={!valid?'registration-confirm-help':undefined}>{busy?busyLabel:copy.button}</button></footer>

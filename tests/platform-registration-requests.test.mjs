@@ -439,7 +439,7 @@ test('manual activation delegates existing-directory proof to an authenticated E
 
 test('activation accepts only a strict converted active create-new response',async()=>{
   const route=await read('app/api/platform/registration-requests/route.js');
-  const validator=section(route,'function validActivationResult','function withInvitationUrl');
+  const validator=section(route,'function validActivationResult','function withInvitationEmailState');
   const post=section(route,'export async function POST','function activationPayload');
 
   for(const contract of [
@@ -455,7 +455,7 @@ test('activation accepts only a strict converted active create-new response',asy
     "?'v1_platform_registration_approve_and_activate'",
     "if(action==='approve_and_activate'&&!validActivationResult(result.data))",
     "'registration_activation_response_invalid'",
-    'const data=withInvitationUrl(result.data)'
+    'const data=withInvitationEmailState(result.data,lifecycleDeliveries)'
   ]);
 });
 

@@ -46,6 +46,8 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
   const [confirmationRequired, setConfirmationRequired] = useState(false);
   const [confirmationAlreadySent, setConfirmationAlreadySent] = useState(false);
   const [confirmationQueued, setConfirmationQueued] = useState(false);
+  const [reviewReceiptQueued, setReviewReceiptQueued] = useState(false);
+  const [reviewReceiptAlreadySent, setReviewReceiptAlreadySent] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
@@ -180,6 +182,8 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
       setConfirmationRequired(value.confirmationRequired === true);
       setConfirmationAlreadySent(value.confirmationAlreadySent === true);
       setConfirmationQueued(value.confirmationQueued === true);
+      setReviewReceiptQueued(value.reviewReceiptQueued === true);
+      setReviewReceiptAlreadySent(value.reviewReceiptAlreadySent === true);
       setStep("success");
     } catch (caught) {
       setError(messageFor(caught));
@@ -393,13 +397,17 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
                   : "تم حفظ طلبك ووضع رسالة التأكيد في مسار الإرسال"
                 :isNew
                   ?"تم استلام طلبك بنجاح"
-                  :"تم حفظ طلب المنشأة للمراجعة"}</small>
+                  :reviewReceiptAlreadySent
+                    ?"تم حفظ الطلب وإرسال إشعار الاستلام"
+                    :reviewReceiptQueued
+                      ?"تم حفظ الطلب ووضع إشعار الاستلام في طابور البريد"
+                      :"تم حفظ طلب المنشأة للمراجعة"}</small>
               <h2>{manualExisting?'طلبك محفوظ ومسار التفعيل محمي':'مرحبًا بمنشأتك في أودير'}</h2>
               <p>{confirmationRequired
                 ? `${confirmationAlreadySent ? "افحص بريدك؛ مزود البريد قبل الرسالة للإرسال." : confirmationQueued ? "ستُرسل رسالة التأكيد تلقائيًا، ويمكن للنظام استكمالها بعد أي انقطاع مؤقت." : "افحص بريدك خلال دقائق قليلة."} بعد التأكيد تتفعّل مساحة مستقلة وفق الباقة المحددة، وتعمل بصورة طبيعية بينما نراجع موثوقية المنشأة.`
                 :!manualExisting
                   ?"ظهر طلبك مباشرة لفريق المراجعة. سنراجع هوية المنشأة ثم نعتمد الطلب ونجهز مساحتها دون وعد برسالة تفعيل تلقائية."
-                  :"لن نرسل رابط تفعيل تلقائيًا لهذا الطلب حمايةً للحساب؛ يراجع الفريق المطابقة ثم يتواصل مع مسؤول الطلب."}</p>
+                  :`${reviewReceiptAlreadySent?"أرسلنا":"سنرسل"} إلى بريدك إشعار استلام بلا رابط تفعيل. يراجع الفريق المطابقة، وبعد الاعتماد والتفعيل يرسل النظام دعوة المالك الآمنة تلقائيًا.`}</p>
               <div className="reference-box"><span>رقم الطلب</span><b>{reference}</b><small>احتفظ به للمتابعة</small></div>
               <div className="next-steps">
                 {confirmationRequired ? <>
@@ -407,9 +415,9 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
                   <span><i>2</i><b>تفعيل فوري</b><small>مساحة مستقلة تعمل مباشرة</small></span>
                   <span><i>3</i><b>مراجعة الموثوقية</b><small>دون تعطيل وظائف الباقة</small></span>
                 </> :manualExisting ? <>
-                  <span><i>1</i><b>مطابقة المنشأة</b><small>التحقق من السجل والهوية</small></span>
-                  <span><i>2</i><b>تجهيز مساحة مستقلة</b><small>من دون المساس بأي مساحة قائمة</small></span>
-                  <span><i>3</i><b>التواصل مع المسؤول</b><small>بعد اكتمال القرار الموثّق</small></span>
+                  <span><i>1</i><b>إشعار الاستلام</b><small>بريد بلا رابط تفعيل</small></span>
+                  <span><i>2</i><b>مطابقة واعتماد</b><small>التحقق من السجل والهوية</small></span>
+                  <span><i>3</i><b>دعوة المالك</b><small>تُرسل تلقائيًا بعد التفعيل</small></span>
                 </> : <>
                   <span><i>1</i><b>مراجعة المنشأة</b><small>مطابقة البيانات الرسمية</small></span>
                   <span><i>2</i><b>اعتماد الطلب</b><small>قرار موثّق من الفريق</small></span>
@@ -424,6 +432,8 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
     setConfirmationRequired(false);
     setConfirmationAlreadySent(false);
     setConfirmationQueued(false);
+    setReviewReceiptQueued(false);
+    setReviewReceiptAlreadySent(false);
     setForm(initialForm);
   }}>طلب آخر</button>
             </div>}

@@ -157,7 +157,7 @@ test('terminal, expired, and idempotency-conflict paths fail closed',async()=>{
   assert.match(due,/request\.status='pending_review'/);
   assert.match(due,/request\.email_confirmed_at is null/);
   assert.match(due,/request\.provisioned_tenant_id is null/);
-  assert.match(edge,/v1_registration_email_delivery_fail_safe/);
+  assert.match(edge,/v2_registration_email_delivery_fail_safe/);
   assert.match(edge,/for\(let attempt=0;attempt<3;attempt\+\+\)/);
   assert.match(edge,/if\(guarded\._retryManual!==true\)/);
   assert.match(edge,/liveReady=false/);

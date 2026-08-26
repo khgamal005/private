@@ -108,10 +108,19 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
     assert.match(landing,new RegExp(method));
   }
   assert.match(landing,/function PaymentMethodLogo/);
-  assert.match(landing,/className={`payment-logo payment-logo--\${kind}`} role="img" aria-label=\{label\}/);
+  assert.match(landing,/className={`payment-logo payment-logo--\${method\.kind}`} role="img" aria-label=\{method\.label\}/);
   assert.match(landing,/marketplace-payment-logo-card/);
   assert.doesNotMatch(landing,/className=\{method\.className\}[^>]*>\{method\.label\}<\/span>/);
-  assert.match(landing,/تعرض هذه الوسائل لتوضيح الخيارات التي يمكن إتاحتها/);
+  for(const officialLogo of [
+    'cdn.prod.website-files.com/67c184892f7a84b971ff49d9/68931b49f2808979578bdc64_tamara-text-logo-black-en.svg',
+    'paymob.com/images/paymobLogo.png',
+    'www.sama.gov.sa/ar-sa/payment/PublishingImages/mada-logo.svg',
+    'cdn.visa.com/v2/assets/images/logos/visa/blue/logo.png',
+    'www.mastercard.com/content/dam/mccom/shared/header/ma_symbol.svg'
+  ]) assert.match(landing,new RegExp(officialLogo.replaceAll('/','\\/')));
+  assert.match(landing,/loading="lazy" decoding="async" referrerPolicy="no-referrer"/);
+  assert.doesNotMatch(landing,/tamara-symbol|paymob-symbol|mada-signal|mastercard-red|mastercard-orange/);
+  assert.doesNotMatch(landing,/تعرض هذه الوسائل لتوضيح الخيارات التي يمكن إتاحتها|marketplace-availability-note/);
   assert.match(landing,/<RoleSwitcher \/>[\s\S]*<MarketplaceShowcase onRegister=\{openRegistration\} \/>[\s\S]*<SecuritySection cms=\{cms\} kickerNumber="07" \/>/);
   assert.match(landing,/بيانات منشأتك… أمانة تُدار بمسؤولية/);
   assert.match(landing,/نظام حماية البيانات الشخصية ولائحته التنفيذية/);
@@ -185,6 +194,7 @@ test('ODEIR production homepage uses the interactive, builder-backed landing exp
   assert.match(styles,/\.payment-logo--mada/);
   assert.match(styles,/\.payment-logo--visa/);
   assert.match(styles,/\.payment-logo--mastercard/);
+  assert.doesNotMatch(styles,/tamara-symbol|paymob-symbol|mada-signal|mastercard-red|mastercard-orange|marketplace-availability-note/);
   assert.match(styles,/@keyframes marketplace-orbit/);
   assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.service-category-cloud \{ margin-top: 24px; grid-template-columns: 1fr;/);
   assert.match(styles,/@media \(max-width: 620px\)[\s\S]*\.addon-marketplace-item \{ position: static; width: 100%;/);

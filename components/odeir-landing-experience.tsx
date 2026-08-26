@@ -1306,24 +1306,31 @@ const addonMarketplaceCategories = [
 
 type PaymentLogoKind = "bank" | "tamara" | "paymob" | "mada" | "visa" | "mastercard";
 
-const marketplacePaymentMethods: readonly { label: string; kind: PaymentLogoKind }[] = [
-  { label: "تحويل بنكي", kind: "bank" },
-  { label: "تمارا", kind: "tamara" },
-  { label: "Paymob", kind: "paymob" },
-  { label: "مدى", kind: "mada" },
-  { label: "VISA", kind: "visa" },
-  { label: "Mastercard", kind: "mastercard" },
+type PaymentMethod = {
+  label: string;
+  kind: PaymentLogoKind;
+  src?: string;
+  width: number;
+  height: number;
+};
+
+const marketplacePaymentMethods: readonly PaymentMethod[] = [
+  { label: "تحويل بنكي", kind: "bank", width: 72, height: 46 },
+  { label: "تمارا", kind: "tamara", src: "https://cdn.prod.website-files.com/67c184892f7a84b971ff49d9/68931b49f2808979578bdc64_tamara-text-logo-black-en.svg", width: 97, height: 19 },
+  { label: "Paymob", kind: "paymob", src: "https://paymob.com/images/paymobLogo.png", width: 320, height: 74 },
+  { label: "مدى", kind: "mada", src: "https://www.sama.gov.sa/ar-sa/payment/PublishingImages/mada-logo.svg", width: 312, height: 104 },
+  { label: "VISA", kind: "visa", src: "https://cdn.visa.com/v2/assets/images/logos/visa/blue/logo.png", width: 208, height: 68 },
+  { label: "Mastercard", kind: "mastercard", src: "https://www.mastercard.com/content/dam/mccom/shared/header/ma_symbol.svg", width: 227, height: 150 },
 ];
 
-function PaymentMethodLogo({ kind, label }: { kind: PaymentLogoKind; label: string }) {
+function PaymentMethodLogo({ method }: { method: PaymentMethod }) {
   return (
-    <span className={`payment-logo payment-logo--${kind}`} role="img" aria-label={label}>
-      {kind === "bank" && <svg viewBox="0 0 72 46" aria-hidden="true" focusable="false"><path d="M8 18 36 4l28 14v5H8z" /><path d="M13 26h8v13h-8zm19 0h8v13h-8zm19 0h8v13h-8zM7 41h58v4H7z" /></svg>}
-      {kind === "tamara" && <svg viewBox="0 0 150 46" aria-hidden="true" focusable="false"><g className="tamara-symbol"><path d="M17 8c6 0 11 5 11 11S23 30 17 30 6 25 6 19 11 8 17 8Z" /><path d="M27 17c6 0 11 5 11 11S33 39 27 39s-11-5-11-11 5-11 11-11Z" /></g><text x="47" y="31">tamara</text></svg>}
-      {kind === "paymob" && <svg viewBox="0 0 158 46" aria-hidden="true" focusable="false"><g className="paymob-symbol"><circle cx="22" cy="23" r="18" /><path d="M18 13h7.5a8 8 0 0 1 0 16H22v7h-4V13Zm4 4v8h3.3a4 4 0 0 0 0-8H22Z" /></g><text x="49" y="31">paymob</text></svg>}
-      {kind === "mada" && <svg viewBox="0 0 142 46" aria-hidden="true" focusable="false"><g className="mada-signal"><path d="M5 30h22v5H5z" /><path d="M10 21h22v5H10z" /><path d="M15 12h22v5H15z" /></g><text className="mada-en" x="43" y="31">mada</text><text className="mada-ar" x="132" y="29">مدى</text></svg>}
-      {kind === "visa" && <svg viewBox="0 0 110 42" aria-hidden="true" focusable="false"><text x="7" y="31">VISA</text></svg>}
-      {kind === "mastercard" && <svg viewBox="0 0 128 48" aria-hidden="true" focusable="false"><circle className="mastercard-red" cx="46" cy="20" r="16" /><circle className="mastercard-orange" cx="65" cy="20" r="16" /><path className="mastercard-overlap" d="M55.5 7.1a16 16 0 0 1 0 25.8 16 16 0 0 1 0-25.8Z" /><text x="22" y="45">mastercard</text></svg>}
+    <span className={`payment-logo payment-logo--${method.kind}`} role="img" aria-label={method.label}>
+      {method.src ? <>
+        {/* Official mark served by the brand owner's public website. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={method.src} width={method.width} height={method.height} alt="" aria-hidden="true" loading="lazy" decoding="async" referrerPolicy="no-referrer" draggable={false} />
+      </> : <svg viewBox="0 0 72 46" aria-hidden="true" focusable="false"><path d="M8 18 36 4l28 14v5H8z" /><path d="M13 26h8v13h-8zm19 0h8v13h-8zm19 0h8v13h-8zM7 41h58v4H7z" /></svg>}
     </span>
   );
 }
@@ -1387,11 +1394,10 @@ function MarketplaceShowcase({ onRegister, kickerNumber = "06" }: { onRegister: 
             <p>تظهر لك وسائل الدفع المتاحة بحسب الخدمة، بلد الإصدار، أهلية العميل، وحالة تفعيل مزوّد الدفع.</p>
           </div>
           <div className="marketplace-payment-methods" aria-label="وسائل الدفع التي قد تتوفر">
-            {marketplacePaymentMethods.map((method) => <span className="marketplace-payment-logo-card" key={method.label}><PaymentMethodLogo kind={method.kind} label={method.label} /></span>)}
+            {marketplacePaymentMethods.map((method) => <span className="marketplace-payment-logo-card" key={method.label}><PaymentMethodLogo method={method} /></span>)}
           </div>
           <a className="button button--primary marketplace-cta" href={registerHref} onClick={(event) => openRegistrationFromLink(event, registerHref, onRegister)}>افتح حساب منشأتك <ArrowMark /></a>
         </div>
-        <p className="marketplace-availability-note">تعرض هذه الوسائل لتوضيح الخيارات التي يمكن إتاحتها، ولا يعني ظهورها تفعيلها لكل خدمة أو منشأة؛ ويظهر الخيار المؤهل فعليًا داخل صفحة الطلب.</p>
       </div>
     </section>
   );

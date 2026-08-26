@@ -724,26 +724,16 @@
 .odeir-experience .marketplace-payment-logo-card { min-height: 50px; padding: 7px 10px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(255,255,255,.68); border-radius: 12px; background: linear-gradient(145deg,#fff,#f5f8fb); box-shadow: 0 8px 18px rgba(0,12,31,.13), inset 0 0 0 1px rgba(6,24,47,.035); transition: transform .2s ease, box-shadow .2s ease; }
 .odeir-experience .marketplace-payment-logo-card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(0,12,31,.2), inset 0 0 0 1px rgba(6,24,47,.035); }
 .odeir-experience .payment-logo { width: 100%; height: 31px; display: grid; place-items: center; }
+.odeir-experience .payment-logo img { display: block; width: auto; max-width: 112px; height: auto; max-height: 31px; object-fit: contain; user-select: none; }
 .odeir-experience .payment-logo svg { display: block; width: 100%; max-width: 112px; height: 31px; overflow: visible; }
 .odeir-experience .payment-logo--bank { color: #0b4668; }
 .odeir-experience .payment-logo--bank svg { width: 46px; }
-.odeir-experience .payment-logo--tamara svg text { fill: #1b1b1d; font: 800 24px/1 Arial,sans-serif; letter-spacing: -.8px; }
-.odeir-experience .payment-logo--tamara .tamara-symbol { fill: #ff5a8a; }
-.odeir-experience .payment-logo--paymob svg text { fill: #143a72; font: 800 24px/1 Arial,sans-serif; letter-spacing: -.7px; }
-.odeir-experience .payment-logo--paymob .paymob-symbol circle { fill: #2864dc; }
-.odeir-experience .payment-logo--paymob .paymob-symbol path { fill: #fff; }
-.odeir-experience .payment-logo--mada .mada-signal path:nth-child(1) { fill: #12898c; }
-.odeir-experience .payment-logo--mada .mada-signal path:nth-child(2) { fill: #42a98d; }
-.odeir-experience .payment-logo--mada .mada-signal path:nth-child(3) { fill: #7bc579; }
-.odeir-experience .payment-logo--mada .mada-en { fill: #147f86; font: 800 22px/1 Arial,sans-serif; letter-spacing: -.6px; }
-.odeir-experience .payment-logo--mada .mada-ar { fill: #58a477; font: 800 15px/1 var(--font-arabic),Arial,sans-serif; text-anchor: end; }
-.odeir-experience .payment-logo--visa svg text { fill: #1434cb; font: italic 900 29px/1 Arial,sans-serif; letter-spacing: -2px; }
-.odeir-experience .payment-logo--mastercard .mastercard-red { fill: #eb001b; }
-.odeir-experience .payment-logo--mastercard .mastercard-orange { fill: #f79e1b; }
-.odeir-experience .payment-logo--mastercard .mastercard-overlap { fill: #ff5f00; }
-.odeir-experience .payment-logo--mastercard svg text { fill: #1e252d; font: 700 10px/1 Arial,sans-serif; letter-spacing: -.25px; }
+.odeir-experience .payment-logo--tamara img { max-width: 105px; max-height: 24px; }
+.odeir-experience .payment-logo--paymob img { max-width: 108px; max-height: 25px; }
+.odeir-experience .payment-logo--mada img { max-width: 100px; max-height: 30px; }
+.odeir-experience .payment-logo--visa img { max-width: 78px; max-height: 26px; }
+.odeir-experience .payment-logo--mastercard img { max-width: 50px; max-height: 32px; }
 .odeir-experience .marketplace-cta { position: relative; z-index: 1; min-width: 166px; justify-content: center; white-space: nowrap; }
-.odeir-experience .marketplace-availability-note { margin: 13px 8px 0; color: #778391; font-size: 8px; line-height: 1.7; text-align: center; }
 @keyframes marketplace-orbit { to { transform: translate(-50%,-50%) rotate(360deg); } }
 
 .odeir-experience .security-section { position: relative; padding: 140px 0 95px; overflow: hidden; color: #fff; background: linear-gradient(145deg, #061831, #082749 55%, #03142b); }
@@ -1282,7 +1272,7 @@
   .odeir-experience .marketplace-payment-logo-card { min-height: 52px; padding: 8px 10px; }
   .odeir-experience .payment-logo { height: 32px; }
   .odeir-experience .payment-logo svg { height: 32px; }
-  .odeir-experience .marketplace-availability-note { margin-inline: 2px; font-size: 7px; text-align: right; }
+  .odeir-experience .payment-logo img { max-height: 32px; }
   .odeir-experience .security-copy h2 { margin-top: 22px; }
   .odeir-experience .security-links { display: grid; grid-template-columns: 1fr; gap: 12px; }
   .odeir-experience .security-links a { min-height: 42px; padding: 0 13px; justify-content: space-between; border: 1px solid rgba(245,201,52,.18); border-radius: 11px; background: rgba(245,201,52,.035); }

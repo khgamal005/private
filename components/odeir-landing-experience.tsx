@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import OdeirRegistrationModal from "./odeir-registration-modal";
 import {
@@ -634,7 +634,11 @@ function StoryStrip({ kickerNumber = "01" }: { kickerNumber?: string } = {}) {
               onPointerEnter={() => setActiveNode(index)}
               key={`node-${activeCategory.key}-${source.key}`}
             >
-              <Image className={source.logoClass ?? ""} src={source.logo} width={70} height={70} alt="" />
+              {/* These marks sit inside animated, absolutely-positioned nodes. Safari can
+                  miss Next/Image's lazy intersection in that layout, so load the tiny
+                  local SVG directly and eagerly. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className={source.logoClass ?? ""} src={source.logo} width={70} height={70} alt="" aria-hidden="true" loading="eager" decoding="async" draggable={false} />
               <span className="network-node-label" dir="auto"><b>{source.nodeLabel ?? source.label}</b><small>{source.description}</small></span>
             </button>
           ))}
@@ -1252,28 +1256,33 @@ type PaymentLogoKind = "bank" | "tamara" | "paymob" | "mada" | "visa" | "masterc
 type PaymentMethod = {
   label: string;
   kind: PaymentLogoKind;
-  src?: string;
-  width: number;
-  height: number;
 };
 
 const marketplacePaymentMethods: readonly PaymentMethod[] = [
-  { label: "تحويل بنكي", kind: "bank", width: 72, height: 46 },
-  { label: "تمارا", kind: "tamara", src: "https://cdn.prod.website-files.com/67c184892f7a84b971ff49d9/68931b49f2808979578bdc64_tamara-text-logo-black-en.svg", width: 97, height: 19 },
-  { label: "Paymob", kind: "paymob", src: "https://paymob.com/images/paymobLogo.png", width: 320, height: 74 },
-  { label: "مدى", kind: "mada", src: "https://www.sama.gov.sa/ar-sa/payment/PublishingImages/mada-logo.svg", width: 312, height: 104 },
-  { label: "VISA", kind: "visa", src: "https://cdn.visa.com/v2/assets/images/logos/visa/blue/logo.png", width: 208, height: 68 },
-  { label: "Mastercard", kind: "mastercard", src: "https://www.mastercard.com/content/dam/mccom/shared/header/ma_symbol.svg", width: 227, height: 150 },
+  { label: "تحويل بنكي", kind: "bank" },
+  { label: "تمارا", kind: "tamara" },
+  { label: "Paymob", kind: "paymob" },
+  { label: "مدى", kind: "mada" },
+  { label: "VISA", kind: "visa" },
+  { label: "Mastercard", kind: "mastercard" },
 ];
 
 function PaymentMethodLogo({ method }: { method: PaymentMethod }) {
+  let mark: ReactNode;
+  if (method.kind === "bank") {
+    mark = <svg viewBox="0 0 72 46" aria-hidden="true" focusable="false"><path d="M8 18 36 4l28 14v5H8z" /><path d="M13 26h8v13h-8zm19 0h8v13h-8zm19 0h8v13h-8zM7 41h58v4H7z" /></svg>;
+  } else if (method.kind === "mastercard") {
+    mark = <span className="payment-mastercard-mark" aria-hidden="true"><i /><i /></span>;
+  } else if (method.kind === "mada") {
+    mark = <span className="payment-wordmark payment-wordmark--mada" aria-hidden="true"><b>mada</b><small>مدى</small></span>;
+  } else {
+    const wordmark = method.kind === "tamara" ? "tamara" : method.kind === "paymob" ? "paymob" : "VISA";
+    mark = <span className={`payment-wordmark payment-wordmark--${method.kind}`} aria-hidden="true">{wordmark}</span>;
+  }
+
   return (
     <span className={`payment-logo payment-logo--${method.kind}`} role="img" aria-label={method.label}>
-      {method.src ? <>
-        {/* Official mark served by the brand owner's public website. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={method.src} width={method.width} height={method.height} alt="" aria-hidden="true" loading="lazy" decoding="async" referrerPolicy="no-referrer" draggable={false} />
-      </> : <svg viewBox="0 0 72 46" aria-hidden="true" focusable="false"><path d="M8 18 36 4l28 14v5H8z" /><path d="M13 26h8v13h-8zm19 0h8v13h-8zm19 0h8v13h-8zM7 41h58v4H7z" /></svg>}
+      {mark}
     </span>
   );
 }

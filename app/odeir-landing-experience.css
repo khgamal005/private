@@ -796,6 +796,17 @@
 .odeir-experience .payment-logo--mada img { max-width: 100px; max-height: 30px; }
 .odeir-experience .payment-logo--visa img { max-width: 78px; max-height: 26px; }
 .odeir-experience .payment-logo--mastercard img { max-width: 50px; max-height: 32px; }
+.odeir-experience .payment-wordmark { display: inline-flex; align-items: center; justify-content: center; color: #111827; font-family: Arial, sans-serif; font-size: 24px; font-weight: 900; line-height: 1; letter-spacing: -.9px; white-space: nowrap; }
+.odeir-experience .payment-wordmark--tamara { color: #101114; font-size: 23px; letter-spacing: -1.4px; }
+.odeir-experience .payment-wordmark--paymob { color: #5337c6; font-size: 22px; letter-spacing: -1.1px; }
+.odeir-experience .payment-wordmark--visa { color: #1434cb; font-size: 24px; font-style: italic; letter-spacing: -1.8px; }
+.odeir-experience .payment-wordmark--mada { gap: 5px; color: #6bad48; font-size: 20px; letter-spacing: -1.2px; }
+.odeir-experience .payment-wordmark--mada b { font: inherit; }
+.odeir-experience .payment-wordmark--mada small { color: #23679d; font-family: inherit; font-size: 18px; font-weight: 900; letter-spacing: 0; }
+.odeir-experience .payment-mastercard-mark { position: relative; width: 52px; height: 31px; display: block; }
+.odeir-experience .payment-mastercard-mark i { position: absolute; top: 1px; width: 30px; height: 30px; border-radius: 50%; background: #eb001b; }
+.odeir-experience .payment-mastercard-mark i:first-child { left: 1px; }
+.odeir-experience .payment-mastercard-mark i:last-child { right: 1px; background: #f79e1b; mix-blend-mode: multiply; }
 .odeir-experience .marketplace-cta { position: relative; z-index: 1; min-width: 166px; justify-content: center; white-space: nowrap; }
 @keyframes marketplace-orbit { to { transform: translate(-50%,-50%) rotate(360deg); } }
 

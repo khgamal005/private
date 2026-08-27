@@ -21,6 +21,7 @@ const RPC={
   ,'addon-decision':ADDON_CENTER_RPC.current
   ,'marketplace':'v1_platform_marketplace_action'
   ,'commerce':'v4_platform_commerce_action'
+  ,'service-marketplace':'v1_platform_service_marketplace_action'
 };
 
 export async function POST(req,{params}){
@@ -121,5 +122,30 @@ function translate(x){const m={
   ,service_name_required:'اسم الخدمة مطلوب'
   ,invalid_service_key:'مفتاح الخدمة يجب أن يكون إنجليزيًا وبصيغة صحيحة'
   ,service_not_found:'الخدمة غير موجودة'
+  ,service_provider_invalid:'بيانات مزود الخدمة غير صالحة'
+  ,service_provider_name_required:'اسم مزود الخدمة مطلوب'
+  ,service_provider_key_invalid:'مفتاح مزود الخدمة يجب أن يكون إنجليزيًا وبصيغة صحيحة'
+  ,service_provider_not_found:'مزود الخدمة غير موجود'
+  ,service_provider_not_available:'مزود الخدمة غير متاح للإسناد'
+  ,service_provider_update_conflict:'تم تعديل بيانات المزود من جلسة أخرى؛ حدّث الصفحة وأعد المحاولة'
+  ,service_course_invalid:'بيانات الدورة غير صالحة'
+  ,service_course_key_invalid:'مفتاح الدورة يجب أن يكون إنجليزيًا وبصيغة صحيحة'
+  ,service_course_not_found:'الدورة غير موجودة'
+  ,service_course_update_conflict:'تم تعديل الدورة من جلسة أخرى؛ حدّث الصفحة وأعد المحاولة'
+  ,service_course_provider_locked:'لا يمكن تغيير مزود دورة مرتبطة بخدمة؛ أنشئ دورة جديدة أو فك الارتباط أولًا'
+  ,service_product_invalid:'بيانات الخدمة غير صالحة'
+  ,service_description_required:'اكتب وصفًا واضحًا للخدمة'
+  ,service_price_invalid:'سعر الخدمة غير صالح'
+  ,service_product_update_conflict:'تم تعديل الخدمة من جلسة أخرى؛ حدّث الصفحة وأعد المحاولة'
+  ,service_package_invalid:'بيانات الباقة غير صالحة'
+  ,service_package_key_invalid:'مفتاح الباقة يجب أن يكون إنجليزيًا وبصيغة صحيحة'
+  ,service_package_not_found:'باقة الخدمة غير موجودة'
+  ,service_package_update_conflict:'تم تعديل الباقة من جلسة أخرى؛ حدّث الصفحة وأعد المحاولة'
+  ,service_package_product_locked:'لا يمكن نقل باقة قائمة إلى خدمة أخرى'
+  ,service_assignment_invalid:'بيانات إسناد الطلب غير صالحة'
+  ,service_assignment_order_not_ready:'يجب تأكيد دفع الطلب قبل إسناده'
+  ,service_assignment_update_conflict:'تم تعديل الإسناد من جلسة أخرى؛ حدّث الصفحة وأعد المحاولة'
+  ,service_assignment_package_locked:'باقة الطلب جزء من الشراء ولا يمكن تغييرها أثناء الإسناد'
+  ,service_marketplace_action_invalid:'إجراء إدارة متجر الخدمات غير مدعوم'
   ,commerce_action_invalid:'إجراء إدارة المنتجات والفوترة غير مدعوم'
 };return m[x]||String(x)}

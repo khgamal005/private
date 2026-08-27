@@ -1,8 +1,16 @@
 "use client";
 
-import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import OdeirRegistrationModal from "./odeir-registration-modal";
+import {
+  ArrowMark,
+  Brand,
+  OdeirSiteFooter,
+  OdeirSiteHeader,
+  openRegistrationFromLink,
+  type OdeirMenuItem,
+} from "./odeir-site-chrome";
 
 const APP_ORIGIN = "";
 
@@ -46,8 +54,15 @@ type LandingCms = {
   settings?: {
     customerLoginLabel?: string;
     customerLoginUrl?: string;
+    contactCtaLabel?: string;
+    contactCtaUrl?: string;
+    freeTrialLabel?: string;
+    freeTrialUrl?: string;
+    footerText?: string;
   };
   articles?: LandingArticle[];
+  menu?: OdeirMenuItem[];
+  footerMenu?: OdeirMenuItem[];
 };
 
 type LandingVariant = "default" | "manager";
@@ -171,39 +186,6 @@ const journeyEvents = [
   { time: "13:42", source: "التسجيل", text: "انتقل الطلب إلى بانتظار الدفع" },
 ] as const;
 
-function ArrowMark() {
-  return <span className="arrow-mark" aria-hidden="true" />;
-}
-
-function opensRegistrationModal(href: string) {
-  const path = String(href || "").trim().split(/[?#]/, 1)[0].replace(/^https?:\/\/[^/]+/i, "");
-  return path === "/free-trial" || path === "/free-trial/apply";
-}
-
-function openRegistrationFromLink(
-  event: MouseEvent<HTMLAnchorElement>,
-  href: string,
-  onRegister: () => void,
-) {
-  if (!opensRegistrationModal(href)) return;
-  event.preventDefault();
-  onRegister();
-}
-
-function Brand({ compact = false }: { compact?: boolean }) {
-  return (
-    <span className={compact ? "brand brand--compact" : "brand"} aria-label="أودير ODEIR">
-      <Image
-        className="brand-logo"
-        src="/odeir/odeir-logo-transparent.webp"
-        width={1126}
-        height={522}
-        alt="أودير ODEIR — أدر على بيّنة"
-      />
-    </span>
-  );
-}
-
 function useReveal() {
   useEffect(() => {
     const nodes = Array.from(document.querySelectorAll<HTMLElement>(".odeir-experience [data-reveal]"));
@@ -238,45 +220,6 @@ function useReveal() {
       observer.disconnect();
     };
   }, []);
-}
-
-function Header({ cms, onRegister, variant = "default" }: { cms: LandingCms; onRegister: () => void; variant?: LandingVariant }) {
-  const [open, setOpen] = useState(false);
-  const managerPreview = variant === "manager";
-  const primaryLabel = cms.hero?.primaryLabel || "سجّل منشأتك مجانًا";
-  const primaryHref = cms.hero?.primaryHref || "/free-trial/apply";
-  const loginLabel = cms.settings?.customerLoginLabel || "دخول المنشآت";
-  const loginHref = cms.settings?.customerLoginUrl || "/login";
-  return (
-    <header className="site-header">
-      <a className="brand-link" href="#top" aria-label="أودير - الرئيسية"><Brand /></a>
-      <nav className={open ? "main-nav is-open" : "main-nav"} aria-label="التنقل الرئيسي">
-        {managerPreview ? <>
-          <a href="#product" onClick={() => setOpen(false)}>جولة أودير</a>
-          <a href="#journey" onClick={() => setOpen(false)}>رحلة المتدرب</a>
-          <a href="#manager-proof" onClick={() => setOpen(false)}>من واقع التشغيل</a>
-          <a href="#story" onClick={() => setOpen(false)}>التكاملات</a>
-          <a href="#security" onClick={() => setOpen(false)}>الحماية</a>
-        </> : <>
-          <a href="#morning-brief" onClick={() => setOpen(false)}>أول فنجان</a>
-          <a href="#story" onClick={() => setOpen(false)}>التكاملات</a>
-          <a href="#product" onClick={() => setOpen(false)}>جولة داخل أودير</a>
-          <a href="#journey" onClick={() => setOpen(false)}>رحلة العميل</a>
-          <a href="#marketplace" onClick={() => setOpen(false)}>متاجر أودير</a>
-          <a href="#security" onClick={() => setOpen(false)}>الحماية</a>
-        </>}
-        <a className="mobile-nav-only" href={`${APP_ORIGIN}${loginHref}`} onClick={() => setOpen(false)}>{loginLabel}</a>
-        <a className="mobile-nav-only mobile-nav-cta" href={`${APP_ORIGIN}${primaryHref}`} onClick={(event) => { setOpen(false); openRegistrationFromLink(event, primaryHref, onRegister); }}>{primaryLabel}</a>
-      </nav>
-      <div className="header-actions">
-        <a className="login-link" href={`${APP_ORIGIN}${loginHref}`}>{loginLabel}</a>
-        <a className="button button--small" href={`${APP_ORIGIN}${primaryHref}`} onClick={(event) => openRegistrationFromLink(event, primaryHref, onRegister)}>{primaryLabel.replace("منشأتك ", "")} <ArrowMark /></a>
-      </div>
-      <button className={open ? "menu-toggle is-open" : "menu-toggle"} type="button" aria-label={open ? "إغلاق القائمة" : "فتح القائمة"} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-        <span /><span /><span />
-      </button>
-    </header>
-  );
 }
 
 function MiniChart({ values }: { values: readonly number[] }) {
@@ -1532,7 +1475,7 @@ export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms 
   }, []);
   return (
     <main className="odeir-experience" dir="rtl">
-      <div className="hero-shell" ref={heroShellRef}><Header cms={cms} onRegister={openRegistration} /><Hero cms={cms} onRegister={openRegistration} /></div>
+      <div className="hero-shell" ref={heroShellRef}><OdeirSiteHeader menu={cms.menu} settings={cms.settings} hero={cms.hero} onRegister={openRegistration} /><Hero cms={cms} onRegister={openRegistration} /></div>
       <MorningBriefing articles={cms.articles} />
       <StoryStrip />
       <ProductDemo />
@@ -1543,11 +1486,7 @@ export default function OdeirLandingExperience({ cms = {} }: { cms?: LandingCms 
       <SecuritySection cms={cms} kickerNumber="07" />
       <FAQ cms={cms} kickerNumber="08" />
       <FinalCTA cms={cms} onRegister={openRegistration} />
-      <footer className="site-footer">
-        <div className="footer-brand"><Brand /><p>تشغيل أوضح وإدارة مترابطة للمنشآت التدريبية.</p></div>
-        <nav aria-label="روابط السياسات والمحتوى"><a href={`${APP_ORIGIN}/articles`}>الأخبار والمعارف</a><a href={`${APP_ORIGIN}/p/privacy-policy`}>الخصوصية</a><a href={`${APP_ORIGIN}/p/information-security`}>أمن المعلومات</a><a href={`${APP_ORIGIN}/p/terms-of-use`}>شروط الاستخدام</a><a href={`${APP_ORIGIN}/p/data-rights`}>حقوق البيانات</a></nav>
-        <span>© {new Date().getFullYear()} أودير. جميع الحقوق محفوظة.</span>
-      </footer>
+      <OdeirSiteFooter footerMenu={cms.footerMenu} settings={cms.settings} />
       <a className={showMobileCta ? "mobile-cta is-visible" : "mobile-cta"} href={`${APP_ORIGIN}${cms.hero?.primaryHref || "/free-trial/apply"}`} onClick={(event) => openRegistrationFromLink(event, cms.hero?.primaryHref || "/free-trial/apply", openRegistration)}>{cms.hero?.primaryLabel || "سجّل منشأتك مجانًا"} <ArrowMark /></a>
       <OdeirRegistrationModal open={registrationOpen} onClose={closeRegistration} />
     </main>
@@ -1582,7 +1521,7 @@ export function OdeirManagerPreview({ cms = {} }: { cms?: LandingCms }) {
   }, []);
   return (
     <main className="odeir-experience odeir-experience--manager" dir="rtl" data-preview="manager">
-      <div className="hero-shell" ref={heroShellRef}><Header cms={cms} onRegister={openRegistration} variant="manager" /><Hero cms={cms} onRegister={openRegistration} variant="manager" /></div>
+      <div className="hero-shell" ref={heroShellRef}><OdeirSiteHeader menu={cms.menu} settings={cms.settings} hero={cms.hero} onRegister={openRegistration} /><Hero cms={cms} onRegister={openRegistration} variant="manager" /></div>
       <ManagerTrustRail />
       <ProductDemo kickerNumber="01" />
       <JourneyLab kickerNumber="02" />
@@ -1594,11 +1533,7 @@ export function OdeirManagerPreview({ cms = {} }: { cms?: LandingCms }) {
       <MorningBriefing articles={cms.articles} />
       <FAQ cms={cms} kickerNumber="08" variant="manager" />
       <FinalCTA cms={cms} onRegister={openRegistration} variant="manager" />
-      <footer className="site-footer">
-        <div className="footer-brand"><Brand /><p>تشغيل أوضح وإدارة مترابطة للمنشآت التدريبية.</p></div>
-        <nav aria-label="روابط السياسات والمحتوى"><a href={`${APP_ORIGIN}/articles`}>الأخبار والمعارف</a><a href={`${APP_ORIGIN}/p/privacy-policy`}>الخصوصية</a><a href={`${APP_ORIGIN}/p/information-security`}>أمن المعلومات</a><a href={`${APP_ORIGIN}/p/terms-of-use`}>شروط الاستخدام</a><a href={`${APP_ORIGIN}/p/data-rights`}>حقوق البيانات</a></nav>
-        <span>© {new Date().getFullYear()} أودير. جميع الحقوق محفوظة.</span>
-      </footer>
+      <OdeirSiteFooter footerMenu={cms.footerMenu} settings={cms.settings} />
       <a className={showMobileCta ? "mobile-cta is-visible" : "mobile-cta"} href={`${APP_ORIGIN}${cms.hero?.primaryHref || "/free-trial/apply"}`} onClick={(event) => openRegistrationFromLink(event, cms.hero?.primaryHref || "/free-trial/apply", openRegistration)}>{cms.hero?.primaryLabel || "سجّل منشأتك مجانًا"} <ArrowMark /></a>
       <OdeirRegistrationModal open={registrationOpen} onClose={closeRegistration} />
     </main>

@@ -83,6 +83,69 @@
 .odeir-experience .main-nav a::after { content: ""; position: absolute; right: 0; bottom: -11px; width: 0; height: 2px; background: var(--teal); transition: width .25s ease; }
 .odeir-experience .main-nav a:hover { color: #fff; }
 .odeir-experience .main-nav a:hover::after { width: 100%; }
+.odeir-experience .odeir-managed-header-shell {
+  position: relative;
+  z-index: 45;
+  overflow: visible;
+  color: var(--white);
+  background:
+    radial-gradient(circle at 19% 18%, rgba(0, 200, 190, .15), transparent 29%),
+    radial-gradient(circle at 82% 70%, rgba(45, 114, 212, .15), transparent 31%),
+    linear-gradient(145deg, #020c1e 0%, #041933 48%, #03142d 100%);
+}
+.odeir-experience .odeir-managed-header-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .12;
+  background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+  background-size: 78px 78px;
+}
+.odeir-experience .odeir-nav-group { position: relative; }
+.odeir-experience .odeir-nav-parent { display: flex; align-items: center; gap: 5px; }
+.odeir-experience .odeir-nav-parent button {
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: #c7d4e3;
+  background: transparent;
+  cursor: pointer;
+  transition: color .2s ease, background .2s ease, transform .2s ease;
+}
+.odeir-experience .odeir-nav-group:hover .odeir-nav-parent button,
+.odeir-experience .odeir-nav-group:focus-within .odeir-nav-parent button,
+.odeir-experience .odeir-nav-group.is-open .odeir-nav-parent button { color: #fff; background: rgba(255,255,255,.08); transform: rotate(180deg); }
+.odeir-experience .odeir-nav-dropdown {
+  position: absolute;
+  top: calc(100% + 22px);
+  right: 0;
+  width: min(310px, 78vw);
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  background: rgba(3,20,43,.985);
+  box-shadow: 0 25px 60px rgba(0,0,0,.35);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-9px);
+  transition: opacity .2s ease, visibility .2s ease, transform .2s ease;
+}
+.odeir-experience .odeir-nav-group:hover .odeir-nav-dropdown,
+.odeir-experience .odeir-nav-group:focus-within .odeir-nav-dropdown,
+.odeir-experience .odeir-nav-group.is-open .odeir-nav-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+.odeir-experience .odeir-nav-dropdown a { min-height: 48px; padding: 9px 11px; display: grid; align-content: center; gap: 3px; border-radius: 10px; }
+.odeir-experience .odeir-nav-dropdown a::after { display: none; }
+.odeir-experience .odeir-nav-dropdown a:hover { background: rgba(255,255,255,.07); }
+.odeir-experience .odeir-nav-dropdown b { color: #f5f8fb; font-size: 13px; }
+.odeir-experience .odeir-nav-dropdown b i { margin-left: 7px; font-style: normal; }
+.odeir-experience .odeir-nav-dropdown small { color: #91a7bd; font-size: 10px; line-height: 1.6; }
 .odeir-experience .mobile-nav-only { display: none; }
 .odeir-experience .header-actions { display: flex; align-items: center; gap: 18px; }
 .odeir-experience .login-link { color: #d7e1ec; font-size: 14px; font-weight: 700; white-space: nowrap; }
@@ -863,6 +926,29 @@
   .odeir-experience .main-nav a { min-height: 49px; display: flex; align-items: center; padding: 0 8px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 14px; }
   .odeir-experience .main-nav a:last-child { border-bottom: 0; }
   .odeir-experience .main-nav a::after { display: none; }
+  .odeir-experience .odeir-nav-group { display: grid; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .odeir-experience .odeir-nav-parent { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+  .odeir-experience .odeir-nav-parent > a { border-bottom: 0; }
+  .odeir-experience .odeir-nav-parent button { width: 42px; height: 42px; align-self: center; }
+  .odeir-experience .odeir-nav-dropdown {
+    position: static;
+    width: 100%;
+    max-height: 0;
+    padding: 0 8px;
+    gap: 3px;
+    border: 0;
+    border-radius: 11px;
+    background: rgba(255,255,255,.035);
+    box-shadow: none;
+    opacity: 0;
+    visibility: hidden;
+    overflow: hidden;
+    transform: none;
+  }
+  .odeir-experience .odeir-nav-group:hover .odeir-nav-dropdown,
+  .odeir-experience .odeir-nav-group:focus-within .odeir-nav-dropdown { max-height: 0; padding-block: 0; opacity: 0; visibility: hidden; }
+  .odeir-experience .odeir-nav-group.is-open .odeir-nav-dropdown { max-height: 520px; padding-block: 7px; opacity: 1; visibility: visible; }
+  .odeir-experience .odeir-nav-dropdown a { min-height: 44px; border-bottom: 1px solid rgba(255,255,255,.06); }
   .odeir-experience .main-nav .mobile-nav-only { display: flex; }
   .odeir-experience .main-nav .mobile-nav-cta { min-height: 46px; margin-top: 9px; justify-content: center; border: 0; border-radius: 11px; color: #06162e; background: var(--yellow); }
   .odeir-experience .menu-toggle.is-open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }

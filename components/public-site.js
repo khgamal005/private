@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import OdeirBrand from './odeir-brand';
+import {OdeirSiteFooter,OdeirSiteHeader} from './odeir-site-chrome';
 import styles from './public-site.module.css';
 
 const ICONS=['◌','↗','◎','◇','✦','⌁','▦','↳'];
@@ -12,25 +13,34 @@ export default function PublicSite({snapshot}){
   const site=snapshot?.site||{};
   const settings=site.settings||{};
   const menu=Array.isArray(snapshot?.menu)?snapshot.menu:[];
+  const footerMenu=Array.isArray(snapshot?.footerMenu)&&snapshot.footerMenu.length?snapshot.footerMenu:menu;
   const sections=Array.isArray(snapshot?.sections)?snapshot.sections:[];
   const articles=Array.isArray(snapshot?.articles)?snapshot.articles:[];
+  const managed=isOdeirSite(site);
 
-  return <div className={styles.site} dir="rtl" style={themeVariables(site.theme)}>
-    <PublicHeader menu={menu} settings={settings}/>
+  return <div className={`${styles.site} ${managed?'odeir-experience odeir-managed-page':''}`} dir="rtl" style={themeVariables(site.theme)} data-site-chrome={managed?'odeir-managed':'tenant-managed'}>
+    {managed
+      ?<div className="odeir-managed-header-shell"><OdeirSiteHeader menu={menu} settings={settings} hero={{primaryLabel:settings.contactCtaLabel,primaryHref:settings.contactCtaUrl}}/></div>
+      :<PublicHeader menu={menu} settings={settings}/>}
     <main>
       {sections.map(section=><Section key={section.id||section.key} section={section}/>) }
       {articles.length>0&&<ArticlesPreview articles={articles}/>} 
     </main>
-    <PublicFooter menu={menu} settings={settings}/>
+    {managed?<OdeirSiteFooter footerMenu={footerMenu} settings={settings}/>:<PublicFooter menu={footerMenu} settings={settings}/>}
   </div>;
 }
 
 export function PublicContentPage({snapshot,content,type='page'}){
-  const settings=snapshot?.site?.settings||{};
+  const site=snapshot?.site||{};
+  const settings=site.settings||{};
   const menu=Array.isArray(snapshot?.menu)?snapshot.menu:[];
+  const footerMenu=Array.isArray(snapshot?.footerMenu)&&snapshot.footerMenu.length?snapshot.footerMenu:menu;
+  const managed=isOdeirSite(site);
   const label=type==='article'?'مقالات أودير':'أودير';
-  return <div className={styles.site} dir="rtl" style={themeVariables(snapshot?.site?.theme)}>
-    <PublicHeader menu={menu} settings={settings}/>
+  return <div className={`${styles.site} ${managed?'odeir-experience odeir-managed-page':''}`} dir="rtl" style={themeVariables(site.theme)} data-site-chrome={managed?'odeir-managed':'tenant-managed'}>
+    {managed
+      ?<div className="odeir-managed-header-shell"><OdeirSiteHeader menu={menu} settings={settings} hero={{primaryLabel:settings.contactCtaLabel,primaryHref:settings.contactCtaUrl}}/></div>
+      :<PublicHeader menu={menu} settings={settings}/>}
     <main className={styles.contentMain}>
       <article className={styles.contentArticle}>
         <div className={styles.contentMeta}>
@@ -49,16 +59,21 @@ export function PublicContentPage({snapshot,content,type='page'}){
         <div className={styles.richText}>{textBlocks(content?.body)}</div>
       </article>
     </main>
-    <PublicFooter menu={menu} settings={settings}/>
+    {managed?<OdeirSiteFooter footerMenu={footerMenu} settings={settings}/>:<PublicFooter menu={footerMenu} settings={settings}/>}
   </div>;
 }
 
 export function ArticlesIndex({snapshot}){
-  const settings=snapshot?.site?.settings||{};
+  const site=snapshot?.site||{};
+  const settings=site.settings||{};
   const menu=Array.isArray(snapshot?.menu)?snapshot.menu:[];
+  const footerMenu=Array.isArray(snapshot?.footerMenu)&&snapshot.footerMenu.length?snapshot.footerMenu:menu;
   const articles=Array.isArray(snapshot?.articles)?snapshot.articles:[];
-  return <div className={styles.site} dir="rtl" style={themeVariables(snapshot?.site?.theme)}>
-    <PublicHeader menu={menu} settings={settings}/>
+  const managed=isOdeirSite(site);
+  return <div className={`${styles.site} ${managed?'odeir-experience odeir-managed-page':''}`} dir="rtl" style={themeVariables(site.theme)} data-site-chrome={managed?'odeir-managed':'tenant-managed'}>
+    {managed
+      ?<div className="odeir-managed-header-shell"><OdeirSiteHeader menu={menu} settings={settings} hero={{primaryLabel:settings.contactCtaLabel,primaryHref:settings.contactCtaUrl}}/></div>
+      :<PublicHeader menu={menu} settings={settings}/>}
     <main className={styles.contentMain}>
       <section className={styles.articlesIndex}>
         <div className={styles.sectionHeading}>
@@ -72,7 +87,7 @@ export function ArticlesIndex({snapshot}){
         </div>
       </section>
     </main>
-    <PublicFooter menu={menu} settings={settings}/>
+    {managed?<OdeirSiteFooter footerMenu={footerMenu} settings={settings}/>:<PublicFooter menu={footerMenu} settings={settings}/>}
   </div>;
 }
 
@@ -334,6 +349,7 @@ function textBlocks(value){
 function formatDate(value){
   try{return new Intl.DateTimeFormat('ar-SA',{year:'numeric',month:'long',day:'numeric'}).format(new Date(value));}catch{return '';}
 }
+function isOdeirSite(site){return site?.key==='marktone-main'}
 function themeVariables(theme={}){
   return {
     '--mt-navy':theme.navy||'#06182e','--mt-navy-soft':theme.navySoft||'#0b2949',

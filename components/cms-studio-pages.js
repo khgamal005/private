@@ -60,12 +60,12 @@ export function PagesPanel({context,pages,query,setQuery,setEditor,call,archive}
         <p>{missingCore.length
           ?`لم تصل من قاعدة البيانات: ${missingCore.join('، ')}. راجع حالة migrations وCMS v3 قبل النشر.`
           :isTenant
-            ?'هذه اللوحة تعرض صفحات المنشأة فقط. صفحات ماركتون مثل «جرّب الآن» تُدار من /control/website.'
-            :'أنت تدير marktone-main؛ الصفحة الرئيسية و«جرّب الآن» تظهران هنا بمسوداتهما وحالة التعديلات غير المنشورة.'}</p>
+            ?'هذه اللوحة تعرض صفحات المنشأة فقط. كل صفحة ترث تلقائيًا هيدر وفوتر وقوائم موقع المنشأة، بينما يظل محتواها مستقلًا داخل البيلدر.'
+            :'أنت تدير موقع أودير الرئيسي؛ كل الصفحات الحالية محفوظة هنا وتستخدم تلقائيًا نفس الهيدر والفوتر والقوائم المُدارة من قسم «القوائم».'}</p>
       </div>
     </div>
     <section className={styles.panel}>
-      <PanelHeading title="صفحات الموقع" description="كل صفحة لها بيانات تعريف ومسودة مستقلة ومصمم بصري وسجل إصدارات." action="صفحة جديدة" onAction={()=>setEditor({type:'page',value:newPage()})}/>
+      <PanelHeading title="صفحات الموقع" description="محتوى كل صفحة مستقل في البيلدر، بينما الهيدر والفوتر والقوائم موحّدة على مستوى الموقع وتتحدث في كل الصفحات تلقائيًا." action="صفحة جديدة" onAction={()=>setEditor({type:'page',value:newPage()})}/>
       <Toolbar query={query} setQuery={setQuery} placeholder="ابحث باسم الصفحة أو الرابط..."/>
       <div className={styles.pageGrid}>{rows.map(page=>{
         const isFreeTrial=page.slug==='free-trial';
@@ -73,7 +73,7 @@ export function PagesPanel({context,pages,query,setQuery,setEditor,call,archive}
         return <article key={page.id} className={`${styles.pageCard} ${page.isHome?styles.homePageCard:isFreeTrial?styles.corePageCard:''}`}>
           <div className={styles.pageCardTop}><span>{page.isHome?'⌂':isFreeTrial?'↗':page.pageKind==='landing'?'↗':'P'}</span><div><Status value={page.status}/>{page.isHome&&<b>الرئيسية</b>}{isFreeTrial&&<b>جرّب الآن</b>}</div></div>
           <small dir="ltr">{pagePath}</small><h2>{page.title}</h2><p>{page.excerpt||'أضف وصفًا مختصرًا يساعد فريقك ومحركات البحث.'}</p>
-          <div className={styles.builderState}><span>{page.builder?.blockCount||0} عنصر</span><span>{page.builder?.hasUnpublishedChanges?'تعديلات غير منشورة':page.builder?.hasPublished?'متزامنة مع الموقع':'مسودة جديدة'}</span></div>
+          <div className={styles.builderState}><span>{page.builder?.blockCount||0} عنصر</span><span>{page.builder?.hasUnpublishedChanges?'تعديلات غير منشورة':page.builder?.hasPublished?'متزامنة مع الموقع':'مسودة جديدة'}</span><span>تخطيط الموقع موحّد</span></div>
           <footer>
             <Link prefetch={false} href={cmsBuilderPath(context,'page',page.id)} className={styles.designButton}>تصميم الصفحة</Link>
             <button type="button" onClick={()=>setEditor({type:'page',value:page})}>البيانات</button>

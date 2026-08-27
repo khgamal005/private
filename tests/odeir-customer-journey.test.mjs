@@ -5,12 +5,16 @@ import {readFile} from 'node:fs/promises';
 const read=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 
 test('the public ODEIR experience tells the complete fictional trainee journey',async()=>{
-  const landing=await read('components/odeir-landing-experience.tsx');
+  const [landing,chrome]=await Promise.all([
+    read('components/odeir-landing-experience.tsx'),
+    read('components/odeir-site-chrome.tsx')
+  ]);
   const stepsBlock=landing.slice(landing.indexOf('const journeySteps'),landing.indexOf('function JourneyPhaseIcon'));
   const runtimeBlock=landing.slice(landing.indexOf('function JourneyLab'),landing.indexOf('const roleViews'));
 
-  assert.match(landing,/href="#story"[\s\S]{0,100}>التكاملات<\/a>/);
-  assert.match(landing,/href="#journey"[\s\S]{0,100}>رحلة العميل<\/a>/);
+  assert.match(landing,/<OdeirSiteHeader menu=\{cms\.menu\}/);
+  assert.match(chrome,/label: "التكاملات", href: "\/#story"/);
+  assert.match(chrome,/label: "رحلة العميل", href: "\/#journey"/);
   assert.doesNotMatch(landing,/IntegrationActionLab|integrationActionSources|تكاملات تحرّك العمل|الإشعار ما يكفي/);
   assert.match(landing,/<StoryStrip \/>[\s\S]*<ProductDemo \/>[\s\S]*<JourneyLab \/>[\s\S]*<OperationalStories cms=\{cms\} \/>/);
   assert.match(runtimeBlock,/kickerNumber = "03"/);

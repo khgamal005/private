@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import PageDocumentRenderer from './page-document-renderer';
 import OdeirBrand from './odeir-brand';
+import {OdeirSiteFooter,OdeirSiteHeader} from './odeir-site-chrome';
 import {buildMenuTree,formatCmsDate} from '../lib/cms';
 import publicStyles from './public-site.module.css';
 import styles from './built-public-page.module.css';
@@ -14,13 +15,16 @@ export default function BuiltPublicPage({snapshot,content,preview=false}){
   const menu=Array.isArray(snapshot?.menu)?snapshot.menu:[];
   const footerMenu=Array.isArray(snapshot?.footerMenu)&&snapshot.footerMenu.length?snapshot.footerMenu:menu;
   const document=content?.content||content?.document||{};
-  return <div className={publicStyles.site} dir="rtl" style={themeVariables(site.theme)}>
+  const managed=isOdeirSite(site);
+  return <div className={`${publicStyles.site} ${managed?'odeir-experience odeir-managed-page':''}`} dir="rtl" style={themeVariables(site.theme)} data-site-chrome={managed?'odeir-managed':'tenant-managed'}>
     {preview&&<div className={styles.previewBanner}><strong>معاينة المسودة</strong><span>هذه النسخة غير ظاهرة للزوار حتى الضغط على «نشر».</span><button type="button" onClick={()=>window.close()}>إغلاق المعاينة</button></div>}
-    <Header menu={menu} settings={settings} site={site}/>
+    {managed
+      ?<div className="odeir-managed-header-shell"><OdeirSiteHeader menu={menu} settings={settings} hero={{primaryLabel:settings.contactCtaLabel,primaryHref:settings.contactCtaUrl}}/></div>
+      :<Header menu={menu} settings={settings} site={site}/>}
     <main className={styles.builderMain}>
       <PageDocumentRenderer document={document} siteKey={site.key}/>
     </main>
-    <Footer menu={footerMenu} settings={settings} site={site}/>
+    {managed?<OdeirSiteFooter footerMenu={footerMenu} settings={settings}/>:<Footer menu={footerMenu} settings={settings} site={site}/>}
   </div>;
 }
 
@@ -28,8 +32,13 @@ export function CmsArticlesIndex({snapshot}){
   const site=snapshot?.site||{};
   const settings=site.settings||{};
   const articles=Array.isArray(snapshot?.articles)?snapshot.articles:[];
-  return <div className={publicStyles.site} dir="rtl" style={themeVariables(site.theme)}>
-    <Header menu={snapshot?.menu||[]} settings={settings} site={site}/>
+  const menu=Array.isArray(snapshot?.menu)?snapshot.menu:[];
+  const footerMenu=Array.isArray(snapshot?.footerMenu)&&snapshot.footerMenu.length?snapshot.footerMenu:menu;
+  const managed=isOdeirSite(site);
+  return <div className={`${publicStyles.site} ${managed?'odeir-experience odeir-managed-page':''}`} dir="rtl" style={themeVariables(site.theme)} data-site-chrome={managed?'odeir-managed':'tenant-managed'}>
+    {managed
+      ?<div className="odeir-managed-header-shell"><OdeirSiteHeader menu={menu} settings={settings} hero={{primaryLabel:settings.contactCtaLabel,primaryHref:settings.contactCtaUrl}}/></div>
+      :<Header menu={menu} settings={settings} site={site}/>}
     <main className={styles.articlesMain}>
       <section className={styles.articlesHero}>
         <p>المعرفة والخبرة</p>
@@ -41,7 +50,7 @@ export function CmsArticlesIndex({snapshot}){
         {!articles.length&&<div className={styles.emptyArticles}><strong>لا توجد مقالات منشورة بعد</strong><span>ستظهر المقالات هنا فور نشرها من لوحة إدارة الموقع.</span></div>}
       </section>
     </main>
-    <Footer menu={snapshot?.footerMenu||snapshot?.menu||[]} settings={settings} site={site}/>
+    {managed?<OdeirSiteFooter footerMenu={footerMenu} settings={settings}/>:<Footer menu={footerMenu} settings={settings} site={site}/>}
   </div>;
 }
 
@@ -125,4 +134,5 @@ function sitePrefix(site){return String(site?.key||'').startsWith('tenant:')?`/s
 function rewriteHref(href,prefix){const target=safeHref(href)||'#';if(!prefix)return target;if(target==='/')return prefix;if(target.startsWith('/p/')||target==='/articles'||target.startsWith('/articles/'))return `${prefix}${target}`;return target}
 function safeHref(value){const href=String(value||'').trim();return /^(javascript|data|vbscript):/i.test(href)?'':href}
 function safeImage(value){const url=String(value||'').trim();return /^(javascript|data:text\/html|vbscript):/i.test(url)?'':url.replace(/["'()]/g,encodeURIComponent)}
+function isOdeirSite(site){return site?.key==='marktone-main'}
 function themeVariables(theme={}){return {'--mt-navy':theme.navy||'#06182e','--mt-navy-soft':theme.navySoft||'#0b2949','--mt-gold':theme.gold||'#e6b34e','--mt-paper':theme.paper||'#f7f2e8','--mt-white':theme.white||'#fff'}}

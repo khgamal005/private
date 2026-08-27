@@ -58,9 +58,16 @@ function landingCms(snapshot,home){
         readingMinutes:article.readingMinutes??null,
         publishedAt:article.publishedAt??null
       })),
+    menu:Array.isArray(snapshot?.menu)?snapshot.menu:[],
+    footerMenu:Array.isArray(snapshot?.footerMenu)?snapshot.footerMenu:[],
     settings:{
       customerLoginLabel:settings.customerLoginLabel||'دخول المنشآت',
-      customerLoginUrl:settings.customerLoginUrl||'/login'
+      customerLoginUrl:settings.customerLoginUrl||'/login',
+      contactCtaLabel:settings.contactCtaLabel||'سجّل منشأتك مجانًا',
+      contactCtaUrl:settings.contactCtaUrl||'/free-trial/apply',
+      freeTrialLabel:settings.freeTrialLabel||'سجّل منشأتك مجانًا',
+      freeTrialUrl:settings.freeTrialUrl||'/free-trial/apply',
+      footerText:settings.footerText||'تشغيل أوضح وإدارة مترابطة للمنشآت التدريبية.'
     }
   };
 }

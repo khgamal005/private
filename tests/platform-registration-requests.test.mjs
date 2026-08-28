@@ -216,28 +216,30 @@ test('edge intake verifies admin JWTs and rate limits public capabilities',async
   assert.match(edge,/p_limit:3/);
   assert.match(edge,/p_window_seconds:86_400/);
   assert.match(edge,/SUPABASE_SERVICE_ROLE_KEY/);
-  assert.match(edge,/v3_public_submit_registration_request/);
+  assert.match(edge,/v4_public_submit_registration_request/);
   assert.match(edge,
-    /payload\.institutionState==='new'&&!payload\.accountId[\s\S]*?registrationEmailHealth\(false\)[\s\S]*?v3_public_submit_registration_request/
+    /payload\.institutionState==='new'&&!payload\.accountId[\s\S]*?registrationEmailHealth\(false\)[\s\S]*?v4_public_submit_registration_request/
   );
   assert.match(edge,
-    /for\(let attempt=0;attempt<3;attempt\+\+\)[\s\S]*?v3_public_submit_registration_request[\s\S]*?liveReady=false/
+    /for\(let attempt=0;attempt<3;attempt\+\+\)[\s\S]*?v4_public_submit_registration_request[\s\S]*?liveReady=false/
   );
+  assert.match(edge,
+    /result=await rpc<JsonRecord>\('v4_public_submit_registration_request',[\s\S]*?p_configuration_fingerprint:null[\s\S]*?p_email_activation_ready:false/
+  );
+  assert.doesNotMatch(edge,/p_guard_email_activation/);
   const challengeConsumed=position(
     edge,
     'const claims=await consumeRegistrationChallenge(challenge)'
   );
-  const v3Submit=position(
+  const v4Submit=position(
     edge,
     'const guarded=await rpc<JsonRecord>('
   );
-  const v2Submit=position(
+  assert.ok(challengeConsumed<v4Submit,'challenge must precede the guarded v4 submit');
+  assert.doesNotMatch(
     edge,
-    "result=await rpc<JsonRecord>('v2_public_submit_registration_request'"
+    /rpc<JsonRecord>\('v[123]_public_submit_registration_request'/
   );
-  assert.ok(challengeConsumed<v3Submit,'challenge must precede the guarded v3 submit');
-  assert.ok(challengeConsumed<v2Submit,'challenge must precede the v2 submit');
-  assert.doesNotMatch(edge,/result=await rpc<JsonRecord>\('v1_public_submit_registration_request'/);
   const submitIngress=section(
     edge,"if(action!=='submit')",'const allowed=await rpc<boolean>'
   );

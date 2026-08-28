@@ -161,7 +161,13 @@ test('terminal, expired, and idempotency-conflict paths fail closed',async()=>{
   assert.match(edge,/for\(let attempt=0;attempt<3;attempt\+\+\)/);
   assert.match(edge,/if\(guarded\._retryManual!==true\)/);
   assert.match(edge,/liveReady=false/);
-  assert.doesNotMatch(edge,/if\(result\._retryManual===true\)[\s\S]*?v2_public_submit_registration_request/);
+  assert.match(edge,
+    /for\(let attempt=0;attempt<3;attempt\+\+\)[\s\S]*?v4_public_submit_registration_request[\s\S]*?liveReady=false/
+  );
+  assert.doesNotMatch(
+    edge,
+    /rpc<JsonRecord>\('v[123]_public_submit_registration_request'/
+  );
   assert.match(edge,
     /response\.status===409[\s\S]*?errorCode==='resend_concurrent_idempotent_requests'/
   );

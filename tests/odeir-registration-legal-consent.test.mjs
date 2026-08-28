@@ -10,6 +10,8 @@ const PAGE_CSS='app/free-trial/free-trial.css';
 const EDGE='supabase/functions/odeir-registration-intake/index.ts';
 const LEDGER=
   'supabase/migrations/20260828210000_registration_legal_consent_ledger_v1.sql';
+const HARDENING=
+  'supabase/migrations/20260828211500_registration_legal_consent_entrypoint_hardening_v1.sql';
 
 function position(source,needle){
   const at=source.indexOf(needle);
@@ -196,4 +198,20 @@ test('policy snapshots come from the published server documents, not the browser
   assert.match(v4,/v_current_privacy_hash is distinct from[\s\S]*?v_policy\.privacy_document_hash/);
   assert.match(v4,/raise exception 'legal_policy_version_stale'/);
   assert.match(v4,/server-side publication drift[\s\S]*?raise exception 'legal_policy_unavailable'/);
+});
+
+test('post-rollout hardening makes v4 the sole service-role submit entry point',async()=>{
+  const hardening=await read(HARDENING);
+  assert.match(
+    hardening,
+    /revoke execute on function public\.v2_public_submit_registration_request\([\s\S]*?\) from service_role/
+  );
+  assert.match(
+    hardening,
+    /revoke execute on function public\.v3_public_submit_registration_request\([\s\S]*?\) from service_role/
+  );
+  assert.match(
+    hardening,
+    /grant execute on function public\.v4_public_submit_registration_request\([\s\S]*?\) to service_role/
+  );
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import {FormEvent,useRef,useState} from 'react';
+import {FormEvent,useState} from 'react';
 import {OdeirSiteFooter,OdeirSiteHeader} from './odeir-site-chrome';
 import styles from './odeir-contact-page.module.css';
 
@@ -12,7 +12,6 @@ export default function OdeirContactPage({snapshot}:Props){
   const settings=site.settings||{};
   const menu=Array.isArray(snapshot?.menu)?snapshot.menu:[];
   const footerMenu=Array.isArray(snapshot?.footerMenu)&&snapshot.footerMenu.length?snapshot.footerMenu:menu;
-  const startedAt=useRef(Date.now());
   const [status,setStatus]=useState<Status>({kind:'idle',message:''});
 
   async function submit(event:FormEvent<HTMLFormElement>){
@@ -24,15 +23,14 @@ export default function OdeirContactPage({snapshot}:Props){
       name:String(data.get('name')||''),organization:String(data.get('organization')||''),
       email:String(data.get('email')||''),phone:String(data.get('phone')||''),
       topic:String(data.get('topic')||''),message:String(data.get('message')||''),
-      website:String(data.get('website')||''),startedAt:startedAt.current,
-      sourcePage:'/contact',consent:true
+      website:String(data.get('website')||''),sourcePage:'/contact',consent:true
     };
     setStatus({kind:'sending',message:'جارٍ إرسال رسالتك…'});
     try{
       const response=await fetch('/api/public/contact',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
       const result=await response.json().catch(()=>({ok:false}));
       if(!response.ok||!result?.ok)throw new Error(String(result?.error||'send_failed'));
-      form.reset();startedAt.current=Date.now();
+      form.reset();
       setStatus({kind:'success',message:'وصلت رسالتك بنجاح. سيتواصل معك فريق أودير عبر البيانات التي أرسلتها.'});
     }catch{
       setStatus({kind:'error',message:'تعذر إرسال الرسالة الآن. جرّب مرة أخرى بعد قليل أو راسلنا على admin@marktone.sa.'});

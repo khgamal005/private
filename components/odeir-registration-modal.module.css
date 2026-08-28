@@ -199,7 +199,7 @@
 
 .form :global(.stepper) {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   padding: 18px 24px 15px;
   border-bottom: 1px solid #dce7ec;
   background: #f7fafb;
@@ -836,6 +836,299 @@
   font-weight: 800;
 }
 
+.form :global(.request-review-card) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 18px 0 0;
+  overflow: hidden;
+  border: 1px solid #d4e4e9;
+  border-radius: 14px;
+  background: #d4e4e9;
+}
+
+.form :global(.request-review-card > div) {
+  min-width: 0;
+  padding: 11px 13px;
+  background: #f8fbfc;
+}
+
+.form :global(.request-review-card dt) {
+  margin: 0 0 3px;
+  color: #657b88;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.form :global(.request-review-card dd) {
+  margin: 0;
+  overflow: hidden;
+  color: #163b50;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.6;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form :global(.legal-intro) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 13px;
+  border: 1px solid #c5e3e3;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #edf9f8, #f8fbfc);
+  color: #087d7a;
+}
+
+.form :global(.legal-intro > svg) {
+  margin-top: 2px;
+}
+
+.form :global(.legal-intro p),
+.form :global(.legal-summary-note p) {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.form :global(.legal-intro b) {
+  color: #173d50;
+  font-size: 13px;
+}
+
+.form :global(.legal-intro span) {
+  color: #506b78;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.form :global(.legal-scroll) {
+  height: clamp(260px, 38vh, 330px);
+  margin-top: 13px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid #cddfe5;
+  border-radius: 16px;
+  outline: 0;
+  background: #fff;
+  box-shadow: inset 0 -22px 32px rgba(8, 47, 67, .025);
+  overscroll-behavior: contain;
+  scrollbar-color: #75c9ce #edf4f6;
+  scrollbar-width: thin;
+}
+
+.form :global(.legal-scroll:focus-visible) {
+  border-color: #2ca9b3;
+  box-shadow: 0 0 0 3px rgba(28, 157, 170, .11);
+}
+
+.form :global(.legal-scroll > header) {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 13px;
+  border-bottom: 1px solid #dce8ec;
+  background: rgba(248, 251, 252, .96);
+  backdrop-filter: blur(10px);
+}
+
+.form :global(.legal-scroll > header span) {
+  display: grid;
+  gap: 1px;
+}
+
+.form :global(.legal-scroll > header small) {
+  color: #70848e;
+  font-size: 9px;
+}
+
+.form :global(.legal-scroll > header b) {
+  color: #183d50;
+  font-size: 11px;
+}
+
+.form :global(.legal-scroll > header em) {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #e4f7f5;
+  color: #087d7a;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.form :global(.legal-points) {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 3px 13px 0;
+  list-style: none;
+}
+
+.form :global(.legal-points li) {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  gap: 9px;
+  padding: 11px 0;
+  border-bottom: 1px solid #e5eef1;
+}
+
+.form :global(.legal-points li > i) {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 8px;
+  background: #e7f7f6;
+  color: #087b78;
+  font: 800 10px/1 Arial, sans-serif;
+  font-style: normal;
+}
+
+.form :global(.legal-points b) {
+  display: block;
+  color: #163a4e;
+  font-size: 13px;
+}
+
+.form :global(.legal-points p) {
+  margin: 3px 0 0;
+  color: #506975;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.form :global(.legal-summary-note) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  margin: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #092d43;
+  color: #6edbd5;
+}
+
+.form :global(.legal-summary-note b) {
+  color: #fff;
+  font-size: 12px;
+}
+
+.form :global(.legal-summary-note span) {
+  color: #c4d5de;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.form :global(.legal-links) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.form :global(.legal-links a) {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 9px;
+  border: 1px solid #cbdfe4;
+  border-radius: 999px;
+  background: #f7fafb;
+  color: #087a8d;
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.form :global(.legal-review-hint) {
+  margin: 10px 1px 0;
+  color: #a26013;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.form :global(.legal-review-hint.is-complete) {
+  color: #087d62;
+}
+
+.form :global(.legal-consent) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 11px;
+  padding: 13px;
+  border: 1px solid #d4e2e7;
+  border-radius: 14px;
+  background: #f5f8f9;
+  color: #536a75;
+  font-size: 12px;
+  line-height: 1.8;
+  transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+
+.form :global(.legal-consent.is-ready) {
+  border-color: #9dd4d4;
+  background: #f2faf9;
+}
+
+.form :global(.legal-consent:has(input:checked)) {
+  border-color: #28a3a3;
+  background: #eaf8f6;
+  box-shadow: 0 0 0 3px rgba(26, 149, 153, .07);
+  color: #284d5b;
+}
+
+.form :global(.legal-consent input) {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #0b8b88;
+}
+
+.form :global(.legal-evidence-note) {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 9px 2px 0;
+  color: #667c87;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.form :global(.legal-evidence-note svg) {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #0b817e;
+}
+
+.form :global(.policy-error) {
+  justify-content: space-between;
+}
+
+.form :global(.policy-refresh) {
+  min-height: 36px;
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid #dca5a5;
+  border-radius: 9px;
+  background: #fff;
+  color: #873737;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .form :global(.honeypot) {
   position: absolute;
   left: -9999px;
@@ -1080,11 +1373,23 @@
   }
 
   .form :global(.stepper) {
-    padding: 14px 8px 11px;
+    padding: 14px 4px 11px;
   }
 
   .form :global(.step) {
-    font-size: 9px;
+    gap: 5px;
+    font-size: 8px;
+  }
+
+  .form :global(.step i) {
+    width: 27px;
+    height: 27px;
+  }
+
+  .form :global(.step:not(:last-child)::after) {
+    top: 13px;
+    right: calc(50% + 15px);
+    width: calc(100% - 30px);
   }
 
   .form :global(.card-heading h2) {
@@ -1114,8 +1419,46 @@
   }
 
   .form :global(.field-grid),
-  .form :global(.institution-card dl) {
+  .form :global(.institution-card dl),
+  .form :global(.request-review-card) {
     grid-template-columns: 1fr;
+  }
+
+  .form :global(.legal-stage) {
+    padding-inline: 13px;
+  }
+
+  .form :global(.legal-scroll) {
+    height: min(44dvh, 360px);
+    min-height: 230px;
+    overscroll-behavior: auto;
+  }
+
+  .form :global(.legal-scroll > header) {
+    padding-inline: 11px;
+  }
+
+  .form :global(.legal-points) {
+    padding-inline: 11px;
+  }
+
+  .form :global(.legal-links) {
+    gap: 5px;
+  }
+
+  .form :global(.legal-links a) {
+    flex: 1 1 auto;
+    min-height: 44px;
+    text-align: center;
+  }
+
+  .form :global(.legal-consent) {
+    padding: 12px 11px;
+    font-size: 12px;
+  }
+
+  .form :global(.legal-actions) {
+    margin-bottom: max(0px, env(safe-area-inset-bottom));
   }
 
   .form :global(.institution-card dl > div:nth-child(odd)) {

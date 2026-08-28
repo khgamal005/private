@@ -35,6 +35,15 @@ const IS_PRODUCTION_PROJECT=(()=>{
 })();
 const CHALLENGE_AUDIENCE='registration-submit';
 const CHALLENGE_TTL_SECONDS=300;
+const LEGAL_POLICY_SET_VERSION='odeir-legal-2026-08-28-v1';
+const LEGAL_TERMS_VERSION='terms-of-use-2026-08-28';
+const LEGAL_PRIVACY_VERSION='privacy-policy-2026-08-28';
+const LEGAL_FAIR_USE_VERSION='free-plan-fair-use-2026-08-28';
+const LEGAL_PRESENTATION_VERSION='registration-clickwrap-v1';
+const LEGAL_SUMMARY_TEXT_HASH=
+  '7a911bf6b72684c66cb89a8810e5c3985e8cf0e721d8ed08a37376408e3bc9a8';
+const LEGAL_CONSENT_TEXT_HASH=
+  'b901d6e3b7c00c3c9d4b6af77465d3ffae24de19bb296824cf80339ecb2aa0c4';
 const DOMAIN_VERIFICATION_MAX_AGE_MS=30*24*60*60*1000;
 const DOMAIN_VERIFICATION_FUTURE_SKEW_MS=5*60*1000;
 const ALLOWED_CHALLENGE_ORIGINS=new Set(IS_PRODUCTION_PROJECT
@@ -185,7 +194,7 @@ Deno.serve(async(request:Request)=>{
       let completed:JsonRecord|null=null;
       for(let attempt=0;attempt<3;attempt++){
         const guarded=await rpc<JsonRecord>(
-          'v3_public_submit_registration_request',{
+          'v4_public_submit_registration_request',{
           p_payload:payload,
           p_ip_hash:ipHash,
           p_user_agent_hash:userAgentHash,
@@ -205,11 +214,14 @@ Deno.serve(async(request:Request)=>{
       result=completed;
     }else{
       // Existing/linked institutions remain on their isolated manual path and
-      // never depend on the registration-email transport or canary gate.
-      result=await rpc<JsonRecord>('v2_public_submit_registration_request',{
+      // never depend on the registration-email transport or canary gate. Both
+      // paths still pass the same atomic legal-consent wrapper.
+      result=await rpc<JsonRecord>('v4_public_submit_registration_request',{
         p_payload:payload,
         p_ip_hash:ipHash,
-        p_user_agent_hash:userAgentHash
+        p_user_agent_hash:userAgentHash,
+        p_configuration_fingerprint:null,
+        p_email_activation_ready:false
       });
     }
 
@@ -268,7 +280,8 @@ Deno.serve(async(request:Request)=>{
     const publicCode=PUBLIC_DATABASE_ERRORS.has(code)?code:'service_unavailable';
     console.error('odeir-registration-intake',publicCode);
     const status=[
-      'service_unavailable','confirmation_email_in_progress'
+      'service_unavailable','confirmation_email_in_progress',
+      'legal_policy_unavailable'
     ].includes(publicCode)?503:400;
     return json({ok:false,error:publicCode},status);
   }
@@ -1496,6 +1509,8 @@ function safeErrorCode(error:unknown){
 
 const PUBLIC_DATABASE_ERRORS=new Set([
   'invalid_institution_state','consent_required','institution_name_required',
+  'legal_consent_required','legal_policy_version_stale',
+  'legal_policy_unavailable',
   'contact_name_required','job_title_required','invalid_email','invalid_phone',
   'registration_identifier_invalid','invalid_external_account',
   'institution_required','registration_payload_invalid',
@@ -1510,6 +1525,25 @@ function validatedPayload(body:JsonRecord){
   }
   if(body.tvtcAcknowledged!==true||body.privacyConsent!==true){
     throw new PublicError('consent_required',400);
+  }
+  if(
+    body.legalConsent!==true
+    ||body.termsConsent!==true
+    ||body.privacyAcknowledged!==true
+    ||body.legalSummaryReviewed!==true
+  ){
+    throw new PublicError('legal_consent_required',400);
+  }
+  if(
+    clean(body.legalPolicySetVersion,80)!==LEGAL_POLICY_SET_VERSION
+    ||clean(body.termsVersion,80)!==LEGAL_TERMS_VERSION
+    ||clean(body.privacyVersion,80)!==LEGAL_PRIVACY_VERSION
+    ||clean(body.fairUseVersion,80)!==LEGAL_FAIR_USE_VERSION
+    ||clean(body.legalPresentationVersion,80)!==LEGAL_PRESENTATION_VERSION
+    ||clean(body.legalSummaryTextHash,64)!==LEGAL_SUMMARY_TEXT_HASH
+    ||clean(body.legalConsentTextHash,64)!==LEGAL_CONSENT_TEXT_HASH
+  ){
+    throw new PublicError('legal_policy_version_stale',400);
   }
   const accountId=clean(body.accountId,48)||null;
   if(accountId&&!isUuid(accountId))throw new PublicError('invalid_external_account',400);
@@ -1564,7 +1598,18 @@ function validatedPayload(body:JsonRecord){
     contactEmail,
     contactPhone,
     tvtcAcknowledged:true,
-    privacyConsent:true
+    privacyConsent:true,
+    privacyAcknowledged:true,
+    termsConsent:true,
+    legalConsent:true,
+    legalSummaryReviewed:true,
+    legalPolicySetVersion:LEGAL_POLICY_SET_VERSION,
+    termsVersion:LEGAL_TERMS_VERSION,
+    privacyVersion:LEGAL_PRIVACY_VERSION,
+    fairUseVersion:LEGAL_FAIR_USE_VERSION,
+    legalPresentationVersion:LEGAL_PRESENTATION_VERSION,
+    legalSummaryTextHash:LEGAL_SUMMARY_TEXT_HASH,
+    legalConsentTextHash:LEGAL_CONSENT_TEXT_HASH
   };
 }
 

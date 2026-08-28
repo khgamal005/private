@@ -2,6 +2,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 const TRIAL_API = "https://jultamrxwrgzohoktbgr.supabase.co/functions/v1/marktone-free-trial";
 const REGISTRATION_API = "/api/public/registration";
+const LEGAL_POLICY = Object.freeze({
+  policySetVersion: "odeir-legal-2026-08-28-v1",
+  termsVersion: "terms-of-use-2026-08-28",
+  privacyVersion: "privacy-policy-2026-08-28",
+  fairUseVersion: "free-plan-fair-use-2026-08-28",
+  presentationVersion: "registration-clickwrap-v1",
+  summaryTextHash: "7a911bf6b72684c66cb89a8810e5c3985e8cf0e721d8ed08a37376408e3bc9a8",
+  consentTextHash: "b901d6e3b7c00c3c9d4b6af77465d3ffae24de19bb296824cf80339ecb2aa0c4"
+});
+const LEGAL_CONSENT_TEXT = "أقر بأنني مخوّل بإنشاء حساب هذه المنشأة، وأنني قرأت وأوافق على شروط الاستخدام والاشتراك وسياسة الاستخدام العادل وحدود الخطة المجانية، وأقر بأنني اطلعت على سياسة الخصوصية، بما يشمل مسؤولية إدارة المنشأة، وتعديل حدود الخطة المجانية، وتعليق الخدمة أو إنهاءها، وخيارات تصدير البيانات أو حذفها وفق الوثائق المعتمدة.";
+const LEGAL_SUMMARY = [
+  ["صلاحية إنشاء الحساب", "أقر بأنني مخوّل بالتصرف باسم المنشأة، وأن بيانات المنشأة ومسؤول الطلب صحيحة ومحدثة."],
+  ["مسؤولية مدير المنشأة", "مدير المنشأة مسؤول عن المستخدمين والصلاحيات والمحتوى والبيانات والعمليات والخدمات التي تقدمها المنشأة عبر الحساب."],
+  ["بيانات المنشأة", "تحتفظ المنشأة بحقوقها في بياناتها ومحتواها، وتعالجها أودير بالقدر اللازم لتشغيل الخدمة وحمايتها وتطويرها ووفق سياسة الخصوصية."],
+  ["الخطة المجانية والاستخدام العادل", "يجوز تحديد أو تعديل عدد المستخدمين أو المساحة أو المزايا أو العمليات أو مدة الاحتفاظ، كما يجوز استبدال الخطة المجانية أو إيقافها وفق الشروط والإشعارات المطبقة."],
+  ["الاستخدام المقبول", "يُمنع النشاط غير المشروع أو التحايل على الحدود أو الإضرار بأمن المنصة أو مستخدميها أو إعادة بيع الخدمة دون تصريح."],
+  ["التكاملات الخارجية", "تخضع خدمات الأطراف الثالثة لشروط مزوديها وتوافرها، ولا تضمن أودير استمرار ما يخرج عن سيطرتها المعقولة."],
+  ["التعليق أو الإنهاء", "يجوز تقييد الخدمة أو تعليقها أو إنهاؤها عند المخالفة أو الخطر الأمني أو عدم السداد أو لأسباب نظامية أو تقنية أو تجارية وفق الشروط والأنظمة."],
+  ["الإلغاء وخروج البيانات", "يمكن لمدير المنشأة طلب الإلغاء أو الحذف، وعند الإنهاء يطبق مسار التصدير الآمن أو الحذف النهائي وسياسة الاحتفاظ والنسخ الاحتياطية والالتزامات النظامية."],
+  ["توافر الخدمة وحدود المسؤولية", "تقدم الخدمة وفق الإمكانات المتاحة ولا تضمن نتيجة تجارية أو تشغيلية محددة، وتطبق حدود الضمان والمسؤولية الواردة في الشروط بالقدر الذي يسمح به النظام."]
+];
 const initialForm = {
   institutionName: "",
   commercialRegistration: "",
@@ -13,13 +34,26 @@ const initialForm = {
   contactPhone: "",
   tvtcAcknowledged: false,
   privacyConsent: false,
+  privacyAcknowledged: false,
+  termsConsent: false,
+  legalConsent: false,
+  legalPolicySetVersion: LEGAL_POLICY.policySetVersion,
+  termsVersion: LEGAL_POLICY.termsVersion,
+  privacyVersion: LEGAL_POLICY.privacyVersion,
+  fairUseVersion: LEGAL_POLICY.fairUseVersion,
+  legalPresentationVersion: LEGAL_POLICY.presentationVersion,
+  legalSummaryTextHash: LEGAL_POLICY.summaryTextHash,
+  legalConsentTextHash: LEGAL_POLICY.consentTextHash,
   website: ""
 };
 const ERROR_COPY = {
   query_too_short: "اكتب 3 أحرف على الأقل أو 5 أرقام من رقم السجل.",
   institution_not_found: "تعذر العثور على هذه المنشأة. جرّب البحث مرة أخرى.",
   rate_limited: "تمت محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة.",
-  consent_required: "يلزم الموافقة على الإقرار التنظيمي وسياسة الخصوصية.",
+  consent_required: "يلزم إكمال الإقرار التنظيمي والموافقة الصريحة على الشروط.",
+  legal_consent_required: "راجع البنود حتى النهاية ثم وافق عليها لإتمام إنشاء المنشأة.",
+  legal_policy_version_stale: "تغيرت نسخة الشروط أثناء التسجيل. أعد مراجعتها ثم وافق على النسخة الحالية.",
+  legal_policy_unavailable: "تعذر تحميل النسخة القانونية المعتمدة لحظيًا. لم تُفقد بياناتك؛ حاول مرة أخرى بعد قليل.",
   invalid_email: "راجع صيغة البريد الإلكتروني.",
   invalid_phone: "راجع رقم الجوال وأدخله بصيغة صحيحة.",
   registration_identifier_invalid: "راجع الرقم الرسمي: السجل التجاري 10 أرقام، والرقم الوطني 10 أرقام يبدأ بـ7.",
@@ -34,6 +68,9 @@ const ERROR_COPY = {
 function FreeTrialLanding({ registrationOnly = false } = {}) {
   const startedAt = useRef(0);
   const submitLockRef = useRef(false);
+  const legalPanelRef = useRef(null);
+  const trialCardRef = useRef(null);
+  const previousStepRef = useRef("search");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -51,15 +88,55 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
+  const [legalReviewed, setLegalReviewed] = useState(false);
   const [guideRole, setGuideRole] = useState(0);
   useEffect(() => {
     startedAt.current = Date.now();
   }, []);
   const activeStep = useMemo(() => {
-    if (step === "success") return 4;
+    if (step === "success" || step === "agreement") return 5;
+    if (step === "regulatory") return 4;
     if (step === "form") return 3;
     if (step === "details") return 2;
     return 1;
+  }, [step]);
+  useEffect(() => {
+    if (step !== "agreement") return;
+    setLegalReviewed(false);
+    setForm((current) => ({
+      ...current,
+      privacyConsent: false,
+      privacyAcknowledged: false,
+      termsConsent: false,
+      legalConsent: false
+    }));
+    const frame = window.requestAnimationFrame(() => {
+      const panel = legalPanelRef.current;
+      if (!panel) return;
+      panel.scrollTop = 0;
+      if (panel.scrollHeight <= panel.clientHeight + 12) setLegalReviewed(true);
+    });
+    const reviewWhenEverythingFits = () => {
+      const panel = legalPanelRef.current;
+      if (panel && panel.scrollHeight <= panel.clientHeight + 12) setLegalReviewed(true);
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(reviewWhenEverythingFits);
+    if (legalPanelRef.current) observer?.observe(legalPanelRef.current);
+    window.addEventListener("resize", reviewWhenEverythingFits);
+    document.fonts?.ready.then(reviewWhenEverythingFits).catch(() => {});
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener("resize", reviewWhenEverythingFits);
+    };
+  }, [step]);
+  useEffect(() => {
+    if (previousStepRef.current === step) return;
+    previousStepRef.current = step;
+    const heading = trialCardRef.current?.querySelector(".trial-body h2");
+    if (!(heading instanceof HTMLElement)) return;
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
   }, [step]);
   const manualExisting = step === "success" && !confirmationRequired && !isNew;
   async function callApi(payload) {
@@ -139,8 +216,14 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
       setIsNew(false);
       setForm((current) => ({
         ...current,
-        institutionName: institution.name || ""
+        institutionName: institution.name || "",
+        tvtcAcknowledged: false,
+        privacyConsent: false,
+        privacyAcknowledged: false,
+        termsConsent: false,
+        legalConsent: false
       }));
+      setLegalReviewed(false);
       setStep("details");
       document.getElementById("trial-card")?.scrollIntoView({
         behavior: "smooth",
@@ -163,9 +246,57 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
       block: "center"
     });
   }
+  function continueToRegulatory(event) {
+    event.preventDefault();
+    setError("");
+    setStep("regulatory");
+    document.getElementById("trial-card")?.scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+  }
+  function continueToAgreement() {
+    if (!form.tvtcAcknowledged) {
+      setError("يلزم قراءة الإقرار التنظيمي وتأكيد صحة حالة المنشأة.");
+      return;
+    }
+    setError("");
+    setLegalReviewed(false);
+    setForm((current) => ({
+      ...current,
+      privacyConsent: false,
+      privacyAcknowledged: false,
+      termsConsent: false,
+      legalConsent: false
+    }));
+    setStep("agreement");
+    document.getElementById("trial-card")?.scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+  }
+  function reviewLegalScroll(event) {
+    const panel = event.currentTarget;
+    if (panel.scrollHeight - panel.scrollTop - panel.clientHeight <= 12) {
+      setLegalReviewed(true);
+    }
+  }
+  function updateLegalConsent(value) {
+    setForm((current) => ({
+      ...current,
+      privacyConsent: value,
+      privacyAcknowledged: value,
+      termsConsent: value,
+      legalConsent: value
+    }));
+  }
   async function submit(event) {
     event.preventDefault();
     if (submitLockRef.current) return;
+    if (!legalReviewed || !form.legalConsent || !form.termsConsent || !form.privacyConsent || !form.privacyAcknowledged) {
+      setError(ERROR_COPY.legal_consent_required);
+      return;
+    }
     submitLockRef.current = true;
     setBusy("submit");
     setError("");
@@ -176,6 +307,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
         challenge,
         institutionState: isNew ? "new" : "existing",
         accountId: selected?.id || null,
+        legalSummaryReviewed: legalReviewed,
         ...form
       });
       setReference(value.reference || "");
@@ -186,6 +318,10 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
       setReviewReceiptAlreadySent(value.reviewReceiptAlreadySent === true);
       setStep("success");
     } catch (caught) {
+      if (caught instanceof Error && caught.message === "legal_policy_version_stale") {
+        setLegalReviewed(false);
+        updateLegalConsent(false);
+      }
       setError(messageFor(caught));
     } finally {
       submitLockRef.current = false;
@@ -193,7 +329,16 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
     }
   }
   function update(key, value) {
-    setForm((current) => ({ ...current, [key]: value }));
+    const materialRegistrationFields = new Set([
+      "institutionName", "commercialRegistration", "nationalRegistration",
+      "tvtcLicenseNumber", "contactName", "contactJobTitle", "contactEmail",
+      "contactPhone"
+    ]);
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+      ...(materialRegistrationFields.has(key) ? { tvtcAcknowledged: false } : {})
+    }));
   }
   return <main dir="rtl" className={registrationOnly ? "free-trial-route site-shell registration-only" : "free-trial-route site-shell"}>
       {!registrationOnly && <header className="site-header">
@@ -241,10 +386,10 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
           </div>
         </div>}
 
-        <section id="trial-card" className="trial-card" aria-label="تسجيل منشأة في أودير">
-          <div className="stepper" aria-label={`الخطوة ${activeStep} من 4`}>
-            {["ابحث", "تأكد", "بياناتك", "تم"].map((label, index) => <div key={label} className={activeStep >= index + 1 ? "step active" : "step"}>
-                <i>{activeStep > index + 1 ? "✓" : index + 1}</i>
+        <section ref={trialCardRef} id="trial-card" className="trial-card" aria-label="تسجيل منشأة في أودير">
+          <div className="stepper" aria-label={`الخطوة ${activeStep} من 5`}>
+            {["ابحث", "تأكد", "بياناتك", "الإقرار", "الموافقة"].map((label, index) => <div key={label} aria-current={step !== "success" && activeStep === index + 1 ? "step" : undefined} className={activeStep >= index + 1 ? "step active" : "step"}>
+                <i>{step === "success" || activeStep > index + 1 ? "✓" : index + 1}</i>
                 <span>{label}</span>
               </div>)}
           </div>
@@ -346,7 +491,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
               </div>
             </div>}
 
-          {step === "form" && <form className="trial-body contact-form" onSubmit={submit} aria-busy={busy === "submit"}>
+          {step === "form" && <form className="trial-body contact-form" onSubmit={continueToRegulatory}>
               <div className="card-heading">
                 <span className="heading-icon"><UserIcon /></span>
                 <div><small>بيانات مسؤول الطلب</small><h2>{isNew ? "أضف منشأة جديدة" : "جهّز حساب منشأتك"}</h2></div>
@@ -368,23 +513,99 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
                 <Field label="رقم الجوال" required value={form.contactPhone} onChange={(value) => update("contactPhone", value)} placeholder="05XXXXXXXX" inputMode="tel" autoComplete="tel" />
               </div>
               <label className="honeypot" aria-hidden="true">الموقع<input tabIndex={-1} autoComplete="off" value={form.website} onChange={(event) => update("website", event.target.value)} /></label>
+              {error && <div className="alert error" role="alert">{error}</div>}
+              <div className="form-actions">
+                <button type="button" className="secondary-button" onClick={() => setStep(isNew ? "search" : "details")}>رجوع</button>
+                <button className="primary-button">مراجعة الإقرار التنظيمي <ArrowIcon /></button>
+              </div>
+            </form>}
+
+          {step === "regulatory" && <div className="trial-body regulatory-stage">
+              <div className="card-heading">
+                <span className="heading-icon"><BuildingIcon /></span>
+                <div><small>الخطوة الرابعة</small><h2>الإقرار التنظيمي</h2></div>
+              </div>
+              <p className="card-subtitle">راجع المنشأة ومسؤول الطلب، ثم أكد صحة حالتها قبل الانتقال إلى الشروط.</p>
+              <dl className="request-review-card">
+                <div><dt>المنشأة</dt><dd>{form.institutionName || selected?.name}</dd></div>
+                <div><dt>مسؤول الطلب</dt><dd>{form.contactName}</dd></div>
+                <div><dt>المسمى الوظيفي</dt><dd>{form.contactJobTitle}</dd></div>
+                <div><dt>البريد المهني</dt><dd dir="ltr">{form.contactEmail}</dd></div>
+              </dl>
               <div className="tvtc-notice">
                 <span className="notice-icon"><BuildingIcon /></span>
                 <div>
                   <b>تنبيه تنظيمي مهم</b>
-                  <p>لمزاولة نشاط التدريب في المملكة العربية السعودية يجب أن تكون المنشأة مرخصة ومسجلة لدى المؤسسة العامة للتدريب التقني والمهني.</p>
-                  <label><input type="checkbox" checked={form.tvtcAcknowledged} onChange={(event) => update("tvtcAcknowledged", event.target.checked)} /><span>قرأت التنبيه وأقر بصحة حالة المنشأة.</span></label>
+                  <p>لمزاولة نشاط التدريب في المملكة العربية السعودية يجب أن تكون المنشأة مرخصة ومسجلة لدى المؤسسة العامة للتدريب التقني والمهني متى كان ذلك منطبقًا على نشاطها.</p>
+                  <label><input type="checkbox" checked={form.tvtcAcknowledged} onChange={(event) => update("tvtcAcknowledged", event.target.checked)} /><span>قرأت التنبيه، وأقر بصحة حالة المنشأة والبيانات المقدمة.</span></label>
                 </div>
               </div>
-              <label className="consent-row">
-                <input type="checkbox" checked={form.privacyConsent} onChange={(event) => update("privacyConsent", event.target.checked)} />
-                <span>أوافق على <a href="/p/privacy-policy" target="_blank" rel="noreferrer">سياسة الخصوصية</a> واستخدام البيانات للتحقق من المنشأة وتجهيز الحساب والتواصل بشأن التفعيل.</span>
-              </label>
               {error && <div className="alert error" role="alert">{error}</div>}
               <div className="form-actions">
-                <button type="button" className="secondary-button" disabled={busy === "submit"} onClick={() => setStep(isNew ? "search" : "details")}>رجوع</button>
-                <button className="primary-button" disabled={busy === "submit" || !form.tvtcAcknowledged || !form.privacyConsent}>
-                  {busy === "submit" ? <><Spinner /> جارٍ إرسال الطلب…</> : <>إرسال طلب التسجيل <ArrowIcon /></>}
+                <button type="button" className="secondary-button" onClick={() => setStep("form")}>تعديل البيانات</button>
+                <button type="button" className="primary-button" disabled={!form.tvtcAcknowledged} onClick={continueToAgreement}>متابعة إلى الموافقة <ArrowIcon /></button>
+              </div>
+            </div>}
+
+          {step === "agreement" && <form className="trial-body legal-stage" onSubmit={submit} aria-busy={busy === "submit"}>
+              <div className="card-heading">
+                <span className="heading-icon"><ShieldIcon /></span>
+                <div><small>الخطوة الخامسة والأخيرة</small><h2>راجع الشروط وأنشئ منشأتك</h2></div>
+              </div>
+              <div className="legal-intro">
+                <LockIcon />
+                <p><b>إنشاء المنشأة لا يرتب اشتراكًا مدفوعًا تلقائيًا.</b><span>الخطة المجانية تخضع لضوابط وحدود الاستخدام المعتمدة، وقد تتغير وفق الإشعارات والشروط.</span></p>
+              </div>
+              <section
+                ref={legalPanelRef}
+                className="legal-scroll"
+                tabIndex={0}
+                aria-label="ملخص شروط استخدام أودير"
+                onScroll={reviewLegalScroll}
+              >
+                <header>
+                  <span><small>نسخة السياسات</small><b>28 أغسطس 2026</b></span>
+                  <em>ملخص واجب المراجعة</em>
+                </header>
+                <ol className="legal-points">
+                  {LEGAL_SUMMARY.map(([title, description], index) => <li key={title}>
+                      <i>{index + 1}</i>
+                      <span><b>{title}</b><p>{description}</p></span>
+                    </li>)}
+                </ol>
+                <div className="legal-summary-note">
+                  <ShieldIcon />
+                  <p><b>هذا ملخص لأهم البنود ولا يستبدل الوثائق الكاملة.</b><span>عند وجود تعارض، تسري النسخة المنشورة من الوثائق التي وافقت عليها.</span></p>
+                </div>
+              </section>
+              <div className="legal-links" aria-label="الوثائق القانونية الكاملة">
+                <a href="/p/terms-of-use" target="_blank" rel="noreferrer">شروط الاستخدام والاشتراك</a>
+                <a href="/p/privacy-policy" target="_blank" rel="noreferrer">سياسة الخصوصية</a>
+                <a href="/p/terms-of-use#free-plan" target="_blank" rel="noreferrer">حدود الخطة المجانية</a>
+              </div>
+              <p className={`legal-review-hint${legalReviewed ? " is-complete" : ""}`} role="status">
+                {legalReviewed ? "وصلت إلى نهاية الملخص؛ يمكنك الآن تحديد الموافقة." : "انتقل إلى نهاية البنود لتفعيل الموافقة."}
+              </p>
+              <label className={`legal-consent${legalReviewed ? " is-ready" : ""}`}>
+                <input
+                  type="checkbox"
+                  required
+                  aria-describedby="legal-evidence"
+                  disabled={!legalReviewed || busy === "submit"}
+                  checked={form.legalConsent}
+                  onChange={(event) => updateLegalConsent(event.target.checked)}
+                />
+                <span>{LEGAL_CONSENT_TEXT}</span>
+              </label>
+              <p id="legal-evidence" className="legal-evidence-note"><LockIcon /> بالضغط على الزر، تُسجّل موافقتك إلكترونيًا مع وقت الخادم ونسخة الوثائق المعتمدة وقت الإنشاء.</p>
+              {error && <div className="alert error policy-error" role="alert">
+                  <span>{error}</span>
+                  {error === ERROR_COPY.legal_policy_version_stale && <button type="button" className="policy-refresh" onClick={() => window.location.reload()}>تحميل النسخة الحالية</button>}
+                </div>}
+              <div className="form-actions legal-actions">
+                <button type="button" className="secondary-button" disabled={busy === "submit"} onClick={() => setStep("regulatory")}>العودة</button>
+                <button type="submit" className="primary-button" disabled={busy === "submit" || !legalReviewed || !form.legalConsent}>
+                  {busy === "submit" ? <><Spinner /> جاري إرسال طلبك بأمان…</> : <>أوافق وأرسل طلب إنشاء منشأتي <ArrowIcon /></>}
                 </button>
               </div>
             </form>}
@@ -402,7 +623,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
                     :reviewReceiptQueued
                       ?"تم حفظ الطلب ووضع إشعار الاستلام في طابور البريد"
                       :"تم حفظ طلب المنشأة للمراجعة"}</small>
-              <h2>{manualExisting?'طلبك محفوظ ومسار التفعيل محمي':'مرحبًا بمنشأتك في أودير'}</h2>
+              <h2>{manualExisting?'طلبك محفوظ ومسار التفعيل محمي':'تم استلام طلب إنشاء منشأتك'}</h2>
               <p>{confirmationRequired
                 ? `${confirmationAlreadySent ? "افحص بريدك؛ مزود البريد قبل الرسالة للإرسال." : confirmationQueued ? "ستُرسل رسالة التأكيد تلقائيًا، ويمكن للنظام استكمالها بعد أي انقطاع مؤقت." : "افحص بريدك خلال دقائق قليلة."} بعد التأكيد تتفعّل مساحة مستقلة وفق الباقة المحددة، وتعمل بصورة طبيعية بينما نراجع موثوقية المنشأة.`
                 :!manualExisting
@@ -434,6 +655,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
     setConfirmationQueued(false);
     setReviewReceiptQueued(false);
     setReviewReceiptAlreadySent(false);
+    setLegalReviewed(false);
     setForm(initialForm);
   }}>طلب آخر</button>
             </div>}

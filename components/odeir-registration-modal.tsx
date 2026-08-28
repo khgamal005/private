@@ -67,7 +67,7 @@ export default function OdeirRegistrationModal({ open, onClose }: OdeirRegistrat
           <div className={`registration-modal-heading ${styles.heading}`}>
             <span>ابدأ مع أودير</span>
             <h2 id="registration-modal-title">سجّل منشأتك مجانًا</h2>
-            <p id="registration-modal-description">اعثر على منشأتك، تأكد من بياناتها، ثم أرسل طلب التفعيل بخطوات واضحة.</p>
+            <p id="registration-modal-description">اعثر على منشأتك، راجع بياناتها والإقرار التنظيمي، ثم وافق على الشروط وأرسل الطلب.</p>
           </div>
           <button
             ref={closeButtonRef}

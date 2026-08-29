@@ -9,6 +9,7 @@ import {
   SUPPORT_ATTACHMENTS_UNAVAILABLE_CODE,
   SUPPORT_ATTACHMENTS_UNAVAILABLE_MESSAGE
 } from '../../../lib/support-attachment-policy';
+import {isTrustedSupportRequestOrigin} from '../../../lib/support-request-origin.mjs';
 
 export const SUPPORT_JSON_LIMIT=64*1024;
 export const SUPPORT_ATTACHMENT_LIMIT=10*1024*1024;
@@ -36,11 +37,7 @@ export function failure(code,status=400){
 }
 
 export function sameOrigin(request){
-  const origin=request.headers.get('origin');
-  if(!origin){
-    return request.headers.get('sec-fetch-site')==='same-origin';
-  }
-  try{return new URL(origin).origin===new URL(request.url).origin;}catch{return false;}
+  return isTrustedSupportRequestOrigin(request);
 }
 
 export function supportUpstreamSignal(timeoutMs=SUPPORT_UPSTREAM_TIMEOUT_MS){

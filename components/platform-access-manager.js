@@ -19,7 +19,9 @@ const ROLE_ORIGINS={
   platform_billing_manager:'مسؤول الباقات والاشتراكات',
   platform_content_manager:'مسؤول المحتوى والمعارف',
   platform_access_manager:'مسؤول فريق المنصة والصلاحيات',
-  platform_operations_manager:'مشرف تشغيل المنصة'
+  platform_operations_manager:'مشرف تشغيل المنصة',
+  platform_support_agent:'مسؤول الدعم الفني',
+  platform_support_manager:'مدير الدعم الفني'
 };
 
 export default function PlatformAccessManager({initialData}){
@@ -524,7 +526,10 @@ function permissionLabel(value){
     'platform.website.manage':'الموقع الإلكتروني',
     'platform.access.manage':'فريق المنصة',
     'platform.settings.manage':'الإعدادات',
-    'platform.audit.read':'سجل التدقيق'
+    'platform.audit.read':'سجل التدقيق',
+    'platform.support.read':'عرض تذاكر الدعم',
+    'platform.support.reply':'الرد على تذاكر الدعم',
+    'platform.support.manage':'إسناد وإدارة تذاكر الدعم'
   })[value]||value;
 }
 

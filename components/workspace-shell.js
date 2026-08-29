@@ -43,6 +43,7 @@ const ICON_PATHS={
   marketing:['M4 11v2M7 8l10-4v16L7 16z','M7 16v4h4v-3'],
   automation:['M12 3v3M12 18v3M3 12h3M18 12h3','m5.6 5.6 2.1 2.1m8.6 8.6 2.1 2.1m0-10.7-2.1 2.1M7.7 16.3l-2.1 2.1','M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z'],
   accounting:['M5 3h14v18l-3-2-4 2-4-2-3 2z','M8 8h8M8 12h8M8 16h5'],
+  support:['M4 5h16v12H9l-5 4z','M8 9h8M8 13h5'],
   interactive:['M4 5h16v12H4z','m10 9 4 2.5-4 2.5z','M9 21h6'],
   search:['M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z','m21 21-4.35-4.35'],
   bell:['M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9','M10 21h4'],
@@ -62,7 +63,8 @@ function tenantItems(
   platformAccess,
   roleKey,
   yeastarAccess,
-  addonAccess
+  addonAccess,
+  supportSummary
 ){
   const base=`/tenant/${encodeURIComponent(slug)}`;
   const policy=tenantRolePolicy(roleKey,{platformAccess});
@@ -117,7 +119,10 @@ function tenantItems(
     ]},
     {key:'website',label:'الموقع الإلكتروني',href:`${base}/website`,permission:'tenant.website.read',visible:hasAddon('cms_pro')},
     {key:'settings',label:'الإعدادات والصلاحيات',href:`${base}/settings`,permission:'tenant.users.manage'},
-    {key:'integrations',label:'المزامنة والترابط',href:`${base}/integrations`,permission:'tenant.users.manage',visible:hasAnyAddon(['woocommerce','salla','zid','shopify','custom_store'])}
+    {key:'integrations',label:'المزامنة والترابط',href:`${base}/integrations`,permission:'tenant.users.manage',visible:hasAnyAddon(['woocommerce','salla','zid','shopify','custom_store'])},
+    {key:'support',label:'الدعم الفني',href:`${base}/support`,always:true,
+      badge:tenantSupportAttentionCount(supportSummary),
+      badgeLabel:'تذاكر دعم تحتاج متابعة'}
   ];
   const allowed=new Set(permissions||[]);
   const canUse=permission=>{
@@ -127,15 +132,15 @@ function tenantItems(
   };
   return items
     .map(item=>item.children?{...item,children:item.children.filter(child=>child.visible!==false&&(child.always||canUse(child.permission)))}:item)
-    .filter(item=>item.visible!==false&&(item.children?.length||canUse(item.permission)));
+    .filter(item=>item.visible!==false&&(item.always||item.children?.length||canUse(item.permission)));
 }
 
-function platformItems(permissions,registrationSummary){
+function platformItems(permissions,registrationSummary,supportSummary){
   const allowed=new Set(permissions||[]);
   const items=[
     {key:'overview',label:'لوحة المنصة',href:'/control',permission:'platform.control.read'},
     {key:'tenants',label:'المنشآت',href:'/control/tenants',permission:'platform.tenants.manage'},
-    {key:'registrations',label:'طلبات التسجيل',href:'/control/registration-requests',permission:'platform.tenants.manage',badge:registrationAttentionCount(registrationSummary)},
+    {key:'registrations',label:'طلبات التسجيل',href:'/control/registration-requests',permission:'platform.tenants.manage',badge:registrationAttentionCount(registrationSummary),badgeLabel:'طلبات تسجيل تحتاج متابعة'},
     {key:'catalog',label:'المنتجات والمتاجر',children:[
       {key:'plans',label:'الباقات وحدود الاستخدام',href:'/control/plans',permission:'platform.billing.manage'},
       {key:'addons',label:'متجر الإضافات',href:'/control/addons',permission:'platform.billing.manage'},
@@ -150,7 +155,10 @@ function platformItems(permissions,registrationSummary){
     {key:'content',label:'المحتوى والمعارف',href:'/control/content',permission:'platform.content.manage'},
     {key:'website',label:'إدارة الموقع',href:'/control/website',permission:'platform.website.manage'},
     {key:'people',label:'فريق المنصة والصلاحيات',href:'/control/team',permission:'platform.access.manage'},
-    {key:'settings',label:'إعدادات المنصة',href:'/control/settings',permission:['platform.settings.manage','platform.control.write']}
+    {key:'settings',label:'إعدادات المنصة',href:'/control/settings',permission:['platform.settings.manage','platform.control.write']},
+    {key:'support',label:'الدعم الفني',href:'/control/support',permission:[
+      'platform.support.read','platform.support.reply','platform.support.manage'
+    ],badge:platformSupportAttentionCount(supportSummary),badgeLabel:'تذاكر دعم تحتاج متابعة'}
   ];
   const canUse=permission=>{
     const required=Array.isArray(permission)?permission:[permission];
@@ -172,6 +180,12 @@ function count(value){return Math.max(0,Number(value)||0);}
 function registrationAttentionCount(summary){
   return count(summary?.pendingReview)+count(summary?.underReview)+count(summary?.trustPending);
 }
+function tenantSupportAttentionCount(summary){
+  return count(summary?.unread)+count(summary?.waitingTenant);
+}
+function platformSupportAttentionCount(summary){
+  return count(summary?.unassigned)+count(summary?.overdue);
+}
 function notificationItems(summary,slug){
   const base=`/tenant/${encodeURIComponent(slug)}`;
   const items=[];
@@ -183,7 +197,22 @@ function notificationItems(summary,slug){
   return items;
 }
 
-export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,yeastarAccess=null,addonAccess=null}){
+function tenantSupportNotificationItems(summary,slug){
+  const unread=count(summary?.unread);
+  const waiting=count(summary?.waitingTenant);
+  if(!unread&&!waiting)return [];
+  const title=unread&&waiting
+    ?`${unread} رد جديد و${waiting} تذكرة تنتظر متابعتك`
+    :unread?`${unread} رد جديد من دعم ماركتون`:`${waiting} تذكرة دعم تنتظر ردك`;
+  return [{
+    tone:waiting?'amber':'blue',
+    title,
+    description:'افتح الدعم الفني لمتابعة التذاكر دون عرض تفاصيلها هنا.',
+    href:`/tenant/${encodeURIComponent(slug)}/support`
+  }];
+}
+
+export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,supportSummary=null,yeastarAccess=null,addonAccess=null}){
   const pathname=usePathname();
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
@@ -203,9 +232,10 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       platformAccess,
       roleKey,
       yeastarAccess,
-      addonAccess
+      addonAccess,
+      supportSummary
     )
-    :platformItems(permissions,platformRegistrationSummary),[
+    :platformItems(permissions,platformRegistrationSummary,supportSummary),[
       kind,
       slug,
       permissions,
@@ -213,7 +243,8 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       roleKey,
       yeastarAccess,
       addonAccess,
-      platformRegistrationSummary
+      platformRegistrationSummary,
+      supportSummary
     ]);
   const areaLabel=kind===WORKSPACE_KINDS.tenant?'لوحة المنشأة':'لوحة إدارة المنصة';
   const canCreateTask=platformAccess||permissions.includes('tenant.work.write');
@@ -227,12 +258,19 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
     ?platformAccess||permissions.includes('tenant.users.manage')
     :Boolean(platformSettingsHref);
   const canManageTenants=permissions.includes('platform.tenants.manage');
+  const canReadPlatformSupport=[
+    'platform.support.read','platform.support.reply','platform.support.manage'
+  ].some(permission=>permissions.includes(permission));
   const profileName=userName||email?.split('@')[0]||'مستخدم ماركتون';
   const profileInitial=Array.from(profileName.trim())[0]||'م';
-  const notifications=kind===WORKSPACE_KINDS.tenant?notificationItems(notificationSummary,slug):[];
+  const notifications=kind===WORKSPACE_KINDS.tenant?[
+    ...notificationItems(notificationSummary,slug),
+    ...tenantSupportNotificationItems(supportSummary,slug)
+  ]:[];
   const operationalNotificationCount=count(notificationSummary?.overdueTasks)
     +count(notificationSummary?.tasksToday)
-    +count(notificationSummary?.pendingAdmissions);
+    +count(notificationSummary?.pendingAdmissions)
+    +tenantSupportAttentionCount(supportSummary);
   return <div className={`mt-workspace mt-workspace-${kind}`}>
     {mobileOpen&&<button className="mt-shell-backdrop" aria-label="إغلاق القائمة" onClick={()=>setMobileOpen(false)}/>} 
     <aside className={`mt-sidebar ${mobileOpen?'is-open':''}`}>
@@ -240,7 +278,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       <div className="mt-context-card"><span className="mt-context-status">{kind===WORKSPACE_KINDS.tenant?'منشأة نشطة':'إدارة SaaS المركزية'}</span><b>{title}</b></div>
       <nav className="mt-navigation" aria-label="القائمة الرئيسية">
         {items.map(item=>{
-          if(!item.children)return <Link key={item.href||item.key} href={item.href||'#'} aria-disabled={item.disabled||undefined} tabIndex={item.disabled?-1:undefined} className={item.disabled?'disabled':isActive(pathname,item.href)?'active':''} style={item.disabled?{cursor:'default',opacity:.55}:undefined} onClick={event=>{if(item.disabled){event.preventDefault();return;}setMobileOpen(false);}}><span><ShellIcon name={item.key}/></span><b>{item.label}</b>{item.badge>0&&<em className="mt-navigation-badge" aria-label={`${item.badge} طلب تسجيل جديد`}>{item.badge>99?'99+':item.badge}</em>}</Link>;
+          if(!item.children)return <Link key={item.href||item.key} href={item.href||'#'} aria-disabled={item.disabled||undefined} tabIndex={item.disabled?-1:undefined} className={item.disabled?'disabled':isActive(pathname,item.href)?'active':''} style={item.disabled?{cursor:'default',opacity:.55}:undefined} onClick={event=>{if(item.disabled){event.preventDefault();return;}setMobileOpen(false);}}><span><ShellIcon name={item.key}/></span><b>{item.label}</b>{item.badge>0&&<em className="mt-navigation-badge" aria-label={`${item.badge} ${item.badgeLabel||'عناصر تحتاج متابعة'}`}>{item.badge>99?'99+':item.badge}</em>}</Link>;
           const childActive=item.children.some(child=>!child.disabled&&child.href&&isActive(pathname,child.href));
           const isOpen=Boolean(openGroups[item.key]);
           return <div className={`mt-navigation-group ${childActive?'active':''}`} key={item.key}>
@@ -258,6 +296,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
           {kind===WORKSPACE_KINDS.tenant&&canCreateTask&&<Link className="mt-quick-link" href={`/tenant/${encodeURIComponent(slug)}/tasks`}>+ مهمة جديدة</Link>}
           {kind===WORKSPACE_KINDS.platform&&canManageTenants&&<Link className="mt-quick-link" href="/control/tenants">إدارة المنشآت</Link>}
           {kind===WORKSPACE_KINDS.platform&&canManageTenants&&<Link className="mt-registration-alert" href="/control/registration-requests" aria-label={`${registrationAttentionCount(platformRegistrationSummary)} طلب تسجيل يحتاج إجراء`} title="طلبات التسجيل"><ShellIcon name="bell"/>{registrationAttentionCount(platformRegistrationSummary)>0&&<b>{registrationAttentionCount(platformRegistrationSummary)>99?'99+':registrationAttentionCount(platformRegistrationSummary)}</b>}</Link>}
+          {kind===WORKSPACE_KINDS.platform&&canReadPlatformSupport&&<Link className="mt-registration-alert" href="/control/support" aria-label={`${platformSupportAttentionCount(supportSummary)} تذكرة دعم تحتاج متابعة`} title="الدعم الفني"><ShellIcon name="support"/>{platformSupportAttentionCount(supportSummary)>0&&<b>{platformSupportAttentionCount(supportSummary)>99?'99+':platformSupportAttentionCount(supportSummary)}</b>}</Link>}
           {kind===WORKSPACE_KINDS.tenant&&<NotificationCenter
             slug={slug}
             className="mt-notification-menu"

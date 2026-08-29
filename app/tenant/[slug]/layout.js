@@ -5,6 +5,7 @@ import {
 } from '../../../lib/api';
 import {requireTenant} from '../../../lib/server-auth';
 import {optionalServerRead} from '../../../lib/server-resilience';
+import {getTenantSupport} from '../../../lib/support-api';
 import {navigationPolicyRoleKey} from '../../../lib/tenant-role-policy';
 import WorkspaceShell from '../../../components/workspace-shell';
 import MyRoleGuide from '../../../components/my-role-guide';
@@ -15,7 +16,7 @@ export default async function TenantLayout({children,params}){
   const {slug}=await params;
   const context=await requireTenant(slug);
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
-  const [live,yeastarAccess,addonAccess]=await Promise.all([
+  const [live,yeastarAccess,addonAccess,tenantSupport]=await Promise.all([
     optionalServerRead(
       'tenant-shell-live',
       ()=>getTenantDashboardLive(slug),
@@ -31,7 +32,12 @@ export default async function TenantLayout({children,params}){
     optionalServerRead('tenant-shell-addons',()=>getTenantAddonNavigation(slug),{
       enabledProductKeys:[],
       surfaces:[]
-    })
+    }),
+    optionalServerRead(
+      'tenant-shell-support-summary',
+      ()=>getTenantSupport(slug,{limit:1}),
+      null
+    )
   ]);
   const roleKey=context.platformAccess
     ?'platform_owner'
@@ -55,6 +61,7 @@ export default async function TenantLayout({children,params}){
     roleKey={navigationRoleKey}
     roleLabel={roleLabel}
     notificationSummary={headerSummary(live)}
+    supportSummary={tenantSupport?.summary||null}
     yeastarAccess={yeastarAccess}
     addonAccess={addonAccess}
   >

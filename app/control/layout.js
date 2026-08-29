@@ -1,20 +1,36 @@
 import {hasPlatformPermission,requirePlatform} from '../../lib/server-auth';
 import {getPlatformRegistrationRequestsSummary} from '../../lib/platform-registration-requests';
+import {optionalServerRead} from '../../lib/server-resilience';
+import {getPlatformSupport} from '../../lib/support-api';
 import WorkspaceShell from '../../components/workspace-shell';
 
 export const dynamic='force-dynamic';
+const SUPPORT_PERMISSIONS=[
+  'platform.support.read','platform.support.reply','platform.support.manage'
+];
 
 export default async function ControlLayout({children}){
   const context=await requirePlatform();
-  let platformRegistrationSummary=null;
-  if(hasPlatformPermission(context,'platform.tenants.manage')){
-    try{
-      platformRegistrationSummary=await getPlatformRegistrationRequestsSummary();
-    }catch{
-      // The rest of Platform Control remains available during a migration or
-      // transient notification failure. The inbox page reports its own error.
-    }
-  }
+  const canManageTenants=hasPlatformPermission(context,'platform.tenants.manage');
+  const canReadSupport=SUPPORT_PERMISSIONS.some(permission=>
+    hasPlatformPermission(context,permission)
+  );
+  const [platformRegistrationSummary,platformSupport]=await Promise.all([
+    canManageTenants
+      ?optionalServerRead(
+        'platform-shell-registration-summary',
+        ()=>getPlatformRegistrationRequestsSummary(),
+        null
+      )
+      :null,
+    canReadSupport
+      ?optionalServerRead(
+        'platform-shell-support-summary',
+        ()=>getPlatformSupport({limit:1}),
+        null
+      )
+      :null
+  ]);
   return <WorkspaceShell
     kind="platform"
     title="ODEIR Platform Control"
@@ -24,6 +40,7 @@ export default async function ControlLayout({children}){
     roleKey={context.platformRoles?.[0]||'platform_user'}
     roleLabel={context.platformRoleLabel||'موظف المنصة'}
     platformRegistrationSummary={platformRegistrationSummary}
+    supportSummary={platformSupport?.summary||null}
   >
     {children}
   </WorkspaceShell>;

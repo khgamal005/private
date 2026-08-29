@@ -50,6 +50,11 @@ verify_jwt = false
 [functions.tenant-staff-password-reset]
 verify_jwt = true
 
+[functions.support-attachment-cleanup]
+# Scheduled maintenance authenticates with its dedicated server-side cron
+# secret before using the service role for the two narrow cleanup RPCs.
+verify_jwt = false
+
 [functions.payment-provider-admin]
 # Caller JWT is checked by the gateway and again through the canonical
 # platform.billing.manage snapshot before any service-role Vault operation.
@@ -64,4 +69,3 @@ verify_jwt = false
 # Only an authenticated platform reviewer can enter this gateway. Canonical
 # database permission checks still run inside every user-scoped RPC.
 verify_jwt = true
-

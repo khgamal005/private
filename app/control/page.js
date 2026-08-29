@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import {redirect} from 'next/navigation';
 import {getPlatformControl} from '../../lib/platform-api';
+import {hasPlatformPermission,requirePlatform} from '../../lib/server-auth';
 
 export const dynamic='force-dynamic';
 
@@ -8,6 +10,7 @@ const date=value=>value?new Date(value).toLocaleString('ar-SA',{day:'numeric',mo
 
 const AREAS=[
   {capability:'tenants',title:'إدارة المنشآت',description:'إنشاء المنشآت وتحديث حالتها ومتابعة التشغيل.',href:'/control/tenants',icon:'▦'},
+  {capability:'support',title:'الدعم الفني للمنشآت',description:'فرز وإسناد ومعالجة تذاكر مستخدمي أودير ومتابعة زمن الاستجابة.',href:'/control/support',icon:'◰'},
   {capability:'billing',title:'الباقات وحدود الاستخدام',description:'تسعير الباقات وتحديد حدود الموظفين والطلاب والدورات والعملاء.',href:'/control/plans',icon:'▤'},
   {capability:'billing',title:'متجر الإضافات',description:'أقسام الإضافات والأسعار المؤرخة والتراخيص الخاصة بكل منشأة.',href:'/control/addons',icon:'⊞'},
   {capability:'billing',title:'متجر الخدمات',description:'أقسام الخدمات وأسعارها وطلبات التنفيذ البشري.',href:'/control/services',icon:'▣'},
@@ -21,9 +24,15 @@ const AREAS=[
 
 export default async function ControlOverview({searchParams}){
   const params=await searchParams;
+  const context=await requirePlatform();
+  const canReadControl=hasPlatformPermission(context,'platform.control.read');
+  const canReadSupport=[
+    'platform.support.read','platform.support.reply','platform.support.manage'
+  ].some(permission=>hasPlatformPermission(context,permission));
+  if(!canReadControl&&canReadSupport)redirect('/control/support');
   const data=await getPlatformControl();
   const summary=data.summary||{};
-  const capabilities=data.capabilities||{};
+  const capabilities={...(data.capabilities||{}),support:canReadSupport};
   const areas=AREAS.filter(area=>capabilities[area.capability]);
   const overdue=(data.tenants||[]).reduce((sum,tenant)=>sum+Number(tenant.overdueTasks||0),0);
   const primaryArea=areas[0];
@@ -49,15 +58,13 @@ export default async function ControlOverview({searchParams}){
       </Link>)}
     </section>
 
-    {(capabilities.tenants||capabilities.settings)&&<section className="mt-kpis">
+    {(capabilities.tenants||capabilities.settings||capabilities.support)&&<section className="mt-kpis">
       {capabilities.tenants&&<>
         <article className="mt-kpi"><span>إجمالي المنشآت</span><b>{number(summary.organizations)}</b><small>{number(summary.activeTenants)} منشأة نشطة</small></article>
         <article className={`mt-kpi ${overdue?'danger':''}`}><span>مهام متأخرة بالمنشآت</span><b>{number(overdue)}</b><small>مؤشر صحة التشغيل</small></article>
       </>}
-      {capabilities.settings&&<>
-        <article className="mt-kpi"><span>التكاملات النشطة</span><b>{number(summary.integrations)}</b><small>اتصالات المنصة والمنشآت</small></article>
-        <article className={`mt-kpi ${summary.openSupport?'warning':''}`}><span>طلبات الدعم</span><b>{number(summary.openSupport)}</b><small>طلبات تحتاج مراجعة بشرية</small></article>
-      </>}
+      {capabilities.settings&&<article className="mt-kpi"><span>التكاملات النشطة</span><b>{number(summary.integrations)}</b><small>اتصالات المنصة والمنشآت</small></article>}
+      {capabilities.support&&<Link className={`mt-kpi ${summary.openSupport?'warning':''}`} href="/control/support" style={{textDecoration:'none',color:'inherit'}}><span>تذاكر الدعم المفتوحة</span><b>{number(summary.openSupport)}</b><small>فتح مركز دعم المنشآت</small></Link>}
     </section>}
 
     {capabilities.billing&&<section className="mt-kpis">

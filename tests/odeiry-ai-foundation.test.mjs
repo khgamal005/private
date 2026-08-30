@@ -515,6 +515,9 @@ test('knowledge sources are platform-curated, bounded, and restricted to Odeir r
     /v_limit\s*:=\s*least\(\s*greatest\(coalesce\(p_limit,6\),1\),\s*v_runtime\.max_knowledge_results\s*\)/);
   assert.match(normalized,
     /max_knowledge_results smallint not null default 6 check \(max_knowledge_results between 1 and 12\)/);
+  assert.doesNotMatch(normalized,
+    /search_vector tsvector generated always as \([^;]*array_to_string\(/,
+    'generated search vector must use immutable expressions only');
   assert.match(search,/article\.status\s*=\s*'published'/);
   const queryLimits=search.match(
     /if char_length\(v_query\) not between 2 and (\d+) or octet_length\(v_query\) > (\d+)/

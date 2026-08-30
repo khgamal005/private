@@ -381,12 +381,6 @@ create table platform.odeiry_knowledge_articles (
     || setweight(
       to_tsvector('simple'::regconfig,coalesce(body_ar,'')),'C'
     )
-    || setweight(
-      to_tsvector(
-        'simple'::regconfig,
-        coalesce(array_to_string(tags,' '),'')
-      ),'B'
-    )
   ) stored,
   constraint odeiry_knowledge_published_state_check check (
     status <> 'published' or published_at is not null

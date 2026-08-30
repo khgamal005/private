@@ -16,6 +16,7 @@ export const dynamic='force-dynamic';
 export default async function TenantLayout({children,params}){
   const {slug}=await params;
   const odeiryGloballyEnabled=process.env.ODEIRY_AI_ENABLED==='true';
+  const odeiryManagerGloballyEnabled=process.env.ODEIRY_MANAGER_ENABLED==='true';
   const context=await requireTenant(slug);
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
   const [live,yeastarAccess,addonAccess,tenantSupport,odeirySnapshot]=await Promise.all([
@@ -44,7 +45,9 @@ export default async function TenantLayout({children,params}){
       ?optionalServerRead(
         'tenant-shell-odeiry-snapshot',
         ()=>getTenantOdeirySnapshot(slug),
-        {available:false,enabled:false}
+        {available:false,enabled:false,manager:{
+          allowed:false,enabled:false,available:false,reviewAvailable:false
+        }}
       )
       :Promise.resolve(null)
   ]);
@@ -56,6 +59,22 @@ export default async function TenantLayout({children,params}){
   const odeiryAccessMode=['tenant_member','platform_operator'].includes(
     odeirySnapshot?.mode
   )?odeirySnapshot.mode:null;
+  const odeiryManagerEnabled=Boolean(
+    odeiryGloballyEnabled
+    &&odeiryManagerGloballyEnabled
+    &&!context.platformAccess
+    &&odeiryAccessMode==='tenant_member'
+    &&odeirySnapshot?.manager?.allowed===true
+    &&odeirySnapshot?.manager?.enabled===true
+    &&odeirySnapshot?.manager?.available===true
+  );
+  const odeiryManagerReviewEnabled=Boolean(
+    odeiryGloballyEnabled
+    &&!context.platformAccess
+    &&odeiryAccessMode==='tenant_member'
+    &&odeirySnapshot?.manager?.allowed===true
+    &&odeirySnapshot?.manager?.reviewAvailable===true
+  );
   const roleKey=context.platformAccess
     ?'platform_owner'
     :membership?.roles?.[0]||'member';
@@ -83,6 +102,8 @@ export default async function TenantLayout({children,params}){
     addonAccess={addonAccess}
     odeiryEnabled={odeiryEnabled}
     odeiryAccessMode={odeiryAccessMode}
+    odeiryManagerEnabled={odeiryManagerEnabled}
+    odeiryManagerReviewEnabled={odeiryManagerReviewEnabled}
   >
     {children}
     <MyRoleGuide

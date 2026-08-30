@@ -55,6 +55,10 @@ export async function POST(request){
     if(!token)return odeiryFailure('authentication_required',401);
 
     input=parseOdeiryRequest(await readOdeiryJson(request));
+    if(input.assistantMode==='manager_v1'
+       &&process.env.ODEIRY_MANAGER_ENABLED!=='true'){
+      return odeiryFailure('odeiry_manager_disabled',503);
+    }
 
     const rate=rateLimiter.consume(rateKey(token,input.slug));
     if(!rate.allowed){
@@ -71,6 +75,15 @@ export async function POST(request){
     if(!snapshot.available||!snapshot.enabled){
       return odeiryFailure('odeiry_disabled',503);
     }
+    if(input.assistantMode==='manager_v1'){
+      if(snapshot.mode!=='tenant_member'||!snapshot.manager.allowed){
+        return odeiryFailure('forbidden',403);
+      }
+      if(!snapshot.manager.globalEnabled
+         ||!snapshot.manager.enabled||!snapshot.manager.available){
+        return odeiryFailure('odeiry_manager_disabled',503);
+      }
+    }
     // A tenant member's role and permission keys are resolved only after the
     // tenant-bound Odeiry gate succeeds. The sanitizer returns no tenant,
     // subject, employee, email, or customer identifiers. Platform operators
@@ -84,6 +97,9 @@ export async function POST(request){
       accessMode:snapshot.mode
     });
     if(!viewer)return odeiryFailure('forbidden',403);
+    if(input.assistantMode==='manager_v1'&&viewer.platformAccess===true){
+      return odeiryFailure('forbidden',403);
+    }
     // Credential state is inspected only after membership and both database
     // feature gates have succeeded, so configuration cannot be probed by an
     // unauthenticated caller or an ineligible tenant.
@@ -112,15 +128,22 @@ export async function POST(request){
           userMessage:input.message,
           estimatedUnits:estimateOdeiryUnits(input.message),
           model,
-          context:input.context
+          context:input.context,
+          // Keep operations payloads compatible with the pre-manager RPC
+          // during a staged rollout. The new wrapper defaults an absent mode
+          // to operations_v2; manager requests must carry the discriminator.
+          ...(input.assistantMode==='manager_v1'
+            ?{assistantMode:'manager_v1'}:{})
         }
       }
     ));
 
     if(started.idempotent){
       if(started.status==='completed'){
-        const output=await replayOutput(started);
-        return odeirySuccess(input,started,output,true);
+        const output=await replayOutput(started,input.assistantMode);
+        return odeirySuccess(input,started,output,true,{
+          memoryProposalCount:0
+        });
       }
       if(['reserved','running'].includes(started.status)){
         return odeiryFailure('odeiry_request_in_progress',409,{retryAfter:3});
@@ -131,10 +154,23 @@ export async function POST(request){
     }
 
     const {runOdeiryAgent}=await import('../../../../lib/odeiry-agent.js');
+    const approvedMemories=input.assistantMode==='manager_v1'
+      ?await supportRpc(
+        token,
+        'v1_tenant_odeiry_manager_memory_context',
+        {
+          p_slug:input.slug,
+          p_run_id:started.runId,
+          p_query:input.message,
+          p_limit:8
+        }
+      ):[];
     const result=await runOdeiryAgent({
       message:input.message,
       context:input.context,
       contextMessages:started.contextMessages,
+      assistantMode:input.assistantMode,
+      approvedMemories,
       viewer,
       searchKnowledge:query=>supportRpc(
         token,
@@ -146,6 +182,15 @@ export async function POST(request){
           p_limit:6
         }
       ),
+      readManagerAnalytics:({period})=>supportRpc(
+        token,
+        'v1_tenant_odeiry_manager_analytics',
+        {
+          p_slug:input.slug,
+          p_run_id:started.runId,
+          p_period:period
+        }
+      ),
       signal:modelSignal(request.signal)
     });
     modelCompleted=true;
@@ -153,9 +198,9 @@ export async function POST(request){
     const units=settleOdeiryUnits(result.usage,started.reservedUnits);
     const inputTokens=nonNegativeInteger(result.usage?.inputTokens);
     const outputTokens=nonNegativeInteger(result.usage?.outputTokens);
-    await finalizeWithRetry(input.slug,started.runId,'completed',{
+    const completionPayload={
       responseText:result.output.reply,
-      responseData:result.output,
+      responseData:persistableOutput(result.output),
       actualUnits:units.settled,
       measuredActualUnits:units.measured,
       inputTokens,
@@ -173,9 +218,23 @@ export async function POST(request){
         sourceCount:result.output.sources.length,
         knowledgeSearchEnabled:true
       }
-    });
+    };
+    let memoryProposalCount=0;
+    if(input.assistantMode==='manager_v1'){
+      const finalized=await finalizeWithRetry(
+        input.slug,started.runId,'completed',completionPayload,
+        result.output.memoryProposals
+      );
+      memoryProposalCount=boundedProposalCount(finalized?.memoryProposalCount);
+    }else{
+      await finalizeWithRetry(
+        input.slug,started.runId,'completed',completionPayload
+      );
+    }
 
-    return odeirySuccess(input,started,result.output,false);
+    return odeirySuccess(input,started,result.output,false,{
+      memoryProposalCount
+    });
   }catch(error){
     let retryWithNewRequestId=false;
     if(started&&!started.idempotent&&input){
@@ -187,20 +246,22 @@ export async function POST(request){
   }
 }
 
-async function replayOutput(started){
+async function replayOutput(started,assistantMode){
   if(started.responseData){
     try{
       const {parseOdeiryAgentOutput}=await import('../../../../lib/odeiry-agent.js');
-      return parseOdeiryAgentOutput(started.responseData);
+      return parseOdeiryAgentOutput(started.responseData,assistantMode);
     }catch{
       // A stored response from an older contract still has a safe text fallback.
     }
   }
-  return replayOdeiryOutput(started.responseText);
+  return replayOdeiryOutput(started.responseText,assistantMode);
 }
 
-async function finalizeWithRetry(slug,runId,status,payload){
-  const request={slug,runId,status,payload};
+async function finalizeWithRetry(
+  slug,runId,status,payload,managerMemoryProposals=null
+){
+  const request={slug,runId,status,payload,managerMemoryProposals};
   try{
     return await finalizeOdeiryRun(request);
   }catch(error){
@@ -232,7 +293,9 @@ async function finalizeFailureSafely(
   }
 }
 
-function odeirySuccess(input,started,output,idempotent){
+function odeirySuccess(
+  input,started,output,idempotent,{memoryProposalCount=0}={}
+){
   return NextResponse.json({
     success:true,
     data:{
@@ -246,6 +309,8 @@ function odeirySuccess(input,started,output,idempotent){
       escalationReason:output.escalationReason,
       sources:output.sources,
       ticketDraft:output.ticketDraft,
+      assistantMode:input.assistantMode,
+      memoryProposalCount,
       idempotent
     },
     requestId:input.clientRequestId
@@ -323,24 +388,40 @@ function normalizeDatabaseError(code){
     'odeiry_rate_limit_exceeded','odeiry_idempotency_conflict',
     'odeiry_request_in_progress','odeiry_units_unavailable',
     'odeiry_thread_not_found','odeiry_run_not_found','odeiry_run_conflict',
-    'odeiry_payload_invalid'
+    'odeiry_payload_invalid','odeiry_manager_disabled',
+    'odeiry_manager_unavailable','odeiry_manager_permission_required',
+    'odeiry_manager_run_required','odeiry_manager_run_not_found',
+    'odeiry_manager_memory_invalid','odeiry_manager_analytics_limit',
+    'odeiry_manager_cross_mode_forbidden',
+    'odeiry_manager_execution_forbidden','odeiry_manager_payload_invalid',
+    'odeiry_manager_internal_contract_invalid'
   ]);
   return allowed.has(code)?code:'odeiry_request_failed';
 }
 
 function statusFor(code,fallback=500){
   if(code==='authentication_required')return 401;
-  if(code==='forbidden')return 403;
+  if([
+    'forbidden','odeiry_manager_permission_required',
+    'odeiry_manager_execution_forbidden'
+  ].includes(code))return 403;
   if(code==='tenant_not_found'||code.endsWith('_not_found'))return 404;
   if(code==='odeiry_rate_limit_exceeded')return 429;
   if([
     'odeiry_idempotency_conflict','odeiry_request_in_progress',
-    'odeiry_run_conflict','odeiry_request_not_retryable'
+    'odeiry_run_conflict','odeiry_request_not_retryable',
+    'odeiry_manager_cross_mode_forbidden','odeiry_manager_analytics_limit'
   ].includes(code))return 409;
   if(code==='odeiry_units_unavailable')return 402;
   if(code==='odeiry_provider_timeout')return 504;
-  if(code==='odeiry_disabled'||code==='odeiry_unavailable')return 503;
-  if(code==='odeiry_payload_invalid')return 400;
+  if(code==='odeiry_manager_internal_contract_invalid')return 502;
+  if([
+    'odeiry_disabled','odeiry_unavailable','odeiry_manager_disabled',
+    'odeiry_manager_unavailable'
+  ].includes(code))return 503;
+  if([
+    'odeiry_payload_invalid','odeiry_manager_payload_invalid'
+  ].includes(code))return 400;
   return fallback>=500?502:Math.max(400,fallback);
 }
 
@@ -350,6 +431,15 @@ function translateOdeiryError(code){
     forbidden:'ليست لديك صلاحية لاستخدام أوديري في هذه المنشأة.',
     tenant_not_found:'تعذر العثور على المنشأة.',
     odeiry_disabled:'أوديري غير مفعّل لهذه المنشأة حاليًا.',
+    odeiry_manager_disabled:'أوديري المدير غير مفعّل لهذه المنشأة حاليًا.',
+    odeiry_manager_unavailable:'أوديري المدير غير متاح لهذه المنشأة حاليًا.',
+    odeiry_manager_permission_required:'ليست لديك صلاحية استخدام أوديري المدير.',
+    odeiry_manager_run_not_found:'تعذر العثور على محادثة أوديري المدير.',
+    odeiry_manager_cross_mode_forbidden:'لا يمكن فتح هذه المحادثة في وضع مختلف.',
+    odeiry_manager_execution_forbidden:'أوديري المدير للقراءة والتحليل فقط.',
+    odeiry_manager_payload_invalid:'بيانات طلب أوديري المدير غير صالحة.',
+    odeiry_manager_analytics_limit:'وصل هذا التحليل إلى حد القراءات المسموح.',
+    odeiry_manager_internal_contract_invalid:'تعذر اعتماد مسار أوديري المدير بأمان.',
     odeiry_unavailable:'أوديري غير متاح مؤقتًا. حاول مرة أخرى لاحقًا.',
     odeiry_rate_limit_exceeded:'أرسلت عدة طلبات متتالية. انتظر قليلًا ثم حاول مجددًا.',
     odeiry_request_in_progress:'هذا الطلب قيد المعالجة بالفعل.',
@@ -394,4 +484,19 @@ function responseHeaders(){
 function nonNegativeInteger(value){
   const parsed=Number(value);
   return Number.isSafeInteger(parsed)&&parsed>=0?parsed:0;
+}
+
+function boundedProposalCount(value){
+  const parsed=Number(value);
+  return Number.isSafeInteger(parsed)&&parsed>=0&&parsed<=2?parsed:0;
+}
+
+function persistableOutput(output){
+  return {
+    ...output,
+    // Evidence quotes are used once by the service RPC to prove that a memory
+    // proposal came from the current user. They are not duplicated into the
+    // stored model response; the review table keeps the bounded statement only.
+    memoryProposals:[]
+  };
 }

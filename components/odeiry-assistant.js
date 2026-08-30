@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import {useEffect,useMemo,useRef,useState} from 'react';
+import OdeiryManagerPanel from './odeiry-manager-panel';
 import styles from './odeiry-assistant.module.css';
 
 const MAX_PROMPT_LENGTH=2000;
@@ -73,9 +74,18 @@ const FOCUSABLE_SELECTOR=[
   'input:not([disabled])','select:not([disabled])','[tabindex]:not([tabindex="-1"])'
 ].join(',');
 
-export default function OdeiryAssistant({slug,context=null,accessMode='tenant_member'}){
+export default function OdeiryAssistant({
+  slug,
+  context=null,
+  accessMode='tenant_member',
+  managerEnabled=false,
+  managerReviewEnabled=false
+}){
   const safeContext=useMemo(()=>normalizeContext(context),[context]);
   const platformOperator=accessMode==='platform_operator';
+  const canUseManager=(managerEnabled===true||managerReviewEnabled===true)
+    &&!platformOperator;
+  const managerChatEnabled=managerEnabled===true&&!platformOperator;
   const starterSuggestions=useMemo(
     ()=>MODULE_SUGGESTIONS[safeContext.module]||DEFAULT_SUGGESTIONS,
     [safeContext.module]
@@ -92,6 +102,8 @@ export default function OdeiryAssistant({slug,context=null,accessMode='tenant_me
   const [ticketBusy,setTicketBusy]=useState(false);
   const [ticketError,setTicketError]=useState('');
   const [ticketOutcomes,setTicketOutcomes]=useState({});
+  const [assistantMode,setAssistantMode]=useState('operations_v2');
+  const [managerBusy,setManagerBusy]=useState(false);
   const launcherRef=useRef(null);
   const panelRef=useRef(null);
   const closeRef=useRef(null);
@@ -104,10 +116,17 @@ export default function OdeiryAssistant({slug,context=null,accessMode='tenant_me
   const interactionLockedRef=useRef(false);
   const pendingTicketRef=useRef(null);
 
-  const interactionLocked=busy||ticketBusy;
+  const managerMode=assistantMode==='manager_v1'&&canUseManager;
+  const interactionLocked=busy||ticketBusy||(managerMode&&managerBusy);
   const composerDisabled=interactionLocked||availability!=='ready';
   interactionLockedRef.current=interactionLocked;
   pendingTicketRef.current=pendingTicket;
+
+  useEffect(()=>{
+    if(!canUseManager&&assistantMode!=='operations_v2'){
+      setAssistantMode('operations_v2');
+    }
+  },[assistantMode,canUseManager]);
 
   useEffect(()=>{
     if(!open)return undefined;
@@ -361,35 +380,52 @@ export default function OdeiryAssistant({slug,context=null,accessMode='tenant_me
       />
       <section
         ref={panelRef}
-        className={styles.panel}
+        className={`${styles.panel} ${managerMode?styles.managerPanel:''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="odeiry-title"
-        aria-describedby="odeiry-description"
+        aria-describedby={managerMode?'odeiry-manager-description':'odeiry-description'}
         aria-busy={interactionLocked}
         tabIndex={-1}
       >
-        <header className={styles.header}>
-          <div className={styles.identity}>
-            <span className={styles.mark}><OdeiryMark/></span>
-            <div>
-              <span className={styles.status}><i/> {platformOperator
-                ?'وضع إدارة المنصة'
-                :'مساعد أودير الذكي'}</span>
-              <h2 id="odeiry-title">أوديري</h2>
+        <div className={styles.panelTop}>
+          <header className={styles.header}>
+            <div className={styles.identity}>
+              <span className={styles.mark}><OdeiryMark/></span>
+              <div>
+                <span className={styles.status}><i/> {managerMode
+                  ?managerChatEnabled?'مساعد المدير التحليلي':'إدارة الذاكرة'
+                  :platformOperator?'وضع إدارة المنصة':'مساعد أودير الذكي'}</span>
+                <h2 id="odeiry-title">{managerMode?'أوديري المدير':'أوديري'}</h2>
+              </div>
             </div>
-          </div>
-          <button
-            ref={closeRef}
-            type="button"
-            className={styles.closeButton}
-            aria-label="إغلاق أوديري"
-            disabled={interactionLocked}
-            onClick={closePanel}
-          >×</button>
-        </header>
+            <button
+              ref={closeRef}
+              type="button"
+              className={styles.closeButton}
+              aria-label="إغلاق أوديري"
+              disabled={interactionLocked}
+              onClick={closePanel}
+            >×</button>
+          </header>
+          {canUseManager&&<div className={styles.modeSwitch} role="group" aria-label="اختيار وضع أوديري">
+            <button
+              type="button"
+              aria-pressed={!managerMode}
+              disabled={busy||ticketBusy||managerBusy||Boolean(pendingTicket)}
+              onClick={()=>setAssistantMode('operations_v2')}
+            >خبير أودير</button>
+            <button
+              type="button"
+              aria-pressed={managerMode}
+              disabled={busy||ticketBusy||managerBusy||Boolean(pendingTicket)}
+              onClick={()=>setAssistantMode('manager_v1')}
+            >أوديري المدير</button>
+          </div>}
+        </div>
 
-        <div className={styles.conversation} role="log" aria-live="polite" aria-relevant="additions">
+        <div className={styles.surface} hidden={managerMode}>
+          <div className={styles.conversation} role="log" aria-live="polite" aria-relevant="additions">
           <section className={styles.welcome}>
             <div className={styles.welcomeIcon}><OdeiryMark/></div>
             <div>
@@ -432,10 +468,10 @@ export default function OdeiryAssistant({slug,context=null,accessMode='tenant_me
             >{retryAttempt.startsNewRun?'بدء محاولة جديدة':'إعادة المحاولة بأمان'}</button>}
           </div>}
           <div ref={messagesEndRef}/>
-        </div>
+          </div>
 
-        <footer className={styles.footer}>
-          <form className={styles.composer} onSubmit={submitPrompt}>
+          <footer className={styles.footer}>
+            <form className={styles.composer} onSubmit={submitPrompt}>
             <label className={styles.srOnly} htmlFor="odeiry-prompt">اكتب سؤالك لأوديري</label>
             <textarea
               ref={composerRef}
@@ -456,11 +492,20 @@ export default function OdeiryAssistant({slug,context=null,accessMode='tenant_me
             <button type="submit" aria-label="إرسال السؤال" disabled={composerDisabled||!prompt.trim()}>
               <SendIcon/>
             </button>
-          </form>
-          <p>قدّم أقل قدر ضروري من البيانات، ولا ترسل كلمات مرور أو معلومات حساسة.</p>
-        </footer>
+            </form>
+            <p>قدّم أقل قدر ضروري من البيانات، ولا ترسل كلمات مرور أو معلومات حساسة.</p>
+          </footer>
+        </div>
 
-        {pendingTicket&&<div className={styles.confirmationOverlay}>
+        {canUseManager&&<OdeiryManagerPanel
+          slug={slug}
+          context={safeContext}
+          active={managerMode}
+          chatEnabled={managerChatEnabled}
+          onBusyChange={setManagerBusy}
+        />}
+
+        {!managerMode&&pendingTicket&&<div className={styles.confirmationOverlay}>
           <section
             ref={confirmationRef}
             className={styles.confirmation}

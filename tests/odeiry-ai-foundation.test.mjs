@@ -12,6 +12,8 @@ const sourcePaths={
     'supabase/migrations/20260830104000_odeiry_fk_indexes_v1.sql',
   platformOperatorMigration:
     'supabase/migrations/20260830105413_odeiry_platform_operator_access_v1.sql',
+  managerMigration:
+    'supabase/migrations/20260830191014_odeiry_manager_v1.sql',
   contract:'lib/odeiry-contract.mjs',
   requestGuard:'lib/odeiry-request-guard.mjs',
   agent:'lib/odeiry-agent.js',
@@ -146,6 +148,7 @@ test('Odeiry has independent global and tenant gates that are disabled by defaul
   assert.equal((migration.match(/^begin;\s*$/gmi)||[]).length,1);
   assert.equal((migration.match(/^commit;\s*$/gmi)||[]).length,1);
   assert.match(env,/^ODEIRY_AI_ENABLED=false$/m);
+  assert.match(env,/^ODEIRY_MANAGER_ENABLED=false$/m);
   assert.doesNotMatch(env,/^NEXT_PUBLIC_ODEIRY/m);
   assert.doesNotMatch(env,/^NEXT_PUBLIC_OPENAI/m);
 
@@ -168,6 +171,9 @@ test('Odeiry has independent global and tenant gates that are disabled by defaul
 
   const post=exportedHandler(route,'POST');
   const featureGuard=post.indexOf("process.env.ODEIRY_AI_ENABLED!=='true'");
+  const managerFeatureGuard=post.indexOf(
+    "process.env.ODEIRY_MANAGER_ENABLED!=='true'"
+  );
   const keyGuard=post.indexOf('process.env.OPENAI_API_KEY');
   const serviceKeyGuard=post.indexOf('hasOdeiryServiceCredential()');
   const credentialFailure=post.indexOf('if(!providerConfigured||!serviceRpcConfigured)');
@@ -178,6 +184,8 @@ test('Odeiry has independent global and tenant gates that are disabled by defaul
     post.indexOf('runOdeiryAgent(')
   );
   assert.ok(featureGuard>=0,'the route must require an exact true feature flag');
+  assert.ok(managerFeatureGuard>featureGuard&&managerFeatureGuard<tenantSnapshot,
+    'manager requests must fail at their independent server-only flag before tenant RPCs');
   assert.ok(keyGuard>featureGuard,'the provider key check must follow the independent flag');
   assert.ok(serviceKeyGuard>featureGuard,
     'the privileged finalization channel must have a server key check');
@@ -190,6 +198,7 @@ test('Odeiry has independent global and tenant gates that are disabled by defaul
   assert.match(post,/odeiry_disabled/);
   assert.match(post,/odeiryFailure\(['"]odeiry_disabled['"],503\)/);
   assert.match(tenantLayout,/process\.env\.ODEIRY_AI_ENABLED==='true'/);
+  assert.match(tenantLayout,/process\.env\.ODEIRY_MANAGER_ENABLED==='true'/);
   assert.match(tenantLayout,/odeiryEnabled=\{odeiryEnabled\}/);
   assert.match(tenantLayout,
     /odeiryGloballyEnabled\s*\?optionalServerRead\([\s\S]+?:Promise\.resolve\(null\)/,
@@ -243,8 +252,24 @@ test('provider and service credentials stay server-only and are never logged or 
     );
   }
   assert.match(serviceRpc,/export async function finalizeOdeiryRun/);
-  assert.doesNotMatch(serviceRpc,/export async function (?!finalizeOdeiryRun)/,
-    'the service boundary must not expose a generic privileged RPC helper');
+  assert.match(serviceRpc,
+    /\/rest\/v1\/rpc\/v4_service_odeiry_finalize/);
+  assert.match(serviceRpc,
+    /normalizedProposals===null&&isMissingV4Finalizer\(response,data\)[\s\S]+?LEGACY_FINALIZER_URL/,
+    'legacy finalization is limited to proposal-free requests after an exact v4 miss');
+  assert.match(serviceRpc,
+    /response\.status===404[\s\S]+?data\?\.code===['"]PGRST202['"][\s\S]+?v4_service_odeiry_finalize/);
+  assert.doesNotMatch(serviceRpc,
+    /\/rest\/v1\/rpc\/v1_service_odeiry_manager_memory_propose/);
+  assert.deepEqual(
+    [...serviceRpc.matchAll(/export async function ([A-Za-z0-9_]+)/g)]
+      .map(match=>match[1]),
+    ['finalizeOdeiryRun'],
+    'the service boundary must not expose a generic privileged RPC helper'
+  );
+  assert.doesNotMatch(serviceRpc,
+    /export (?:async )?function (?:serviceRpc|callRpc|invokeRpc|rpc)/i,
+    'privileged calls must remain purpose-built rather than generic');
 });
 
 test('platform operators get scoped Odeiry access without tenant impersonation',async()=>{
@@ -343,16 +368,41 @@ test('the request contract rejects arbitrary tenant identity and unclassified co
   };
   const parsed=contract.parseOdeiryRequest(valid);
   assert.equal(parsed.slug,'reef-skills');
+  assert.equal(parsed.assistantMode,'operations_v2');
   assert.deepEqual(parsed.context,{module:'support',pathClass:'workspace.support'});
   assert.deepEqual(
     Object.keys(parsed).sort(),
     ['clientRequestId','context','message','slug','threadId'].sort()
   );
+  const managerParsed=contract.parseOdeiryRequest({
+    ...valid,assistantMode:'manager_v1'
+  });
+  assert.equal(managerParsed.assistantMode,'manager_v1');
+  assert.deepEqual(
+    Object.keys(managerParsed).sort(),
+    [
+      'assistantMode','clientRequestId','context','message','slug','threadId'
+    ].sort()
+  );
+  assert.deepEqual(contract.parseOdeirySnapshot({
+    available:true,enabled:true,mode:'tenant_member',
+    manager:{allowed:true,enabled:true,available:true}
+  }).manager,{
+    allowed:true,globalEnabled:false,enabled:true,available:false
+  });
+  assert.deepEqual(contract.parseOdeirySnapshot({
+    available:true,enabled:true,mode:'tenant_member',
+    manager:{allowed:true,globalEnabled:true,enabled:true,available:true}
+  }).manager,{
+    allowed:true,globalEnabled:true,enabled:true,available:true
+  });
 
   for(const payload of [
     {...valid,tenantId:'11111111-1111-4111-8111-111111111111'},
     {...valid,subjectId:id},
     {...valid,runId:id},
+    {...valid,assistantMode:'manager'},
+    {...valid,assistantMode:'MANAGER_V1'},
     {...valid,memberships:[{tenantSlug:'other'}]},
     {...valid,context:{...valid.context,tenantId:id}},
     {...valid,context:{module:'support',pathClass:'workspace.other'}},
@@ -378,6 +428,9 @@ test('the request contract rejects arbitrary tenant identity and unclassified co
     'role context may be read only after the tenant-bound Odeiry gate and must be sanitized');
   assert.match(route,/snapshot\.mode==='tenant_member'[\s\S]+?:null/,
     'platform operators must not load a tenant membership context');
+  assert.match(route,
+    /!snapshot\.manager\.globalEnabled[\s\S]+?!snapshot\.manager\.enabled[\s\S]+?!snapshot\.manager\.available/,
+    'the manager route must fail closed on the independent database kill switch');
   assert.doesNotMatch(viewerContext,/fullName|full_name|email|subjectId|subject_id|tenantId|tenant_id/,
     'the model viewer contract must not contain personal or tenant identifiers');
 
@@ -670,11 +723,18 @@ test('runs and ticket creation are idempotent across retries',async()=>{
   assert.match(route,/clientRequestId/);
   assert.match(route,/idempotent/);
   assert.match(route,
-    /finalizeWithRetry\(input\.slug,started\.runId,['"]completed['"]/,
-    'the privileged finalizer must use only the run reserved for this request');
+    /finalizeWithRetry\(\s*input\.slug,started\.runId,['"]completed['"],completionPayload/,
+    'the operations finalizer must use only the run reserved for this request');
+  assert.match(route,
+    /finalizeWithRetry\(\s*input\.slug,started\.runId,['"]completed['"],completionPayload,\s*result\.output\.memoryProposals/,
+    'the unified finalizer must atomically persist the manager answer and proposals');
   assert.doesNotMatch(route,/finalizeWithRetry\([^,]+,\s*input\.runId/);
   assert.match(serviceRpc,
-    /\/rest\/v1\/rpc\/v3_tenant_odeiry_finalize/);
+    /\/rest\/v1\/rpc\/v4_service_odeiry_finalize/);
+  assert.match(serviceRpc,
+    /normalizedProposals===null&&isMissingV4Finalizer\(response,data\)[\s\S]+?LEGACY_FINALIZER_URL/);
+  assert.doesNotMatch(serviceRpc,
+    /\/rest\/v1\/rpc\/v1_service_odeiry_manager_finalize/);
 
   assert.match(assistant,/ticketAttemptIds=useRef\(new Map\(\)\)/);
   assert.match(assistant,

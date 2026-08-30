@@ -108,23 +108,56 @@ test('lead intake guide answers the reported Excel and CSV gap from code facts',
     /fair:'توزيع عادل[\s\S]+?online_only:'مسؤولو المبيعات الأونلاين فقط'[\s\S]+?selected:'موظفون محددون'/);
 });
 
-test('agent remains one bounded read-only workflow and persists only DB citations',async()=>{
-  const [agent,route,operations]=await Promise.all([
+test('agent remains one bounded workflow while operations keeps its reviewed read-only tools',async()=>{
+  const [agent,route,operations,serviceRpc]=await Promise.all([
     readFile(new URL('lib/odeiry-agent.js',root),'utf8'),
     readFile(new URL('app/api/odeiry/chat/route.js',root),'utf8'),
-    readFile(new URL('lib/odeiry-operational-guide.js',root),'utf8')
+    readFile(new URL('lib/odeiry-operational-guide.js',root),'utf8'),
+    readFile(new URL('lib/odeiry-service-rpc.js',root),'utf8')
   ]);
   assert.equal((agent.match(/new Agent\(/g)||[]).length,1);
+  assert.match(agent,
+    /instructions:runContext=>runContext\.context\?\.assistantMode===['"]manager_v1['"][\s\S]+?MANAGER_INSTRUCTIONS:OPERATIONS_INSTRUCTIONS/,
+    'one agent must choose explicit mode instructions from trusted run state');
   assert.match(agent,/tools:\[inspectOperations,searchKnowledge\]/);
+  assert.match(agent,
+    /tools:\[\.\.\.operationsToolset\.tools,readManagerAnalytics\]/,
+    'manager analytics extends rather than replaces the operations toolset');
   assert.match(agent,/MAX_KNOWLEDGE_CALLS=2/);
   assert.match(agent,/MAX_OPERATION_CALLS=2/);
+  assert.match(agent,/MAX_MANAGER_ANALYTICS_CALLS=2/);
+  const analyticsTool=agent.slice(
+    agent.indexOf('const readManagerAnalytics=tool({'),
+    agent.indexOf('const OPERATIONS_INSTRUCTIONS=')
+  );
+  assert.match(analyticsTool,/name:['"]read_odeir_manager_analytics['"]/);
+  assert.match(analyticsTool,
+    /isEnabled:[\s\S]+?assistantMode===['"]manager_v1['"][\s\S]+?platformAccess!==true/);
+  assert.match(analyticsTool,/state\.analyticsCalls>=MAX_MANAGER_ANALYTICS_CALLS/);
   assert.match(agent,/parallelToolCalls:false/);
   assert.match(agent,/toolExecution:\{maxFunctionToolConcurrency:1\}/);
   assert.match(agent,/store:false/);
   assert.match(agent,/setSensitiveDataLoggingEnabled\(false\)/);
   assert.match(agent,/viewer\?\.platformAccess===true[\s\S]+?ticketDraft:null/);
+  assert.match(agent,
+    /assistantMode===['"]manager_v1['"][\s\S]+?needsEscalation:false[\s\S]+?ticketDraft:null/,
+    'manager mode must be unable to produce a ticket or execution escalation');
+  assert.match(agent,
+    /const digitCount=\(normalizedDigits\.match[\s\S]+?\|\|digitCount>=8/,
+    'eight Arabic or Latin digits are rejected regardless of separators');
+  assert.match(agent,/\[٠-٩۰-۹\]/,
+    'both Arabic digit ranges are normalized before counting');
+  assert.match(serviceRpc,
+    /const digitCount=\(digits\.match[\s\S]+?\|\|digitCount>=8/,
+    'the service boundary independently enforces the normalized digit cap');
+  assert.match(serviceRpc,/\[٠-٩۰-۹\]/,
+    'the service boundary normalizes both Arabic digit ranges');
   assert.match(agent,/trusted\.kind===['"]knowledge['"][\s\S]+?citationKeys\.push/);
   assert.match(route,/citationKeys:result\.citationKeys/);
+  assert.match(route,
+    /responseData:persistableOutput\(result\.output\)[\s\S]+?finalizeWithRetry\([\s\S]+?result\.output\.memoryProposals/,
+    'manager answer and proposals must use one closed atomic persistence path');
+  assert.doesNotMatch(route,/persistManagerProposalsSafely|proposeOdeiryManagerMemories/);
   assert.doesNotMatch(route,
     /citationKeys:result\.output\.sources\.map/);
   assert.doesNotMatch(operations,

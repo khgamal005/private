@@ -205,7 +205,21 @@ function databaseCode(data){
     'support_status_invalid','support_tenant_action_invalid',
     'support_ticket_close_requires_resolution','support_ticket_conflict',
     'support_ticket_invalid','support_ticket_reopen_not_allowed',
-    'support_ticket_requires_reopen','support_title_invalid','support_update_empty'
+    'support_ticket_requires_reopen','support_title_invalid','support_update_empty',
+    'odeiry_disabled','odeiry_rate_limit_exceeded','odeiry_idempotency_conflict',
+    'odeiry_request_in_progress','odeiry_units_unavailable',
+    'odeiry_thread_not_found','odeiry_run_not_found','odeiry_run_conflict',
+    'odeiry_ticket_link_invalid','odeiry_ticket_link_conflict',
+    'odeiry_payload_invalid','odeiry_manager_unavailable',
+    'odeiry_manager_permission_required','odeiry_manager_thread_not_found',
+    'odeiry_manager_memory_not_found','odeiry_manager_memory_action_invalid',
+    'odeiry_manager_version_conflict','odeiry_manager_idempotency_conflict',
+    'odeiry_manager_memory_limit_reached','odeiry_manager_memory_key_conflict',
+    'odeiry_manager_analytics_limit','odeiry_manager_run_not_found',
+    'odeiry_manager_internal_contract_invalid',
+    'odeiry_manager_source_message_missing',
+    'odeiry_manager_payload_invalid','odeiry_manager_cross_mode_forbidden',
+    'odeiry_manager_execution_forbidden'
   ];
   return known.find(item=>source===item||source.includes(item))||null;
 }
@@ -213,6 +227,8 @@ function databaseCode(data){
 function statusFor(code,fallback){
   if(code==='authentication_required')return 401;
   if(code==='forbidden'||code==='assignee_not_allowed'
+     ||code==='odeiry_manager_permission_required'
+     ||code==='odeiry_manager_execution_forbidden'
      ||code==='support_attachment_message_author_mismatch')return 403;
   if(code.endsWith('_not_found')||code==='tenant_not_found')return 404;
   if(code==='support_reopen_window_expired'
@@ -230,6 +246,21 @@ function statusFor(code,fallback){
      ||code==='support_attachment_storage_cleanup_required')return 409;
   if(code==='request_too_large'||code==='support_diagnostics_too_large')return 413;
   if(code==='support_rate_limit_exceeded')return 429;
+  if(code==='odeiry_rate_limit_exceeded')return 429;
+  if(code==='odeiry_manager_analytics_limit')return 429;
+  if(code==='odeiry_units_unavailable')return 402;
+  if(code==='odeiry_disabled')return 503;
+  if(code==='odeiry_manager_unavailable')return 503;
+  if(code==='odeiry_idempotency_conflict'||code==='odeiry_request_in_progress'
+     ||code==='odeiry_run_conflict'
+     ||code==='odeiry_ticket_link_conflict'
+     ||code==='odeiry_manager_version_conflict'
+     ||code==='odeiry_manager_idempotency_conflict'
+     ||code==='odeiry_manager_memory_limit_reached'
+     ||code==='odeiry_manager_memory_key_conflict'
+     ||code==='odeiry_manager_source_message_missing'
+     ||code==='odeiry_manager_cross_mode_forbidden')return 409;
+  if(code==='odeiry_manager_internal_contract_invalid')return 502;
   if(code===SUPPORT_ATTACHMENTS_UNAVAILABLE_CODE)return 503;
   if(fallback>=500)return 502;
   return 400;

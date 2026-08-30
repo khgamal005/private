@@ -245,7 +245,7 @@ function odeiryContext(pathname){
   return {module:'other',pathClass:'workspace.other'};
 }
 
-export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,supportSummary=null,yeastarAccess=null,addonAccess=null,odeiryEnabled=false,odeiryAccessMode=null}){
+export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,supportSummary=null,yeastarAccess=null,addonAccess=null,odeiryEnabled=false,odeiryAccessMode=null,odeiryManagerEnabled=false,odeiryManagerReviewEnabled=false}){
   const pathname=usePathname();
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
@@ -345,9 +345,12 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       <main className="mt-content">{children}</main>
     </div>
     {kind===WORKSPACE_KINDS.tenant&&odeiryEnabled&&<OdeiryAssistant
+      key={slug}
       slug={slug}
       context={assistantContext}
       accessMode={odeiryAccessMode}
+      managerEnabled={odeiryManagerEnabled&&!platformAccess}
+      managerReviewEnabled={odeiryManagerReviewEnabled&&!platformAccess}
     />}
   </div>;
 }

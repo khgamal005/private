@@ -8,6 +8,8 @@ const migrationPath='supabase/migrations/20260830030000_odeiry_ai_foundation_v1.
 const sourcePaths={
   env:'.env.example',
   migration:migrationPath,
+  fkIndexesMigration:
+    'supabase/migrations/20260830104000_odeiry_fk_indexes_v1.sql',
   contract:'lib/odeiry-contract.mjs',
   requestGuard:'lib/odeiry-request-guard.mjs',
   agent:'lib/odeiry-agent.js',
@@ -379,7 +381,7 @@ test('prompt, JSON, rate, turn, and output limits are explicit and fail closed',
 });
 
 test('every Odeiry business table is tenant-scoped, indexed, and denied direct access',async()=>{
-  const {migration}=await sources();
+  const {migration,fkIndexesMigration}=await sources();
   const normalized=compactSql(migration);
   const tables=[
     'core.odeiry_tenant_settings','core.odeiry_threads','core.odeiry_messages',
@@ -411,6 +413,13 @@ test('every Odeiry business table is tenant-scoped, indexed, and denied direct a
     /foreign key \(tenant_id,thread_id,requested_by_subject_id\) references core\.odeiry_threads\(\s*tenant_id,id,created_by_subject_id\s*\)/);
   assert.match(escalations,
     /foreign key \(tenant_id,support_request_id\) references core\.support_requests\(tenant_id,id\)/);
+  const fkIndexes=compactSql(fkIndexesMigration);
+  assert.match(fkIndexes,
+    /create index if not exists core_odeiry_runs_thread_owner_fk_idx on core\.odeiry_runs\( tenant_id,thread_id,requested_by_subject_id \)/);
+  assert.match(fkIndexes,
+    /create index if not exists core_odeiry_messages_run_thread_fk_idx on core\.odeiry_messages\( tenant_id,run_id,thread_id \)/);
+  assert.match(fkIndexes,
+    /create index if not exists core_odeiry_escalations_run_thread_fk_idx on core\.odeiry_ticket_escalations\( tenant_id,run_id,thread_id \)/);
 
   for(const rpc of [
     'public.v3_tenant_odeiry_snapshot','public.v3_tenant_odeiry_action',

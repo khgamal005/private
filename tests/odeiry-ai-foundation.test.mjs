@@ -10,6 +10,8 @@ const sourcePaths={
   migration:migrationPath,
   fkIndexesMigration:
     'supabase/migrations/20260830104000_odeiry_fk_indexes_v1.sql',
+  platformOperatorMigration:
+    'supabase/migrations/20260830105413_odeiry_platform_operator_access_v1.sql',
   contract:'lib/odeiry-contract.mjs',
   requestGuard:'lib/odeiry-request-guard.mjs',
   agent:'lib/odeiry-agent.js',
@@ -18,6 +20,7 @@ const sourcePaths={
   route:'app/api/odeiry/chat/route.js',
   linkRoute:'app/api/odeiry/link-ticket/route.js',
   assistant:'components/odeiry-assistant.js',
+  assistantStyles:'components/odeiry-assistant.module.css',
   shell:'components/workspace-shell.js',
   tenantLayout:'app/tenant/[slug]/layout.js',
   supportRoute:'app/api/support/tenant/[action]/route.js',
@@ -198,7 +201,8 @@ test('Odeiry has independent global and tenant gates that are disabled by defaul
 
 test('provider and service credentials stay server-only and are never logged or serialized',async()=>{
   const {
-    env,route,agent,assistant,migration,shell,tenantLayout,odeiryApi,serviceRpc
+    env,route,agent,assistant,migration,platformOperatorMigration,shell,
+    tenantLayout,odeiryApi,serviceRpc
   }=await sources();
   assert.match(route,/import ['"]server-only['"]/);
   assert.match(agent,/import ['"]server-only['"]/);
@@ -206,7 +210,8 @@ test('provider and service credentials stay server-only and are never logged or 
   assert.match(`${route}\n${agent}`,/process\.env\.OPENAI_API_KEY/);
   assert.match(`${route}\n${serviceRpc}`,/process\.env\.SUPABASE_SECRET_KEY/);
   assert.doesNotMatch(`${route}\n${agent}`,/NEXT_PUBLIC_OPENAI|['"]sk-[a-z0-9_-]+/i);
-  assert.doesNotMatch(`${assistant}\n${shell}\n${tenantLayout}\n${odeiryApi}\n${migration}`,
+  assert.doesNotMatch(
+    `${assistant}\n${shell}\n${tenantLayout}\n${odeiryApi}\n${migration}\n${platformOperatorMigration}`,
     /OPENAI_API_KEY|NEXT_PUBLIC_OPENAI|SUPABASE_SECRET_KEY|service[_-]?role[_-]?key/i);
   assert.match(env,/^OPENAI_API_KEY=$/m);
   assert.match(env,/server[- ]only|never expose|لا[^\n]+المتصفح/i);
@@ -235,6 +240,91 @@ test('provider and service credentials stay server-only and are never logged or 
   assert.match(serviceRpc,/export async function finalizeOdeiryRun/);
   assert.doesNotMatch(serviceRpc,/export async function (?!finalizeOdeiryRun)/,
     'the service boundary must not expose a generic privileged RPC helper');
+});
+
+test('platform operators get scoped Odeiry access without tenant impersonation',async()=>{
+  const {
+    platformOperatorMigration,odeiryApi,tenantLayout,shell,assistant,assistantStyles
+  }=await sources();
+  const normalized=compactSql(platformOperatorMigration);
+  assert.match(normalized,/^begin;/);
+  assert.match(normalized,/commit;$/);
+  assert.equal((platformOperatorMigration.match(/^begin;\s*$/gmi)||[]).length,1);
+  assert.equal((platformOperatorMigration.match(/^commit;\s*$/gmi)||[]).length,1);
+  assert.match(normalized,/odeiry_platform_operator_missing_foundation/);
+
+  const operator=compactSql(routine(
+    platformOperatorMigration,'private_app.odeiry_is_platform_operator'
+  ));
+  assert.match(operator,/security definer set search_path\s*=\s*''/);
+  assert.match(operator,/auth\.uid\(\) is not null/);
+  assert.match(operator,
+    /private_app\.has_platform_permission\('platform\.settings\.manage'\)/);
+  assert.match(operator,/private_app\.can_access_tenant\(p_tenant_id\)/);
+
+  const accessGate=compactSql(routine(
+    platformOperatorMigration,'private_app.odeiry_is_active_tenant_member'
+  ));
+  assert.match(accessGate,/security definer set search_path\s*=\s*''/);
+  assert.match(accessGate,/auth\.uid\(\) is not null/);
+  assert.match(accessGate,
+    /private_app\.support_is_active_tenant_member\(p_tenant_id\) or private_app\.odeiry_is_platform_operator\(p_tenant_id\)/);
+  assert.match(normalized,
+    /revoke all on function private_app\.odeiry_is_platform_operator\(uuid\) from public,anon,authenticated,service_role/);
+  assert.match(normalized,
+    /revoke all on function private_app\.odeiry_is_active_tenant_member\(uuid\) from public,anon,authenticated,service_role/);
+
+  const snapshot=compactSql(routine(
+    platformOperatorMigration,'public.v3_tenant_odeiry_snapshot'
+  ));
+  assert.match(snapshot,/security definer set search_path\s*=\s*''/);
+  assert.match(snapshot,/'tenant_member'/);
+  assert.match(snapshot,/'platform_operator'/);
+  assert.match(snapshot,/'mode',v_access_mode/);
+  assert.match(snapshot,
+    /v_available\s*:=\s*coalesce\(v_runtime\.enabled,false\) and coalesce\(v_setting\.enabled,false\)/);
+  assert.match(snapshot,/billing_mode,'shadow'\)\s*=\s*'shadow'/);
+  assert.match(normalized,
+    /grant execute on function public\.v3_tenant_odeiry_snapshot\(text\) to authenticated/);
+
+  assert.doesNotMatch(normalized,
+    /(?:insert into|update|delete from|truncate)\s+(?:core\.memberships|access_control\.memberships|core\.tenants)/,
+    'platform preview must not create membership or mutate a tenant');
+  assert.doesNotMatch(normalized,
+    /grant execute on function private_app\.odeiry_is_(?:platform_operator|active_tenant_member)[^;]+to (?:public|anon|authenticated|service_role)/,
+    'private authorization helpers must not be directly callable');
+
+  assert.match(odeiryApi,
+    /\['tenant_member','platform_operator'\]\.includes\(snapshot\?\.mode\)/);
+  assert.match(tenantLayout,/odeiryAccessMode=\['tenant_member','platform_operator'\]\.includes/);
+  assert.match(tenantLayout,/odeiryAccessMode=\{odeiryAccessMode\}/);
+  assert.match(shell,/odeiryAccessMode=null/);
+  assert.match(shell,/accessMode=\{odeiryAccessMode\}/);
+  assert.match(assistant,/accessMode='tenant_member'/);
+  assert.match(assistant,/const platformOperator=accessMode==='platform_operator'/);
+  assert.match(assistant,
+    /if\(platformOperator\|\|ticketOutcomes\[sourceMessageId\]\|\|interactionLocked\)return/);
+  assert.match(assistant,
+    /if\(platformOperator\|\|!pendingTicket\|\|ticketBusy\)return/);
+  assert.match(assistant,/وضع إدارة المنصة/);
+  assert.match(assistant,/لا ينشئ تذكرة باسم المنشأة/);
+
+  const launcherRule=assistantStyles.slice(
+    assistantStyles.indexOf('.launcher {'),
+    assistantStyles.indexOf('}',assistantStyles.indexOf('.launcher {'))+1
+  );
+  const panelRule=assistantStyles.slice(
+    assistantStyles.indexOf('.panel {'),
+    assistantStyles.indexOf('}',assistantStyles.indexOf('.panel {'))+1
+  );
+  assert.match(launcherRule,/left:\s*18px/);
+  assert.match(launcherRule,/bottom:\s*98px/);
+  assert.match(launcherRule,/z-index:\s*710/);
+  assert.doesNotMatch(launcherRule,/inset-inline-(?:start|end)/);
+  assert.match(panelRule,/left:\s*18px/);
+  assert.doesNotMatch(panelRule,/inset-inline-(?:start|end)/);
+  assert.match(assistantStyles,
+    /@media \(max-width: 720px\)[\s\S]+?\.launcher\s*>\s*span,[\s\S]+?\.launcher\s*>\s*i\s*\{\s*display:\s*none/);
 });
 
 test('the request contract rejects arbitrary tenant identity and unclassified context',async()=>{
@@ -578,7 +668,7 @@ test('runs and ticket creation are idempotent across retries',async()=>{
   assert.match(assistant,
     /ticketAttemptIds\.current\.get\(sourceMessageId\)[\s\S]+?ticketAttemptIds\.current\.set\(sourceMessageId,requestId\)/);
   assert.match(assistant,/clientRequestId:attemptId/);
-  assert.match(assistant,/if\(!pendingTicket\|\|ticketBusy\)return/);
+  assert.match(assistant,/if\(platformOperator\|\|!pendingTicket\|\|ticketBusy\)return/);
   assert.match(assistant,/retryWithNewRequestId=failure\.retryWithNewRequestId/);
   assert.match(assistant,
     /setRetryAttempt\(retryWithNewRequestId\?\{[\s\S]+?requestId:clientRequestId\(\),[\s\S]+?startsNewRun:true/,

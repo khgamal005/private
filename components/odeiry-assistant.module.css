@@ -37,9 +37,10 @@
 
 .launcher {
   position: fixed;
-  z-index: 1090;
-  inset-inline-start: 24px;
-  inset-block-end: 22px;
+  z-index: 710;
+  right: auto;
+  bottom: 98px;
+  left: 18px;
   display: flex;
   min-width: 178px;
   min-height: 58px;
@@ -129,8 +130,10 @@
 .panel {
   position: fixed;
   z-index: 1092;
-  inset-block: 18px;
-  inset-inline-start: 18px;
+  top: 18px;
+  right: auto;
+  bottom: 18px;
+  left: 18px;
   display: grid;
   width: min(438px, calc(100vw - 36px));
   min-width: 0;
@@ -676,6 +679,28 @@
   text-underline-offset: 3px;
 }
 
+.platformTicketNotice {
+  display: grid;
+  gap: 6px;
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 1px solid #c9dce9;
+  border-radius: 10px;
+  background: #f5f9fc;
+  color: #526b7d;
+  font-size: 8.5px;
+  font-weight: 800;
+  line-height: 1.65;
+}
+
+.platformTicketNotice a {
+  width: fit-content;
+  color: var(--odeiry-navy);
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .typing {
   display: flex;
   width: max-content;
@@ -985,14 +1010,20 @@
 
 @media (max-width: 720px) {
   .launcher {
-    inset-inline-start: 14px;
-    inset-block-end: calc(14px + env(safe-area-inset-bottom));
-    min-width: 154px;
+    right: auto;
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    left: 12px;
+    width: 52px;
+    min-width: 52px;
     min-height: 54px;
+    justify-content: center;
+    gap: 0;
+    padding: 7px;
     border-radius: 16px;
   }
 
-  .launcher small {
+  .launcher > span,
+  .launcher > i {
     display: none;
   }
 

@@ -73,8 +73,9 @@ const FOCUSABLE_SELECTOR=[
   'input:not([disabled])','select:not([disabled])','[tabindex]:not([tabindex="-1"])'
 ].join(',');
 
-export default function OdeiryAssistant({slug,context=null}){
+export default function OdeiryAssistant({slug,context=null,accessMode='tenant_member'}){
   const safeContext=useMemo(()=>normalizeContext(context),[context]);
+  const platformOperator=accessMode==='platform_operator';
   const starterSuggestions=useMemo(
     ()=>MODULE_SUGGESTIONS[safeContext.module]||DEFAULT_SUGGESTIONS,
     [safeContext.module]
@@ -246,7 +247,7 @@ export default function OdeiryAssistant({slug,context=null}){
   }
 
   function reviewTicketDraft(sourceMessageId,draft,runId){
-    if(ticketOutcomes[sourceMessageId]||interactionLocked)return;
+    if(platformOperator||ticketOutcomes[sourceMessageId]||interactionLocked)return;
     let requestId=ticketAttemptIds.current.get(sourceMessageId);
     if(!requestId){
       requestId=clientRequestId();
@@ -280,7 +281,7 @@ export default function OdeiryAssistant({slug,context=null}){
   }
 
   async function confirmTicketCreation(){
-    if(!pendingTicket||ticketBusy)return;
+    if(platformOperator||!pendingTicket||ticketBusy)return;
     setTicketBusy(true);
     setTicketError('');
     const {
@@ -372,7 +373,9 @@ export default function OdeiryAssistant({slug,context=null}){
           <div className={styles.identity}>
             <span className={styles.mark}><OdeiryMark/></span>
             <div>
-              <span className={styles.status}><i/> مساعد أودير الذكي</span>
+              <span className={styles.status}><i/> {platformOperator
+                ?'وضع إدارة المنصة'
+                :'مساعد أودير الذكي'}</span>
               <h2 id="odeiry-title">أوديري</h2>
             </div>
           </div>
@@ -391,7 +394,9 @@ export default function OdeiryAssistant({slug,context=null}){
             <div className={styles.welcomeIcon}><OdeiryMark/></div>
             <div>
               <h3>أهلًا، أنا أوديري</h3>
-              <p id="odeiry-description">أساعدك في فهم خطوات العمل وحل المشكلات المبدئية داخل أودير، وإذا احتاج الأمر أصيغ لك تذكرة دعم جاهزة للمراجعة.</p>
+              <p id="odeiry-description">{platformOperator
+                ?'هذه معاينة آمنة داخل المنشأة المفعّلة. يمكنك اختبار الإرشاد، ولن ينشئ هذا الوضع تذكرة باسم المنشأة.'
+                :'أساعدك في فهم خطوات العمل وحل المشكلات المبدئية داخل أودير، وإذا احتاج الأمر أصيغ لك تذكرة دعم جاهزة للمراجعة.'}</p>
             </div>
           </section>
 
@@ -407,6 +412,7 @@ export default function OdeiryAssistant({slug,context=null}){
             slug={slug}
             ticketOutcome={ticketOutcomes[message.id]}
             disabled={interactionLocked}
+            platformOperator={platformOperator}
             onSuggestion={askOdeiry}
             onReviewTicket={(draft,runId)=>reviewTicketDraft(message.id,draft,runId)}
           />)}
@@ -494,7 +500,7 @@ export default function OdeiryAssistant({slug,context=null}){
   </div>;
 }
 
-function ChatMessage({message,slug,ticketOutcome,disabled,onSuggestion,onReviewTicket}){
+function ChatMessage({message,slug,ticketOutcome,disabled,platformOperator,onSuggestion,onReviewTicket}){
   if(message.role==='user')return <article className={`${styles.message} ${styles.userMessage}`}>
     <span className={styles.messageLabel}>أنت</span>
     <p>{message.text}</p>
@@ -515,6 +521,7 @@ function ChatMessage({message,slug,ticketOutcome,disabled,onSuggestion,onReviewT
       slug={slug}
       outcome={ticketOutcome}
       disabled={disabled}
+      platformOperator={platformOperator}
       onReview={()=>onReviewTicket(message.ticketDraft,message.runId)}
     />}
     {message.suggestions.length>0&&<SuggestionList
@@ -526,7 +533,7 @@ function ChatMessage({message,slug,ticketOutcome,disabled,onSuggestion,onReviewT
   </article>;
 }
 
-function TicketDraftCard({draft,slug,outcome,disabled,onReview}){
+function TicketDraftCard({draft,slug,outcome,disabled,platformOperator,onReview}){
   const supportHref=outcome?.ticketId
     ?`/tenant/${encodeURIComponent(slug)}/support?scope=mine&ticket=${encodeURIComponent(outcome.ticketId)}`
     :`/tenant/${encodeURIComponent(slug)}/support`;
@@ -540,6 +547,9 @@ function TicketDraftCard({draft,slug,outcome,disabled,onReview}){
     </dl>
     {outcome?<div className={styles.ticketCreated} role="status">
       <span>تم إنشاء التذكرة بنجاح.</span>
+      <Link href={supportHref}>فتح الدعم الفني</Link>
+    </div>:platformOperator?<div className={styles.platformTicketNotice} role="status">
+      <span>وضع إدارة المنصة لا ينشئ تذكرة باسم المنشأة.</span>
       <Link href={supportHref}>فتح الدعم الفني</Link>
     </div>:<button type="button" disabled={disabled} onClick={onReview}>مراجعة ثم إنشاء التذكرة</button>}
   </section>;

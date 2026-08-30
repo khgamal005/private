@@ -53,6 +53,9 @@ export default async function TenantLayout({children,params}){
     &&odeirySnapshot?.available===true
     &&odeirySnapshot?.enabled===true
   );
+  const odeiryAccessMode=['tenant_member','platform_operator'].includes(
+    odeirySnapshot?.mode
+  )?odeirySnapshot.mode:null;
   const roleKey=context.platformAccess
     ?'platform_owner'
     :membership?.roles?.[0]||'member';
@@ -79,6 +82,7 @@ export default async function TenantLayout({children,params}){
     yeastarAccess={yeastarAccess}
     addonAccess={addonAccess}
     odeiryEnabled={odeiryEnabled}
+    odeiryAccessMode={odeiryAccessMode}
   >
     {children}
     <MyRoleGuide

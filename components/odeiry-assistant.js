@@ -149,7 +149,8 @@ export default function OdeiryAssistant({slug,context=null}){
       window.clearTimeout(focusTimer);
       document.removeEventListener('keydown',handleKeyDown);
       window.setTimeout(()=>{
-        if(launcherRef.current)launcherRef.current.focus();
+        const launcher=document.getElementById('odeiry-launcher');
+        if(launcher instanceof HTMLElement)launcher.focus();
         else if(previousFocus instanceof HTMLElement&&previousFocus.isConnected){
           previousFocus.focus();
         }
@@ -335,6 +336,7 @@ export default function OdeiryAssistant({slug,context=null}){
 
   return <div className={styles.root} dir="rtl">
     {!open&&<button
+      id="odeiry-launcher"
       ref={launcherRef}
       type="button"
       className={styles.launcher}
@@ -593,10 +595,10 @@ function normalizeContext(value){
   const source=value&&typeof value==='object'?value:{};
   const pathClass=SAFE_PATH_CLASSES.has(source.pathClass)?source.pathClass:'workspace.other';
   const inferredModule=PATH_MODULES[pathClass]||'other';
-  const module=SAFE_MODULES.has(source.module)&&source.module===inferredModule
+  const moduleKey=SAFE_MODULES.has(source.module)&&source.module===inferredModule
     ?source.module
     :inferredModule;
-  return {module,pathClass};
+  return {module:moduleKey,pathClass};
 }
 
 function normalizeAssistantPayload(value,context){

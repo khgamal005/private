@@ -166,7 +166,7 @@ test('Odeiry has independent global and tenant gates that are disabled by defaul
   const post=exportedHandler(route,'POST');
   const featureGuard=post.indexOf("process.env.ODEIRY_AI_ENABLED!=='true'");
   const keyGuard=post.indexOf('process.env.OPENAI_API_KEY');
-  const serviceKeyGuard=post.indexOf('process.env.SUPABASE_SECRET_KEY');
+  const serviceKeyGuard=post.indexOf('hasOdeiryServiceCredential()');
   const credentialFailure=post.indexOf('if(!providerConfigured||!serviceRpcConfigured)');
   const startRun=post.indexOf("p_action:'start_run'");
   const tenantSnapshot=post.indexOf("'v3_tenant_odeiry_snapshot'");
@@ -209,6 +209,8 @@ test('provider and service credentials stay server-only and are never logged or 
   assert.match(serviceRpc,/import ['"]server-only['"]/);
   assert.match(`${route}\n${agent}`,/process\.env\.OPENAI_API_KEY/);
   assert.match(`${route}\n${serviceRpc}`,/process\.env\.SUPABASE_SECRET_KEY/);
+  assert.match(serviceRpc,/process\.env\.SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(serviceRpc,/export function hasOdeiryServiceCredential/);
   assert.doesNotMatch(`${route}\n${agent}`,/NEXT_PUBLIC_OPENAI|['"]sk-[a-z0-9_-]+/i);
   assert.doesNotMatch(
     `${assistant}\n${shell}\n${tenantLayout}\n${odeiryApi}\n${migration}\n${platformOperatorMigration}`,

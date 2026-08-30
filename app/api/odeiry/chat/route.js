@@ -26,7 +26,8 @@ import {
 } from '../../../../lib/odeiry-request-guard.mjs';
 import {
   OdeiryServiceRpcError,
-  finalizeOdeiryRun
+  finalizeOdeiryRun,
+  hasOdeiryServiceCredential
 } from '../../../../lib/odeiry-service-rpc';
 
 export const runtime='nodejs';
@@ -75,10 +76,12 @@ export async function POST(request){
     const providerConfigured=String(
       process.env.OPENAI_API_KEY||''
     ).trim().length>=20;
-    const serviceRpcConfigured=String(
-      process.env.SUPABASE_SECRET_KEY||''
-    ).trim().length>=20;
+    const serviceRpcConfigured=hasOdeiryServiceCredential();
     if(!providerConfigured||!serviceRpcConfigured){
+      console.error('[odeiry-configuration-incomplete]',{
+        providerConfigured,
+        finalizerConfigured:serviceRpcConfigured
+      });
       return odeiryFailure('odeiry_unavailable',503);
     }
 

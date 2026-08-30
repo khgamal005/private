@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {usePathname} from 'next/navigation';
 import {useMemo,useState} from 'react';
 import LogoutButton from './logout-button';
@@ -8,6 +9,8 @@ import MarktoneLogo from './marktone-logo';
 import NotificationCenter from './notification-center';
 import {WORKSPACE_KINDS} from '../lib/workspaces';
 import {tenantRolePolicy} from '../lib/tenant-role-policy';
+
+const OdeiryAssistant=dynamic(()=>import('./odeiry-assistant'),{ssr:false});
 
 const ICON_PATHS={
   overview:['M3 10.8 12 3l9 7.8','M5.5 9.4V21h13V9.4','M9 21v-6h6v6'],
@@ -212,7 +215,37 @@ function tenantSupportNotificationItems(summary,slug){
   }];
 }
 
-export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,supportSummary=null,yeastarAccess=null,addonAccess=null}){
+function odeiryContext(pathname){
+  const segments=String(pathname||'').split('/').filter(Boolean);
+  if(segments[0]!=='tenant')return {module:'other',pathClass:'workspace.other'};
+  const section=segments[2]||'';
+  if(!section)return {module:'dashboard',pathClass:'workspace.dashboard'};
+  if(section==='tasks')return {module:'tasks_calendar',pathClass:'workspace.tasks_calendar'};
+  if(section==='courses'||section==='lms')return {module:'courses',pathClass:'workspace.courses'};
+  if(['customer-search','sales','lead-queue'].includes(section)){
+    return {module:'sales_crm',pathClass:'workspace.sales_crm'};
+  }
+  if(section==='admissions')return {module:'admissions',pathClass:'workspace.admissions'};
+  if(section==='marketing'){
+    return {module:'marketing_automation',pathClass:'workspace.marketing_automation'};
+  }
+  if(section==='accounting')return {module:'accounting',pathClass:'workspace.accounting'};
+  if(['addons','addons-store','services-store'].includes(section)){
+    return {module:'addons_marketplace',pathClass:'workspace.addons_marketplace'};
+  }
+  if(section==='team'||section==='settings'){
+    return {module:'team_permissions',pathClass:'workspace.team_permissions'};
+  }
+  if(section==='reports')return {module:'reports',pathClass:'workspace.reports'};
+  if(section==='website')return {module:'website',pathClass:'workspace.website'};
+  if(section==='integrations'||section==='yeastar'){
+    return {module:'integrations',pathClass:'workspace.integrations'};
+  }
+  if(section==='support')return {module:'support',pathClass:'workspace.support'};
+  return {module:'other',pathClass:'workspace.other'};
+}
+
+export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,supportSummary=null,yeastarAccess=null,addonAccess=null,odeiryEnabled=false}){
   const pathname=usePathname();
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
@@ -271,6 +304,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
     +count(notificationSummary?.tasksToday)
     +count(notificationSummary?.pendingAdmissions)
     +tenantSupportAttentionCount(supportSummary);
+  const assistantContext=useMemo(()=>odeiryContext(pathname),[pathname]);
   return <div className={`mt-workspace mt-workspace-${kind}`}>
     {mobileOpen&&<button className="mt-shell-backdrop" aria-label="إغلاق القائمة" onClick={()=>setMobileOpen(false)}/>} 
     <aside className={`mt-sidebar ${mobileOpen?'is-open':''}`}>
@@ -310,5 +344,9 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       </header>
       <main className="mt-content">{children}</main>
     </div>
+    {kind===WORKSPACE_KINDS.tenant&&odeiryEnabled&&<OdeiryAssistant
+      slug={slug}
+      context={assistantContext}
+    />}
   </div>;
 }

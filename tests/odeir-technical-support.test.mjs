@@ -9,6 +9,8 @@ const sourcePaths={
   migration:migrationPath,
   attachmentGateMigration:
     'supabase/migrations/20260829175001_support_attachment_scanner_fail_closed_v1.sql',
+  supportIndexMigration:
+    'supabase/migrations/20260829181000_odeir_support_fk_indexes_v1.sql',
   shell:'components/workspace-shell.js',
   desk:'components/odeir-support-desk.js',
   supportApi:'lib/support-api.js',
@@ -144,6 +146,20 @@ test('technical support schema is additive, tenant-scoped, and conversation base
     'core_support_attachments_message_idx',
     'core_support_read_states_subject_idx'
   ])assert.match(normalized,new RegExp(`create (?:unique )?index(?: if not exists)? ${indexName}\\b`));
+});
+
+test('support FK indexes target the canonical ticket table on clean databases',async()=>{
+  const {supportIndexMigration}=await sources();
+  const normalized=compact(supportIndexMigration);
+  assert.match(
+    normalized,
+    /on core\.support_requests\(requested_by_subject_id\)/
+  );
+  assert.doesNotMatch(
+    normalized,
+    /on platform\.support_requests\(/,
+    'a non-existent platform ticket table would abort the migration transaction'
+  );
 });
 
 test('every active tenant member can create, while reads remain own-ticket by default',async()=>{

@@ -7,6 +7,7 @@ import {requireTenant} from '../../../lib/server-auth';
 import {optionalServerRead} from '../../../lib/server-resilience';
 import {getTenantSupport} from '../../../lib/support-api';
 import {navigationPolicyRoleKey} from '../../../lib/tenant-role-policy';
+import {getTenantOdeirySnapshot} from '../../../lib/odeiry-api';
 import WorkspaceShell from '../../../components/workspace-shell';
 import MyRoleGuide from '../../../components/my-role-guide';
 
@@ -14,9 +15,10 @@ export const dynamic='force-dynamic';
 
 export default async function TenantLayout({children,params}){
   const {slug}=await params;
+  const odeiryGloballyEnabled=process.env.ODEIRY_AI_ENABLED==='true';
   const context=await requireTenant(slug);
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
-  const [live,yeastarAccess,addonAccess,tenantSupport]=await Promise.all([
+  const [live,yeastarAccess,addonAccess,tenantSupport,odeirySnapshot]=await Promise.all([
     optionalServerRead(
       'tenant-shell-live',
       ()=>getTenantDashboardLive(slug),
@@ -37,8 +39,20 @@ export default async function TenantLayout({children,params}){
       'tenant-shell-support-summary',
       ()=>getTenantSupport(slug,{limit:1}),
       null
-    )
+    ),
+    odeiryGloballyEnabled
+      ?optionalServerRead(
+        'tenant-shell-odeiry-snapshot',
+        ()=>getTenantOdeirySnapshot(slug),
+        {available:false,enabled:false}
+      )
+      :Promise.resolve(null)
   ]);
+  const odeiryEnabled=Boolean(
+    odeiryGloballyEnabled
+    &&odeirySnapshot?.available===true
+    &&odeirySnapshot?.enabled===true
+  );
   const roleKey=context.platformAccess
     ?'platform_owner'
     :membership?.roles?.[0]||'member';
@@ -64,6 +78,7 @@ export default async function TenantLayout({children,params}){
     supportSummary={tenantSupport?.summary||null}
     yeastarAccess={yeastarAccess}
     addonAccess={addonAccess}
+    odeiryEnabled={odeiryEnabled}
   >
     {children}
     <MyRoleGuide

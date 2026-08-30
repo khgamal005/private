@@ -122,7 +122,8 @@ const required=[
   '20260825144111_tenant_sales_workspace_resilience_v1.sql',
   '20260829164239_odeir_technical_support_v1.sql',
   '20260829175001_support_attachment_scanner_fail_closed_v1.sql',
-  '20260829181000_odeir_support_fk_indexes_v1.sql'
+  '20260829181000_odeir_support_fk_indexes_v1.sql',
+  '20260830030000_odeiry_ai_foundation_v1.sql'
 ];
 
 const sqlFiles=(await readdir(migrationsUrl)).filter(file=>file.endsWith('.sql')).sort();

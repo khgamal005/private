@@ -15,6 +15,9 @@ const sourcePaths={
   contract:'lib/odeiry-contract.mjs',
   requestGuard:'lib/odeiry-request-guard.mjs',
   agent:'lib/odeiry-agent.js',
+  operationalGuide:'lib/odeiry-operational-guide.js',
+  viewerContext:'lib/odeiry-viewer-context.mjs',
+  roleGuideContent:'lib/role-guide-content.js',
   odeiryApi:'lib/odeiry-api.js',
   serviceRpc:'lib/odeiry-service-rpc.js',
   route:'app/api/odeiry/chat/route.js',
@@ -361,15 +364,22 @@ test('the request contract rejects arbitrary tenant identity and unclassified co
     error=>error instanceof contract.OdeiryContractError
   );
 
-  const {route,assistant,migration}=await sources();
+  const {route,assistant,migration,viewerContext}=await sources();
   assert.doesNotMatch(`${route}\n${assistant}`,/\btenantId\b|\btenant_id\b/);
   assert.doesNotMatch(assistant,
     /location\.(?:href|search|hash)|URLSearchParams|document\.(?:body|cookie)|innerHTML|outerHTML/);
   assert.match(route,/sameOrigin\(request\)/);
   assert.match(route,/sessionToken\(\)/);
   assert.match(route,/['"]v3_tenant_odeiry_snapshot['"]/);
-  assert.doesNotMatch(route,/v2_current_user_context|context\?\.memberships/,
-    'the route must leave membership resolution to the tenant-scoped RPC');
+  const tenantGate=route.indexOf("'v3_tenant_odeiry_snapshot'");
+  const roleContext=route.indexOf("'v2_current_user_context'");
+  const sanitizer=route.indexOf('resolveOdeiryViewerContext({');
+  assert.ok(tenantGate>=0&&roleContext>tenantGate&&sanitizer>roleContext,
+    'role context may be read only after the tenant-bound Odeiry gate and must be sanitized');
+  assert.match(route,/snapshot\.mode==='tenant_member'[\s\S]+?:null/,
+    'platform operators must not load a tenant membership context');
+  assert.doesNotMatch(viewerContext,/fullName|full_name|email|subjectId|subject_id|tenantId|tenant_id/,
+    'the model viewer contract must not contain personal or tenant identifiers');
 
   const tenantSnapshot=compactSql(routine(
     migration,'public.v3_tenant_odeiry_snapshot'
@@ -627,7 +637,7 @@ test('knowledge sources are platform-curated, bounded, and restricted to Odeir r
   assert.ok(Number(queryLimits[1])<=4000,'knowledge query character limit must stay bounded');
   assert.ok(Number(queryLimits[2])<=12000,'knowledge query byte limit must stay bounded');
   assert.doesNotMatch(search,/select \* from platform\.odeiry_knowledge_articles/);
-  assert.match(agent,/knowledgeSources:new Map\(\)/);
+  assert.match(agent,/sourceRegistry:new Map\(\)/);
   assert.match(agent,
     /const trusted=verified\.get\(source\.articleId\)[\s\S]+?title:trusted\.title/,
     'model citations must be intersected with IDs returned by the trusted tool');

@@ -29,6 +29,7 @@ import {
   finalizeOdeiryRun,
   hasOdeiryServiceCredential
 } from '../../../../lib/odeiry-service-rpc';
+import {resolveOdeiryViewerContext} from '../../../../lib/odeiry-viewer-context.mjs';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -70,6 +71,19 @@ export async function POST(request){
     if(!snapshot.available||!snapshot.enabled){
       return odeiryFailure('odeiry_disabled',503);
     }
+    // A tenant member's role and permission keys are resolved only after the
+    // tenant-bound Odeiry gate succeeds. The sanitizer returns no tenant,
+    // subject, employee, email, or customer identifiers. Platform operators
+    // receive a fixed observe-only context and do not load tenant membership.
+    const currentUserContext=snapshot.mode==='tenant_member'
+      ?await supportRpc(token,'v2_current_user_context',{})
+      :null;
+    const viewer=resolveOdeiryViewerContext({
+      currentUserContext,
+      tenantSlug:input.slug,
+      accessMode:snapshot.mode
+    });
+    if(!viewer)return odeiryFailure('forbidden',403);
     // Credential state is inspected only after membership and both database
     // feature gates have succeeded, so configuration cannot be probed by an
     // unauthenticated caller or an ineligible tenant.
@@ -121,6 +135,7 @@ export async function POST(request){
       message:input.message,
       context:input.context,
       contextMessages:started.contextMessages,
+      viewer,
       searchKnowledge:query=>supportRpc(
         token,
         'v3_tenant_odeiry_knowledge_search',
@@ -150,7 +165,10 @@ export async function POST(request){
       model:result.model,
       providerResponseId:result.providerResponseId,
       finishReason:'completed',
-      citationKeys:result.output.sources.map(source=>source.articleId),
+      // Only database knowledge article keys are persisted as citations.
+      // Code-backed operational guide sources remain in the structured answer
+      // but are intentionally not sent to the database citation validator.
+      citationKeys:result.citationKeys,
       metadata:{
         sourceCount:result.output.sources.length,
         knowledgeSearchEnabled:true

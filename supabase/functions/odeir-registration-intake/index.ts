@@ -145,7 +145,15 @@ Deno.serve(async(request:Request)=>{
       return json({ok:false,error:'unauthorized'},401);
     }
     const limit=Math.max(1,Math.min(20,Number(body.limit)||10));
-    return json({ok:true,...await drainConfirmationOutbox(limit)});
+    const registration=await drainConfirmationOutbox(limit);
+    const lifecycle=await drainLifecycleOutbox(limit).catch(error=>{
+      if(isMissingRpc(error,'v1_lifecycle_notification_sweep')){
+        return {available:false,claimed:0,processed:0,failed:0};
+      }
+      console.error('odeir-lifecycle-drain',safeErrorCode(error));
+      return {available:true,claimed:0,processed:0,failed:1};
+    });
+    return json({ok:true,...registration,lifecycle});
   }
   if(action==='confirm'){
     return confirmRegistration(body);
@@ -934,6 +942,194 @@ async function drainConfirmationOutbox(limit:number){
   return {claimed:deliveryIds.length,processed,failed};
 }
 
+async function drainLifecycleOutbox(limit:number){
+  await rpc<JsonRecord>('v1_lifecycle_notification_sweep',{});
+  const due=await rpc<unknown>('v1_lifecycle_email_delivery_due_ids',{
+    p_limit:limit
+  });
+  const deliveryIds=(Array.isArray(due)?due:[])
+    .map(value=>typeof value==='string'?value:clean(
+      value&&typeof value==='object'
+        ?(value as JsonRecord).delivery_id
+          ??(value as JsonRecord).deliveryId
+        :'',
+      48
+    ))
+    .filter(isUuid)
+    .slice(0,limit);
+  let cursor=0;
+  let processed=0;
+  let failed=0;
+  const concurrency=Math.min(4,deliveryIds.length);
+  await Promise.all(Array.from({length:concurrency},async()=>{
+    while(cursor<deliveryIds.length){
+      const deliveryId=deliveryIds[cursor++];
+      try{
+        await processLifecycleEmailDelivery(deliveryId);
+        processed++;
+      }catch(error){
+        failed++;
+        console.error(
+          'odeir-commerce-lifecycle-delivery',
+          safeErrorCode(error)
+        );
+      }
+    }
+  }));
+  return {
+    available:true,
+    claimed:deliveryIds.length,
+    processed,
+    failed
+  };
+}
+
+async function processLifecycleEmailDelivery(deliveryId:string){
+  const claim=await rpc<JsonRecord>('v1_lifecycle_email_delivery_claim',{
+    p_delivery_id:deliveryId
+  });
+  if(claim.sendRequired!==true){
+    return {
+      deliveryId,
+      state:clean(claim.state,32)||'unavailable',
+      sent:false
+    };
+  }
+
+  const leaseId=clean(claim.leaseId,48);
+  const idempotencyKey=clean(claim.idempotencyKey,200);
+  const recipient=clean(claim.recipient,240).toLowerCase();
+  const templateKey=clean(claim.templateKey,64);
+  const audience=clean(claim.audience,16);
+  const locale=clean(claim.locale,8)==='en'?'en':'ar';
+  const eventType=clean(claim.eventType,80);
+  const actionPath=clean(claim.actionUrl,300);
+  const validTemplate=templateKey==='odeir-tenant-lifecycle-v2'
+    ||templateKey==='odeir-platform-action-v2';
+  const validPath=audience==='platform'
+    ?/^\/control(?:\/[a-z0-9-]+)*$/.test(actionPath)
+    :audience==='tenant'
+      &&/^\/tenant\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9-]+)*$/.test(actionPath);
+  if(
+    !isUuid(deliveryId)||!isUuid(leaseId)
+    ||!/^[a-z0-9/_-]{1,200}$/.test(idempotencyKey)
+    ||!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(recipient)
+    ||!validTemplate||!validPath
+    ||!/^[a-z][a-z0-9_]{2,80}$/.test(eventType)
+  ){
+    await finishLifecycleEmailDelivery({
+      deliveryId,leaseId,outcome:'terminal_failed',
+      providerMessageId:null,httpStatus:null,
+      errorCode:'lifecycle_delivery_payload_invalid',retryAfterSeconds:null
+    });
+    throw new Error('lifecycle_delivery_payload_invalid');
+  }
+  if(
+    !registrationEmailTransportReady()
+    ||!registrationDomainAttestation().ready
+  ){
+    await finishLifecycleEmailDelivery({
+      deliveryId,leaseId,outcome:'retryable',providerMessageId:null,
+      httpStatus:null,errorCode:'email_configuration_unavailable',
+      retryAfterSeconds:300
+    });
+    throw new Error('email_configuration_unavailable');
+  }
+
+  const message=commerceLifecycleEmailMessage({
+    email:recipient,
+    recipientName:clean(claim.recipientName,160),
+    audience,
+    locale,
+    eventType,
+    title:clean(claim.title,240),
+    message:clean(claim.message,1200),
+    actionPath,
+    tenantName:clean(claim.tenantName,240),
+    metadata:claim.metadata&&typeof claim.metadata==='object'
+      &&!Array.isArray(claim.metadata)
+      ?claim.metadata as JsonRecord
+      :{}
+  });
+
+  let response:Response;
+  try{
+    response=await fetch('https://api.resend.com/emails',{
+      method:'POST',
+      headers:{
+        authorization:`Bearer ${REGISTRATION_RESEND_API_KEY}`,
+        'content-type':'application/json',
+        'Idempotency-Key':idempotencyKey
+      },
+      body:JSON.stringify(message),
+      signal:AbortSignal.timeout(8_000)
+    });
+  }catch(error){
+    const errorCode=error instanceof DOMException&&error.name==='TimeoutError'
+      ?'resend_timeout':'resend_transport_error';
+    await finishLifecycleEmailDelivery({
+      deliveryId,leaseId,outcome:'retryable',providerMessageId:null,
+      httpStatus:null,errorCode,retryAfterSeconds:null
+    });
+    throw new Error(errorCode);
+  }
+
+  if(!response.ok){
+    const errorCode=await resendFailureCode(response);
+    const retryable=response.status===409
+      ?errorCode==='resend_concurrent_idempotent_requests'
+      :[408,425,429].includes(response.status)||response.status>=500;
+    await finishLifecycleEmailDelivery({
+      deliveryId,leaseId,
+      outcome:retryable?'retryable':'terminal_failed',
+      providerMessageId:null,httpStatus:response.status,errorCode,
+      retryAfterSeconds:retryable?retryAfter(response):null
+    });
+    throw new Error(errorCode);
+  }
+
+  const providerMessageId=await resendMessageId(response);
+  if(!providerMessageId){
+    await finishLifecycleEmailDelivery({
+      deliveryId,leaseId,outcome:'retryable',providerMessageId:null,
+      httpStatus:response.status,errorCode:'resend_invalid_response',
+      retryAfterSeconds:null
+    });
+    throw new Error('resend_invalid_response');
+  }
+  const completed=await finishLifecycleEmailDelivery({
+    deliveryId,leaseId,outcome:'accepted',providerMessageId,
+    httpStatus:response.status,errorCode:null,retryAfterSeconds:null
+  });
+  if(completed.state!=='accepted'){
+    throw new Error('lifecycle_delivery_state_invalid');
+  }
+  return {deliveryId,state:'accepted',sent:true};
+}
+
+async function finishLifecycleEmailDelivery({
+  deliveryId,leaseId,outcome,providerMessageId,httpStatus,errorCode,
+  retryAfterSeconds
+}:{
+  deliveryId:string;
+  leaseId:string;
+  outcome:'accepted'|'retryable'|'terminal_failed';
+  providerMessageId:string|null;
+  httpStatus:number|null;
+  errorCode:string|null;
+  retryAfterSeconds:number|null;
+}){
+  return await rpc<JsonRecord>('v1_lifecycle_email_delivery_finish',{
+    p_delivery_id:deliveryId,
+    p_lease_id:leaseId,
+    p_outcome:outcome,
+    p_provider_message_id:providerMessageId,
+    p_http_status:httpStatus,
+    p_error_code:errorCode,
+    p_retry_after_seconds:retryAfterSeconds
+  });
+}
+
 async function processEmailDelivery(deliveryId:string){
   const failSafe=await rpc<JsonRecord>(
     'v2_registration_email_delivery_fail_safe',
@@ -946,9 +1142,17 @@ async function processEmailDelivery(deliveryId:string){
       sent:false
     };
   }
-  const claim=await rpc<JsonRecord>('v2_registration_email_delivery_claim',{
-    p_delivery_id:deliveryId
-  });
+  let claim:JsonRecord;
+  try{
+    claim=await rpc<JsonRecord>('v3_registration_email_delivery_claim',{
+      p_delivery_id:deliveryId
+    });
+  }catch(error){
+    if(!isMissingRpc(error,'v3_registration_email_delivery_claim'))throw error;
+    claim=await rpc<JsonRecord>('v2_registration_email_delivery_claim',{
+      p_delivery_id:deliveryId
+    });
+  }
   if(claim.accepted===true||claim.sendRequired===false){
     return {deliveryId,state:clean(claim.state,32),sent:false};
   }
@@ -977,6 +1181,7 @@ async function processEmailDelivery(deliveryId:string){
   const tokenExpiresEpoch=Number(claim.tokenExpiresEpoch);
   const templateVersion=clean(claim.templateVersion,64);
   const messageKind=clean(claim.messageKind,32)||'confirmation';
+  const locale=clean(claim.locale,8)==='en'?'en':'ar';
   const invitationId=clean(claim.invitationId,48);
   const expectedTemplate=messageKind==='confirmation'
     ?'registration-confirmation-ar-v1'
@@ -1024,6 +1229,7 @@ async function processEmailDelivery(deliveryId:string){
     institutionName:clean(claim.institutionName,240),
     tenantSlug:clean(claim.tenantSlug,80),
     reference:clean(claim.reference,40),
+    locale,
     token
   });
   const contentFingerprint=await sha256(JSON.stringify(message));
@@ -1162,8 +1368,174 @@ async function sendLegacyConfirmation(result:JsonRecord){
   }
 }
 
+function englishLifecycleCopy(eventType:string,metadata:JsonRecord){
+  const order=clean(metadata.orderNumber,80)||'your order';
+  const product=clean(metadata.productNameEn,240)
+    ||clean(metadata.productName,240)||'the add-on';
+  const copy:Record<string,[string,string]>={
+    addon_activation_requested:[
+      `Activation request received for ${product}`,
+      'Your request is under review. We will notify you as soon as a decision is made.'
+    ],
+    addon_activation_rejected:[
+      `Activation request declined for ${product}`,
+      'The activation request was not approved. Open Odeir to review the decision safely.'
+    ],
+    addon_trial_started:[
+      `${product} trial started`,
+      'The trial is active and the add-on is ready to use.'
+    ],
+    addon_activated:[
+      `${product} is active`,
+      'Activation is complete and the add-on is ready for your team.'
+    ],
+    addon_paused:[
+      `${product} was paused`,
+      'The add-on is temporarily unavailable. Open the add-on center for its current status.'
+    ],
+    addon_resumed:[`${product} resumed`,'The add-on is available again.'],
+    addon_renewed:[`${product} renewed`,'The subscription period was renewed successfully.'],
+    addon_cancellation_scheduled:[
+      `${product} cancellation scheduled`,
+      'The add-on remains available through the current billing period.'
+    ],
+    addon_cancelled:[`${product} cancelled`,'The add-on subscription has ended.'],
+    addon_expired:[`${product} expired`,'Renew the add-on to restore access.'],
+    addon_trial_expiring:[
+      `${product} trial is ending soon`,
+      'The trial ends within three days. Review your continuation options in Odeir.'
+    ],
+    addon_subscription_expiring:[
+      `${product} subscription is ending soon`,
+      'The subscription ends within seven days. Review renewal to prevent interruption.'
+    ],
+    purchase_created:[`Order ${order} created`,'We received the order and it is awaiting payment or review.'],
+    purchase_paid:[`Payment confirmed for ${order}`,'Payment was confirmed successfully.'],
+    purchase_payment_failed:[`Payment failed for ${order}`,'Review the payment method or try again.'],
+    purchase_payment_reminder:[`Complete payment for ${order}`,'The order is still awaiting payment.'],
+    purchase_refunded:[`Order ${order} refunded`,'A refund was recorded for this order.'],
+    purchase_activation_failed:[
+      `Activation failed for ${order}`,
+      'The issue is recorded and requires platform attention. Do not repeat the purchase.'
+    ],
+    purchase_activation_stalled:[
+      `Activation is delayed for ${order}`,
+      'The delay is recorded and the platform team is following up. Do not repeat the purchase.'
+    ],
+    purchase_cancelled:[`Order ${order} cancelled`,'The order was closed and will not be processed.'],
+    service_in_progress:[`Order ${order} is in progress`,'Work on the service order has started.'],
+    service_completed:[`Order ${order} completed`,'The service order was completed successfully.'],
+    bank_transfer_submitted:[`Bank transfer received for ${order}`,'The transfer is awaiting review.'],
+    bank_transfer_reviewing:[`Bank transfer under review for ${order}`,'The platform team is reviewing the transfer.'],
+    bank_transfer_approved:[`Bank transfer approved for ${order}`,'The transfer review was completed successfully.'],
+    bank_transfer_rejected:[`Bank transfer declined for ${order}`,'Open Odeir to review the decision and update the transfer details.'],
+    bank_transfer_cancelled:[`Bank transfer cancelled for ${order}`,'The transfer record was closed.'],
+    bank_transfer_review_overdue:[`Bank transfer review overdue for ${order}`,'The transfer has been waiting for review for more than 24 hours.'],
+    registration_email_failed:[
+      'Registration email delivery failed',
+      'A registration message could not be delivered and requires platform attention.'
+    ],
+    registration_email_worker_stale:[
+      'Registration email worker is unhealthy',
+      'No worker heartbeat has been recorded during the last five minutes.'
+    ],
+    lifecycle_email_worker_stale:[
+      'Lifecycle email worker is unhealthy',
+      'No lifecycle worker heartbeat has been recorded during the last five minutes.'
+    ],
+    lifecycle_email_failed:[
+      'Lifecycle email delivery failed',
+      'A lifecycle message could not be delivered and requires platform attention.'
+    ]
+  };
+  return copy[eventType]||[
+    'Odeir notification requires attention',
+    'Open Odeir to review the verified event and take the appropriate action.'
+  ];
+}
+
+function commerceLifecycleEmailMessage({
+  email,recipientName,audience,locale,eventType,title,message,actionPath,
+  tenantName,metadata
+}:{
+  email:string;
+  recipientName:string;
+  audience:string;
+  locale:'ar'|'en';
+  eventType:string;
+  title:string;
+  message:string;
+  actionPath:string;
+  tenantName:string;
+  metadata:JsonRecord;
+}){
+  const actionUrl=new URL(actionPath,PUBLIC_APP_URL);
+  const appOrigin=new URL(PUBLIC_APP_URL).origin;
+  if(actionUrl.origin!==appOrigin){
+    throw new Error('lifecycle_action_url_invalid');
+  }
+  const english=locale==='en';
+  const englishCopy=english?englishLifecycleCopy(eventType,metadata):null;
+  const localizedTitle=english?englishCopy?.[0]||title:title;
+  const localizedMessage=english?englishCopy?.[1]||message:message;
+  const safeName=escapeHtml(recipientName||(english?'Account owner':'مسؤول الحساب'));
+  const safeTitle=escapeHtml(localizedTitle);
+  const safeMessage=escapeHtml(localizedMessage,1200);
+  const safeTenant=escapeHtml(tenantName);
+  const safeUrl=escapeHtml(actionUrl.toString(),600);
+  const orderNumber=clean(metadata.orderNumber,80);
+  const productName=english
+    ?clean(metadata.productNameEn,240)||clean(metadata.productName,240)
+    :clean(metadata.productName,240);
+  const totalMinor=Number(metadata.totalMinor);
+  const currency=clean(metadata.currency,3).toUpperCase();
+  const details=[
+    orderNumber?`${english?'Order':'رقم الطلب'}: ${orderNumber}`:'',
+    productName?`${english?'Product':'المنتج'}: ${productName}`:'',
+    Number.isSafeInteger(totalMinor)&&totalMinor>=0&&/^[A-Z]{3}$/.test(currency)
+      ?`${english?'Total':'الإجمالي'}: ${new Intl.NumberFormat(english?'en-SA':'ar-SA',{
+        style:'currency',currency
+      }).format(totalMinor/100)}`
+      :''
+  ].filter(Boolean);
+  const safeDetails=details.map(detail=>escapeHtml(detail)).join('<br>');
+  const detailHtml=safeDetails
+    ?`<div style="margin:20px 0;padding:15px;border-radius:12px;background:#f0f7f8;color:#36596b;font-size:12px;line-height:1.9">${safeDetails}</div>`
+    :'';
+  const platform=audience==='platform';
+  const subject=platform
+    ?`${english?'Action required':'يتطلب متابعة'}: ${localizedTitle}`
+    :localizedTitle;
+  const buttonLabel=platform
+    ?english?'Open operations center':'فتح لوحة المتابعة'
+    :english?'Open details in Odeir':'فتح التفاصيل في أودير';
+  const contextLine=platform
+    ?`${english?'Institution':'المنشأة'}: <strong>${safeTenant}</strong>`
+    :english
+      ?'This is a verified operational notification from your Odeir workspace.'
+      :'هذا إشعار تشغيلي موثّق من مساحة منشأتك في أودير.';
+  const header=english?'Odeir | Commerce and lifecycle notifications':'أودير | إشعارات المتجر والإضافات';
+  const greeting=english?'Hello':'مرحبًا';
+  const disclaimer=english
+    ?'Never send payment details or passwords in reply to this message. Review the verified status inside Odeir.'
+    :'لا ترسل بيانات دفع أو كلمات مرور ردًا على هذه الرسالة. يمكنك مراجعة الحالة الموثّقة من داخل أودير.';
+  const openLabel=english?'Open details':'فتح التفاصيل';
+  return {
+    from:REGISTRATION_FROM_EMAIL,
+    to:[email],
+    subject,
+    html:`<!doctype html><html lang="${english?'en':'ar'}" dir="${english?'ltr':'rtl'}"><body style="margin:0;background:#f3f7f9;font-family:${english?'Arial,Helvetica':'Tahoma,Arial'},sans-serif;color:#0b2942"><main style="max-width:580px;margin:24px auto;padding:28px;background:#fff;border:1px solid #dbe7ec;border-radius:18px"><div style="font-size:12px;font-weight:800;color:#07948d">${header}</div><h1 style="font-size:24px;line-height:1.5;margin:18px 0 8px">${safeTitle}</h1><p style="font-size:14px;line-height:1.9;color:#526b7c">${greeting} ${safeName}،<br>${safeMessage}</p><p style="font-size:12px;line-height:1.8;color:#607989">${contextLine}</p>${detailHtml}<a href="${safeUrl}" rel="noreferrer" style="display:block;margin:24px 0;padding:15px 18px;border-radius:12px;background:#082f4d;color:#fff;text-align:center;text-decoration:none;font-weight:800">${buttonLabel}</a><p style="font-size:10px;line-height:1.8;color:#91a2ad">${disclaimer}</p></main></body></html>`,
+    text:`${localizedTitle}\n\n${greeting} ${recipientName||(english?'Account owner':'مسؤول الحساب')}،\n${localizedMessage}\n${platform?`${english?'Institution':'المنشأة'}: ${tenantName}\n`:''}${details.length?`${details.join('\n')}\n`:''}\n${openLabel}: ${actionUrl.toString()}\n\n${disclaimer}`,
+    tags:[
+      {name:'category',value:'commerce_lifecycle'},
+      {name:'event',value:eventType.slice(0,64)}
+    ]
+  };
+}
+
 function lifecycleEmailMessage({
-  messageKind,email,contactName,institutionName,tenantSlug,reference,token
+  messageKind,email,contactName,institutionName,tenantSlug,reference,locale,
+  token
 }:{
   messageKind:string;
   email:string;
@@ -1171,11 +1543,12 @@ function lifecycleEmailMessage({
   institutionName:string;
   tenantSlug:string;
   reference:string;
+  locale:'ar'|'en';
   token:string;
 }){
   if(messageKind==='confirmation'){
     return confirmationMessage({
-      email,contactName,institutionName,reference,token
+      email,contactName,institutionName,reference,locale,token
     });
   }
 
@@ -1183,6 +1556,14 @@ function lifecycleEmailMessage({
   const safeInstitution=escapeHtml(institutionName);
   const safeReference=escapeHtml(reference);
   if(messageKind==='review_receipt'){
+    if(locale==='en')return {
+      from:REGISTRATION_FROM_EMAIL,
+      to:[email],
+      subject:'We received your institution request in Odeir',
+      html:`<!doctype html><html lang="en" dir="ltr"><body style="margin:0;background:#f3f7f9;font-family:Arial,Helvetica,sans-serif;color:#0b2942"><div style="max-width:580px;margin:24px auto;padding:28px;background:#fff;border:1px solid #dbe7ec;border-radius:18px"><div style="font-size:12px;font-weight:800;color:#07948d">Odeir | Institution management platform</div><h1 style="font-size:25px;line-height:1.5;margin:18px 0 8px">We received your request, ${safeName}</h1><p style="font-size:14px;line-height:1.9;color:#526b7c">The request for <strong>${safeInstitution}</strong> was recorded successfully and is now under manual review to protect the existing institution and its access.</p><div style="margin:22px 0;padding:16px;border-radius:12px;background:#f0f7f8;color:#36596b;font-size:13px;line-height:1.9">No new workspace has been created and this email has no activation link. We will send the secure owner invitation after approval and activation.</div><p style="font-size:11px;line-height:1.8;color:#78909e">Request reference: <strong>${safeReference}</strong></p><p style="font-size:10px;color:#91a2ad">If you did not submit this request, ignore this email and contact the Odeir team.</p></div></body></html>`,
+      text:`Hello ${contactName}\n\nWe received the request for ${institutionName}. It is now under manual review.\nNo workspace has been created and this email has no activation link. A secure owner invitation will be sent after approval and activation.\n\nRequest reference: ${reference}`,
+      tags:[{name:'category',value:'registration_review_receipt'}]
+    };
     return {
       from:REGISTRATION_FROM_EMAIL,
       to:[email],
@@ -1197,6 +1578,14 @@ function lifecycleEmailMessage({
   invitationUrl.searchParams.set('token',token);
   const safeUrl=escapeHtml(invitationUrl.toString());
   const safeSlug=escapeHtml(tenantSlug);
+  if(locale==='en')return {
+    from:REGISTRATION_FROM_EMAIL,
+    to:[email],
+    subject:'Welcome to Odeir — activate the owner account',
+    html:`<!doctype html><html lang="en" dir="ltr"><body style="margin:0;background:#f3f7f9;font-family:Arial,Helvetica,sans-serif;color:#0b2942"><div style="max-width:580px;margin:24px auto;padding:28px;background:#fff;border:1px solid #dbe7ec;border-radius:18px"><div style="font-size:12px;font-weight:800;color:#07948d">Odeir | Institution management platform</div><h1 style="font-size:25px;line-height:1.5;margin:18px 0 8px">Welcome, ${safeName}</h1><p style="font-size:14px;line-height:1.9;color:#526b7c">The <strong>${safeInstitution}</strong> workspace was approved and activated. Use the button below to create the owner login and link it to the workspace.</p><a href="${safeUrl}" rel="noreferrer" style="display:block;margin:24px 0;padding:15px 18px;border-radius:12px;background:#082f4d;color:#fff;text-align:center;text-decoration:none;font-weight:800">Activate owner account</a><p style="font-size:11px;line-height:1.8;color:#78909e">Request reference: <strong>${safeReference}</strong>${safeSlug?`<br>Workspace: <strong>${safeSlug}</strong>`:''}<br>This single-use link expires in seven days.</p><p style="font-size:10px;color:#91a2ad">If you were not expecting this invitation, do not open the link and contact the Odeir team.</p></div></body></html>`,
+    text:`Hello ${contactName}\n\nThe ${institutionName} workspace was approved and activated in Odeir. Activate the owner account using this secure link:\n${invitationUrl.toString()}\n\nRequest reference: ${reference}\nThe link is single-use and expires in seven days.`,
+    tags:[{name:'category',value:'registration_owner_invitation'}]
+  };
   return {
     from:REGISTRATION_FROM_EMAIL,
     to:[email],
@@ -1208,13 +1597,14 @@ function lifecycleEmailMessage({
 }
 
 function confirmationMessage({
-  email,contactName,institutionName,reference,token
+  email,contactName,institutionName,reference,token,locale='ar'
 }:{
   email:string;
   contactName:string;
   institutionName:string;
   reference:string;
   token:string;
+  locale?:'ar'|'en';
 }){
   const confirmationUrl=new URL('/api/public/registration/confirm',PUBLIC_APP_URL);
   confirmationUrl.searchParams.set('token',token);
@@ -1222,6 +1612,14 @@ function confirmationMessage({
   const safeInstitution=escapeHtml(institutionName);
   const safeReference=escapeHtml(reference);
   const safeUrl=escapeHtml(confirmationUrl.toString());
+  if(locale==='en')return {
+    from:REGISTRATION_FROM_EMAIL,
+    to:[email],
+    subject:'Confirm your email and activate your Odeir workspace',
+    html:`<!doctype html><html lang="en" dir="ltr"><body style="margin:0;background:#f3f7f9;font-family:Arial,Helvetica,sans-serif;color:#0b2942"><div style="max-width:580px;margin:24px auto;padding:28px;background:#fff;border:1px solid #dbe7ec;border-radius:18px"><div style="font-size:12px;font-weight:800;color:#07948d">Odeir | Institution management platform</div><h1 style="font-size:25px;line-height:1.5;margin:18px 0 8px">Hello ${safeName}</h1><p style="font-size:14px;line-height:1.9;color:#526b7c">Confirm your email to activate the <strong>${safeInstitution}</strong> trial workspace. Plan features become available immediately while institution trust remains under review.</p><a href="${safeUrl}" rel="noreferrer" style="display:block;margin:24px 0;padding:15px 18px;border-radius:12px;background:#082f4d;color:#fff;text-align:center;text-decoration:none;font-weight:800">Confirm email and activate workspace</a><p style="font-size:11px;line-height:1.8;color:#78909e">Request reference: <strong>${safeReference}</strong><br>This single-use link expires according to the registration policy.</p><p style="font-size:10px;color:#91a2ad">If you did not request registration in Odeir, ignore this email.</p></div></body></html>`,
+    text:`Hello ${contactName}\n\nConfirm your email to activate the ${institutionName} workspace in Odeir:\n${confirmationUrl.toString()}\n\nRequest reference: ${reference}`,
+    tags:[{name:'category',value:'registration_confirmation'}]
+  };
   return {
     from:REGISTRATION_FROM_EMAIL,
     to:[email],
@@ -1397,10 +1795,28 @@ async function handleResendWebhook(rawBody:string,request:Request){
         p_provider_message_id:providerMessageId
       }
     );
+    let lifecycle:JsonRecord={matched:false,duplicate:false};
+    try{
+      lifecycle=await rpc<JsonRecord>(
+        'v1_lifecycle_email_delivery_record_event',{
+          p_provider_message_id:providerMessageId,
+          p_event_id:eventId,
+          p_event_type:eventType,
+          p_occurred_at:occurredAt
+        }
+      );
+    }catch(error){
+      // During DB-first rollout, registration delivery remains available until
+      // the additive lifecycle RPC appears. Other persistence errors fail.
+      if(!isMissingRpc(error,'v1_lifecycle_email_delivery_record_event')){
+        throw error;
+      }
+    }
     return json({
       ok:true,
-      duplicate:result.duplicate===true,
+      duplicate:result.duplicate===true||lifecycle.duplicate===true,
       matched:result.matched===true||canary.matched===true
+        ||lifecycle.matched===true
     });
   }catch{
     console.error('odeir-registration-email-webhook','event_persistence_failed');
@@ -1503,7 +1919,7 @@ function isMissingRpc(error:unknown,name:string){
 
 function safeErrorCode(error:unknown){
   const value=error instanceof Error?error.message:String(error??'');
-  return value.match(/(?:registration|confirmation|resend|email)_[a-z0-9_]{1,72}/)?.[0]
+  return value.match(/(?:registration|confirmation|resend|email|lifecycle|commerce)_[a-z0-9_]{1,72}/)?.[0]
     ??'delivery_processing_failed';
 }
 
@@ -1672,8 +2088,8 @@ function isUuid(value:string){
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function escapeHtml(value:unknown){
-  return clean(value,300).replace(/[&<>"']/g,character=>({
+function escapeHtml(value:unknown,max=300){
+  return clean(value,max).replace(/[&<>"']/g,character=>({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   })[character]??character);
 }

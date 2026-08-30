@@ -49,6 +49,7 @@ const ICON_PATHS={
   support:['M4 5h16v12H9l-5 4z','M8 9h8M8 13h5'],
   interactive:['M4 5h16v12H4z','m10 9 4 2.5-4 2.5z','M9 21h6'],
   search:['M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z','m21 21-4.35-4.35'],
+  notifications:['M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9','M10 21h4'],
   bell:['M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9','M10 21h4'],
   chevron:['m9 18 6-6-6-6']
 };
@@ -142,6 +143,10 @@ function platformItems(permissions,registrationSummary,supportSummary){
   const allowed=new Set(permissions||[]);
   const items=[
     {key:'overview',label:'لوحة المنصة',href:'/control',permission:'platform.control.read'},
+    {key:'notifications',label:'مركز الإشعارات',href:'/control/notifications',permission:[
+      'platform.billing.manage','platform.tenants.manage',
+      'platform.settings.manage','platform.control.write'
+    ]},
     {key:'tenants',label:'المنشآت',href:'/control/tenants',permission:'platform.tenants.manage'},
     {key:'registrations',label:'طلبات التسجيل',href:'/control/registration-requests',permission:'platform.tenants.manage',badge:registrationAttentionCount(registrationSummary),badgeLabel:'طلبات تسجيل تحتاج متابعة'},
     {key:'catalog',label:'المنتجات والمتاجر',children:[
@@ -212,6 +217,32 @@ function tenantSupportNotificationItems(summary,slug){
     title,
     description:'افتح الدعم الفني لمتابعة التذاكر دون عرض تفاصيلها هنا.',
     href:`/tenant/${encodeURIComponent(slug)}/support`
+  }];
+}
+
+function platformNotificationItems(summary){
+  const attention=registrationAttentionCount(summary);
+  if(!attention)return [];
+  return [{
+    tone:'amber',
+    title:`${attention} طلب تسجيل يحتاج متابعة`,
+    description:'راجع طلبات المنشآت واتخذ الإجراء المناسب.',
+    href:'/control/registration-requests'
+  }];
+}
+
+function platformSupportNotificationItems(summary){
+  const unassigned=count(summary?.unassigned);
+  const overdue=count(summary?.overdue);
+  if(!unassigned&&!overdue)return [];
+  const title=unassigned&&overdue
+    ?`${unassigned} تذكرة غير مسندة و${overdue} متأخرة`
+    :unassigned?`${unassigned} تذكرة دعم غير مسندة`:`${overdue} تذكرة دعم متأخرة`;
+  return [{
+    tone:overdue?'danger':'amber',
+    title,
+    description:'راجع طابور الدعم وحدد أولوية المعالجة.',
+    href:'/control/support'
   }];
 }
 
@@ -294,16 +325,27 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
   const canReadPlatformSupport=[
     'platform.support.read','platform.support.reply','platform.support.manage'
   ].some(permission=>permissions.includes(permission));
+  const canOpenPlatformInbox=[
+    'platform.billing.manage','platform.tenants.manage',
+    'platform.settings.manage','platform.control.write'
+  ].some(permission=>permissions.includes(permission));
   const profileName=userName||email?.split('@')[0]||'مستخدم ماركتون';
   const profileInitial=Array.from(profileName.trim())[0]||'م';
   const notifications=kind===WORKSPACE_KINDS.tenant?[
     ...notificationItems(notificationSummary,slug),
     ...tenantSupportNotificationItems(supportSummary,slug)
   ]:[];
+  const platformNotifications=kind===WORKSPACE_KINDS.platform?[
+    ...(canManageTenants?platformNotificationItems(platformRegistrationSummary):[]),
+    ...(canReadPlatformSupport?platformSupportNotificationItems(supportSummary):[])
+  ]:[];
   const operationalNotificationCount=count(notificationSummary?.overdueTasks)
     +count(notificationSummary?.tasksToday)
     +count(notificationSummary?.pendingAdmissions)
     +tenantSupportAttentionCount(supportSummary);
+  const platformOperationalCount=(canManageTenants
+    ?registrationAttentionCount(platformRegistrationSummary):0)
+    +(canReadPlatformSupport?platformSupportAttentionCount(supportSummary):0);
   const assistantContext=useMemo(()=>odeiryContext(pathname),[pathname]);
   return <div className={`mt-workspace mt-workspace-${kind}`}>
     {mobileOpen&&<button className="mt-shell-backdrop" aria-label="إغلاق القائمة" onClick={()=>setMobileOpen(false)}/>} 
@@ -329,8 +371,17 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
         <div className="mt-topbar-tools">
           {kind===WORKSPACE_KINDS.tenant&&canCreateTask&&<Link className="mt-quick-link" href={`/tenant/${encodeURIComponent(slug)}/tasks`}>+ مهمة جديدة</Link>}
           {kind===WORKSPACE_KINDS.platform&&canManageTenants&&<Link className="mt-quick-link" href="/control/tenants">إدارة المنشآت</Link>}
-          {kind===WORKSPACE_KINDS.platform&&canManageTenants&&<Link className="mt-registration-alert" href="/control/registration-requests" aria-label={`${registrationAttentionCount(platformRegistrationSummary)} طلب تسجيل يحتاج إجراء`} title="طلبات التسجيل"><ShellIcon name="bell"/>{registrationAttentionCount(platformRegistrationSummary)>0&&<b>{registrationAttentionCount(platformRegistrationSummary)>99?'99+':registrationAttentionCount(platformRegistrationSummary)}</b>}</Link>}
-          {kind===WORKSPACE_KINDS.platform&&canReadPlatformSupport&&<Link className="mt-registration-alert" href="/control/support" aria-label={`${platformSupportAttentionCount(supportSummary)} تذكرة دعم تحتاج متابعة`} title="الدعم الفني"><ShellIcon name="support"/>{platformSupportAttentionCount(supportSummary)>0&&<b>{platformSupportAttentionCount(supportSummary)>99?'99+':platformSupportAttentionCount(supportSummary)}</b>}</Link>}
+          {kind===WORKSPACE_KINDS.platform&&(canOpenPlatformInbox||platformNotifications.length>0)&&<NotificationCenter
+            scope="platform"
+            className="mt-notification-menu"
+            operationalItems={platformNotifications}
+            operationalCount={platformOperationalCount}
+            systemInboxEnabled={canOpenPlatformInbox}
+            icon={<ShellIcon name="bell"/>}
+            emptyMessage="لا توجد طلبات منصة أو أعطال تشغيلية تحتاج متابعة الآن."
+            footerHref={canReadPlatformSupport?'/control/support':'/control/notifications'}
+            footerLabel={canReadPlatformSupport?'فتح مركز الدعم':'فتح مركز الإشعارات'}
+          />}
           {kind===WORKSPACE_KINDS.tenant&&<NotificationCenter
             slug={slug}
             className="mt-notification-menu"

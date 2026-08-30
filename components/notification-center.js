@@ -27,18 +27,30 @@ function notificationTime(value){
   });
 }
 
-async function requestNotifications(slug,action='list',notificationId=null){
+async function requestNotifications(
+  slug,
+  scope='tenant',
+  action='list',
+  notificationId=null
+){
+  const platform=scope==='platform';
   const options=action==='list'
     ?{cache:'no-store'}
     :{
       method:'POST',
       headers:{'content-type':'application/json'},
-      body:JSON.stringify({slug,action,notificationId}),
+      body:JSON.stringify({
+        ...(platform?{}:{slug}),
+        action,
+        notificationId
+      }),
       keepalive:true
     };
   const endpoint=action==='list'
-    ?`/api/tenant/notifications?slug=${encodeURIComponent(slug)}`
-    :'/api/tenant/notifications';
+    ?platform
+      ?'/api/platform/notifications'
+      :`/api/tenant/notifications?slug=${encodeURIComponent(slug)}`
+    :platform?'/api/platform/notifications':'/api/tenant/notifications';
   const response=await fetch(endpoint,options);
   const payload=await response.json().catch(()=>({}));
   if(!response.ok){
@@ -51,11 +63,15 @@ async function requestNotifications(slug,action='list',notificationId=null){
 
 export default function NotificationCenter({
   slug,
+  scope='tenant',
   className='mt-notification-menu',
   operationalItems=[],
   operationalCount=0,
+  systemInboxEnabled=true,
   icon,
-  emptyMessage='لا توجد تنبيهات عاجلة الآن.'
+  emptyMessage='لا توجد تنبيهات عاجلة الآن.',
+  footerHref,
+  footerLabel
 }){
   const [data,setData]=useState(EMPTY_DATA);
   const [toast,setToast]=useState(null);
@@ -64,6 +80,7 @@ export default function NotificationCenter({
   const busyRef=useRef(false);
 
   useEffect(()=>{
+    if(!systemInboxEnabled)return undefined;
     let cancelled=false;
     let timer=null;
     let failures=0;
@@ -77,7 +94,7 @@ export default function NotificationCenter({
       )return true;
       busyRef.current=true;
       try{
-        const next=await requestNotifications(slug);
+        const next=await requestNotifications(slug,scope);
         if(cancelled)return true;
         const newest=next.notifications?.[0]||null;
         if(
@@ -134,7 +151,7 @@ export default function NotificationCenter({
       window.removeEventListener('focus',handleFocus);
       document.removeEventListener('visibilitychange',handleVisibility);
     };
-  },[slug]);
+  },[slug,scope,systemInboxEnabled]);
 
   useEffect(()=>{
     if(!toast)return undefined;
@@ -155,7 +172,12 @@ export default function NotificationCenter({
       )
     }));
     try{
-      const next=await requestNotifications(slug,action,notificationId);
+      const next=await requestNotifications(
+        slug,
+        scope,
+        action,
+        notificationId
+      );
       setData(next);
     }catch{
       // The next poll reconciles optimistic read state with the server.
@@ -187,7 +209,9 @@ export default function NotificationCenter({
           {systemItems.map(item=><Link
             prefetch={false}
             key={item.id}
-            href={item.actionUrl||`/tenant/${encodeURIComponent(slug)}/sales`}
+            href={item.actionUrl||(scope==='platform'
+              ?'/control/notifications'
+              :`/tenant/${encodeURIComponent(slug)}/sales`)}
             className={item.readAt?'':'is-unread'}
             onClick={()=>!item.readAt&&updateReadState('mark_read',item.id)}
           >
@@ -210,7 +234,11 @@ export default function NotificationCenter({
             <span>✓</span><b>كل شيء تحت السيطرة</b><small>{emptyMessage}</small>
           </div>}
         </div>
-        <footer><Link href={`/tenant/${encodeURIComponent(slug)}/tasks`}>فتح مركز المهام</Link></footer>
+        <footer><Link href={footerHref||(scope==='platform'
+          ?'/control/notifications'
+          :`/tenant/${encodeURIComponent(slug)}/tasks`)}>{footerLabel||(scope==='platform'
+            ?'فتح مركز الإشعارات'
+            :'فتح مركز المهام')}</Link></footer>
       </div>
     </details>
     {toast&&<div className="mt-notification-toast" role="status" aria-live="polite">

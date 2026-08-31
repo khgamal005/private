@@ -5,10 +5,6 @@ import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import TenantDeletionDialog from './tenant-deletion-dialog';
 
-const money=value=>new Intl.NumberFormat('ar-SA',{
-  style:'currency',currency:'SAR',maximumFractionDigits:0
-}).format((Number(value)||0)/100);
-
 export default function PlatformTenants({initialData}){
   const router=useRouter();
   const [query,setQuery]=useState('');
@@ -20,10 +16,14 @@ export default function PlatformTenants({initialData}){
   const [provisioned,setProvisioned]=useState(null);
   const [deletionTenant,setDeletionTenant]=useState(null);
   const [deletedIds,setDeletedIds]=useState(()=>new Set());
+  const [odeiryStates,setOdeiryStates]=useState({});
+  const [odeiryBusySlug,setOdeiryBusySlug]=useState('');
+  const [odeiryConfirmation,setOdeiryConfirmation]=useState(null);
   const tenants=useMemo(()=>(initialData.tenants||[]).filter(
     tenant=>!deletedIds.has(tenant.id)
   ),[initialData.tenants,deletedIds]);
   const plans=initialData.plans||[];
+  const odeiryControl=initialData.odeiryManager||{};
   const shown=useMemo(()=>tenants.filter(tenant=>
     (status==='all'||tenant.status===status)&&
     `${tenant.name||''} ${tenant.slug||''} ${tenant.tenantKey||''} ${tenant.ownerEmail||''} ${tenant.domain||''}`
@@ -39,6 +39,50 @@ export default function PlatformTenants({initialData}){
     const payload=await response.json();
     if(!response.ok)throw new Error(payload.error||'تعذر تنفيذ العملية');
     return payload.data;
+  }
+
+  function odeiryState(tenant){
+    return odeiryStates[tenant.slug]||tenant.odeiryManager||{
+      enabled:false,effectiveEnabled:false,version:0
+    };
+  }
+
+  async function configureOdeiryManager(){
+    const request=odeiryConfirmation;
+    if(!request||odeiryBusySlug)return;
+    const current=odeiryState(request.tenant);
+    setOdeiryBusySlug(request.tenant.slug);
+    setError('');
+    setMessage('');
+    try{
+      const updated=await call('configure-odeiry-manager',{
+        p_slug:request.tenant.slug,
+        p_payload:{
+          enabled:request.enabled,
+          expectedVersion:current.version
+        }
+      });
+      setOdeiryStates(states=>({
+        ...states,
+        [request.tenant.slug]:{
+          enabled:Boolean(updated.enabled),
+          effectiveEnabled:Boolean(
+            odeiryControl.globalEnabled&&updated.enabled
+          ),
+          version:Number(updated.version)||0
+        }
+      }));
+      setMessage(
+        `${request.enabled?'تم تفعيل':'تم إيقاف'} أوديري المدير لمنشأة ${request.tenant.name}`
+      );
+      setOdeiryConfirmation(null);
+      router.refresh();
+    }catch(err){
+      setError(err.message);
+      setOdeiryConfirmation(null);
+    }finally{
+      setOdeiryBusySlug('');
+    }
   }
 
   async function updateStatus(tenantId,value){
@@ -110,6 +154,9 @@ export default function PlatformTenants({initialData}){
     </header>
     {message&&<div className="mt-alert">{message}</div>}
     {error&&!modal&&<div className="mt-alert error">{error}</div>}
+    {!odeiryControl.globalEnabled&&<div className="mt-alert error">
+      البوابة العامة لأوديري المدير متوقفة؛ يمكنك حفظ حالة كل منشأة، لكنها لن تصبح فعالة قبل تشغيل البوابة العامة.
+    </div>}
 
     {provisioned&&<section className="mt-panel mt-provision-result">
       <header className="mt-panel-head">
@@ -130,7 +177,7 @@ export default function PlatformTenants({initialData}){
     <section className="mt-kpis">
       <article className="mt-kpi"><span>كل المنشآت</span><b>{tenants.length}</b><small>مساحات مستقلة</small></article>
       <article className="mt-kpi"><span>النشطة</span><b>{tenants.filter(item=>item.status==='active').length}</b><small>تعمل بصورة طبيعية</small></article>
-      <article className="mt-kpi"><span>التجريبية</span><b>{tenants.filter(item=>item.status==='trial').length}</b><small>في مرحلة التجربة</small></article>
+      <article className="mt-kpi"><span>أوديري المدير</span><b>{tenants.filter(item=>odeiryState(item).enabled).length}</b><small>منشآت مفعّل لها</small></article>
       <article className="mt-kpi"><span>دعوات معلقة</span><b>{initialData.pendingInvitations||0}</b><small>بانتظار تفعيل المستخدم</small></article>
     </section>
 
@@ -144,25 +191,51 @@ export default function PlatformTenants({initialData}){
         </div>
       </div>
       <div className="mt-table-wrap"><table className="mt-table">
-        <thead><tr><th>المنشأة</th><th>المالك</th><th>الدومين</th><th>المستخدمون</th><th>الحالة</th><th>الباقة</th><th></th></tr></thead>
-        <tbody>{shown.map(tenant=><tr key={tenant.id}>
-          <td><b>{tenant.name}</b><small>{tenant.slug} · {tenant.tenantKey}</small></td>
-          <td><b>{tenant.ownerName||'لم يحدد'}</b><small>{tenant.ownerEmail||'—'} · {tenant.ownerStatus==='linked'?'مرتبط':'بانتظار التفعيل'}</small></td>
-          <td><b>{tenant.domain||'بدون دومين'}</b><small>{domainStatus(tenant.domainStatus)}</small></td>
-          <td><b>{tenant.employees||0} مستخدم</b><small>بحسابات وصلاحيات معزولة</small></td>
-          <td><select value={tenant.status} disabled={busy} onChange={event=>updateStatus(tenant.id,event.target.value)}>
-            <option value="active">نشطة</option><option value="trial">تجريبية</option><option value="suspended">موقوفة</option><option value="migrating">قيد النقل</option><option value="closed">مغلقة</option>
-          </select></td>
-          <td><select value={tenant.planKey||''} disabled={busy} onChange={event=>updatePlan(tenant.id,event.target.value)}>
-            <option value="">بدون باقة</option>{plans.map(plan=><option value={plan.key} key={plan.key}>{plan.nameAr}</option>)}
-          </select></td>
-          <td><div className="mt-tenant-row-actions">
-            <Link prefetch={false} className="mt-button soft" href={`/tenant/${tenant.slug}`}>فتح</Link>
-            <button type="button" className="mt-button danger-outline" disabled={busy} onClick={()=>setDeletionTenant({id:tenant.id,name:tenant.name,slug:tenant.slug})}>حذف نهائي</button>
-          </div></td>
-        </tr>)}</tbody>
+        <thead><tr><th>المنشأة</th><th>المالك</th><th>الدومين</th><th>المستخدمون</th><th>الحالة</th><th>الباقة</th><th>أوديري المدير</th><th></th></tr></thead>
+        <tbody>{shown.map(tenant=>{
+          const manager=odeiryState(tenant);
+          const managerBusy=odeiryBusySlug===tenant.slug;
+          return <tr key={tenant.id}>
+            <td><b>{tenant.name}</b><small>{tenant.slug} · {tenant.tenantKey}</small></td>
+            <td><b>{tenant.ownerName||'لم يحدد'}</b><small>{tenant.ownerEmail||'—'} · {tenant.ownerStatus==='linked'?'مرتبط':'بانتظار التفعيل'}</small></td>
+            <td><b>{tenant.domain||'بدون دومين'}</b><small>{domainStatus(tenant.domainStatus)}</small></td>
+            <td><b>{tenant.employees||0} مستخدم</b><small>بحسابات وصلاحيات معزولة</small></td>
+            <td><select value={tenant.status} disabled={busy} onChange={event=>updateStatus(tenant.id,event.target.value)}>
+              <option value="active">نشطة</option><option value="trial">تجريبية</option><option value="suspended">موقوفة</option><option value="migrating">قيد النقل</option><option value="closed">مغلقة</option>
+            </select></td>
+            <td><select value={tenant.planKey||''} disabled={busy} onChange={event=>updatePlan(tenant.id,event.target.value)}>
+              <option value="">بدون باقة</option>{plans.map(plan=><option value={plan.key} key={plan.key}>{plan.nameAr}</option>)}
+            </select></td>
+            <td><button
+              type="button"
+              className={`mt-button ${manager.enabled?'primary':'soft'}`}
+              aria-pressed={manager.enabled}
+              disabled={!odeiryControl.canManage||managerBusy}
+              title={!odeiryControl.canManage?'تحتاج صلاحية إدارة إعدادات المنصة':undefined}
+              onClick={()=>setOdeiryConfirmation({tenant,enabled:!manager.enabled})}
+            >{managerBusy?'جارٍ الحفظ…':manager.enabled?'مفعّل':'متوقف'}</button>
+            <small>{manager.effectiveEnabled?'متاح داخل المنشأة':manager.enabled?'بانتظار البوابة العامة':'لا يظهر للمديرين'}</small></td>
+            <td><div className="mt-tenant-row-actions">
+              <Link prefetch={false} className="mt-button soft" href={`/tenant/${tenant.slug}`}>فتح</Link>
+              <button type="button" className="mt-button danger-outline" disabled={busy} onClick={()=>setDeletionTenant({id:tenant.id,name:tenant.name,slug:tenant.slug})}>حذف نهائي</button>
+            </div></td>
+          </tr>;
+        })}</tbody>
       </table>{!shown.length&&<div className="mt-empty">لا توجد منشآت مطابقة.</div>}</div>
     </section>
+
+    {odeiryConfirmation&&<div className="mt-modal-layer">
+      <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={()=>!odeiryBusySlug&&setOdeiryConfirmation(null)}/>
+      <section className="mt-modal" role="dialog" aria-modal="true" aria-labelledby="odeiry-confirmation-title">
+        <header><div><small>تأكيد تغيير الإتاحة</small><h3 id="odeiry-confirmation-title">{odeiryConfirmation.enabled?'تفعيل':'إيقاف'} أوديري المدير</h3></div><button type="button" disabled={Boolean(odeiryBusySlug)} onClick={()=>setOdeiryConfirmation(null)}>×</button></header>
+        <div className="mt-form">
+          <div className="mt-alert mt-field wide">
+            سيتم {odeiryConfirmation.enabled?'تفعيل':'إيقاف'} أوديري المدير لمنشأة <b>{odeiryConfirmation.tenant.name}</b> فقط. لن ينفذ أوديري أي تعديل على بيانات المنشأة.
+          </div>
+        </div>
+        <footer><button type="button" className="mt-button" disabled={Boolean(odeiryBusySlug)} onClick={()=>setOdeiryConfirmation(null)}>إلغاء</button><button type="button" className={`mt-button ${odeiryConfirmation.enabled?'primary':'danger-outline'}`} disabled={Boolean(odeiryBusySlug)} onClick={configureOdeiryManager}>{odeiryBusySlug?'جارٍ الحفظ…':'تأكيد'}</button></footer>
+      </section>
+    </div>}
 
     {modal&&<div className="mt-modal-layer">
       <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={()=>!busy&&setModal(false)}/>

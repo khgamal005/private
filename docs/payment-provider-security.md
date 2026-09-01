@@ -4,6 +4,9 @@ This document defines the production boundary for Tamara, Paymob, and PayPal
 payments in the ODEIR marketplace. It is an implementation contract, not a
 claim that any provider is currently live.
 
+The Arabic-first operational acceptance and go-live procedure for Paymob is in
+[`paymob-operations-runbook.md`](./paymob-operations-runbook.md).
+
 The existing `marktone_hmac` webhook may remain an internal service-to-service
 channel. It must not be used as a wrapper that converts Tamara, Paymob, or
 PayPal payloads into a generic "verified" payment.
@@ -113,7 +116,7 @@ verified, unapplied, and bound to the same provider/environment as the attempt.
 | Provider | Native verification | Required binding | Activating event | Never activates |
 |---|---|---|---|---|
 | Tamara | `tamaraToken` JWT, HS256 with the Vault Notification Token; retrieve authoritative state for financial transitions | environment, Tamara order ID, merchant reference, amount, currency | fully captured `order_captured` only | approved, authorised, partial capture, declined, expired, cancelled, unknown |
-| Paymob | callback-profile-specific HMAC SHA-512 using the documented ordered fields and Vault HMAC secret | environment, integration/owner, Paymob order and transaction IDs, amount, currency | successful, non-pending final standalone charge or final capture, according to the configured integration | pending, auth-only, failed, error, void, unknown |
+| Paymob | callback-profile-specific HMAC SHA-512 using the documented ordered fields and Vault HMAC secret | credential version, environment, integration/owner, Paymob order and transaction IDs, amount, currency | successful, non-pending standalone charge with no parent | pending, auth-only, capture-child, failed, error, void, refund, unknown |
 | PayPal | official verify-webhook-signature postback returning `SUCCESS`; hardened self-verification may replace it later | environment, webhook ID, payee merchant ID, PayPal order/capture IDs, amount, currency | `PAYMENT.CAPTURE.COMPLETED` only | order approved, capture pending/denied, unknown |
 
 ### Tamara adapter
@@ -148,6 +151,10 @@ verified, unapplied, and bound to the same provider/environment as the attempt.
 - Extract values using Paymob's exact string/boolean/null rules, hash with
   SHA-512, and use a timing-safe comparison.
 - Validate `integration_id` and merchant owner against the configured account.
+- Resolve a callback from its signed provider order/transaction binding. Treat
+  `special_reference` as an additional comparison only because it is not in the
+  published 20-field Transaction HMAC recipe; ambiguous creates are recovered
+  through authenticated transaction inquiry by `merchant_order_id`.
 - Treat auth-only, pending, voided, failed, and errored transactions as
   non-activating. Confirm ambiguous paid/refund state through Paymob's API.
 - Fields such as `source_data.pan` may be needed temporarily for HMAC but are
@@ -239,8 +246,13 @@ fresh UUID per delivery.
   non-reversible fingerprint/last-four indicator, updater, and rotation time.
 - Logs and audit context use centralized redaction for authorization headers,
   query tokens, signatures, raw payloads, PAN, and payer information.
-- Secret rotation writes a new version, verifies it, switches atomically, and
-  retires the old version according to the provider's supported overlap.
+- Paymob rotation versions the complete API/Secret/Public/HMAC bundle with its
+  merchant bindings. One previous version may remain `retiring` for seven days;
+  emergency revocation ends that overlap immediately. Attempts stay bound to
+  the version that created them.
+- Each Paymob credential version also owns a generated, Vault-only internal key
+  for billing-contact digests. It is never sent to Paymob or returned by an RPC,
+  and the external callback HMAC secret is not reused for pseudonymization.
 - Tenant roles cannot read or update platform payment configuration.
 
 ## Configured is not active
@@ -263,6 +275,10 @@ unconfigured
 binding, reconciliation, duplicate delivery test, and refund test. Tenant
 checkout lists only providers in `live` state for the applicable currency and
 country.
+
+The public Paymob callback must also sit behind a WAF and rate limit before
+live activation. Structural validation and HMAC verification do not by
+themselves prevent resource-exhaustion traffic against a public endpoint.
 
 The v3 foundation intentionally blocks every transition to `active` until a
 provider-native adapter ships with checkout, signed-webhook, merchant-binding,

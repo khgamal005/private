@@ -6,7 +6,7 @@ export const dynamic='force-dynamic';
 
 export default async function AddonsStorePage({params}){
   const {slug}=await params;
-  await requireTenantPermission(slug,'tenant.users.manage');
+  await requireTenantPermission(slug,'tenant.settings.manage');
   return <MarketplaceAddonStoreV2
     slug={slug}
     initialData={await getTenantMarketplaceV2(slug)}

@@ -33,22 +33,22 @@ export async function POST(request){
       return json({error:'بيانات الطلب غير صالحة'},{status:400});
     }
 
-    const response=await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/v2_tenant_marketplace_action`,
-      {
-        method:'POST',
-        redirect:'error',
-        headers:{
-          apikey:SUPABASE_KEY,
-          Authorization:`Bearer ${token}`,
-          'Content-Type':'application/json',
-          Accept:'application/json'
-        },
-        body:JSON.stringify(body),
-        cache:'no-store',
-        signal:AbortSignal.timeout(RPC_TIMEOUT_MS)
-      }
-    );
+    const rpc=body.p_action==='submit_bank_transfer'
+      ?'v2_tenant_marketplace_action'
+      :'v2_tenant_service_marketplace_action';
+    const response=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${rpc}`,{
+      method:'POST',
+      redirect:'error',
+      headers:{
+        apikey:SUPABASE_KEY,
+        Authorization:`Bearer ${token}`,
+        'Content-Type':'application/json',
+        Accept:'application/json'
+      },
+      body:JSON.stringify(body),
+      cache:'no-store',
+      signal:AbortSignal.timeout(RPC_TIMEOUT_MS)
+    });
     const upstream=await readTextLimited(response,MAX_UPSTREAM_BYTES);
     if(upstream.tooLarge){
       return json({error:'تعذر التحقق من نتيجة العملية'},{status:502});
@@ -141,7 +141,7 @@ function safeErrorCode(value){
   const code=String(value||'').trim();
   return /^[a-z][a-z0-9_]{0,119}$/.test(code)
     ?code
-    :'marketplace_action_unavailable';
+    :'service_marketplace_unavailable';
 }
 
 function safeUpstreamStatus(status){
@@ -150,13 +150,12 @@ function safeUpstreamStatus(status){
 
 function translate(value){
   const messages={
-    forbidden:'ليس لديك صلاحية لإدارة اشتراكات المنشأة',
+    forbidden:'ليس لديك صلاحية لتنفيذ العملية',
     tenant_not_found:'المنشأة غير موجودة',
-    marketplace_product_not_found:'الإضافة غير متاحة حاليًا',
-    marketplace_payment_provider_unavailable:'وسيلة الدفع غير متاحة حاليًا',
     marketplace_order_not_found:'طلب الشراء غير موجود',
-    marketplace_order_not_payable:'طلب الشراء لا يقبل الدفع الآن',
+    marketplace_order_not_payable:'هذا الطلب لا يقبل الدفع في حالته الحالية',
     marketplace_payment_provider_mismatch:'وسيلة الدفع لا تطابق الطلب',
+    marketplace_payment_provider_unavailable:'وسيلة الدفع غير متاحة حاليًا',
     paymob_tenant_rollout_required:'وسيلة الدفع غير مفعلة لهذه المنشأة حاليًا',
     paymob_tenant_not_enabled:'وسيلة الدفع غير مفعلة لهذه المنشأة حاليًا',
     paymob_rollout_not_enabled:'وسيلة الدفع غير مفعلة في بيئة التشغيل الحالية',
@@ -167,7 +166,14 @@ function translate(value){
     bank_transfer_reference_required:'أدخل مرجع التحويل البنكي',
     bank_transfer_sender_required:'أدخل اسم المحوّل',
     bank_transfer_date_invalid:'تاريخ التحويل غير صالح',
-    bank_transfer_already_approved:'تم اعتماد هذا التحويل بالفعل'
+    bank_transfer_already_approved:'تم اعتماد هذا التحويل بالفعل',
+    service_marketplace_action_invalid:'إجراء متجر الخدمات غير مدعوم',
+    service_package_invalid:'باقة الخدمة المختارة غير صالحة',
+    service_package_not_found:'باقة الخدمة لم تعد متاحة',
+    service_quote_required:'هذه الخدمة تحتاج طلب عرض سعر قبل الشراء',
+    service_brief_invalid:'تفاصيل طلب الخدمة غير صالحة أو أطول من المسموح',
+    service_review_invalid:'يمكن تقييم طلب خدمة مكتمل فقط وبدرجة من 1 إلى 5',
+    service_review_unavailable:'لا يمكن إضافة تقييم لهذا الطلب حاليًا'
   };
   return messages[value]||'تعذر تنفيذ العملية';
 }

@@ -24,6 +24,19 @@ const ASSIGNMENT_STATUS={
   completed:'مكتمل',
   cancelled:'ملغي'
 };
+const TRANSFER_STATUS={
+  pending:'بانتظار المراجعة',
+  reviewing:'قيد المراجعة',
+  approved:'تم الاعتماد',
+  rejected:'مرفوض',
+  cancelled:'ملغي'
+};
+const PAYMENT_PROVIDER_NAMES={
+  bank_transfer:'تحويل بنكي',
+  paymob:'دفع إلكتروني عبر Paymob',
+  tamara:'تمارا',
+  paypal:'PayPal'
+};
 const DELIVERY_MODES=[
   {value:'',label:'يُحدد لاحقًا'},
   {value:'online',label:'عن بُعد'},
@@ -51,6 +64,16 @@ function idempotencyKey(){
 }
 function itemProductKey(order){
   return order?.items?.[0]?.productKey||'';
+}
+function paymentProviderName(providerKey,paymentMethods){
+  return paymentMethods.find(item=>item.key===providerKey)?.name
+    ||PAYMENT_PROVIDER_NAMES[providerKey]
+    ||'غير محددة';
+}
+function today(){
+  const now=new Date();
+  const offset=now.getTimezoneOffset();
+  return new Date(now.getTime()-offset*60000).toISOString().slice(0,10);
 }
 function isServiceOrder(order){
   const kind=order?.kind||order?.orderKind;
@@ -86,6 +109,15 @@ export default function MarketplaceStore({slug,initialData}){
   const [paymentProvider,setPaymentProvider]=useState(
     paymentMethods[0]?.key||'bank_transfer'
   );
+  const [transferOrder,setTransferOrder]=useState(null);
+  const [senderName,setSenderName]=useState('');
+  const [transferReference,setTransferReference]=useState('');
+  const [transferDate,setTransferDate]=useState(today());
+  const [paymobOrder,setPaymobOrder]=useState(null);
+  const [billingFirstName,setBillingFirstName]=useState('');
+  const [billingLastName,setBillingLastName]=useState('');
+  const [billingEmail,setBillingEmail]=useState('');
+  const [billingPhone,setBillingPhone]=useState('');
   const [busy,setBusy]=useState('');
   const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
@@ -93,6 +125,11 @@ export default function MarketplaceStore({slug,initialData}){
   const orders=useMemo(()=>
     (data.orders||EMPTY).filter(isServiceOrder),
   [data.orders]);
+  const transfers=data.bankTransferSubmissions||EMPTY;
+  const transferByOrder=useMemo(
+    ()=>new Map(transfers.map(item=>[item.orderId,item])),
+    [transfers]
+  );
   const canPurchase=Boolean(data.viewer?.canPurchase);
 
   const filteredServices=useMemo(()=>{
@@ -114,9 +151,14 @@ export default function MarketplaceStore({slug,initialData}){
   },[services,category,query]);
 
   function openCheckout(item){
-    if(item.pricingMode==='quote')return;
+    if(item.pricingMode==='quote'
+       ||(item.pricingMode==='from'&&!(item.packages||EMPTY).length))return;
     const selected=preferredPackage(item);
-    setCheckout({item,requestKey:idempotencyKey()});
+    setCheckout({
+      item,
+      requestKey:idempotencyKey(),
+      paymentRequestKey:idempotencyKey()
+    });
     setPackageId(selected?.id||'');
     setQuantity(1);
     setPreferredStartDate('');
@@ -127,16 +169,62 @@ export default function MarketplaceStore({slug,initialData}){
     setRequirements('');
     setNotes('');
     setPaymentProvider(paymentMethods[0]?.key||'bank_transfer');
+    resetBillingContact();
     setNotice('');
     setError('');
   }
 
+  function resetBillingContact(){
+    setBillingFirstName('');setBillingLastName('');
+    setBillingEmail('');setBillingPhone('');
+  }
+
+  function billingContact(){
+    return {
+      firstName:billingFirstName.trim(),
+      lastName:billingLastName.trim(),
+      email:billingEmail.trim(),
+      phoneNumber:billingPhone.trim()
+    };
+  }
+
+  async function redirectToPaymob(order,paymentRequestKey){
+    const response=await fetch('/api/payments/paymob/checkout',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        slug,
+        orderId:order.id,
+        idempotencyKey:paymentRequestKey,
+        billingContact:billingContact()
+      })
+    });
+    const result=await response.json().catch(()=>({}));
+    if(response.status===202&&result.attemptId){
+      const returnUrl='/tenant/'+encodeURIComponent(slug)
+        +'/payments/paymob/return?attempt='
+        +encodeURIComponent(result.attemptId);
+      router.push(returnUrl);
+      return true;
+    }
+    if(!response.ok){
+      throw new Error(result.error||'تعذر فتح صفحة الدفع الآمنة');
+    }
+    const checkoutUrl=String(result.checkoutUrl||'');
+    if(!checkoutUrl)throw new Error('لم تُرجع بوابة الدفع رابطًا صالحًا');
+    window.location.assign(checkoutUrl);
+    return true;
+  }
+
   async function createOrder(event){
     event.preventDefault();
-    if(!checkout||busy||checkout.item.pricingMode==='quote')return;
+    if(!checkout||busy||checkout.item.pricingMode==='quote'
+       ||(checkout.item.pricingMode==='from'&&!packageId))return;
     setBusy('checkout');
     setError('');
     setNotice('');
+    let order=null;
+    let navigating=false;
     try{
       const response=await fetch('/api/tenant/service-marketplace',{
         method:'POST',
@@ -164,23 +252,104 @@ export default function MarketplaceStore({slug,initialData}){
       });
       const result=await response.json();
       if(!response.ok)throw new Error(result.error||'تعذر إنشاء طلب الخدمة');
-      const order=result.data||{};
+      order=result.data||{};
       setCheckout(null);
-      setNotice(
-        (order.duplicate?'تم استرجاع طلب الخدمة القائم ':'تم إنشاء طلب الخدمة ')
-        +(order.orderNumber||'')
-        +'. بعد تأكيد الدفع يبدأ مسار الإسناد والتنفيذ ويمكنك متابعة الحالة من هنا.'
-      );
+      if(order.paymentProvider==='bank_transfer'){
+        setTransferOrder(order);
+        setSenderName('');setTransferReference('');setTransferDate(today());
+        setNotice('تم إنشاء طلب الخدمة '+(order.orderNumber||'')+'. أدخل بيانات التحويل لإرساله إلى المراجعة.');
+        router.refresh();
+      }else if(order.paymentProvider==='paymob'){
+        navigating=await redirectToPaymob(order,checkout.paymentRequestKey);
+      }else{
+        setNotice(
+          (order.duplicate?'تم استرجاع طلب الخدمة القائم ':'تم إنشاء طلب الخدمة ')
+          +(order.orderNumber||'')
+          +'. بعد تأكيد الدفع يبدأ مسار الإسناد والتنفيذ ويمكنك متابعة الحالة من هنا.'
+        );
+        router.refresh();
+      }
+    }catch(err){
+      if(order?.id){
+        setCheckout(null);
+        setError('تم حفظ طلب الخدمة، لكن '+(err instanceof Error?err.message:'تعذر فتح صفحة الدفع')+'. يمكنك استكمال الدفع من سجل طلبات الخدمات.');
+        router.refresh();
+      }else{
+        setError(err instanceof Error?err.message:'تعذر إنشاء طلب الخدمة');
+      }
+    }finally{
+      if(!navigating)setBusy('');
+    }
+  }
+
+  function openTransfer(order){
+    setTransferOrder(order);setSenderName('');setTransferReference('');
+    setTransferDate(today());setError('');setNotice('');
+  }
+
+  async function submitTransfer(event){
+    event.preventDefault();
+    if(!transferOrder||busy)return;
+    setBusy('transfer');setError('');setNotice('');
+    try{
+      const response=await fetch('/api/tenant/service-marketplace',{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({
+          p_slug:slug,
+          p_action:'submit_bank_transfer',
+          p_payload:{
+            orderId:transferOrder.id,
+            senderName,
+            transferReference,
+            transferDate
+          }
+        })
+      });
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error||'تعذر إرسال بيانات التحويل');
+      setTransferOrder(null);
+      setNotice('تم إرسال بيانات التحويل للمراجعة. لن يبدأ تنفيذ الخدمة قبل اعتماد الدفع من إدارة المنصة.');
       router.refresh();
     }catch(err){
-      setError(err instanceof Error?err.message:'تعذر إنشاء طلب الخدمة');
+      setError(err instanceof Error?err.message:'تعذر إرسال بيانات التحويل');
     }finally{
       setBusy('');
     }
   }
 
-  async function cancelOrder(orderId){
+  function openPaymob(order){
+    setPaymobOrder({order,paymentRequestKey:idempotencyKey()});
+    resetBillingContact();setError('');setNotice('');
+  }
+
+  async function continuePaymob(event){
+    event.preventDefault();
+    if(!paymobOrder||busy)return;
+    setBusy('paymob-'+paymobOrder.order.id);setError('');setNotice('');
+    let navigating=false;
+    try{
+      navigating=await redirectToPaymob(
+        paymobOrder.order,
+        paymobOrder.paymentRequestKey
+      );
+    }catch(err){
+      setPaymobOrder(null);
+      setError(err instanceof Error?err.message:'تعذر فتح صفحة الدفع الآمنة');
+      router.refresh();
+    }finally{
+      if(!navigating)setBusy('');
+    }
+  }
+
+  async function cancelOrder(order){
     if(busy)return;
+    if(order?.paymentProvider==='paymob'){
+      setError('لا يمكن إلغاء طلب Paymob قبل حسم حالة العملية. استكمل نفس الدفع أو تابع المطابقة، وتواصل مع الدعم برقم الطلب إذا استمر التعليق.');
+      return;
+    }
+    const orderId=order?.id;
+    if(!orderId)return;
     setBusy('cancel-'+orderId);
     setError('');
     setNotice('');
@@ -215,6 +384,8 @@ export default function MarketplaceStore({slug,initialData}){
   const checkoutCurrency=selectedPackage?.currency||checkout?.item.currency||'SAR';
   const checkoutSubtotal=checkoutUnitAmount*(Number(quantity)||1);
   const checkoutTax=Math.round(checkoutSubtotal*.15);
+  const selectedMethod=paymentMethods.find(item=>item.key===paymentProvider);
+  const bankConfig=paymentMethods.find(item=>item.key==='bank_transfer')?.publicConfig||{};
   const openOrders=orders.filter(order=>['pending_payment','paid','in_progress'].includes(order.status)).length;
 
   return <section className={styles.store}>
@@ -271,7 +442,9 @@ export default function MarketplaceStore({slug,initialData}){
     <section className={styles.orders}>
       <header><div><small>سجل منشأتك</small><h2>طلبات الخدمات الأخيرة</h2></div><span>{orders.length} طلب</span></header>
       <div className={styles.orderList}>
-        {orders.map(order=><article key={order.id}>
+        {orders.map(order=>{
+          const transfer=transferByOrder.get(order.id);
+          return <article key={order.id}>
           <div className={styles.orderIdentity}>
             <b>{order.orderNumber}</b>
             <small>{order.items?.map(item=>item.name).join('، ')||'طلب خدمة'}</small>
@@ -283,14 +456,26 @@ export default function MarketplaceStore({slug,initialData}){
           </div>
           <span className={[styles.status,styles[order.status]||''].join(' ')}>{STATUS[order.status]||order.status}</span>
           <div><small>الإجمالي</small><b>{money(order.totalMinor,order.currency)}</b></div>
-          <div><small>{order.dueAt?'موعد التسليم':'التاريخ'}</small><b>{date(order.dueAt||order.createdAt)}</b></div>
-          {order.status==='pending_payment'&&<button
+          <div><small>طريقة الدفع</small><b>{paymentProviderName(order.paymentProvider,paymentMethods)}</b>{transfer&&<small>{TRANSFER_STATUS[transfer.status]||transfer.status}</small>}{order.status==='pending_payment'&&order.paymentProvider==='paymob'&&<small className={styles.paymobOrderGuard}>استكمل نفس العملية أو تابع المطابقة؛ لا تبدأ دفعة أخرى. تواصل مع الدعم برقم الطلب إذا استمر التعليق.</small>}<small>{date(order.dueAt||order.createdAt)}</small></div>
+          {order.status==='pending_payment'&&order.paymentProvider==='bank_transfer'&&(!transfer||transfer.status==='rejected')&&<button
+            type="button"
+            className={styles.payButton}
+            disabled={Boolean(busy)}
+            onClick={()=>openTransfer(order)}
+          >إرسال بيانات التحويل</button>}
+          {order.status==='pending_payment'&&order.paymentProvider==='paymob'&&<button
+            type="button"
+            className={styles.payButton}
+            disabled={Boolean(busy)}
+            onClick={()=>openPaymob(order)}
+          >{busy==='paymob-'+order.id?'جارٍ فتح الدفع…':'استكمال الدفع'}</button>}
+          {order.status==='pending_payment'&&order.paymentProvider!=='paymob'&&<button
             type="button"
             className={styles.cancel}
             disabled={Boolean(busy)}
-            onClick={()=>cancelOrder(order.id)}
+            onClick={()=>cancelOrder(order)}
           >{busy==='cancel-'+order.id?'جارٍ الإلغاء…':'إلغاء'}</button>}
-        </article>)}
+        </article>})}
         {!orders.length&&<div className={styles.emptyOrders}>لم تُنشئ منشأتك طلبات خدمات حتى الآن.</div>}
       </div>
     </section>
@@ -314,7 +499,7 @@ export default function MarketplaceStore({slug,initialData}){
             <span><b>{pkg.name}</b>{pkg.recommended&&<em>موصى بها</em>}<small>{pkg.description}</small></span>
             <strong>{money(pkg.amountMinor,pkg.currency)}</strong>
           </label>)}
-          {checkout.item.pricingMode!=='quote'&&<label className={!packageId?styles.packageOptionSelected:styles.packageOption}>
+          {checkout.item.pricingMode==='fixed'&&<label className={!packageId?styles.packageOptionSelected:styles.packageOption}>
             <input type="radio" name="servicePackage" value="" checked={!packageId} onChange={()=>setPackageId('')}/>
             <span><b>الخدمة الأساسية</b><small>{checkout.item.unitLabel||'حسب وصف الخدمة'}</small></span>
             <strong>{money(checkout.item.amountMinor,checkout.item.currency)}</strong>
@@ -368,6 +553,19 @@ export default function MarketplaceStore({slug,initialData}){
           </label>
         </div>
 
+        {selectedMethod?.publicConfig?.instructionsAr&&<div className={styles.activationNote}><span>↔</span><p>{selectedMethod.publicConfig.instructionsAr}</p></div>}
+        {selectedMethod?.key==='bank_transfer'&&(selectedMethod.publicConfig?.bankName||selectedMethod.publicConfig?.iban)&&<div className={styles.info}>
+          {selectedMethod.publicConfig.bankName&&<div><b>البنك:</b> {selectedMethod.publicConfig.bankName}</div>}
+          {selectedMethod.publicConfig.accountName&&<div><b>اسم الحساب:</b> {selectedMethod.publicConfig.accountName}</div>}
+          {selectedMethod.publicConfig.iban&&<div><b>IBAN:</b> <span dir="ltr">{selectedMethod.publicConfig.iban}</span></div>}
+        </div>}
+        {selectedMethod?.key==='paymob'&&<PaymobBillingFields
+          firstName={billingFirstName} lastName={billingLastName}
+          email={billingEmail} phone={billingPhone}
+          onFirstName={setBillingFirstName} onLastName={setBillingLastName}
+          onEmail={setBillingEmail} onPhone={setBillingPhone}
+        />}
+
         <dl>
           <div><dt>السعر</dt><dd>{money(checkoutSubtotal,checkoutCurrency)}</dd></div>
           <div><dt>ضريبة القيمة المضافة 15%</dt><dd>{money(checkoutTax,checkoutCurrency)}</dd></div>
@@ -380,12 +578,60 @@ export default function MarketplaceStore({slug,initialData}){
         <footer>
           <button type="button" onClick={()=>setCheckout(null)}>رجوع</button>
           <button type="submit" className={styles.primary} disabled={busy==='checkout'||!paymentMethods.length}>
-            {busy==='checkout'?'جارٍ إنشاء الطلب…':'تأكيد طلب الخدمة'}
+            {busy==='checkout'?'جارٍ إنشاء الطلب…':selectedMethod?.key==='paymob'?'المتابعة إلى الدفع الآمن':'تأكيد طلب الخدمة'}
           </button>
         </footer>
       </form>
     </div>}
+
+    {transferOrder&&<div className={styles.modalLayer}>
+      <button className={styles.backdrop} type="button" aria-label="إغلاق" onClick={()=>setTransferOrder(null)}/>
+      <form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="service-transfer-title" onSubmit={submitTransfer}>
+        <header><div><small>إثبات التحويل البنكي للخدمة</small><h2 id="service-transfer-title">{transferOrder.orderNumber||'طلب الخدمة'}</h2></div><button type="button" onClick={()=>setTransferOrder(null)} aria-label="إغلاق">×</button></header>
+        <p>{bankConfig.instructionsAr||'حوّل المبلغ إلى الحساب الموضح، ثم أدخل بيانات العملية ليتم فحصها واعتمادها.'}</p>
+        {(bankConfig.bankName||bankConfig.iban)&&<div className={styles.info}>
+          {bankConfig.bankName&&<div><b>البنك:</b> {bankConfig.bankName}</div>}
+          {bankConfig.accountName&&<div><b>اسم الحساب:</b> {bankConfig.accountName}</div>}
+          {bankConfig.iban&&<div><b>IBAN:</b> <span dir="ltr">{bankConfig.iban}</span></div>}
+        </div>}
+        <label><span>اسم المحوّل</span><input value={senderName} onChange={event=>setSenderName(event.target.value)} minLength="2" maxLength="160" required/></label>
+        <label><span>مرجع / رقم عملية التحويل</span><input dir="ltr" value={transferReference} onChange={event=>setTransferReference(event.target.value)} minLength="3" maxLength="160" required/></label>
+        <label><span>تاريخ التحويل</span><input type="date" value={transferDate} onChange={event=>setTransferDate(event.target.value)} required/></label>
+        <div className={styles.activationNote}><span>!</span><p>إرسال البيانات لا يعني قبول الدفع. لن يبدأ إسناد الخدمة أو تنفيذها حتى تعتمد إدارة المنصة التحويل.</p></div>
+        <footer><button type="button" onClick={()=>setTransferOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={busy==='transfer'}>{busy==='transfer'?'جارٍ الإرسال…':'إرسال للمراجعة'}</button></footer>
+      </form>
+    </div>}
+
+    {paymobOrder&&<div className={styles.modalLayer}>
+      <button className={styles.backdrop} type="button" aria-label="إغلاق" onClick={()=>setPaymobOrder(null)}/>
+      <form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="service-paymob-title" onSubmit={continuePaymob}>
+        <header><div><small>دفع خدمة عبر Paymob</small><h2 id="service-paymob-title">{paymobOrder.order.orderNumber||'طلب الخدمة'}</h2></div><button type="button" onClick={()=>setPaymobOrder(null)} aria-label="إغلاق">×</button></header>
+        <p>أدخل بيانات الفاتورة، ثم سننقلك إلى صفحة Paymob المشفّرة. لا يبدأ تنفيذ الخدمة إلا بعد وصول تأكيد الدفع الموثق إلى أودير.</p>
+        <PaymobBillingFields
+          firstName={billingFirstName} lastName={billingLastName}
+          email={billingEmail} phone={billingPhone}
+          onFirstName={setBillingFirstName} onLastName={setBillingLastName}
+          onEmail={setBillingEmail} onPhone={setBillingPhone}
+        />
+        <footer><button type="button" onClick={()=>setPaymobOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={Boolean(busy)}>{busy==='paymob-'+paymobOrder.order.id?'جارٍ فتح الدفع…':'المتابعة إلى Paymob'}</button></footer>
+      </form>
+    </div>}
   </section>;
+}
+
+function PaymobBillingFields({
+  firstName,lastName,email,phone,
+  onFirstName,onLastName,onEmail,onPhone
+}){
+  return <fieldset className={styles.paymobFields}>
+    <legend>بيانات الفاتورة والدفع</legend>
+    <label><span>الاسم الأول</span><input autoComplete="given-name" value={firstName} onChange={event=>onFirstName(event.target.value)} minLength="2" maxLength="100" required/></label>
+    <label><span>اسم العائلة</span><input autoComplete="family-name" value={lastName} onChange={event=>onLastName(event.target.value)} minLength="2" maxLength="100" required/></label>
+    <label><span>البريد الإلكتروني</span><input type="email" inputMode="email" autoComplete="email" dir="ltr" value={email} onChange={event=>onEmail(event.target.value)} maxLength="254" required/></label>
+    <label><span>رقم الجوال السعودي</span><input type="tel" inputMode="tel" autoComplete="tel" dir="ltr" value={phone} onChange={event=>onPhone(event.target.value)} pattern="(?:[+]9665[0-9]{8}|05[0-9]{8})" title="اكتب الرقم بصيغة 05XXXXXXXX أو +9665XXXXXXXX" placeholder="+9665XXXXXXXX" required/></label>
+    <label className={styles.paymentConsent}><input type="checkbox" required/><span>أوافق على إرسال بيانات الفاتورة أعلاه إلى Paymob لإتمام الدفع.</span></label>
+    <p>لن يطلب أودير رقم البطاقة أو رمزها السري؛ تُدخل بيانات البطاقة داخل صفحة Paymob فقط.</p>
+  </fieldset>;
 }
 
 function ServiceCard({item,canPurchase,pending,onBuy}){
@@ -394,6 +640,7 @@ function ServiceCard({item,canPurchase,pending,onBuy}){
   const packages=item.packages||EMPTY;
   const featuredPackage=preferredPackage(item);
   const isQuote=item.pricingMode==='quote';
+  const needsQuote=isQuote||(item.pricingMode==='from'&&!featuredPackage);
   const displayedAmount=featuredPackage?.amountMinor??item.amountMinor;
   const displayedCurrency=featuredPackage?.currency||item.currency;
   return <article className={styles.card}>
@@ -446,11 +693,11 @@ function ServiceCard({item,canPurchase,pending,onBuy}){
         <strong>{isQuote?'حسب المتطلبات':money(displayedAmount,displayedCurrency)}</strong>
         {!isQuote&&<em>+ الضريبة</em>}
       </div>
-      <button type="button" disabled={!canPurchase||pending||isQuote} onClick={onBuy}>
-        {pending?'طلب دفع قائم':isQuote?'طلب عرض السعر قريبًا':'اختيار وطلب الخدمة'}
+      <button type="button" disabled={!canPurchase||pending||needsQuote} onClick={onBuy}>
+        {pending?'طلب دفع قائم':needsQuote?'طلب عرض سعر':item.pricingMode==='from'?'اختيار باقة وطلب الخدمة':'اختيار وطلب الخدمة'}
       </button>
     </footer>
-    {isQuote&&<p className={styles.quoteHint}>هذه الخدمة تحتاج عرض سعر مخصص. سيتم تفعيل مسار طلب العروض في المرحلة التالية، ولن يُنشأ منها طلب دفع حاليًا.</p>}
+    {needsQuote&&<p className={styles.quoteHint}>هذه الخدمة تحتاج عرض سعر أو باقة ثابتة أولًا؛ لن يُنشأ طلب دفع إلكتروني قبل تثبيت السعر والمخرجات.</p>}
   </article>;
 }
 

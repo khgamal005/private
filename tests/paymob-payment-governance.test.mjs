@@ -112,6 +112,22 @@ test('payment ledger migration is additive, atomic, tenant-isolated and RPC-only
   }
 });
 
+test('migration normalizes the legacy Paymob currency set before the SAR-only guard',()=>{
+  const resetStart=migration.indexOf(
+    'update marketplace.payment_provider_configs\nset required_secret_keys'
+  );
+  const guardStart=migration.indexOf(
+    'create or replace function private_app.v3_payment_provider_config_guard()'
+  );
+  assert.ok(resetStart!==-1&&guardStart>resetStart,'Expected the Paymob reset before the replacement guard');
+  const reset=migration.slice(resetStart,guardStart);
+  assert.match(
+    reset,
+    /supported_currencies\s*=\s*array\['SAR'\]::text\[\]/i,
+    'Production carries the legacy SAR/EGP seed and must be normalized before secret-ref triggers use the strict guard'
+  );
+});
+
 test('checkout preparation snapshots exact commercial truth and single-flights an order',()=>{
   const prepare=sqlFunction('public.v1_tenant_paymob_prepare_checkout');
   const attempts=sqlTable('marketplace.payment_attempts');

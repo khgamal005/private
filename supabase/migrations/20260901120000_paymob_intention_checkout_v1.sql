@@ -613,6 +613,7 @@ update marketplace.payment_provider_configs
 set required_secret_keys =
       array['secretKey','publicKey','hmacSecret','apiKey']::text[],
     optional_secret_keys = '{}'::text[],
+    supported_currencies = array['SAR']::text[],
     required_public_config_keys =
       array['merchantAccountId','integrationId','region']::text[],
     public_config = jsonb_strip_nulls(jsonb_build_object(

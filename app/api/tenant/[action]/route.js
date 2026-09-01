@@ -85,7 +85,7 @@ async function checkAddonAccess({action,body,token}){
 export async function POST(request,{params}){
   try{
     const {action}=await params;
-    const rpc=RPC[action];
+    let rpc=RPC[action];
     if(!rpc&&action!=='integration-test'){
       return NextResponse.json({error:'عملية غير مدعومة'},{status:404});
     }
@@ -96,6 +96,13 @@ export async function POST(request,{params}){
     }
 
     const body=await request.json();
+    // Service orders share the canonical payment ledger. Route bank-transfer
+    // evidence through the payment-aware V2 contract without exposing add-on
+    // catalog actions in the services storefront.
+    if(action==='service-marketplace'
+       &&body?.p_action==='submit_bank_transfer'){
+      rpc='v2_tenant_marketplace_action';
+    }
     const addonAccess=await checkAddonAccess({action,body,token});
     if(!addonAccess.ok){
       return NextResponse.json(
@@ -301,7 +308,15 @@ function translate(value){
     ,marketplace_order_invalid:'رقم الطلب غير صالح'
     ,marketplace_order_not_found:'طلب الشراء غير موجود'
     ,marketplace_order_not_cancellable:'لا يمكن إلغاء الطلب بعد تأكيد الدفع'
+    ,marketplace_order_not_payable:'هذا الطلب لا يقبل الدفع في حالته الحالية'
+    ,marketplace_payment_provider_mismatch:'وسيلة الدفع لا تطابق الطلب'
+    ,marketplace_payment_provider_unavailable:'وسيلة الدفع غير متاحة حاليًا'
+    ,paymob_order_cancel_requires_payment_resolution:'لا يمكن إلغاء طلب Paymob قبل حسم حالة عملية الدفع؛ تابع نفس العملية أو تواصل مع الدعم'
     ,marketplace_action_invalid:'إجراء المتجر غير مدعوم'
+    ,bank_transfer_reference_required:'أدخل مرجع التحويل البنكي'
+    ,bank_transfer_sender_required:'أدخل اسم المحوّل'
+    ,bank_transfer_date_invalid:'تاريخ التحويل غير صالح'
+    ,bank_transfer_already_approved:'تم اعتماد هذا التحويل بالفعل'
     ,service_marketplace_action_invalid:'إجراء متجر الخدمات غير مدعوم'
     ,service_package_invalid:'باقة الخدمة المختارة غير صالحة'
     ,service_package_not_found:'باقة الخدمة لم تعد متاحة'

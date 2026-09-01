@@ -5,6 +5,7 @@ import {useRouter} from 'next/navigation';
 import styles from './platform-addon-console.module.css';
 
 const EMPTY=[];
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TABS=[
   ['catalog','كتالوج الإضافات'],
   ['categories','أقسام الإضافات'],
@@ -17,8 +18,60 @@ const STATUS={
 };
 const PUBLIC_CONFIG_LABEL={
   merchantId:'معرّف التاجر',merchantAccountId:'معرّف حساب التاجر',
-  integrationId:'معرّف التكامل',webhookId:'معرّف Webhook'
+  integrationId:'معرّف التكامل',webhookId:'معرّف Webhook',
+  region:'منطقة تشغيل Paymob'
 };
+const SECRET_LABEL={
+  secretKey:'Secret Key (إنشاء Intention؛ لا يبدأ هذا الإصدار Refund/Void)',
+  publicKey:'Public Key (Unified Checkout)',
+  hmacSecret:'HMAC Secret (توثيق Webhook)',
+  apiKey:'API Key (إصدار رمز الاستعلام)'
+};
+const PAYMOB_REQUIRED_SECRET_KEYS=[
+  'secretKey','publicKey','hmacSecret','apiKey'
+];
+const PAYMOB_PUBLIC_CONFIG_KEYS=[
+  'merchantAccountId','integrationId','region'
+];
+const PAYMOB_OPERATIONAL_CHECKS=[
+  'refund_initiation','live_credentials','live_card_integration_callback',
+  'edge_query_redaction_waf','reconciler_schedule','outbox_delivery'
+];
+const PAYMOB_CHECK_LABEL={
+  credentials:'الاعتمادات',intention_create:'إنشاء Intention',
+  webhook_hmac:'توقيع Webhook',paid_transaction:'عملية ناجحة',
+  duplicate_delivery:'منع التكرار',failed_transaction:'عملية فاشلة',
+  transaction_inquiry:'المطابقة',refund_inquiry:'التحقق من الاسترداد',
+  refund_initiation:'بدء الاسترداد',
+  credential_rotation_callback:'Webhook بعد تدوير الاعتمادات',
+  edge_query_redaction_waf:'حجب Query من سجلات الحافة',
+  reconciler_schedule:'جدولة المطابقة',outbox_delivery:'تسليم Outbox',
+  live_credentials:'اعتمادات Live',
+  live_card_integration_callback:'عملية Card حية'
+};
+
+function unique(values){return [...new Set(values)]}
+
+function providerRequiredSecretKeys(provider){
+  return unique([
+    ...(provider.requiredSecretKeys||EMPTY),
+    ...(provider.key==='paymob'?PAYMOB_REQUIRED_SECRET_KEYS:EMPTY)
+  ]);
+}
+
+function providerSecretKeys(provider){
+  return unique([
+    ...providerRequiredSecretKeys(provider),
+    ...(provider.optionalSecretKeys||EMPTY)
+  ]);
+}
+
+function providerPublicConfigKeys(provider){
+  return unique([
+    ...(provider.requiredPublicConfigKeys||EMPTY),
+    ...(provider.key==='paymob'?PAYMOB_PUBLIC_CONFIG_KEYS:EMPTY)
+  ]);
+}
 function money(amountMinor,currency='SAR'){
   return new Intl.NumberFormat('ar-SA',{
     style:'currency',currency,maximumFractionDigits:0
@@ -58,6 +111,9 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
   const [busy,setBusy]=useState('');
   const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
+  const [paymobControl,setPaymobControl]=useState({
+    loading:section==='providers',data:null,error:''
+  });
   const closeModal=useCallback(()=>setModal(null),[setModal]);
   const products=data.products||EMPTY;
   const subscriptions=data.subscriptions||EMPTY;
@@ -65,6 +121,28 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
   const providers=data.paymentProviders||EMPTY;
   const tenants=data.tenants||EMPTY;
   const summary=data.summary||{};
+
+  const loadPaymobControl=useCallback(async()=>{
+    if(section!=='providers')return;
+    setPaymobControl(current=>({...current,loading:true,error:''}));
+    try{
+      const response=await fetch('/api/platform/paymob-control',{
+        method:'GET',cache:'no-store',headers:{accept:'application/json'}
+      });
+      const result=await response.json();
+      if(!response.ok||!result?.data){
+        throw new Error(result?.error||'تعذر تحميل حوكمة Paymob');
+      }
+      setPaymobControl({loading:false,data:result.data,error:''});
+    }catch(err){
+      setPaymobControl({
+        loading:false,data:null,
+        error:err instanceof Error?err.message:'تعذر تحميل حوكمة Paymob'
+      });
+    }
+  },[section]);
+
+  useEffect(()=>{void loadPaymobControl()},[loadPaymobControl]);
 
   const filtered=useMemo(()=>{
     const needle=query.trim().toLocaleLowerCase('ar');
@@ -180,28 +258,58 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
     const provider=modal.item;
     try{
       const secrets={};
-      for(const secretKey of [...(provider.requiredSecretKeys||EMPTY),...(provider.optionalSecretKeys||EMPTY)]){
+      for(const secretKey of providerSecretKeys(provider)){
         const secretValue=String(form.get(`secret_${secretKey}`)||'').trim();
         if(secretValue)secrets[secretKey]=secretValue;
       }
       const publicConfig={};
-      for(const configKey of provider.requiredPublicConfigKeys||EMPTY){
-        const configValue=String(form.get(`public_${configKey}`)||'').trim();
+      for(const configKey of providerPublicConfigKeys(provider)){
+        const configValue=configKey==='region'&&provider.key==='paymob'
+          ?'ksa'
+          :String(form.get(`public_${configKey}`)||'').trim();
         if(configValue)publicConfig[configKey]=configValue;
       }
+      const paymob=provider.key==='paymob';
       const response=await fetch('/api/platform/payment-provider-secret',{
         method:'POST',headers:{'content-type':'application/json'},
         body:JSON.stringify({
           providerKey:provider.key,environment:form.get('environment'),
-          checkoutMode:form.get('checkout_mode'),
-          supportedCurrencies:String(form.get('currencies')||'').split(',').map(value=>value.trim().toUpperCase()).filter(Boolean),
+          checkoutMode:paymob?'redirect':form.get('checkout_mode'),
+          supportedCurrencies:paymob?['SAR']:String(form.get('currencies')||'').split(',').map(value=>value.trim().toUpperCase()).filter(Boolean),
           enabled:form.get('enabled')==='on',publicConfig,secrets
         })
       });
       const result=await response.json();
       if(!response.ok)throw new Error(result.error||'تعذر حفظ الاتصال');
-      setModal(null);setNotice('حُفظ الإعداد. سيظل المزود غير نشط حتى ينجح اختبار Adapter وWebhook فعلي.');router.refresh();
+      setModal(null);setNotice('حُفظ الإعداد. سيظل المزود غير نشط حتى ينجح اختبار Adapter وWebhook فعلي.');
+      await loadPaymobControl();router.refresh();
     }catch(err){setError(err.message)}finally{setBusy('')}
+  }
+
+  async function runPaymobControl(event){
+    event.preventDefault();
+    if(modal?.type!=='paymob-control')return;
+    const typed=String(new FormData(event.currentTarget)
+      .get('confirmation')||'');
+    if(typed!==modal.expected){
+      setError('اكتب نص التأكيد كما هو قبل تنفيذ الإجراء.');
+      return;
+    }
+    setBusy('paymob-control');setError('');setNotice('');
+    try{
+      const response=await fetch('/api/platform/paymob-control',{
+        method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({...modal.request,confirmation:typed})
+      });
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error||'تعذر تنفيذ إجراء Paymob');
+      setModal(null);
+      setNotice(modal.successMessage);
+      await loadPaymobControl();
+      router.refresh();
+    }catch(err){
+      setError(err instanceof Error?err.message:'تعذر تنفيذ إجراء Paymob');
+    }finally{setBusy('')}
   }
 
   async function commerceAction(action,payload){
@@ -270,7 +378,12 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
       {tab==='catalog'&&<Catalog rows={filtered} onEdit={item=>setModal({type:'product',item})} onPrice={item=>setModal({type:'price',item})} onCategory={item=>setModal({type:'assign-category',item})}/>} 
       {tab==='categories'&&<Categories rows={filtered} onEdit={item=>setModal({type:'category',item})}/>} 
       {tab==='licenses'&&<Licenses rows={filtered} busy={busy} onDecision={decide} onStatus={setLicenseStatus}/>} 
-      {tab==='providers'&&<Providers rows={filtered} onConfigure={item=>setModal({type:'provider',item})}/>} 
+      {tab==='providers'&&<><PaymobGovernance
+        control={paymobControl}
+        tenants={tenants}
+        onRefresh={loadPaymobControl}
+        onAction={action=>setModal({type:'paymob-control',...action})}
+      /><Providers rows={filtered} onConfigure={item=>setModal({type:'provider',item})}/></>} 
     </section>
 
     {modal?.type==='price'&&<PriceModal item={modal.item} busy={busy} onClose={closeModal} onSubmit={savePrice}/>} 
@@ -279,6 +392,10 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
     {modal?.type==='category'&&<CategoryModal item={modal.item} busy={busy} onClose={closeModal} onSubmit={saveCategory}/>} 
     {modal?.type==='assign-category'&&<AssignCategoryModal item={modal.item} categories={categories} busy={busy} onClose={closeModal} onSubmit={assignCategory}/>} 
     {modal?.type==='provider'&&<ProviderModal item={modal.item} busy={busy} onClose={closeModal} onSubmit={saveProvider}/>} 
+    {modal?.type==='paymob-control'&&<PaymobControlModal
+      action={modal} busy={busy} onClose={closeModal}
+      onSubmit={runPaymobControl}
+    />}
   </section>;
 }
 
@@ -336,13 +453,295 @@ function Licenses({rows,busy,onDecision,onStatus}){
   </div>;
 }
 
+function PaymobGovernance({control,tenants,onRefresh,onAction}){
+  const snapshot=control.data;
+  const availableTenants=useMemo(()=>{
+    const byId=new Map();
+    for(const tenant of [...(tenants||EMPTY),...(snapshot?.tenantRollouts||EMPTY)]){
+      const tenantId=String(tenant.id||tenant.tenantId||'');
+      const tenantSlug=String(tenant.slug||tenant.tenantSlug||'')
+        .trim().toLowerCase();
+      const tenantKey=String(tenant.tenantKey||'').trim().toLowerCase();
+      if(!UUID.test(tenantId)||tenantSlug==='reef-skills'
+         ||tenantKey==='tenant-reef-skills')continue;
+      byId.set(tenantId,{
+        id:tenantId,
+        name:String(tenant.name||tenant.tenantName||tenantSlug||'منشأة'),
+        slug:tenantSlug
+      });
+    }
+    return [...byId.values()].sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+  },[snapshot?.tenantRollouts,tenants]);
+  const [tenantId,setTenantId]=useState('');
+  const [environment,setEnvironment]=useState('sandbox');
+  const [evidenceCheck,setEvidenceCheck]=useState(PAYMOB_OPERATIONAL_CHECKS[0]);
+  const [artifactSha256,setArtifactSha256]=useState('');
+  useEffect(()=>{
+    if(!availableTenants.some(tenant=>tenant.id===tenantId)){
+      setTenantId(availableTenants[0]?.id||'');
+    }
+  },[availableTenants,tenantId]);
+
+  if(control.loading&&!snapshot){
+    return <section className={styles.governance} aria-busy="true">
+      <p>جارٍ تحميل بوابة حوكمة Paymob…</p>
+    </section>;
+  }
+  if(control.error||!snapshot){
+    return <section className={`${styles.governance} ${styles.governanceError}`}>
+      <div><h2>حوكمة تشغيل Paymob</h2><p>{control.error||'بيانات الجاهزية غير متاحة.'}</p></div>
+      <button type="button" onClick={()=>void onRefresh()}>إعادة المحاولة</button>
+    </section>;
+  }
+
+  const missing=(snapshot.missingChecks||EMPTY)
+    .map(check=>PAYMOB_CHECK_LABEL[check]||check);
+  const pendingMode=snapshot.pendingActivationMode;
+  const tenantRollout=(snapshot.tenantRollouts||EMPTY).find(item=>(
+    item.tenantId===tenantId&&item.environment===environment
+  ));
+  const globalReady=snapshot.rolloutMode===environment&&(
+    environment==='sandbox'
+      ?snapshot.status==='configured'
+      :snapshot.status==='active'&&snapshot.active===true
+  );
+  const evidenceRequests=snapshot.operationalEvidenceRequests||EMPTY;
+  const selectedEvidenceRequest=evidenceRequests.find(item=>(
+    item.checkKey===evidenceCheck&&item.pendingApproval
+  ));
+
+  function openGlobal(action,targetMode){
+    const verb=action==='global_request'?'REQUEST':'APPROVE';
+    const expected=`${verb} PAYMOB ${targetMode.toUpperCase()}`;
+    onAction({
+      title:action==='global_request'
+        ?`طلب فتح ${targetMode==='live'?'Live':'Sandbox'}`
+        :`مراجعة فتح ${targetMode==='live'?'Live':'Sandbox'}`,
+      expected,
+      request:{action,targetMode},
+      successMessage:action==='global_request'
+        ?'سُجل الطلب. يلزم اعتماد مشغّل آخر خلال 24 ساعة.'
+        :'تم اعتماد بوابة البيئة بعد تحقق قاعدة البيانات من الأدلة.'
+    });
+  }
+  function disableGlobal(){
+    onAction({
+      title:'إيقاف بوابة Paymob العامة',
+      expected:'DISABLE PAYMOB CHECKOUT',
+      request:{action:'global_disable'},
+      successMessage:'أوقفت بوابة Paymob العامة ومُسح أي طلب اعتماد معلّق.'
+    });
+  }
+  function openTenant(action){
+    const tenant=availableTenants.find(item=>item.id===tenantId);
+    if(!tenant)return;
+    const verb=action==='tenant_request'
+      ?'REQUEST':action==='tenant_approve'?'APPROVE':'DISABLE';
+    const expected=action==='tenant_disable'
+      ?`DISABLE PAYMOB TENANT ${tenant.id}`
+      :`${verb} PAYMOB TENANT ${tenant.id} ${environment.toUpperCase()}`;
+    onAction({
+      title:action==='tenant_request'
+        ?`طلب Canary للمنشأة ${tenant.name}`
+        :action==='tenant_approve'
+          ?`اعتماد Canary للمنشأة ${tenant.name}`
+          :`إيقاف Paymob للمنشأة ${tenant.name}`,
+      expected,
+      request:{action,tenantId:tenant.id,environment},
+      successMessage:action==='tenant_request'
+        ?'سُجل طلب المنشأة. يلزم اعتماد مشغّل آخر خلال 24 ساعة.'
+        :action==='tenant_approve'
+          ?'تم اعتماد إتاحة Paymob للمنشأة المحددة فقط.'
+          :'أوقفت إتاحة المنشأة ومُسح طلب الاعتماد المعلّق.'
+    });
+  }
+  function openEvidence(action){
+    const pending=selectedEvidenceRequest;
+    const digest=action==='evidence_approve'
+      ?pending?.artifactSha256
+      :artifactSha256.trim().toLowerCase();
+    if(!digest||!/^[a-f0-9]{64}$/.test(digest))return;
+    const expected=action==='evidence_request'
+      ?`REQUEST PAYMOB EVIDENCE ${evidenceCheck}`
+      :`APPROVE PAYMOB EVIDENCE ${pending?.requestId||''}`;
+    onAction({
+      title:action==='evidence_request'
+        ?`طلب اعتماد دليل: ${PAYMOB_CHECK_LABEL[evidenceCheck]}`
+        :`مراجعة دليل: ${PAYMOB_CHECK_LABEL[evidenceCheck]}`,
+      expected,
+      request:{
+        action,checkKey:evidenceCheck,artifactSha256:digest,
+        ...(action==='evidence_approve'?{requestId:pending.requestId}:{})
+      },
+      successMessage:action==='evidence_request'
+        ?'سُجلت بصمة الدليل فقط. يلزم اعتماد مشغّل آخر خلال 24 ساعة.'
+        :'اعتمد الدليل التشغيلي ببصمته بعد مراجعة منفّذ مختلف.'
+    });
+  }
+
+  return <section className={styles.governance}>
+    <header>
+      <div><small>MAKER–CHECKER CONTROL</small><h2>حوكمة تشغيل Paymob</h2>
+        <p>الجاهزية أدلة خادمية للقراءة فقط. لا يمكن تأكيدها يدويًا من هذه الشاشة.</p>
+      </div>
+      <button type="button" onClick={()=>void onRefresh()}>تحديث الجاهزية</button>
+    </header>
+    <div className={styles.governanceGrid}>
+      <article>
+        <h3>البوابة العامة</h3>
+        <dl>
+          <div><dt>الحالة</dt><dd>{STATUS[snapshot.status]||snapshot.status}</dd></div>
+          <div><dt>نطاق الإتاحة</dt><dd>{snapshot.rolloutMode}</dd></div>
+          <div><dt>Sandbox</dt><dd>{snapshot.sandboxReady?'جاهز':'محجوب'}</dd></div>
+          <div><dt>Live</dt><dd>{snapshot.liveReady&&!snapshot.liveGateBlocked?'جاهز':'محجوب'}</dd></div>
+          <div><dt>طلب معلّق</dt><dd>{snapshot.pendingActivation
+            ?pendingMode?.toUpperCase()||'موجود — حدّث بيانات العقد'
+            :'لا يوجد'}</dd></div>
+        </dl>
+        {missing.length>0&&<aside className={styles.governanceWarning}>
+          <b>أدلة ناقصة</b><span>{missing.join('، ')}</span>
+        </aside>}
+        <div className={styles.governanceActions}>
+          {!snapshot.pendingActivation&&<>
+            <button type="button" disabled={
+              snapshot.environment!=='sandbox'
+              ||snapshot.credentialsEnvironment!=='sandbox'
+              ||!snapshot.sandboxReady
+            }
+              onClick={()=>openGlobal('global_request','sandbox')}>طلب فتح Sandbox</button>
+            <button type="button" disabled={!snapshot.liveReady||snapshot.liveGateBlocked}
+              onClick={()=>openGlobal('global_request','live')}>طلب فتح Live</button>
+          </>}
+          {snapshot.pendingActivation&&pendingMode&&<button type="button"
+            className={styles.primary}
+            onClick={()=>openGlobal('global_approve',pendingMode)}>
+            اعتماد {pendingMode.toUpperCase()} كمراجع مختلف
+          </button>}
+          {(snapshot.pendingActivation||snapshot.rolloutMode!=='observe_only')&&
+            <button type="button" onClick={disableGlobal}>إيقاف ومسح الطلب</button>}
+        </div>
+        <small className={styles.governanceNote}>طلب Live ليس تفعيلًا مباشرًا؛ قاعدة البيانات تشترط مراجعًا مختلفًا خلال 24 ساعة واكتمال جميع الأدلة.</small>
+      </article>
+
+      <article>
+        <h3>Canary للمنشآت</h3>
+        <label>المنشأة<select value={tenantId}
+          onChange={event=>setTenantId(event.target.value)}>
+          {!availableTenants.length&&<option value="">لا توجد منشآت مؤهلة</option>}
+          {availableTenants.map(tenant=><option key={tenant.id} value={tenant.id}>
+            {tenant.name}{tenant.slug?` · ${tenant.slug}`:''}
+          </option>)}
+        </select></label>
+        <label>البيئة<select value={environment}
+          onChange={event=>setEnvironment(event.target.value)}>
+          <option value="sandbox">Sandbox</option><option value="live">Live</option>
+        </select></label>
+        <dl>
+          <div><dt>حالة المنشأة</dt><dd>{tenantRollout?.status||'غير مفعّلة'}</dd></div>
+          <div><dt>اعتماد معلّق</dt><dd>{tenantRollout?.pendingApproval?'نعم':'لا'}</dd></div>
+        </dl>
+        <div className={styles.governanceActions}>
+          {!tenantRollout?.pendingApproval&&tenantRollout?.status!=='enabled'&&
+            <button type="button" disabled={!tenantId||!globalReady}
+              onClick={()=>openTenant('tenant_request')}>طلب إتاحة المنشأة</button>}
+          {tenantRollout?.pendingApproval&&<button type="button"
+            className={styles.primary}
+            onClick={()=>openTenant('tenant_approve')}>اعتماد كمراجع مختلف</button>}
+          {(tenantRollout?.pendingApproval||tenantRollout?.status==='enabled')&&
+            <button type="button" onClick={()=>openTenant('tenant_disable')}>
+              إيقاف ومسح الطلب
+            </button>}
+        </div>
+        <small className={styles.governanceNote}>Reef Skills مستبعد خادميًا ومن قائمة Canary. الإتاحة تخص المنشأة والبيئة المحددتين فقط.</small>
+      </article>
+
+      <article>
+        <h3>أدلة التشغيل الخارجية</h3>
+        <p className={styles.governanceNote}>تُسجّل بصمة SHA-256 لتقرير خارجي محفوظ في نظام الأدلة؛ لا يُرفع التقرير أو أي بيانات عميل هنا.</p>
+        <ul className={styles.evidenceList}>
+          {PAYMOB_OPERATIONAL_CHECKS.map(check=>{
+            const approved=(snapshot.passedChecks||EMPTY).includes(check);
+            const pending=evidenceRequests.some(item=>(
+              item.checkKey===check&&item.pendingApproval
+            ));
+            return <li key={check}><span>{PAYMOB_CHECK_LABEL[check]}</span>
+              <b>{approved?'معتمد':pending?'بانتظار مراجع':'مطلوب'}</b></li>;
+          })}
+        </ul>
+        <label>نوع الدليل<select value={evidenceCheck}
+          onChange={event=>{setEvidenceCheck(event.target.value);setArtifactSha256('')}}>
+          {PAYMOB_OPERATIONAL_CHECKS.map(check=><option key={check} value={check}>
+            {PAYMOB_CHECK_LABEL[check]}
+          </option>)}
+        </select></label>
+        {!selectedEvidenceRequest&&<label>بصمة التقرير SHA-256
+          <input value={artifactSha256} dir="ltr" inputMode="text"
+            maxLength="64" autoComplete="off" spellCheck="false"
+            placeholder="64 lowercase hexadecimal characters"
+            onChange={event=>setArtifactSha256(event.target.value.trim().toLowerCase())}/>
+        </label>}
+        {selectedEvidenceRequest&&<aside className={styles.governanceWarning}>
+          <b>طلب معلّق حتى {formatDate(selectedEvidenceRequest.expiresAt)}</b>
+          <code dir="ltr">{selectedEvidenceRequest.artifactSha256}</code>
+        </aside>}
+        <div className={styles.governanceActions}>
+          {!selectedEvidenceRequest&&<button type="button"
+            disabled={snapshot.environment!=='live'||!/^[a-f0-9]{64}$/.test(artifactSha256)}
+            onClick={()=>openEvidence('evidence_request')}>طلب اعتماد البصمة</button>}
+          {selectedEvidenceRequest&&<button type="button" className={styles.primary}
+            onClick={()=>openEvidence('evidence_approve')}>اعتماد كمراجع مختلف</button>}
+        </div>
+        <small className={styles.governanceNote}>هذه الواجهة لا تكتب أدلة العمليات الآلية مثل Intention أو Webhook أو المطابقة؛ تلك تُستمد من السجل فقط.</small>
+      </article>
+    </div>
+  </section>;
+}
+
 function Providers({rows,onConfigure}){
   return <section className={styles.providers}>{rows.map(item=>{
-    const active=item.status==='active'&&item.verifiedAt;
-    const configured=new Set(item.configuredSecretKeys||EMPTY);
-    const missing=(item.requiredSecretKeys||EMPTY).filter(key=>!configured.has(key));
-    return <article key={item.key}><header><i>{item.name?.slice(0,2)}</i><Status value={active?'active':item.status}/></header><h2>{item.name}</h2><p>{active?'تم التحقق الفعلي ويمكن عرضه للمشتري.':item.status==='configured'?'الأسرار مكتملة، ويلزم اختبار Adapter وWebhook.':'لا يظهر للمشتري قبل اكتمال الإعداد والتحقق.'}</p><dl><div><dt>البيئة</dt><dd>{item.environment==='live'?'Live':'Sandbox'}</dd></div><div><dt>آخر تحقق</dt><dd>{formatDate(item.verifiedAt)}</dd></div><div><dt>الأسرار الناقصة</dt><dd>{missing.length?missing.join('، '):'لا يوجد'}</dd></div></dl><button type="button" onClick={()=>onConfigure(item)}>إدارة الاتصال</button></article>;
+    const paymob=item.key==='paymob';
+    const active=paymob
+      ?item.active===true&&item.liveReady===true
+        &&item.nativeAdapterDeployed===true
+        &&item.liveGateBlocked===false
+        &&item.status==='active'&&Boolean(item.verifiedAt)
+      :item.status==='active'&&Boolean(item.verifiedAt);
+    const configuredSecrets=new Set(item.configuredSecretKeys||EMPTY);
+    const missing=providerRequiredSecretKeys(item)
+      .filter(key=>!configuredSecrets.has(key));
+    const missingChecks=Array.isArray(item.missingChecks)
+      ?item.missingChecks.map(check=>PAYMOB_CHECK_LABEL[check]||check)
+      :EMPTY;
+    const displayStatus=active
+      ?'active'
+      :item.configured===true||item.status==='active'?'configured':item.status;
+    const description=active
+      ?'اجتازت بوابة الدفع أدلة التشغيل، وتظل الإتاحة محصورة في المنشآت المسموح لها.'
+      :paymob&&item.sandboxReady===true
+        ?'Sandbox جاهز، أما الدفع الحي فما زال محجوبًا حتى اكتمال أدلة Webhook والمطابقة والاسترداد.'
+        :item.configured===true
+          ?'بيانات الاعتماد مكتملة للحفظ والاختبار فقط؛ لا يعني ذلك تفعيل الدفع الحي.'
+          :'لا يظهر للمشتري قبل اكتمال الإعداد والتحقق.';
+    return <article key={item.key}><header><i>{item.name?.slice(0,2)}</i><Status value={displayStatus}/></header><h2>{item.name}</h2><p>{description}</p><dl><div><dt>بيئة الاعتماد</dt><dd>{item.environment==='live'?'Live':'Sandbox'}</dd></div>{paymob&&<><div><dt>منطقة التشغيل</dt><dd>KSA</dd></div><div><dt>جاهزية Sandbox</dt><dd>{item.sandboxReady===true?'مكتملة':'غير مكتملة'}</dd></div><div><dt>جاهزية Live</dt><dd>{item.liveReady===true&&item.liveGateBlocked===false?'مكتملة':'محجوبة'}</dd></div>{Number.isInteger(item.enabledSandboxTenantCount)&&<div><dt>منشآت Sandbox المسموح لها</dt><dd>{item.enabledSandboxTenantCount}</dd></div>}{Number.isInteger(item.enabledLiveTenantCount)&&<div><dt>منشآت Live المسموح لها</dt><dd>{item.enabledLiveTenantCount}</dd></div>}{missingChecks.length>0&&<div><dt>أدلة التشغيل المتبقية</dt><dd>{missingChecks.join('، ')}</dd></div>}</>}<div><dt>آخر تحقق موثّق</dt><dd>{formatDate(item.verifiedAt)}</dd></div><div><dt>الأسرار الناقصة</dt><dd>{missing.length?missing.map(key=>SECRET_LABEL[key]||key).join('، '):'لا يوجد'}</dd></div></dl><button type="button" onClick={()=>onConfigure(item)}>إدارة الاتصال</button></article>;
   })}{!rows.length&&<Empty/>}</section>;
+}
+
+function PaymobControlModal({action,busy,onClose,onSubmit}){
+  return <Modal title={action.title} onClose={onClose}>
+    <form onSubmit={onSubmit} className={styles.form} autoComplete="off">
+      <aside className={styles.safety}>هذا إجراء حوكمة مسجّل في سجل التدقيق. التفعيل يحتاج منفّذ طلب ومراجعًا مختلفًا، وتظل قاعدة البيانات هي صاحبة القرار.</aside>
+      <label className={styles.wide}>اكتب نص التأكيد حرفيًا
+        <code className={styles.confirmation} dir="ltr">{action.expected}</code>
+        <input name="confirmation" dir="ltr" autoComplete="off"
+          spellCheck="false" required/>
+      </label>
+      <footer><button type="button" onClick={onClose}>إلغاء</button>
+        <button className={styles.primary} disabled={busy==='paymob-control'}>
+          {busy==='paymob-control'?'جارٍ التحقق…':'تنفيذ بعد التحقق'}
+        </button>
+      </footer>
+    </form>
+  </Modal>;
 }
 
 function PriceModal({item,busy,onClose,onSubmit}){
@@ -407,23 +806,24 @@ function AssignCategoryModal({item,categories,busy,onClose,onSubmit}){
 
 function ProviderModal({item,busy,onClose,onSubmit}){
   const configured=new Set(item.configuredSecretKeys||EMPTY);
-  const requiredSecrets=new Set(item.requiredSecretKeys||EMPTY);
+  const requiredSecrets=new Set(providerRequiredSecretKeys(item));
   const publicConfig=item.configuredPublicConfig||{};
-  const publicConfigKeys=item.requiredPublicConfigKeys||EMPTY;
+  const publicConfigKeys=providerPublicConfigKeys(item);
   const publicConfigKeySet=new Set(publicConfigKeys);
-  const secretKeys=[...(item.requiredSecretKeys||EMPTY),...(item.optionalSecretKeys||EMPTY)]
+  const secretKeys=providerSecretKeys(item)
     .filter(secretKey=>!publicConfigKeySet.has(secretKey));
   const initialEnvironment=item.environment||'sandbox';
   const [environment,setEnvironment]=useState(initialEnvironment);
   const environmentChanged=environment!==initialEnvironment;
+  const paymob=item.key==='paymob';
   return <Modal title={`إدارة ${item.name}`} onClose={onClose}><form onSubmit={onSubmit} className={styles.form} autoComplete="off">
-    <label>البيئة<select name="environment" value={environment} onChange={event=>setEnvironment(event.target.value)}><option value="sandbox">Sandbox</option><option value="live">Live</option></select></label>
-    <label>طريقة Checkout<select name="checkout_mode" defaultValue={item.checkoutMode||'redirect'}><option value="redirect">Redirect</option><option value="embedded">Embedded</option><option value="api">API</option></select></label>
-    <label className={styles.wide}>العملات<input name="currencies" defaultValue={(item.supportedCurrencies||['SAR']).join(', ')}/></label>
-    {publicConfigKeys.map(configKey=><label key={`${configKey}-${environment}`} className={styles.wide}>{PUBLIC_CONFIG_LABEL[configKey]||configKey}<small>{environmentChanged?'تغيرت البيئة — أدخل المعرّف الخاص بهذه البيئة':'بيان عام للربط وليس مفتاحًا سريًا'}</small><input name={`public_${configKey}`} defaultValue={environmentChanged?'':publicConfig[configKey]||''} maxLength="240" required/></label>)}
-    {secretKeys.map(secretKey=>{const mustReplace=environmentChanged&&(requiredSecrets.has(secretKey)||configured.has(secretKey));const required=mustReplace||(!configured.has(secretKey)&&requiredSecrets.has(secretKey));return <label key={`${secretKey}-${environment}`} className={styles.wide}>{secretKey}{configured.has(secretKey)&&<small>{mustReplace?'تغيرت البيئة — أدخل قيمة جديدة لهذه البيئة':'محفوظ في Vault — اتركه فارغًا للإبقاء عليه'}</small>}<input name={`secret_${secretKey}`} type="password" autoComplete="new-password" placeholder={configured.has(secretKey)&&!mustReplace?'••••••••':'أدخل القيمة السرية'} required={required}/></label>})}
+    <label>بيئة الاعتماد<select name="environment" value={environment} onChange={event=>setEnvironment(event.target.value)}><option value="sandbox">Sandbox</option><option value="live">Live credentials</option></select></label>
+    <label>طريقة Checkout{paymob?<select name="checkout_mode" value="redirect" disabled><option value="redirect">Unified Checkout (Redirect)</option></select>:<select name="checkout_mode" defaultValue={item.checkoutMode||'redirect'}><option value="redirect">Redirect</option><option value="embedded">Embedded</option><option value="api">API</option></select>}</label>
+    <label className={styles.wide}>العملات{paymob?<input name="currencies" value="SAR" readOnly/>:<input name="currencies" defaultValue={(item.supportedCurrencies||['SAR']).join(', ')}/>} {paymob&&<small>مسار KSA في هذا الإصدار يقبل SAR فقط.</small>}</label>
+    {publicConfigKeys.map(configKey=>{const fixedRegion=paymob&&configKey==='region';const numericPaymobId=paymob&&['merchantAccountId','integrationId'].includes(configKey);return <label key={`${configKey}-${environment}`} className={styles.wide}>{PUBLIC_CONFIG_LABEL[configKey]||configKey}<small>{fixedRegion?'مثبتة خادميًا على المملكة العربية السعودية':environmentChanged?'تغيرت البيئة — أدخل المعرّف الخاص بهذه البيئة':'بيان عام للربط وليس مفتاحًا سريًا'}</small>{fixedRegion?<input name={`public_${configKey}`} value="ksa" readOnly maxLength="240" dir="ltr" required/>:<input name={`public_${configKey}`} defaultValue={environmentChanged?'':publicConfig[configKey]||''} inputMode={numericPaymobId?'numeric':undefined} pattern={numericPaymobId?'[1-9][0-9]*':undefined} maxLength="240" dir={numericPaymobId?'ltr':undefined} required/>}</label>})}
+    {secretKeys.map(secretKey=>{const mustReplace=environmentChanged&&(requiredSecrets.has(secretKey)||configured.has(secretKey));const required=mustReplace||(!configured.has(secretKey)&&requiredSecrets.has(secretKey));return <label key={`${secretKey}-${environment}`} className={styles.wide}>{SECRET_LABEL[secretKey]||secretKey}{configured.has(secretKey)&&<small>{mustReplace?'تغيرت البيئة — أدخل قيمة جديدة لهذه البيئة':'محفوظ في Vault — اتركه فارغًا للإبقاء عليه'}</small>}<input name={`secret_${secretKey}`} type="password" autoComplete="new-password" placeholder={configured.has(secretKey)&&!mustReplace?'••••••••':'أدخل القيمة السرية'} required={required}/></label>})}
     <label className={styles.check}><input name="enabled" type="checkbox" defaultChecked={item.status!=='disabled'}/><span>إتاحة الإعداد للاختبار</span></label>
-    <aside className={styles.safety}>لا تُعرض الأسرار بعد الحفظ. ولا تتحول الحالة إلى «نشط» إلا من اختبار خادمي ناجح وموقّع.</aside>
+    <aside className={styles.safety}>{paymob?'حفظ مفاتيح Live لا يفعّل الدفع الحي. يلزم اجتياز إنشاء Intention وWebhook الموقّع ومنع التكرار والمطابقة والاسترداد قبل التفعيل.':'لا تُعرض الأسرار بعد الحفظ. ولا تتحول الحالة إلى «نشط» إلا من أدلة تشغيل خادمية موثّقة.'}</aside>
     <footer><button type="button" onClick={onClose}>إلغاء</button><button className={styles.primary} disabled={busy==='provider'}>{busy==='provider'?'جارٍ الحفظ…':'حفظ آمن'}</button></footer>
   </form></Modal>;
 }

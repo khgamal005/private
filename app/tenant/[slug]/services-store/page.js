@@ -6,7 +6,7 @@ export const dynamic='force-dynamic';
 
 export default async function ServicesStorePage({params}){
   const {slug}=await params;
-  await requireTenantPermission(slug,'tenant.users.manage');
+  await requireTenantPermission(slug,'tenant.settings.manage');
   return <MarketplaceStore
     slug={slug}
     initialTab="services"

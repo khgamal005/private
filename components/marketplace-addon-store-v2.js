@@ -21,6 +21,12 @@ const TRANSFER_STATUS={
   rejected:'مرفوض',
   cancelled:'ملغي'
 };
+const PAYMENT_PROVIDER_NAMES={
+  bank_transfer:'تحويل بنكي',
+  paymob:'دفع إلكتروني عبر Paymob',
+  tamara:'تمارا',
+  paypal:'PayPal'
+};
 const ADDON_CATEGORIES={
   all:'كل الإضافات',
   communications:'التواصل',
@@ -60,6 +66,11 @@ function requestKey(){
   return 'marketplace-'+Date.now()+'-'+Math.random().toString(36).slice(2);
 }
 function itemProductKey(order){return order?.items?.[0]?.productKey||'';}
+function paymentProviderName(providerKey,paymentMethods){
+  return paymentMethods.find(item=>item.key===providerKey)?.name
+    ||PAYMENT_PROVIDER_NAMES[providerKey]
+    ||'غير محددة';
+}
 function today(){
   const now=new Date();
   const offset=now.getTimezoneOffset();
@@ -84,6 +95,11 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   const [senderName,setSenderName]=useState('');
   const [transferReference,setTransferReference]=useState('');
   const [transferDate,setTransferDate]=useState(today());
+  const [paymobOrder,setPaymobOrder]=useState(null);
+  const [billingFirstName,setBillingFirstName]=useState('');
+  const [billingLastName,setBillingLastName]=useState('');
+  const [billingEmail,setBillingEmail]=useState('');
+  const [billingPhone,setBillingPhone]=useState('');
   const [busy,setBusy]=useState('');
   const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
@@ -132,17 +148,66 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   }
 
   function openCheckout(item){
-    setCheckout({item,requestKey:requestKey()});
+    setCheckout({
+      item,
+      requestKey:requestKey(),
+      paymentRequestKey:requestKey()
+    });
     setPaymentProvider(paymentMethods[0]?.key||'bank_transfer');
+    resetBillingContact();
     setNotes('');setError('');setNotice('');
+  }
+
+  function resetBillingContact(){
+    setBillingFirstName('');setBillingLastName('');
+    setBillingEmail('');setBillingPhone('');
+  }
+
+  function billingContact(){
+    return {
+      firstName:billingFirstName.trim(),
+      lastName:billingLastName.trim(),
+      email:billingEmail.trim(),
+      phoneNumber:billingPhone.trim()
+    };
+  }
+
+  async function redirectToPaymob(order,paymentRequestKey){
+    const response=await fetch('/api/payments/paymob/checkout',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        slug,
+        orderId:order.id,
+        idempotencyKey:paymentRequestKey,
+        billingContact:billingContact()
+      })
+    });
+    const result=await response.json().catch(()=>({}));
+    if(response.status===202&&result.attemptId){
+      const returnUrl='/tenant/'+encodeURIComponent(slug)
+        +'/payments/paymob/return?attempt='
+        +encodeURIComponent(result.attemptId);
+      router.push(returnUrl);
+      return true;
+    }
+    if(!response.ok){
+      throw new Error(result.error||'تعذر فتح صفحة الدفع الآمنة');
+    }
+    const checkoutUrl=String(result.checkoutUrl||'');
+    if(!checkoutUrl)throw new Error('لم تُرجع بوابة الدفع رابطًا صالحًا');
+    window.location.assign(checkoutUrl);
+    return true;
   }
 
   async function createOrder(event){
     event.preventDefault();
     if(!checkout||busy)return;
     setBusy('checkout');setError('');setNotice('');
+    let order=null;
+    let navigating=false;
     try{
-      const order=await action('create_order',{
+      order=await action('create_order',{
         itemType:'addon',productKey:checkout.item.key,quantity:1,notes,
         idempotencyKey:checkout.requestKey,paymentProvider
       });
@@ -151,16 +216,48 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
         setTransferOrder(order);
         setSenderName('');setTransferReference('');setTransferDate(today());
         setNotice('تم إنشاء الطلب '+(order.orderNumber||'')+'. أدخل بيانات التحويل لإرساله إلى المراجعة.');
+        router.refresh();
+      }else if(order.paymentProvider==='paymob'){
+        navigating=await redirectToPaymob(order,checkout.paymentRequestKey);
       }else{
         setNotice('تم إنشاء طلب الشراء '+(order.orderNumber||'')+'.');
         router.refresh();
       }
-    }catch(err){setError(err instanceof Error?err.message:'تعذر إنشاء الطلب');}
-    finally{setBusy('');}
+    }catch(err){
+      if(order?.id){
+        setCheckout(null);
+        setError('تم حفظ الطلب، لكن '+(err instanceof Error?err.message:'تعذر فتح صفحة الدفع')+'. يمكنك استكمال الدفع من سجل الطلبات.');
+        router.refresh();
+      }else{
+        setError(err instanceof Error?err.message:'تعذر إنشاء الطلب');
+      }
+    }finally{if(!navigating)setBusy('');}
   }
 
   function openTransfer(order){
     setTransferOrder(order);setSenderName('');setTransferReference('');setTransferDate(today());setError('');setNotice('');
+  }
+
+  function openPaymob(order){
+    setPaymobOrder({order,paymentRequestKey:requestKey()});
+    resetBillingContact();setError('');setNotice('');
+  }
+
+  async function continuePaymob(event){
+    event.preventDefault();
+    if(!paymobOrder||busy)return;
+    setBusy('paymob-'+paymobOrder.order.id);setError('');setNotice('');
+    let navigating=false;
+    try{
+      navigating=await redirectToPaymob(
+        paymobOrder.order,
+        paymobOrder.paymentRequestKey
+      );
+    }catch(err){
+      setPaymobOrder(null);
+      setError(err instanceof Error?err.message:'تعذر فتح صفحة الدفع الآمنة');
+      router.refresh();
+    }finally{if(!navigating)setBusy('');}
   }
 
   async function submitTransfer(event){
@@ -178,8 +275,14 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
     finally{setBusy('');}
   }
 
-  async function cancelOrder(orderId){
+  async function cancelOrder(order){
     if(busy)return;
+    if(order?.paymentProvider==='paymob'){
+      setError('لا يمكن إلغاء طلب Paymob قبل حسم حالة العملية. استكمل نفس الدفع أو تابع المطابقة، وتواصل مع الدعم برقم الطلب إذا استمر التعليق.');
+      return;
+    }
+    const orderId=order?.id;
+    if(!orderId)return;
     setBusy('cancel-'+orderId);setError('');setNotice('');
     try{
       await action('cancel_order',{orderId});
@@ -238,9 +341,10 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
             <div className={styles.orderIdentity}><b>{order.orderNumber}</b><small>{order.items?.map(item=>item.name).join('، ')||'إضافة أودير'}</small></div>
             <span className={[styles.status,styles[order.status]||''].join(' ')}>{STATUS[order.status]||order.status}</span>
             <div><small>الإجمالي</small><b>{money(order.totalMinor,order.currency)}</b></div>
-            <div><small>الدفع</small><b>{order.paymentProvider==='bank_transfer'?'تحويل بنكي':'—'}</b>{transfer&&<small>{TRANSFER_STATUS[transfer.status]||transfer.status}</small>}</div>
+            <div><small>الدفع</small><b>{paymentProviderName(order.paymentProvider,paymentMethods)}</b>{transfer&&<small>{TRANSFER_STATUS[transfer.status]||transfer.status}</small>}{order.status==='pending_payment'&&order.paymentProvider==='paymob'&&<small className={styles.paymobOrderGuard}>استكمل نفس العملية أو تابع المطابقة؛ لا تبدأ دفعة أخرى. تواصل مع الدعم برقم الطلب إذا استمر التعليق.</small>}</div>
             {order.status==='pending_payment'&&order.paymentProvider==='bank_transfer'&&(!transfer||transfer.status==='rejected')&&<button type="button" disabled={Boolean(busy)} onClick={()=>openTransfer(order)}>إرسال بيانات التحويل</button>}
-            {order.status==='pending_payment'&&<button type="button" className={styles.cancel} disabled={Boolean(busy)} onClick={()=>cancelOrder(order.id)}>{busy==='cancel-'+order.id?'جارٍ الإلغاء…':'إلغاء'}</button>}
+            {order.status==='pending_payment'&&order.paymentProvider==='paymob'&&<button type="button" className={styles.payButton} disabled={Boolean(busy)} onClick={()=>openPaymob(order)}>{busy==='paymob-'+order.id?'جارٍ فتح الدفع…':'استكمال الدفع'}</button>}
+            {order.status==='pending_payment'&&order.paymentProvider!=='paymob'&&<button type="button" className={styles.cancel} disabled={Boolean(busy)} onClick={()=>cancelOrder(order)}>{busy==='cancel-'+order.id?'جارٍ الإلغاء…':'إلغاء'}</button>}
           </article>;
         })}
         {!orders.some(order=>order.kind==='addon')&&<div className={styles.emptyOrders}>لا توجد طلبات إضافات حتى الآن.</div>}
@@ -261,9 +365,15 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
           {selectedMethod.publicConfig.accountName&&<div><b>اسم الحساب:</b> {selectedMethod.publicConfig.accountName}</div>}
           {selectedMethod.publicConfig.iban&&<div><b>IBAN:</b> <span dir="ltr">{selectedMethod.publicConfig.iban}</span></div>}
         </div>}
+        {selectedMethod?.key==='paymob'&&<PaymobBillingFields
+          firstName={billingFirstName} lastName={billingLastName}
+          email={billingEmail} phone={billingPhone}
+          onFirstName={setBillingFirstName} onLastName={setBillingLastName}
+          onEmail={setBillingEmail} onPhone={setBillingPhone}
+        />}
         <label><span>ملاحظات الطلب <small>(اختياري)</small></span><textarea rows="3" maxLength="1000" value={notes} onChange={event=>setNotes(event.target.value)}/></label>
         <dl><div><dt>سعر الإضافة السنوي</dt><dd>{money(subtotal,checkout.item.currency)}</dd></div><div><dt>ضريبة القيمة المضافة 15%</dt><dd>{money(tax,checkout.item.currency)}</dd></div><div><dt>الإجمالي</dt><dd>{money(subtotal+tax,checkout.item.currency)}</dd></div></dl>
-        <footer><button type="button" onClick={()=>setCheckout(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={busy==='checkout'||!paymentMethods.length}>{busy==='checkout'?'جارٍ إنشاء الطلب…':'إنشاء طلب الاشتراك'}</button></footer>
+        <footer><button type="button" onClick={()=>setCheckout(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={busy==='checkout'||!paymentMethods.length}>{busy==='checkout'?'جارٍ إنشاء الطلب…':selectedMethod?.key==='paymob'?'المتابعة إلى الدفع الآمن':'إنشاء طلب الاشتراك'}</button></footer>
       </form>
     </div>}
 
@@ -280,7 +390,37 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
         <footer><button type="button" onClick={()=>setTransferOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={busy==='transfer'}>{busy==='transfer'?'جارٍ الإرسال…':'إرسال للمراجعة'}</button></footer>
       </form>
     </div>}
+
+    {paymobOrder&&<div className={styles.modalLayer}>
+      <button className={styles.backdrop} type="button" aria-label="إغلاق" onClick={()=>setPaymobOrder(null)}/>
+      <form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="addon-paymob-title" onSubmit={continuePaymob}>
+        <header><div><small>دفع إلكتروني آمن</small><h2 id="addon-paymob-title">{paymobOrder.order.orderNumber||'طلب الإضافة'}</h2></div><button type="button" onClick={()=>setPaymobOrder(null)} aria-label="إغلاق">×</button></header>
+        <p>أدخل بيانات الفاتورة، ثم سننقلك إلى صفحة Paymob المشفّرة لإكمال الدفع. لا تُفعّل الإضافة إلا بعد وصول تأكيد الدفع الموثق إلى أودير.</p>
+        <PaymobBillingFields
+          firstName={billingFirstName} lastName={billingLastName}
+          email={billingEmail} phone={billingPhone}
+          onFirstName={setBillingFirstName} onLastName={setBillingLastName}
+          onEmail={setBillingEmail} onPhone={setBillingPhone}
+        />
+        <footer><button type="button" onClick={()=>setPaymobOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={Boolean(busy)}>{busy==='paymob-'+paymobOrder.order.id?'جارٍ فتح الدفع…':'المتابعة إلى Paymob'}</button></footer>
+      </form>
+    </div>}
   </section>;
+}
+
+function PaymobBillingFields({
+  firstName,lastName,email,phone,
+  onFirstName,onLastName,onEmail,onPhone
+}){
+  return <fieldset className={styles.paymobFields}>
+    <legend>بيانات الفاتورة والدفع</legend>
+    <label><span>الاسم الأول</span><input autoComplete="given-name" value={firstName} onChange={event=>onFirstName(event.target.value)} minLength="2" maxLength="100" required/></label>
+    <label><span>اسم العائلة</span><input autoComplete="family-name" value={lastName} onChange={event=>onLastName(event.target.value)} minLength="2" maxLength="100" required/></label>
+    <label><span>البريد الإلكتروني</span><input type="email" inputMode="email" autoComplete="email" dir="ltr" value={email} onChange={event=>onEmail(event.target.value)} maxLength="254" required/></label>
+    <label><span>رقم الجوال السعودي</span><input type="tel" inputMode="tel" autoComplete="tel" dir="ltr" value={phone} onChange={event=>onPhone(event.target.value)} pattern="(?:[+]9665[0-9]{8}|05[0-9]{8})" title="اكتب الرقم بصيغة 05XXXXXXXX أو +9665XXXXXXXX" placeholder="+9665XXXXXXXX" required/></label>
+    <label className={styles.paymentConsent}><input type="checkbox" required/><span>أوافق على إرسال بيانات الفاتورة أعلاه إلى Paymob لإتمام الدفع.</span></label>
+    <p>لن يطلب أودير رقم البطاقة أو رمزها السري؛ تُدخل بيانات البطاقة داخل صفحة Paymob فقط.</p>
+  </fieldset>;
 }
 
 function AddonCard({slug,item,canPurchase,pending,busy,onActivateFree,onBuy}){

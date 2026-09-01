@@ -60,6 +60,26 @@ verify_jwt = false
 # platform.billing.manage snapshot before any service-role Vault operation.
 verify_jwt = true
 
+[functions.marketplace-payment-webhook]
+# Legacy internal Marktone HMAC channel only. It remains JWT-free for its
+# server-to-server signer and must never proxy or receive native Paymob events.
+verify_jwt = false
+
+[functions.paymob-checkout]
+# The gateway requires the customer's JWT. The function then authorizes the
+# exact tenant/order through a caller-scoped RPC before any Paymob request.
+verify_jwt = true
+
+[functions.paymob-webhook]
+# Paymob cannot send a Supabase JWT. This endpoint accepts only the native
+# TRANSACTION callback after exact HMAC-SHA512 verification in the function.
+verify_jwt = false
+
+[functions.paymob-reconcile]
+# Scheduled runs authenticate with a dedicated dispatcher secret; manual runs
+# require a platform billing administrator JWT, both rechecked in the function.
+verify_jwt = false
+
 [functions.odeir-registration-intake]
 # Public registration uses a server-to-server ingress token. The browser never
 # receives either this token or the service-role key.

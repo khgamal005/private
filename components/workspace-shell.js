@@ -111,9 +111,9 @@ function tenantItems(
     ]},
     {key:'marketplace',label:'إضافات أودير',children:[
       {key:'addons',label:'الإضافات المثبتة',href:`${base}/addons`,permission:'tenant.settings.manage'},
-      {key:'addonsStore',label:'إضافة جديدة',href:`${base}/addons-store`,permission:'tenant.users.manage'}
+      {key:'addonsStore',label:'إضافة جديدة',href:`${base}/addons-store`,permission:'tenant.settings.manage'}
     ]},
-    {key:'servicesStore',label:'متجر الخدمات',href:`${base}/services-store`,permission:'tenant.users.manage'},
+    {key:'servicesStore',label:'متجر الخدمات',href:`${base}/services-store`,permission:'tenant.settings.manage'},
     {key:'people',label:'فريق العمل',href:`${base}/team`,permission:'tenant.people.read',visible:policy.showTeam},
     {key:'reports',label:'التقارير والتحليل',children:[
       {key:'overview',label:'لوحة التقارير',href:`${base}/reports`,permission:'tenant.workspace.read'},
@@ -405,3 +405,4 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
     />}
   </div>;
 }
+

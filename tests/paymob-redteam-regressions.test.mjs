@@ -24,7 +24,7 @@ const addonStore=source('components/marketplace-addon-store-v2.js');
 const serviceStore=source('components/marketplace-store.js');
 const platformPayments=source('components/platform-payments.js');
 const migration=source(
-  'supabase/migrations/20260901120000_paymob_intention_checkout_v1.sql'
+  'supabase/migrations/20260901134621_paymob_intention_checkout_v1.sql'
 );
 
 const ATTEMPT_STATUSES=[

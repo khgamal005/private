@@ -2144,6 +2144,91 @@ create table marketplace.payment_tenant_rollouts (
 create index payment_tenant_rollouts_provider_status_idx
 on marketplace.payment_tenant_rollouts(provider_key, environment, status, tenant_id);
 
+-- Cover every foreign-key side used by joins, lifecycle cleanup and parent-row
+-- enforcement. These ledgers start empty, so the indexes are cheap to create
+-- before rollout and avoid full scans once payment history grows.
+create index entitlement_sources_addon_product_fk_idx_v1
+on marketplace.entitlement_sources(addon_product_id);
+create index entitlement_sources_attempt_fk_idx_v1
+on marketplace.entitlement_sources(attempt_id);
+create index entitlement_sources_module_fk_idx_v1
+on marketplace.entitlement_sources(module_id);
+create index entitlement_sources_order_fk_idx_v1
+on marketplace.entitlement_sources(order_id);
+create index entitlement_sources_reversal_refund_fk_idx_v1
+on marketplace.entitlement_sources(reversal_refund_id);
+
+create index payment_attempt_items_addon_product_fk_idx_v1
+on marketplace.payment_attempt_items(addon_product_id);
+create index payment_attempt_items_feature_fk_idx_v1
+on marketplace.payment_attempt_items(feature_id);
+create index payment_attempt_items_order_item_fk_idx_v1
+on marketplace.payment_attempt_items(order_item_id);
+create index payment_attempt_items_service_package_fk_idx_v1
+on marketplace.payment_attempt_items(service_package_id);
+create index payment_attempt_items_service_product_fk_idx_v1
+on marketplace.payment_attempt_items(service_product_id);
+
+create index payment_attempts_credential_version_fk_idx_v1
+on marketplace.payment_attempts(credential_version_id);
+create index payment_attempts_order_fk_idx_v1
+on marketplace.payment_attempts(order_id);
+create index payment_attempts_requested_by_fk_idx_v1
+on marketplace.payment_attempts(requested_by_subject_id);
+
+create index payment_outbox_attempt_fk_idx_v1
+on marketplace.payment_outbox(attempt_id);
+create index payment_outbox_order_fk_idx_v1
+on marketplace.payment_outbox(order_id);
+
+create index payment_tenant_rollouts_approved_by_fk_idx_v1
+on marketplace.payment_tenant_rollouts(approved_by_subject_id);
+create index payment_tenant_rollouts_requested_by_fk_idx_v1
+on marketplace.payment_tenant_rollouts(requested_by_subject_id);
+
+create index paymob_credential_versions_created_by_fk_idx_v1
+on marketplace.paymob_credential_versions(created_by_subject_id);
+create index paymob_credential_versions_retired_by_fk_idx_v1
+on marketplace.paymob_credential_versions(retired_by_subject_id);
+create index paymob_credential_versions_revoked_by_fk_idx_v1
+on marketplace.paymob_credential_versions(revoked_by_subject_id);
+
+create index paymob_evidence_requests_requested_by_fk_idx_v1
+on marketplace.paymob_operational_evidence_requests(requested_by_subject_id);
+create index paymob_evidence_requests_approved_by_fk_idx_v1
+on marketplace.paymob_operational_evidence_requests(approved_by_subject_id);
+create index paymob_readiness_history_credential_fk_idx_v1
+on marketplace.paymob_readiness_evidence_history(credential_version_id);
+
+create index reconciliations_absence_approved_by_fk_idx_v1
+on marketplace.reconciliations(absence_resolution_approved_by_subject_id);
+create index reconciliations_absence_requested_by_fk_idx_v1
+on marketplace.reconciliations(absence_resolution_requested_by_subject_id);
+create index reconciliations_inquiry_credential_fk_idx_v1
+on marketplace.reconciliations(inquiry_credential_version_id);
+create index reconciliations_order_fk_idx_v1
+on marketplace.reconciliations(order_id);
+create index reconciliations_provider_fk_idx_v1
+on marketplace.reconciliations(provider_key);
+create index reconciliations_source_delivery_fk_idx_v1
+on marketplace.reconciliations(source_delivery_id);
+
+create index refunds_approved_by_fk_idx_v1
+on marketplace.refunds(approved_by_subject_id);
+create index refunds_inquiry_reconciliation_fk_idx_v1
+on marketplace.refunds(inquiry_reconciliation_id);
+create index refunds_order_fk_idx_v1
+on marketplace.refunds(order_id);
+create index refunds_requested_by_fk_idx_v1
+on marketplace.refunds(requested_by_subject_id);
+create index refunds_resolved_by_fk_idx_v1
+on marketplace.refunds(resolved_by_subject_id);
+
+create index webhook_deliveries_credential_version_fk_idx_v1
+on marketplace.webhook_deliveries(credential_version_id);
+create index webhook_deliveries_order_fk_idx_v1
+on marketplace.webhook_deliveries(order_id);
+
 create trigger payment_attempts_set_updated_at_v1
 before update on marketplace.payment_attempts
 for each row execute function private_app.set_updated_at();

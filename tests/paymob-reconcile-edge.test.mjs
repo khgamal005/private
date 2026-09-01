@@ -18,7 +18,7 @@ const config=source('supabase/config.toml');
 const envExample=source('.env.example');
 const runbook=source('supabase/functions/paymob-reconcile/README.md');
 const migration=source(
-  'supabase/migrations/20260901120000_paymob_intention_checkout_v1.sql'
+  'supabase/migrations/20260901134621_paymob_intention_checkout_v1.sql'
 );
 const normalizerRuntime=await import(pathToFileURL(join(
   root,'supabase/functions/paymob-reconcile/normalize.ts'

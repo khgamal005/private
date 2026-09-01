@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const migrationPath=join(
   root,
-  'supabase/migrations/20260901120000_paymob_intention_checkout_v1.sql'
+  'supabase/migrations/20260901134621_paymob_intention_checkout_v1.sql'
 );
 const serviceMarketplaceMigrationPath=join(
   root,
@@ -126,6 +126,55 @@ test('migration normalizes the legacy Paymob currency set before the SAR-only gu
     /supported_currencies\s*=\s*array\['SAR'\]::text\[\]/i,
     'Production carries the legacy SAR/EGP seed and must be normalized before secret-ref triggers use the strict guard'
   );
+});
+
+test('every new payment-ledger foreign key has a leading covering index',()=>{
+  const indexedForeignKeys={
+    entitlement_sources:[
+      'addon_product_id','attempt_id','module_id','order_id','reversal_refund_id'
+    ],
+    payment_attempt_items:[
+      'addon_product_id','feature_id','order_item_id','service_package_id',
+      'service_product_id'
+    ],
+    payment_attempts:[
+      'credential_version_id','order_id','requested_by_subject_id'
+    ],
+    payment_outbox:['attempt_id','order_id'],
+    payment_tenant_rollouts:[
+      'approved_by_subject_id','requested_by_subject_id'
+    ],
+    paymob_credential_versions:[
+      'created_by_subject_id','retired_by_subject_id','revoked_by_subject_id'
+    ],
+    paymob_operational_evidence_requests:[
+      'requested_by_subject_id','approved_by_subject_id'
+    ],
+    paymob_readiness_evidence_history:['credential_version_id'],
+    reconciliations:[
+      'absence_resolution_approved_by_subject_id',
+      'absence_resolution_requested_by_subject_id',
+      'inquiry_credential_version_id','order_id','provider_key',
+      'source_delivery_id'
+    ],
+    refunds:[
+      'approved_by_subject_id','inquiry_reconciliation_id','order_id',
+      'requested_by_subject_id','resolved_by_subject_id'
+    ],
+    webhook_deliveries:['credential_version_id','order_id']
+  };
+  for(const [table,columns] of Object.entries(indexedForeignKeys)){
+    for(const column of columns){
+      assert.match(
+        migration,
+        new RegExp(
+          `create\\s+index[^;]+on\\s+marketplace\\.${table}\\s*\\(\\s*${column}(?:\\s|,|\\))`,
+          'i'
+        ),
+        `Expected a leading index for marketplace.${table}.${column}`
+      );
+    }
+  }
 });
 
 test('checkout preparation snapshots exact commercial truth and single-flights an order',()=>{

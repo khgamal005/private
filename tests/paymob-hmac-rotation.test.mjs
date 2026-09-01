@@ -13,7 +13,7 @@ function source(relativePath){
 }
 
 const migration=source(
-  'supabase/migrations/20260901120000_paymob_intention_checkout_v1.sql'
+  'supabase/migrations/20260901134621_paymob_intention_checkout_v1.sql'
 );
 const webhook=source('supabase/functions/paymob-webhook/index.ts');
 const reconciler=source('supabase/functions/paymob-reconcile/index.ts');

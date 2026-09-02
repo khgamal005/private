@@ -62,7 +62,6 @@ export default async function TenantLayout({children,params}){
   const odeiryManagerEnabled=Boolean(
     odeiryGloballyEnabled
     &&odeiryManagerGloballyEnabled
-    &&!context.platformAccess
     &&odeiryAccessMode==='tenant_member'
     &&odeirySnapshot?.manager?.allowed===true
     &&odeirySnapshot?.manager?.enabled===true
@@ -70,7 +69,6 @@ export default async function TenantLayout({children,params}){
   );
   const odeiryManagerReviewEnabled=Boolean(
     odeiryGloballyEnabled
-    &&!context.platformAccess
     &&odeiryAccessMode==='tenant_member'
     &&odeirySnapshot?.manager?.allowed===true
     &&odeirySnapshot?.manager?.reviewAvailable===true

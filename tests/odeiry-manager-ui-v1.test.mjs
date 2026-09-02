@@ -8,7 +8,7 @@ async function source(path){
   return readFile(new URL(path,ROOT),'utf8');
 }
 
-test('manager UI is fail-closed and hidden from platform operators',async()=>{
+test('manager UI follows tenant access mode, not a global platform label',async()=>{
   const [env,layout,shell,assistant,manager]=await Promise.all([
     source('.env.example'),
     source('app/tenant/[slug]/layout.js'),
@@ -19,15 +19,16 @@ test('manager UI is fail-closed and hidden from platform operators',async()=>{
   assert.match(env,/^ODEIRY_MANAGER_ENABLED=false$/m);
   assert.doesNotMatch(env,/^NEXT_PUBLIC_ODEIRY_MANAGER/m);
   assert.match(layout,/process\.env\.ODEIRY_MANAGER_ENABLED==='true'/);
-  assert.match(layout,/!context\.platformAccess/);
+  assert.match(layout,/odeiryAccessMode==='tenant_member'/);
+  assert.doesNotMatch(layout,/&&!context\.platformAccess/);
   assert.match(layout,/odeirySnapshot\?\.manager\?\.allowed===true/);
   assert.match(layout,/odeirySnapshot\?\.manager\?\.enabled===true/);
   assert.match(layout,/odeirySnapshot\?\.manager\?\.available===true/);
   assert.match(layout,/const odeiryManagerReviewEnabled=Boolean\(/);
   assert.match(layout,/odeirySnapshot\?\.manager\?\.reviewAvailable===true/);
-  assert.match(shell,/managerEnabled=\{odeiryManagerEnabled&&!platformAccess\}/);
+  assert.match(shell,/managerEnabled=\{odeiryManagerEnabled\}/);
   assert.match(shell,
-    /managerReviewEnabled=\{odeiryManagerReviewEnabled&&!platformAccess\}/);
+    /managerReviewEnabled=\{odeiryManagerReviewEnabled\}/);
   assert.match(assistant,
     /const canUseManager=\(managerEnabled===true\|\|managerReviewEnabled===true\)[\s\S]+?&&!platformOperator/);
   assert.match(assistant,

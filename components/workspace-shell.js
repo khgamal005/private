@@ -400,8 +400,8 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       slug={slug}
       context={assistantContext}
       accessMode={odeiryAccessMode}
-      managerEnabled={odeiryManagerEnabled&&!platformAccess}
-      managerReviewEnabled={odeiryManagerReviewEnabled&&!platformAccess}
+      managerEnabled={odeiryManagerEnabled}
+      managerReviewEnabled={odeiryManagerReviewEnabled}
     />}
   </div>;
 }

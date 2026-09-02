@@ -5,7 +5,7 @@ import styles from './odeiry-assistant.module.css';
 
 const MAX_PROMPT_LENGTH=2000;
 const MANAGER_SUGGESTIONS=[
-  'حلّل لي أهم مؤشرات المنشأة خلال آخر 7 أيام',
+  'من المتصدرون في مؤشرات الفريق خلال آخر 30 يومًا؟',
   'ما المؤشرات التي تحتاج انتباهي الآن؟',
   'ساعدني في التفكير في أولوية إدارية لهذا الأسبوع'
 ];
@@ -225,7 +225,7 @@ export default function OdeiryManagerPanel({
         <div>
           <b>{chatEnabled?'قراءة وتحليل فقط':'التحليل متوقف — الذاكرة تحت سيطرتك'}</b>
           <p>{chatEnabled
-            ?'أوديري المدير لا ينفّذ أي إجراء. وأي معلومة يقترح تذكّرها لن تُعتمد قبل مراجعتك.'
+            ?'يقرأ أوديري المؤشرات المصرّح بها من المنشأة الحالية فقط، وقد يعرض أسماء موظفيها المرتبطة بالتحليل. لا ينفّذ أي إجراء، ولا يعتمد أي ذاكرة قبل مراجعتك.'
             :'يمكنك رفض المقترحات أو أرشفة الذاكرة المعتمدة حتى أثناء تعطيل أوديري المدير. لا يمكن اعتماد ذاكرة جديدة أو بدء تحليل الآن.'}</p>
         </div>
       </section>
@@ -253,7 +253,7 @@ export default function OdeiryManagerPanel({
             <div className={styles.managerWelcomeMark} aria-hidden="true">✦</div>
             <div>
               <h3>مساحة تفكير المدير</h3>
-              <p id="odeiry-manager-description">أسأل، أحلّل المؤشرات المجمّعة، وأساعدك في التفكير. لا أعدّل بيانات المنشأة ولا أنفّذ أوامر.</p>
+              <p id="odeiry-manager-description">أسأل، أحلّل بيانات المنشأة المصرّح بها، وأوضح مؤشرات الموظفين عند الحاجة. لا أعدّل البيانات ولا أنفّذ أوامر.</p>
             </div>
           </section>}
           {!messages.length&&<ManagerSuggestions disabled={busy} onSelect={askManager}/>} 
@@ -340,7 +340,7 @@ export default function OdeiryManagerPanel({
           />
           <button type="submit" aria-label="إرسال السؤال لأوديري المدير" disabled={busy||!prompt.trim()}><SendIcon/></button>
         </form>
-        <p>لا ترسل بيانات عملاء أو موظفين أو كلمات مرور. التحليلات تعتمد على مؤشرات مجمّعة فقط.</p>
+        <p>لا ترسل بيانات عملاء أو وسائل اتصال أو كلمات مرور. قد يعرض أوديري أسماء الموظفين ومؤشراتهم المصرّح بها من هذه المنشأة فقط.</p>
       </>:<p className={styles.managerFooterNote}>الذاكرة والسجل شخصيان داخل المنشأة الحالية، ولا ينتقلان إلى منشأة أخرى.</p>}
     </footer>
   </div>;

@@ -2,8 +2,11 @@
 
 Odeiry Manager is an additive, default-off mode of the existing single Odeiry
 agent. It is a personal, tenant-bound assistant for reviewed memory and
-aggregate read-only analysis. It cannot execute platform actions, create ticket
-drafts, query arbitrary database objects, or read customer/employee rows.
+allowlisted read-only analysis. It cannot execute platform actions, create
+ticket drafts, query arbitrary database objects, or read customer rows. An
+authorized manager may ask for a bounded employee-performance comparison; only
+the display name, business label, metric evidence, and sample strength selected
+by the dedicated tenant RPC may reach the model.
 
 ## Feature gates
 
@@ -38,11 +41,21 @@ is off. This path cannot open a thread, analyze data, or approve new memory.
 3. The route loads at most eight approved, active memories for the current
    tenant and current subject. Pending, rejected, archived, expired, and other
    users' memories never enter model context.
-4. The single agent may call `read_odeir_manager_analytics` at most twice. The
-   tool accepts only `last_7_days` or `last_30_days` and returns a fixed,
-   aggregate allowlist. It never accepts tenant IDs, SQL, free-form filters, or
-   record identifiers.
-5. One narrowly scoped v4 service dispatcher finalizes every run. For a
+4. The single agent can call either `read_odeir_manager_analytics` for aggregate
+   indicators or `read_odeir_manager_team_performance` for employee-performance
+   evidence. Both tools accept only `last_7_days` or `last_30_days`, and the
+   team tool also accepts one fixed dimension: `overview`, `sales`,
+   `follow_up`, `tasks`, or `calls`. They share the same limit of
+   two analytics reads per run. Neither tool accepts tenant IDs, slugs, SQL,
+   free-form filters, or record identifiers.
+5. The team RPC derives the tenant from the authenticated run and requires the
+   current real tenant role to hold both `tenant.people.read` and
+   `tenant.reports.analytics`. Platform privileges do not satisfy these domain
+   permissions. `overview` returns a leader per category rather than an
+   unreviewed composite winner; a specific dimension returns at most five
+   employees and includes numerator, denominator, sample size, and sample
+   strength.
+6. One narrowly scoped v4 service dispatcher finalizes every run. For a
    completed manager run it atomically finalizes the answer and writes at most
    two pending, catalog-backed memory proposals in the same database
    transaction. A failure rolls back both, so a process interruption cannot
@@ -50,7 +63,7 @@ is off. This path cannot open a thread, analyze data, or approve new memory.
    staged rollout only, a precise PostgREST `PGRST202` miss for v4 may fall
    back to v3 for proposal-free runs; a completed manager run never uses that
    fallback.
-6. Memory evidence quotes are transient validation inputs only: they are
+7. Memory evidence quotes are transient validation inputs only: they are
    removed from `responseData`, never stored as raw text, and represented in
    memory storage only by a one-way evidence hash.
 
@@ -98,14 +111,40 @@ exists so that retention/deletion is always an explicit reviewed operation.
 
 ## Analysis boundary
 
-The analytics RPC derives tenant and subject from the authenticated run. It
-reuses the reports permission/scope authority and returns only aggregate metrics
-and bounded daily totals. SQL accepts only numeric metric scalars, validates
-daily date shapes and period bounds, and caps the direct RPC document at 32 KB;
-the application applies a second 8 KB tool-result cap. The agent is instructed to separate system facts,
-interpretations, and recommendations; it may not infer causation or invent a
-number. Tool results and approved memories are treated as untrusted data, not
-instructions.
+The aggregate analytics RPC derives tenant and subject from the authenticated
+run and returns only allowlisted metrics and bounded daily totals. The team RPC
+also derives tenant and subject from that run, verifies its manager-thread owner
+marker, and performs tenant-only permission checks before reading anything.
+Its final JSON contains no tenant, subject, staff, or customer identifier and no
+phone, email, task title, note, or URL. Employee names and business labels pass
+through database and application sanitizers before they can reach the model.
+
+The comparison is evidence-based rather than a universal employee score.
+`sales` is the count of verified sales and is `initial` from five sales and
+`strong` from ten. `follow_up` is recomputed from its numerator and denominator
+and is `initial` from 20 assignments and `strong` from 50. Task completion is
+recomputed the same way and uses 10/30 due-task thresholds; call answering uses
+20/50 call thresholds. A smaller sample is `insufficient`, and the assistant
+must not describe it as decisive. Activity volume alone is never an overall
+performance measure.
+The report data remains subject to its operational attribution limitations,
+including reassignment, current-owner verified-sales attribution, and telephony
+mapping completeness.
+
+SQL accepts only numeric metric scalars and fixed enums. Each direct analytics
+RPC is capped at 32 KB; the application applies a second 8 KB tool-result cap
+and reconstructs every leader from an explicit field allowlist. It does not
+trust a tool payload's `metricValue` or `sampleStatus`: sales counts are derived
+from the verified numerator, rates are recomputed from numerator/denominator,
+and sample strength is derived again from the category thresholds.
+
+When the team tool is used, a server-owned renderer replaces the model's
+`reply`, `steps`, `suggestions`, and `confidence` with the normalized facts and
+always attaches the fixed `manager.team_performance.live` source. This makes
+employee names, values, sample warnings, and attribution deterministic even if
+the model omits, changes, or invents them. The model still selects the bounded
+tool and dimension, but cannot author the final system facts. Tool results and
+approved memories remain untrusted data, not instructions.
 
 In `manager_v1`, the server always enforces:
 
@@ -120,7 +159,8 @@ In `manager_v1`, the server always enforces:
 - Current message: existing 4,000-character / 12 KB limit.
 - Manager history: last eight bounded messages.
 - Approved memory: eight items and 4 KB total.
-- Analytics: two calls, 8 KB per tool result, fixed metric keys.
+- Analytics: two shared calls, 8 KB per tool result, fixed metric/dimension keys;
+  team results contain one leader per category or at most five for one category.
 - Agent: four turns, 2,200 output tokens, 30-second route timeout.
 - Memory extraction uses the same structured model response; it does not invoke
   a second model.

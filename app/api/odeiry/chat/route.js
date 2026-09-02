@@ -191,6 +191,15 @@ export async function POST(request){
           p_period:period
         }
       ),
+      readManagerTeamPerformance:({period,dimension})=>supportRpc(
+        token,
+        'v1_tenant_odeiry_manager_team_performance',
+        {
+          p_run_id:started.runId,
+          p_period:period,
+          p_dimension:dimension
+        }
+      ),
       signal:modelSignal(request.signal)
     });
     modelCompleted=true;
@@ -392,6 +401,8 @@ function normalizeDatabaseError(code){
     'odeiry_manager_unavailable','odeiry_manager_permission_required',
     'odeiry_manager_run_required','odeiry_manager_run_not_found',
     'odeiry_manager_memory_invalid','odeiry_manager_analytics_limit',
+    'odeiry_manager_insight_unavailable',
+    'odeiry_manager_analytics_payload_too_large',
     'odeiry_manager_cross_mode_forbidden',
     'odeiry_manager_execution_forbidden','odeiry_manager_payload_invalid',
     'odeiry_manager_internal_contract_invalid'
@@ -403,7 +414,7 @@ function statusFor(code,fallback=500){
   if(code==='authentication_required')return 401;
   if([
     'forbidden','odeiry_manager_permission_required',
-    'odeiry_manager_execution_forbidden'
+    'odeiry_manager_execution_forbidden','odeiry_manager_insight_unavailable'
   ].includes(code))return 403;
   if(code==='tenant_not_found'||code.endsWith('_not_found'))return 404;
   if(code==='odeiry_rate_limit_exceeded')return 429;
@@ -414,7 +425,10 @@ function statusFor(code,fallback=500){
   ].includes(code))return 409;
   if(code==='odeiry_units_unavailable')return 402;
   if(code==='odeiry_provider_timeout')return 504;
-  if(code==='odeiry_manager_internal_contract_invalid')return 502;
+  if([
+    'odeiry_manager_internal_contract_invalid',
+    'odeiry_manager_analytics_payload_too_large'
+  ].includes(code))return 502;
   if([
     'odeiry_disabled','odeiry_unavailable','odeiry_manager_disabled',
     'odeiry_manager_unavailable'
@@ -439,6 +453,8 @@ function translateOdeiryError(code){
     odeiry_manager_execution_forbidden:'أوديري المدير للقراءة والتحليل فقط.',
     odeiry_manager_payload_invalid:'بيانات طلب أوديري المدير غير صالحة.',
     odeiry_manager_analytics_limit:'وصل هذا التحليل إلى حد القراءات المسموح.',
+    odeiry_manager_insight_unavailable:'هذا التحليل غير متاح ضمن صلاحياتك الحالية.',
+    odeiry_manager_analytics_payload_too_large:'تعذر اعتماد نتيجة التحليل بأمان.',
     odeiry_manager_internal_contract_invalid:'تعذر اعتماد مسار أوديري المدير بأمان.',
     odeiry_unavailable:'أوديري غير متاح مؤقتًا. حاول مرة أخرى لاحقًا.',
     odeiry_rate_limit_exceeded:'أرسلت عدة طلبات متتالية. انتظر قليلًا ثم حاول مجددًا.',

@@ -228,9 +228,10 @@ function providerError(code){
     forbidden:'ليس لديك صلاحية إدارة وسائل الدفع',
     platform_subject_not_found:'تعذر توثيق هوية منفّذ التغيير',
     invalid_credentials_payload:'بيانات الربط غير مكتملة أو غير صالحة',
-    credential_store_rejected:'رُفض الحفظ الآمن؛ عند تغيير البيئة أعد إدخال كل المعرّفات والمفاتيح المحفوظة',
+    credential_store_rejected:'تعذر حفظ إعدادات الدفع الآمنة. لم يُحفظ أي تغيير؛ حدّث الصفحة وأعد المحاولة',
     payload_too_large:'حجم بيانات الربط أكبر من الحد المسموح',
     unauthorized:'انتهت الجلسة'
   };
   return messages[code]||'تعذر حفظ بيانات الاعتماد';
 }
+

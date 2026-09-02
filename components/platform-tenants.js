@@ -66,9 +66,7 @@ export default function PlatformTenants({initialData}){
         ...states,
         [request.tenant.slug]:{
           enabled:Boolean(updated.enabled),
-          effectiveEnabled:Boolean(
-            odeiryControl.globalEnabled&&updated.enabled
-          ),
+          effectiveEnabled:Boolean(updated.effectiveEnabled),
           version:Number(updated.version)||0
         }
       }));

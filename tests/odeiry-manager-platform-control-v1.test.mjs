@@ -46,4 +46,12 @@ test('tenant UI confirms changes and sends optimistic version',async()=>{
   assert.match(source,/aria-pressed=\{manager\.enabled\}/);
   assert.match(source,/!odeiryControl\.canManage\|\|managerBusy/);
   assert.match(source,/لن ينفذ أوديري أي تعديل على بيانات المنشأة/);
+  assert.match(
+    source,
+    /effectiveEnabled:Boolean\(updated\.effectiveEnabled\)/
+  );
+  assert.doesNotMatch(
+    source,
+    /effectiveEnabled:Boolean\(\s*odeiryControl\.globalEnabled&&updated\.enabled/
+  );
 });

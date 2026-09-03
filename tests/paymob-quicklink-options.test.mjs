@@ -89,6 +89,15 @@ test('QuickLink uses the official KSA request contract and one provider mutation
   assert.doesNotMatch(checkout,/while\s*\([^)]*(?:retry|attempt)|for\s*\([^)]*(?:retry|attempt)/i);
 });
 
+test('QuickLink auth accepts every successful HTTP response including 201 Created',()=>{
+  const quicklinkAuth=checkout.slice(
+    checkout.indexOf('async function createQuicklinkCheckout'),
+    checkout.indexOf('let authToken:',checkout.indexOf('async function createQuicklinkCheckout'))
+  );
+  assert.match(quicklinkAuth,/if\s*\(\s*!authResult\.response\.ok\s*\)/i);
+  assert.doesNotMatch(quicklinkAuth,/authResult\.response\.status\s*!==\s*200/i);
+});
+
 test('QuickLink response is fully bound and persisted before redirect exposure',()=>{
   for(const binding of [
     /amountMinor\s*!==\s*prepared\.amountMinor/,

@@ -931,7 +931,7 @@ async function createQuicklinkCheckout({
       })
       : ambiguousResponse(prepared, "checkout_persistence_unknown");
   }
-  if (authResult.response.status !== 200) {
+  if (!authResult.response.ok) {
     const recorded = await recordIntentionBestEffort(
       supabaseUrl,
       serviceRoleKey,

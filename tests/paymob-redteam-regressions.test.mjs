@@ -136,11 +136,14 @@ test('return-page polling has a per-request timeout and a finite retry budget',(
 });
 
 test('provider return query is scrubbed through a read-only no-referrer redirect',()=>{
-  assert.match(returnRoute,/export\s+function\s+GET\s*\(/i);
+  assert.match(returnRoute,/export\s+async\s+function\s+GET\s*\(/i);
   assert.doesNotMatch(returnRoute,/export\s+(?:async\s+)?function\s+(?:POST|PUT|PATCH|DELETE)\b/i);
   assert.match(returnRoute,/searchParams\.getAll\(\s*'slug'\s*\)/i);
   assert.match(returnRoute,/searchParams\.getAll\(\s*'attempt'\s*\)/i);
-  assert.match(returnRoute,/slugs\.length\s*!==\s*1\s*\|\|\s*attempts\.length\s*!==\s*1/i);
+  assert.match(returnRoute,/searchParams\.getAll\(\s*'order_id'\s*\)/i);
+  assert.match(returnRoute,/v1_tenant_paymob_resolve_return/i);
+  assert.match(returnRoute,/Authorization:\s*`Bearer \$\{token\}`/i);
+  assert.match(returnRoute,/readTextLimited\(\s*response\s*,\s*MAX_UPSTREAM_BYTES\s*\)/i);
   assert.match(returnRoute,/status\s*:\s*303/i);
   assert.match(returnRoute,/Location\s*:\s*location/i);
   assert.match(returnRoute,/Cache-Control['"]?\s*:\s*['"]private, no-store/i);
@@ -148,10 +151,12 @@ test('provider return query is scrubbed through a read-only no-referrer redirect
   assert.match(returnRoute,/X-Content-Type-Options['"]?\s*:\s*['"]nosniff/i);
   assert.match(returnRoute,/Content-Security-Policy/i);
   assert.match(returnRoute,/const\s+location\s*=\s*['"]\/tenant\//i);
-  assert.doesNotMatch(returnRoute,/fetch\s*\(|\.rpc\s*\(|supabase|console\.|payment_status|activation/i);
+  assert.doesNotMatch(returnRoute,/SUPABASE_(?:SERVICE_ROLE|SECRET)_KEY/i);
+  assert.doesNotMatch(returnRoute,/console\.|payment_status|activation|settle|ingest|record_payment/i);
   assert.match(checkoutEdge,/new URL\(\s*["']\/api\/payments\/paymob\/return["']/i);
   assert.match(checkoutEdge,/searchParams\.set\(\s*["']slug["']/i);
   assert.match(checkoutEdge,/searchParams\.set\(\s*["']attempt["']/i);
+  assert.match(checkoutEdge,/returnedRedirectionUrl\s*!==\s*redirectionUrl/i);
 });
 
 test('a pending Paymob attempt cannot be cancelled through generic marketplace actions',()=>{

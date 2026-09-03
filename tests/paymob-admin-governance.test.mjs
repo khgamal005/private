@@ -19,8 +19,14 @@ const ui=source('components/platform-addon-console.js');
 const migration=source(
   'supabase/migrations/20260901134621_paymob_intention_checkout_v1.sql'
 );
+const quicklinkMigration=source(
+  'supabase/migrations/20260903203000_paymob_quicklink_checkout_options_v1.sql'
+);
 
-const EXPECTED_PUBLIC_KEYS=['merchantAccountId','integrationId','region'];
+const EXPECTED_PUBLIC_KEYS=[
+  'merchantAccountId','integrationPath','integrationId',
+  'applePayIntegrationId','region'
+];
 const EXPECTED_SECRET_KEYS=['secretKey','publicKey','hmacSecret','apiKey'];
 
 function escapeRegExp(value){
@@ -48,7 +54,7 @@ function sqlFunction(qualifiedName){
   return tail.slice(0,body.index+body[0].length);
 }
 
-test('all three admin layers allow exactly the Paymob credential contract',()=>{
+test('all three admin layers enforce the governed Paymob credential contract',()=>{
   for(const adminSource of [route,edge]){
     assert.deepEqual(
       declaredStrings(adminSource,'PAYMOB_PUBLIC_CONFIG_KEYS'),
@@ -58,8 +64,11 @@ test('all three admin layers allow exactly the Paymob credential contract',()=>{
       declaredStrings(adminSource,'PAYMOB_SECRET_KEYS'),
       EXPECTED_SECRET_KEYS
     );
-    assert.match(adminSource,/configKeys\.length\s*===\s*PAYMOB_PUBLIC_CONFIG_KEYS\.size/);
     assert.match(adminSource,/configKeys\.every\([^)]*PAYMOB_PUBLIC_CONFIG_KEYS\.has/i);
+    assert.match(adminSource,/positiveSafeInteger\(publicConfig\.merchantAccountId/);
+    assert.match(adminSource,/positiveSafeInteger\(publicConfig\.integrationId/);
+    assert.match(adminSource,/integrationPath\s*===\s*['"]intention['"]|\[['"]intention['"],['"]quicklink['"]\]\.includes\(integrationPath\)/i);
+    assert.match(adminSource,/applePayIntegrationId===null[\s\S]{0,220}?integrationPath===['"]quicklink['"]/i);
     assert.match(adminSource,/secretEntries\.every[\s\S]{0,100}?PAYMOB_SECRET_KEYS\.has/i);
   }
 
@@ -90,8 +99,8 @@ test('apiKey is a required write-only credential, not optional presentation data
     migration,
     /required_secret_keys\s*=\s*array\s*\[\s*'secretKey'\s*,\s*'publicKey'\s*,\s*'hmacSecret'\s*,\s*'apiKey'\s*\]/i
   );
-  assert.match(ui,/secretKey\s*:\s*['"]Secret Key \(إنشاء Intention؛ لا يبدأ هذا الإصدار Refund\/Void\)['"]/);
-  assert.match(ui,/apiKey\s*:\s*['"]API Key \(إصدار رمز الاستعلام\)['"]/);
+  assert.match(ui,/secretKey\s*:\s*['"]Secret Key \(Unified Checkout والعمليات المحكومة\)['"]/);
+  assert.match(ui,/apiKey\s*:\s*['"]API Key \(QuickLink والاستعلام والمطابقة\)['"]/);
   assert.match(ui,/type=['"]password['"][\s\S]{0,100}?autoComplete=['"]new-password['"]/i);
   assert.doesNotMatch(ui,/secretValue\s*=\s*item\.|defaultValue=\{[^}]*secret/i);
 
@@ -100,6 +109,18 @@ test('apiKey is a required write-only credential, not optional presentation data
   assert.match(response[1],/liveReady\s*:\s*false/);
   assert.match(response[1],/secretReturned\s*:\s*false/);
   assert.doesNotMatch(response[1],/\bsecrets?\b|apiKey|secretKey|hmacSecret|publicKey/i);
+});
+
+test('optional Apple Pay routing can be added and explicitly cleared',()=>{
+  for(const adminSource of [route,edge]){
+    assert.match(adminSource,/hasOwnProperty\.call\([\s\S]{0,80}?['"]applePayIntegrationId['"]/i);
+    assert.match(adminSource,/applePayIntegrationId\s*===\s*null/i);
+    assert.match(adminSource,/key\s*===\s*['"]applePayIntegrationId['"]\s*&&\s*value\s*===\s*null/i);
+  }
+  assert.match(ui,/publicConfig\[configKey\]\s*=\s*null/i);
+  assert.match(quicklinkMigration,/submitted\.config_key\s+in\s*\([\s\S]{0,100}?['"]integrationPath['"][\s\S]{0,100}?['"]applePayIntegrationId['"]/i);
+  assert.match(quicklinkMigration,/v_public_config\s*:=\s*v_public_config\s*-\s*['"]applePayIntegrationId['"]/i);
+  assert.match(quicklinkMigration,/paymob_checkout_route_metadata_required/i);
 });
 
 test('credential Edge ingress also enforces its body limit while streaming',()=>{
@@ -159,6 +180,27 @@ test('runtime config is purpose-scoped and checkout receives no plaintext apiKey
   assert.match(runtime,/'publicKey'\s*,/i);
   assert.match(runtime,/'hmacSecret'\s*,/i);
   assert.doesNotMatch(runtime,/'clientSecret'\s*,/i);
+});
+
+test('QuickLink API key is released only to the service-role checkout purpose',()=>{
+  const start=quicklinkMigration.indexOf(
+    'create or replace function public.v1_service_paymob_runtime_config('
+  );
+  assert.notEqual(start,-1);
+  const tail=quicklinkMigration.slice(start);
+  const end=tail.indexOf(
+    'create or replace function public.v1_service_paymob_resume_checkout('
+  );
+  assert.notEqual(end,-1);
+  const runtime=tail.slice(0,end);
+
+  assert.match(runtime,/coalesce\(auth\.jwt\(\)\s*->>\s*'role',\s*''\)\s*<>\s*'service_role'/i);
+  assert.match(runtime,/p_purpose\s+text\s+default\s+'create_intention'/i);
+  assert.match(runtime,/v_attempt\.checkout_flow\s*=\s*'quicklink'/i);
+  assert.match(runtime,/'apiKey'\s*,\s*v_api_key/i);
+  assert.match(runtime,/v_version\.api_key_vault_secret_id/i);
+  assert.match(runtime,/p_purpose\s*=\s*'verify_webhook'/i);
+  assert.doesNotMatch(runtime,/hmacCandidates[\s\S]{0,500}?'apiKey'/i);
 });
 
 test('Paymob control plane is caller-scoped, bounded, typed and sanitized',()=>{

@@ -8,8 +8,11 @@ import {
   jsonResponse,
   normalizeKsaPhone,
   parseJsonObject,
+  PAYMOB_AUTH_URL,
   PAYMOB_CHECKOUT_URL,
   PAYMOB_INTENTION_URL,
+  PAYMOB_QUICKLINK_CHECKOUT_PATH,
+  PAYMOB_QUICKLINK_URL,
   PaymobInputError,
   readTextLimited,
   requiredSafeInteger,
@@ -39,6 +42,7 @@ const CHECKOUT_REQUEST_KEYS = new Set([
   "slug",
   "orderId",
   "idempotencyKey",
+  "paymentOption",
   "billingContact",
 ]);
 const BILLING_CONTACT_KEYS = new Set([
@@ -89,8 +93,11 @@ const CHECKOUT_RUNTIME_KEYS = new Set([
   "integrationId",
   "owner",
   "apiKeyConfigured",
+  "apiKey",
   "secretKey",
   "publicKey",
+  "checkoutFlow",
+  "paymentOption",
 ]);
 const RESUME_RUNTIME_KEYS = new Set([
   "schemaVersion",
@@ -102,6 +109,9 @@ const RESUME_RUNTIME_KEYS = new Set([
   "checkoutMode",
   "publicKey",
   "clientSecret",
+  "checkoutFlow",
+  "paymentOption",
+  "checkoutUrl",
   "expiresAt",
   "providerExpiresAt",
 ]);
@@ -117,18 +127,33 @@ const RECORD_INTENTION_KEYS = new Set([
   "lastErrorCode",
 ]);
 
-type RuntimeConfig = {
+type RuntimeConfigBase = {
   createAllowed: true;
   claimToken: string;
   credentialVersionId: string;
   environment: "sandbox" | "live";
   region: "ksa";
   checkoutMode: "redirect";
-  publicKey: string;
-  secretKey: string;
   integrationId: number;
   owner: string;
 };
+
+type RuntimeConfig = RuntimeConfigBase & (
+  | {
+    checkoutFlow: "intention";
+    paymentOption: "hosted";
+    publicKey: string;
+    secretKey: string;
+    apiKey: null;
+  }
+  | {
+    checkoutFlow: "quicklink";
+    paymentOption: "card" | "apple_pay";
+    publicKey: null;
+    secretKey: null;
+    apiKey: string;
+  }
+);
 
 type PreparedCheckout = {
   attemptId: string;
@@ -147,6 +172,13 @@ type PaymobIntentionItem = {
   amount: number;
   description: string;
   quantity: number;
+};
+
+type BillingContact = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
 };
 
 class RpcError extends Error {
@@ -190,12 +222,13 @@ Deno.serve(async (request: Request) => {
       supabaseUrl,
       anonKey,
       authorization,
-      "v1_tenant_paymob_prepare_checkout",
+      "v2_tenant_paymob_prepare_checkout",
       {
         p_slug: input.slug,
         p_order_id: input.orderId,
         p_idempotency_key: input.idempotencyKey,
         p_billing_contact: input.billingContact,
+        p_payment_option: input.paymentOption,
       },
     );
     prepared = normalizePreparedCheckout(preparedPayload, input.orderId);
@@ -235,7 +268,9 @@ Deno.serve(async (request: Request) => {
     const runtime = normalizeRuntimeConfig(runtimePayload, prepared);
 
     const notificationUrl = buildNotificationUrl(supabaseUrl);
-    const redirectionUrl = buildRedirectionUrl(input.slug, prepared.attemptId);
+    const redirectionUrl = runtime.checkoutFlow === "quicklink"
+      ? buildQuicklinkRedirectionUrl()
+      : buildRedirectionUrl(input.slug, prepared.attemptId);
     // Capture one wall clock for both Paymob's relative TTL and the durable
     // upper bound recorded in SQL. The 120-second safety window also absorbs
     // request latency, so Paymob cannot outlive the local attempt deadline.
@@ -247,6 +282,21 @@ Deno.serve(async (request: Request) => {
     const providerExpiresAt = new Date(
       providerRequestStartedAt + providerExpiration * 1_000,
     ).toISOString();
+    if (runtime.checkoutFlow === "quicklink") {
+      return await createQuicklinkCheckout({
+        supabaseUrl,
+        serviceRoleKey,
+        prepared,
+        runtime,
+        billingContact: input.billingContact,
+        notificationUrl,
+        redirectionUrl,
+        providerExpiresAt,
+        markProviderMutationStarted: () => {
+          providerMutationStarted = true;
+        },
+      });
+    }
     const intentionRequest = {
       amount: prepared.amountMinor,
       currency: "SAR",
@@ -532,7 +582,15 @@ function normalizeCheckoutRequest(payload: JsonObject) {
   const slug = requiredText(payload.slug, "slug", 120);
   const orderId = requiredText(payload.orderId, "order_id", 36);
   const idempotencyKey = requiredText(payload.idempotencyKey, "idempotency_key", 120);
+  const paymentOption = requiredText(
+    payload.paymentOption ?? "hosted",
+    "payment_option",
+    20,
+  ).toLowerCase();
   if (!UUID.test(orderId) || !IDEMPOTENCY_KEY.test(idempotencyKey)) {
+    throw new PaymobInputError("invalid_checkout_request");
+  }
+  if (!["hosted", "card", "apple_pay"].includes(paymentOption)) {
     throw new PaymobInputError("invalid_checkout_request");
   }
   if (!isPlainObject(payload.billingContact)) {
@@ -551,6 +609,7 @@ function normalizeCheckoutRequest(payload: JsonObject) {
     slug,
     orderId,
     idempotencyKey,
+    paymentOption,
     billingContact: {
       firstName,
       lastName,
@@ -705,10 +764,8 @@ function normalizeRuntimeConfig(
   ) {
     throw new PaymobInputError("invalid_runtime_config");
   }
-  const publicKey = requiredText(payload.publicKey, "public_key", 4096);
-  const secretKey = requiredText(payload.secretKey, "secret_key", 8192);
-  // The API key is part of the complete KSA credential bundle. The database
-  // proves it is configured without decrypting it for this intention call.
+  // Every provider version is a complete four-secret bundle, but the runtime
+  // releases only the credential required by the selected checkout flow.
   if (payload.apiKeyConfigured !== true) {
     throw new PaymobInputError("invalid_runtime_config");
   }
@@ -719,17 +776,49 @@ function normalizeRuntimeConfig(
     Number.MAX_SAFE_INTEGER,
   );
   const owner = providerIdentifier(payload.owner, "owner");
-  return {
+  const checkoutFlow = requiredText(
+    payload.checkoutFlow ?? "intention",
+    "checkout_flow",
+    20,
+  ).toLowerCase();
+  const paymentOption = requiredText(
+    payload.paymentOption ?? "hosted",
+    "payment_option",
+    20,
+  ).toLowerCase();
+  if (
+    !["intention", "quicklink"].includes(checkoutFlow) ||
+    checkoutFlow === "intention" && paymentOption !== "hosted" ||
+    checkoutFlow === "quicklink" &&
+      !["card", "apple_pay"].includes(paymentOption)
+  ) throw new PaymobInputError("invalid_runtime_config");
+  const common: RuntimeConfigBase = {
     createAllowed: true,
     claimToken,
     credentialVersionId,
     environment: environment as RuntimeConfig["environment"],
     region: "ksa",
     checkoutMode: "redirect",
-    publicKey,
-    secretKey,
     integrationId,
     owner,
+  };
+  if (checkoutFlow === "quicklink") {
+    return {
+      ...common,
+      checkoutFlow: "quicklink",
+      paymentOption: paymentOption as "card" | "apple_pay",
+      publicKey: null,
+      secretKey: null,
+      apiKey: requiredText(payload.apiKey, "api_key", 8192),
+    };
+  }
+  return {
+    ...common,
+    checkoutFlow: "intention",
+    paymentOption: "hosted",
+    publicKey: requiredText(payload.publicKey, "public_key", 4096),
+    secretKey: requiredText(payload.secretKey, "secret_key", 8192),
+    apiKey: null,
   };
 }
 
@@ -777,6 +866,368 @@ function normalizeRecordedIntention(
     throw new PaymobInputError("invalid_record_intention_contract");
   }
   return { checkoutReady: false, reason: errorCode };
+}
+
+async function createQuicklinkCheckout({
+  supabaseUrl,
+  serviceRoleKey,
+  prepared,
+  runtime,
+  billingContact,
+  notificationUrl,
+  redirectionUrl,
+  providerExpiresAt,
+  markProviderMutationStarted,
+}: {
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  prepared: PreparedCheckout;
+  runtime: RuntimeConfig;
+  billingContact: BillingContact;
+  notificationUrl: string;
+  redirectionUrl: string;
+  providerExpiresAt: string;
+  markProviderMutationStarted: () => void;
+}): Promise<Response> {
+  if (
+    runtime.checkoutFlow !== "quicklink" ||
+    !runtime.apiKey ||
+    !["card", "apple_pay"].includes(runtime.paymentOption)
+  ) throw new PaymobInputError("invalid_runtime_config");
+
+  let authResult: { response: Response; text: string };
+  try {
+    authResult = await fetchTextWithTimeout(
+      PAYMOB_AUTH_URL,
+      {
+        method: "POST",
+        redirect: "error",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify({ api_key: runtime.apiKey }),
+      },
+      PAYMOB_TIMEOUT_MS,
+      MAX_UPSTREAM_BYTES,
+    );
+  } catch {
+    const recorded = await recordIntentionBestEffort(
+      supabaseUrl,
+      serviceRoleKey,
+      prepared.attemptId,
+      runtime.claimToken,
+      "failed",
+      { errorCode: "quicklink_auth_unavailable" },
+    );
+    return recorded
+      ? jsonResponse(502, {
+        ok: false,
+        status: "failed",
+        attemptId: prepared.attemptId,
+        orderId: prepared.orderId,
+        error: "payment_initialization_failed",
+        retryAllowed: true,
+      })
+      : ambiguousResponse(prepared, "checkout_persistence_unknown");
+  }
+  if (authResult.response.status !== 200) {
+    const recorded = await recordIntentionBestEffort(
+      supabaseUrl,
+      serviceRoleKey,
+      prepared.attemptId,
+      runtime.claimToken,
+      "failed",
+      {
+        requestId: providerRequestId(authResult.response),
+        errorCode: "quicklink_auth_rejected",
+        responseHash: await sha256Hex(authResult.text),
+      },
+    );
+    return recorded
+      ? jsonResponse(502, {
+        ok: false,
+        status: "failed",
+        attemptId: prepared.attemptId,
+        orderId: prepared.orderId,
+        error: "payment_initialization_failed",
+        retryAllowed: false,
+      })
+      : ambiguousResponse(prepared, "checkout_persistence_unknown");
+  }
+
+  let authToken: string;
+  try {
+    const authPayload = parseJsonObject(authResult.text);
+    authToken = requiredText(authPayload.token, "auth_token", 8192);
+  } catch {
+    const recorded = await recordIntentionBestEffort(
+      supabaseUrl,
+      serviceRoleKey,
+      prepared.attemptId,
+      runtime.claimToken,
+      "failed",
+      {
+        requestId: providerRequestId(authResult.response),
+        errorCode: "quicklink_auth_invalid_response",
+        responseHash: await sha256Hex(authResult.text),
+      },
+    );
+    return recorded
+      ? jsonResponse(502, {
+        ok: false,
+        status: "failed",
+        attemptId: prepared.attemptId,
+        orderId: prepared.orderId,
+        error: "payment_initialization_failed",
+        retryAllowed: false,
+      })
+      : ambiguousResponse(prepared, "checkout_persistence_unknown");
+  }
+
+  const quicklinkRequest = {
+    amount_cents: String(prepared.amountMinor),
+    expires_at: providerExpiresAt,
+    reference_id: prepared.attemptId,
+    payment_methods: String(runtime.integrationId),
+    email: billingContact.email,
+    notification_url: notificationUrl,
+    is_live: runtime.environment === "live",
+    full_name: `${billingContact.firstName} ${billingContact.lastName}`,
+    phone_number: billingContact.phoneNumber,
+    description: `ODEIR · ${prepared.orderNumber}`,
+  };
+
+  let providerResult: { response: Response; text: string };
+  try {
+    // Authentication above is read-only. From this exact point onward an
+    // ambiguous network outcome must never trigger another provider mutation.
+    markProviderMutationStarted();
+    providerResult = await fetchTextWithTimeout(
+      PAYMOB_QUICKLINK_URL,
+      {
+        method: "POST",
+        redirect: "error",
+        headers: {
+          authorization: `Bearer ${authToken}`,
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify(quicklinkRequest),
+      },
+      PAYMOB_TIMEOUT_MS,
+      MAX_UPSTREAM_BYTES,
+    );
+  } catch (error) {
+    const code = error instanceof UpstreamTimeoutError
+      ? "quicklink_provider_timeout_unknown"
+      : "quicklink_provider_network_unknown";
+    await recordIntentionBestEffort(
+      supabaseUrl,
+      serviceRoleKey,
+      prepared.attemptId,
+      runtime.claimToken,
+      "unknown",
+      { errorCode: code },
+    );
+    return ambiguousResponse(prepared, code);
+  }
+
+  const responseHash = await sha256Hex(providerResult.text);
+  const requestId = providerRequestId(providerResult.response);
+  if (providerResult.response.status !== 200) {
+    const duplicateReference = providerResult.response.status === 400 &&
+      quicklinkDuplicateReference(providerResult.text);
+    const deterministic = !duplicateReference &&
+      [400, 401, 403, 404, 422].includes(providerResult.response.status);
+    const outcome = deterministic ? "failed" : "unknown";
+    const errorCode = duplicateReference
+      ? "quicklink_reference_conflict_unknown"
+      : deterministic
+      ? "quicklink_request_rejected"
+      : "quicklink_response_unknown";
+    const recorded = await recordIntentionBestEffort(
+      supabaseUrl,
+      serviceRoleKey,
+      prepared.attemptId,
+      runtime.claimToken,
+      outcome,
+      { requestId, errorCode, responseHash },
+    );
+    if (outcome === "unknown" || !recorded) {
+      return ambiguousResponse(prepared, errorCode);
+    }
+    return jsonResponse(502, {
+      ok: false,
+      status: "failed",
+      attemptId: prepared.attemptId,
+      orderId: prepared.orderId,
+      error: "payment_initialization_failed",
+      retryAllowed: false,
+    });
+  }
+
+  let quicklink: JsonObject;
+  try {
+    quicklink = parseJsonObject(providerResult.text);
+  } catch {
+    await recordIntentionBestEffort(
+      supabaseUrl,
+      serviceRoleKey,
+      prepared.attemptId,
+      runtime.claimToken,
+      "unknown",
+      { requestId, errorCode: "quicklink_invalid_response", responseHash },
+    );
+    return ambiguousResponse(prepared, "quicklink_invalid_response");
+  }
+
+  let providerLinkId: string;
+  let providerOrderId: string;
+  let checkoutUrl: string;
+  let returnedExpiresAt: string;
+  try {
+    providerLinkId = providerIdentifier(quicklink.id, "quicklink_id");
+    providerOrderId = providerIdentifier(quicklink.order, "quicklink_order");
+    const amountMinor = requiredSafeInteger(
+      quicklink.amount_cents,
+      "quicklink_amount",
+      1,
+      MAX_AMOUNT_MINOR,
+    );
+    const currency = requiredText(
+      quicklink.currency,
+      "quicklink_currency",
+      3,
+    ).toUpperCase();
+    const referenceId = requiredText(
+      quicklink.reference_id,
+      "quicklink_reference",
+      80,
+    );
+    const state = requiredText(
+      quicklink.state,
+      "quicklink_state",
+      40,
+    ).toLowerCase();
+    const returnedNotificationUrl = requiredText(
+      quicklink.notification_url,
+      "quicklink_notification_url",
+      2048,
+    );
+    const returnedRedirectionUrl = requiredText(
+      quicklink.redirection_url,
+      "quicklink_redirection_url",
+      2048,
+    );
+    returnedExpiresAt = validDateText(
+      quicklink.expires_at,
+      "quicklink_expires_at",
+    );
+    checkoutUrl = verifiedQuicklinkCheckoutUrl(quicklink.client_url);
+    const returnedExpiryMs = Date.parse(returnedExpiresAt);
+    if (
+      amountMinor !== prepared.amountMinor ||
+      currency !== "SAR" ||
+      referenceId !== prepared.attemptId ||
+      state !== "active" ||
+      returnedNotificationUrl !== notificationUrl ||
+      returnedRedirectionUrl !== redirectionUrl ||
+      returnedExpiryMs <= Date.now() + 30_000 ||
+      returnedExpiryMs > Date.parse(prepared.expiresAt) - 30_000
+    ) throw new PaymobInputError("provider_binding_mismatch");
+  } catch {
+    await recordIntentionBestEffort(
+      supabaseUrl,
+      serviceRoleKey,
+      prepared.attemptId,
+      runtime.claimToken,
+      "unknown",
+      { requestId, errorCode: "quicklink_invalid_response", responseHash },
+    );
+    return ambiguousResponse(prepared, "quicklink_invalid_response");
+  }
+
+  let recorded: JsonObject;
+  try {
+    recorded = await recordIntention(
+      supabaseUrl,
+      serviceRoleKey,
+      prepared.attemptId,
+      runtime.claimToken,
+      "created",
+      {
+        providerIntentionId: providerLinkId,
+        providerOrderId,
+        clientSecret: checkoutUrl,
+        providerExpiresAt: returnedExpiresAt,
+        requestId,
+        responseHash,
+      },
+    );
+  } catch {
+    return ambiguousResponse(prepared, "quicklink_persistence_unknown");
+  }
+  let recordOutcome: { checkoutReady: boolean; reason: string };
+  try {
+    recordOutcome = normalizeRecordedIntention(
+      recorded,
+      prepared,
+      returnedExpiresAt,
+    );
+  } catch {
+    return ambiguousResponse(prepared, "quicklink_persistence_unknown");
+  }
+  if (!recordOutcome.checkoutReady) {
+    return ambiguousResponse(prepared, recordOutcome.reason);
+  }
+
+  return jsonResponse(201, {
+    ok: true,
+    status: "checkout_ready",
+    attemptId: prepared.attemptId,
+    orderId: prepared.orderId,
+    orderNumber: prepared.orderNumber,
+    checkoutFlow: "quicklink",
+    paymentOption: runtime.paymentOption,
+    expiresAt: returnedExpiresAt,
+    checkoutUrl,
+  });
+}
+
+function quicklinkDuplicateReference(raw: string): boolean {
+  try {
+    const payload = parseJsonObject(raw);
+    const message = String(payload.message ?? "").toLowerCase();
+    return message.includes("reference id") && message.includes("already exists");
+  } catch {
+    return false;
+  }
+}
+
+function verifiedQuicklinkCheckoutUrl(value: unknown): string {
+  const raw = requiredText(value, "quicklink_client_url", 8192);
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new PaymobInputError("invalid_quicklink_client_url");
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "ksa.paymob.com" ||
+    url.port ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    url.pathname !== PAYMOB_QUICKLINK_CHECKOUT_PATH ||
+    url.searchParams.getAll("token").length !== 1 ||
+    [...url.searchParams.keys()].length !== 1 ||
+    !/^\?token=(?:[A-Za-z0-9+/_=-]|%[0-9A-Fa-f]{2}){16,8192}$/.test(
+      url.search,
+    )
+  ) throw new PaymobInputError("invalid_quicklink_client_url");
+  return url.toString();
 }
 
 async function postRpc(
@@ -894,6 +1345,37 @@ async function resumeCheckout(
   ) {
     throw new PaymobInputError("invalid_resume_contract");
   }
+  const checkoutFlow = requiredText(
+    result.checkoutFlow ?? "intention",
+    "checkout_flow",
+    20,
+  ).toLowerCase();
+  const paymentOption = requiredText(
+    result.paymentOption ?? "hosted",
+    "payment_option",
+    20,
+  ).toLowerCase();
+  if (checkoutFlow === "quicklink") {
+    if (!["card", "apple_pay"].includes(paymentOption)) {
+      throw new PaymobInputError("invalid_resume_contract");
+    }
+    const checkoutUrl = verifiedQuicklinkCheckoutUrl(result.checkoutUrl);
+    return jsonResponse(200, {
+      ok: true,
+      status: "checkout_ready",
+      resumed: true,
+      attemptId: prepared.attemptId,
+      orderId: prepared.orderId,
+      orderNumber: prepared.orderNumber,
+      checkoutFlow,
+      paymentOption,
+      expiresAt: providerExpiresAt,
+      checkoutUrl,
+    });
+  }
+  if (checkoutFlow !== "intention" || paymentOption !== "hosted") {
+    throw new PaymobInputError("invalid_resume_contract");
+  }
   const publicKey = requiredText(result.publicKey, "public_key", 4096);
   const clientSecret = requiredText(result.clientSecret, "client_secret", 8192);
   return jsonResponse(200, {
@@ -978,6 +1460,18 @@ function buildRedirectionUrl(slug: string, attemptId: string): string {
   url.searchParams.set("slug", slug);
   url.searchParams.set("attempt", attemptId);
   return url.toString();
+}
+
+function buildQuicklinkRedirectionUrl(): string {
+  const publicAppUrl = Deno.env.get("ODEIR_PUBLIC_APP_URL")?.trim() ?? "";
+  const base = new URL(publicAppUrl);
+  if (base.protocol !== "https:" || base.username || base.password) {
+    throw new PaymobInputError("invalid_redirection_url");
+  }
+  // QuickLink takes its response callback from the selected Integration in
+  // Paymob. Keep that dashboard value static and resolve Paymob's order_id to
+  // the caller-authorized tenant attempt in the scrubber route.
+  return new URL("/api/payments/paymob/return", base).toString();
 }
 
 function providerIdentifier(value: unknown, field: string): string {

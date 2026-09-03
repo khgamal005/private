@@ -1,8 +1,9 @@
 # دليل تشغيل Paymob لمتجر ODEIR
 
-هذا الدليل هو عقد التشغيل والقبول لربط Paymob في متجر الخدمات والإضافات. يعتمد
-على **Intention API الحديثة في إقليم KSA** وUnified Checkout، ولا يستخدم مسار
-`auth token / order / payment key / iframe` القديم.
+هذا الدليل هو عقد التشغيل والقبول لربط Paymob في متجر الخدمات والإضافات. يدعم
+مسارين محكومين في إقليم KSA: **Intention + Unified Checkout** للتوافق الحالي،
+و**QuickLink** لإظهار البطاقات/مدى وApple Pay كخيارات مستقلة. لا يستخدم سلسلة
+`order / payment key / iframe` القديمة.
 
 > الحالة: تجهيز واختبار فقط. لا يتضمن هذا المستند نشرًا، أو تفعيلًا على الإنتاج،
 > أو أي مفاتيح فعلية. يظل Paymob مخفيًا عن العملاء حتى اكتمال أدلة الجاهزية
@@ -13,6 +14,8 @@
 - [مسار الربط عبر APIs](https://developers.paymob.com/paymob-docs/integration-paths/apis)
 - [إنشاء Intention](https://developers.paymob.com/paymob-docs/intention-apis/create-intention)
 - [التحويل إلى Unified Checkout](https://developers.paymob.com/paymob-docs/developers/checkout-experiences/unified-checkout-redirection)
+- [إصدار Auth Token](https://developers.paymob.com/paymob-docs/developers/authentication-request-generate-auth-token-1)
+- [إنشاء QuickLink](https://developers.paymob.com/paymob-docs/developers/quicklink-apis/create-quicklink)
 - [Transaction callbacks](https://developers.paymob.com/paymob-docs/manage-callback/transaction-callbacks)
 - [التحقق من HMAC](https://developers.paymob.com/paymob-docs/developers/webhook-callbacks-and-hmac/hmac/hmac-transaction-callback)
 - [الاستعلام بمعرف العملية](https://developers.paymob.com/paymob-docs/developers/transaction-inquiry-apis/by-transaction-id)
@@ -25,10 +28,12 @@
 | القيمة | مكان الحفظ | الاستخدام | مسموحة للمتصفح؟ |
 |---|---|---|---|
 | `secretKey` | Supabase Vault، نسخة مستقلة لكل بيئة | `Authorization: Token …` عند إنشاء Intention. لا تستخدمه هذه النسخة لبدء Refund/Void | لا |
-| `apiKey` | Supabase Vault، نسخة مستقلة لكل بيئة | إصدار Auth Token المستخدم في Transaction Inquiry | لا |
+| `apiKey` | Supabase Vault، نسخة مستقلة لكل بيئة | إصدار Auth Token لإنشاء QuickLink وللاستعلام والمطابقة | لا |
 | `hmacSecret` | Supabase Vault، نسخة مستقلة لكل بيئة | التحقق من callback بتوقيع SHA-512 | لا |
 | `publicKey` | Supabase Vault ضمن نسخة الاعتماد الكاملة | فتح Unified Checkout | نعم، داخل رابط Checkout الصادر لهذه المحاولة فقط |
-| `integrationId` | إعداد عام، عدد صحيح | `payment_methods` وربط callback | لا حاجة لعرضه |
+| `integrationPath` | إعداد عام: `intention` أو `quicklink` | اختيار مسار Checkout الخادمي | لا |
+| `integrationId` | إعداد عام، عدد صحيح | بطاقة/مدى الأساسية في `payment_methods` وربط callback | لا حاجة لعرضه |
+| `applePayIntegrationId` | إعداد عام اختياري مع QuickLink | إظهار Apple Pay وربط callback الخاص به | لا حاجة لعرضه |
 | `merchantAccountId` | إعداد عام، عدد صحيح | مطابقة `owner` ومنع الربط بحساب آخر | لا حاجة لعرضه |
 | `region` | إعداد ثابت بقيمة `ksa` | تثبيت المضيف ومنع اختيار URL من الطلب | لا |
 
@@ -44,27 +49,57 @@
   للعكس، ووقت التدوير، ومن نفّذ التغيير.
 - يجب تطابق بيئة config وبيئة credentials. الانتقال من Sandbox إلى Live يتطلب
   مجموعة أسرار وربط merchant/integration كاملة للبيئة الجديدة.
-- المضيفان ثابتان في الخادم: إنشاء Intention عبر
-  `https://ksa.paymob.com/v1/intention/`، وCheckout عبر
-  `https://ksa.checkout.paymob.com/`. لا يقبل النظام host أو callback URL من
-  المتصفح.
+- المضيفون والمسارات ثابتة في الخادم: إنشاء Intention عبر
+  `https://ksa.paymob.com/v1/intention/`، وUnified Checkout عبر
+  `https://ksa.checkout.paymob.com/`، وإنشاء QuickLink عبر
+  `https://ksa.paymob.com/api/ecommerce/payment-links`. لا يقبل النظام host أو
+  callback URL أو Integration ID من المتصفح.
+
+### اختيار الأرقام التي يرسلها دعم Paymob
+
+| المسار في أودير | Integration ID الأساسي | Apple Pay الاختياري |
+|---|---|---|
+| `QuickLink` (الموصى به لخيارات دفع ظاهرة) | الرقم المسمى `PL` | الرقم المسمى `Apay PL` |
+| `Intention / Unified Checkout` | الرقم المسمى `Web` | غير مستخدم كخيار مستقل في هذا الإصدار |
+
+لا تُدخل رقم `Web` في حقل QuickLink ولا رقم `PL` في Intention. راجع أن الأرقام
+تخص نفس حساب Paymob ونفس البيئة (Test أو Live) قبل الحفظ. لا تُكتب هذه الأرقام
+في الكود؛ تحفظ كإعدادات نسخة اعتماد، وتغييرها يعيد الجاهزية إلى المراجعة ويُمنع
+إذا كانت هناك محاولة دفع مفتوحة.
+
+### إعداد Callback للـQuickLink
+
+لكل Integration مستخدم في QuickLink (`PL` و`Apay PL`) اضبط من لوحة Paymob:
+
+- `Integration Processed Callback URL`: عنوان Webhook الظاهر في إعداد التشغيل؛
+  ويظل `notification_url` المرسل عند إنشاء الرابط هو المرجع المتوقع نفسه.
+- `Integration Response Callback URL`:
+  `https://odeir.com/api/payments/paymob/return` من دون أي query parameters.
+
+يعيد Paymob المتصفح إلى العنوان الثابت ويضيف `order_id`. تستخدمه ODEIR كدليل
+بحث فقط داخل RPC للقراءة بصلاحية جلسة المستخدم والمنشأة، ثم تحذف كل حقول Paymob
+من العنوان قبل عرض صفحة الحالة. لا تعتمد صفحة الرجوع نجاح الدفع مطلقًا. كما
+يتحقق خادم الإنشاء أن `redirection_url` الذي أعاده QuickLink يساوي هذا العنوان
+بالضبط؛ لذلك يؤدي نسيان إعداد Callback أو ضبطه على نطاق آخر إلى إيقاف Checkout
+بأمان بدل إرسال العميل إلى وجهة غير محكومة.
 
 ## 2. رحلة العميل ومصدر الحقيقة
 
 1. ينشئ الخادم الطلب idempotently ويحسب السعر والضريبة و`SAR` بوحدات الهللة؛
    لا يقبل المبلغ من المتصفح. الخدمة ذات سعر «يبدأ من» لا تنتقل للدفع قبل تثبيت
    عرض سعر نهائي.
-2. ينشئ الخادم محاولة دفع غير قابلة للتغيير تتضمن tenant/order/item/amount/
-   currency/term/environment، ويستخدم UUID المحاولة كـ`special_reference`.
-3. يرسل الخادم Intention واحدة تحتوي على `payment_methods` كـIntegration IDs
-   رقمية، والعناصر، وبيانات الفوترة المطلوبة، و`notification_url` و
-   `redirection_url`. قيمة `items[].amount` هي إجمالي السطر كما يتطلب عقد
-   Intention، أما `quantity` فهي وصفية ولا تضرب في المبلغ مرة أخرى. تنتهي مهلة
-   Paymob قبل مهلة المحاولة المحلية بهامش أمان، ويحفظ الخادم معرفات Paymob قبل
-   إعادة رابط Checkout.
-4. ينتقل العميل إلى Unified Checkout. النقر المكرر أو إعادة تحميل الصفحة يعيدان
-   نفس المحاولة ما دامت صالحة؛ لا تُنشأ محاولة أخرى بعد timeout غامض قبل إجراء
-   inquiry.
+2. يختار العميل اسم الوسيلة فقط (`card` أو `apple_pay`)؛ يختار الخادم Integration
+   ID المقابل ويثبته داخل محاولة دفع غير قابلة للتغيير مع tenant/order/item/
+   amount/currency/term/environment. لا يصل المعرّف إلى المتصفح.
+3. في مسار Intention يرسل الخادم Intention واحدة بالعناصر وبيانات الفوترة و
+   `notification_url` و`redirection_url`. وفي QuickLink يصدر Auth Token ثم ينشئ
+   رابطًا واحدًا بـ`reference_id` يساوي UUID المحاولة و`payment_methods` المحدد
+   خادميًا. قيمة `items[].amount` في Intention هي إجمالي السطر ولا تضرب في
+   `quantity` مرة أخرى.
+4. يتحقق الخادم من المبلغ والعملة والمرجع والبيئة وعنواني callback وانتهاء الصلاحية
+   في رد Paymob، ثم يحفظ الربط والرابط المؤقت في Vault قبل إعادته. النقر المكرر
+   أو إعادة التحميل يستأنفان نفس المحاولة؛ وبعد نتيجة شبكة غامضة لا يحدث إنشاء
+   أعمى ثانٍ قبل inquiry.
 5. **مصدر الحقيقة المالي هو POST callback الموقّع أو Transaction Inquiry
    موثّق من Paymob.** صفحة الرجوع GET للعرض والاستعلام عن حالة المحاولة فقط،
    ولا تسدد طلبًا ولا تفعل إضافة.
@@ -124,6 +159,9 @@ tenant canary واحد فقط. تنفذ المصفوفة التالية على �
 |---|---|
 | دفع إضافة ناجح | طلب paid مرة واحدة، receipt applied، ومصدر استحقاق واحد |
 | دفع خدمة ناجح | طلب الخدمة paid/confirmed فقط، بلا entitlement لإضافة |
+| بطاقة/مدى عبر QuickLink | يستخدم Integration `PL` المثبت للمحاولة ويظهر callback مطابقًا |
+| Apple Pay عبر QuickLink | لا يظهر إلا عند ضبط `Apay PL` ويستخدم معرّفه المثبت للمحاولة |
+| تغيير خيار الدفع بنفس idempotency key | يرفض التعارض ولا ينشئ رابطًا أو محاولة ثانية |
 | الرجوع قبل وصول callback | تظهر pending ثم تتحدث بعد callback؛ الرجوع لا يغير المال |
 | callback مكرر أو متزامن | 2xx، بلا تكرار event أو مدة الاشتراك أو notification |
 | HMAC تالف | 400/401، بلا تعديل مالي، مع alert مُنقح |

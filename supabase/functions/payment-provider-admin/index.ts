@@ -5,10 +5,12 @@ const MAX_RPC_RESPONSE_BYTES=16*1024;
 const RPC_TIMEOUT_MS=10_000;
 const PROVIDERS=new Set(['tamara','paymob','paypal']);
 const PUBLIC_CONFIG_KEYS=new Set([
-  'merchantId','merchantAccountId','integrationId','webhookId','region'
+  'merchantId','merchantAccountId','integrationId','applePayIntegrationId',
+  'integrationPath','webhookId','region'
 ]);
 const PAYMOB_PUBLIC_CONFIG_KEYS=new Set([
-  'merchantAccountId','integrationId','region'
+  'merchantAccountId','integrationPath','integrationId',
+  'applePayIntegrationId','region'
 ]);
 const PAYMOB_SECRET_KEYS=new Set([
   'secretKey','publicKey','hmacSecret','apiKey'
@@ -37,13 +39,23 @@ function validProviderConfig(
 ){
   if(providerKey!=='paymob')return true;
   const configKeys=Object.keys(publicConfig);
+  const integrationPath=publicConfig.integrationPath;
+  const applePayIntegrationId=publicConfig.applePayIntegrationId;
   return checkoutMode==='redirect'
     &&supportedCurrencies.length===1
     &&supportedCurrencies[0]==='SAR'
-    &&configKeys.length===PAYMOB_PUBLIC_CONFIG_KEYS.size
     &&configKeys.every(key=>PAYMOB_PUBLIC_CONFIG_KEYS.has(key))
     &&positiveSafeInteger(publicConfig.merchantAccountId)
     &&positiveSafeInteger(publicConfig.integrationId)
+    &&(integrationPath==='intention'||integrationPath==='quicklink')
+    &&Object.prototype.hasOwnProperty.call(
+      publicConfig,'applePayIntegrationId'
+    )
+    &&(applePayIntegrationId===null||(
+      integrationPath==='quicklink'
+      &&positiveSafeInteger(applePayIntegrationId)
+      &&applePayIntegrationId!==publicConfig.integrationId
+    ))
     &&publicConfig.region==='ksa'
     &&secretEntries.every(([key])=>PAYMOB_SECRET_KEYS.has(key));
 }
@@ -206,10 +218,12 @@ Deno.serve(async(request:Request)=>{
        ||publicConfigEntries.length>10
        ||publicConfigEntries.some(([key,value])=>
          !PUBLIC_CONFIG_KEYS.has(key)
-         ||typeof value!=='string'
-         ||value.trim().length<1
-         ||value.length>240
-         ||/[\u0000-\u001f\u007f]/.test(value)
+         ||(key==='applePayIntegrationId'&&value===null
+           ?false
+           :typeof value!=='string'
+             ||value.trim().length<1
+             ||value.length>240
+             ||/[\u0000-\u001f\u007f]/.test(value))
        )
        ||!validProviderConfig(
          providerKey,checkoutMode,supportedCurrencies,publicConfig,secretEntries

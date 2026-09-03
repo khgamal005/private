@@ -18,27 +18,30 @@ const STATUS={
 };
 const PUBLIC_CONFIG_LABEL={
   merchantId:'معرّف التاجر',merchantAccountId:'معرّف حساب التاجر',
-  integrationId:'معرّف التكامل',webhookId:'معرّف Webhook',
+  integrationId:'Integration ID الأساسي',
+  applePayIntegrationId:'Integration ID لـ Apple Pay',
+  integrationPath:'مسار الربط',webhookId:'معرّف Webhook',
   region:'منطقة تشغيل Paymob'
 };
 const SECRET_LABEL={
-  secretKey:'Secret Key (إنشاء Intention؛ لا يبدأ هذا الإصدار Refund/Void)',
+  secretKey:'Secret Key (Unified Checkout والعمليات المحكومة)',
   publicKey:'Public Key (Unified Checkout)',
   hmacSecret:'HMAC Secret (توثيق Webhook)',
-  apiKey:'API Key (إصدار رمز الاستعلام)'
+  apiKey:'API Key (QuickLink والاستعلام والمطابقة)'
 };
 const PAYMOB_REQUIRED_SECRET_KEYS=[
   'secretKey','publicKey','hmacSecret','apiKey'
 ];
 const PAYMOB_PUBLIC_CONFIG_KEYS=[
-  'merchantAccountId','integrationId','region'
+  'merchantAccountId','integrationPath','integrationId',
+  'applePayIntegrationId','region'
 ];
 const PAYMOB_OPERATIONAL_CHECKS=[
   'refund_initiation','live_credentials','live_card_integration_callback',
   'edge_query_redaction_waf','reconciler_schedule','outbox_delivery'
 ];
 const PAYMOB_CHECK_LABEL={
-  credentials:'الاعتمادات',intention_create:'إنشاء Intention',
+  credentials:'الاعتمادات',intention_create:'إنشاء مسار الدفع',
   webhook_hmac:'توقيع Webhook',paid_transaction:'عملية ناجحة',
   duplicate_delivery:'منع التكرار',failed_transaction:'عملية فاشلة',
   transaction_inquiry:'المطابقة',refund_inquiry:'التحقق من الاسترداد',
@@ -268,6 +271,11 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
           ?'ksa'
           :String(form.get(`public_${configKey}`)||'').trim();
         if(configValue)publicConfig[configKey]=configValue;
+        else if(provider.key==='paymob'&&configKey==='applePayIntegrationId'){
+          // Explicit null clears a previously configured optional Integration
+          // instead of letting the server-side merge retain stale routing.
+          publicConfig[configKey]=null;
+        }
       }
       const paymob=provider.key==='paymob';
       const response=await fetch('/api/platform/payment-provider-secret',{
@@ -816,14 +824,29 @@ function ProviderModal({item,busy,onClose,onSubmit}){
   const [environment,setEnvironment]=useState(initialEnvironment);
   const environmentChanged=environment!==initialEnvironment;
   const paymob=item.key==='paymob';
+  const [integrationPath,setIntegrationPath]=useState(
+    paymob?(publicConfig.integrationPath||'intention'):''
+  );
+  const visiblePublicConfigKeys=publicConfigKeys.filter(configKey=>(
+    configKey!=='integrationPath'
+    &&(configKey!=='applePayIntegrationId'||integrationPath==='quicklink')
+  ));
   return <Modal title={`إدارة ${item.name}`} onClose={onClose}><form onSubmit={onSubmit} className={styles.form} autoComplete="off">
     <label>بيئة الاعتماد<select name="environment" value={environment} onChange={event=>setEnvironment(event.target.value)}><option value="sandbox">Sandbox</option><option value="live">Live credentials</option></select></label>
-    <label>طريقة Checkout{paymob?<select name="checkout_mode" value="redirect" disabled><option value="redirect">Unified Checkout (Redirect)</option></select>:<select name="checkout_mode" defaultValue={item.checkoutMode||'redirect'}><option value="redirect">Redirect</option><option value="embedded">Embedded</option><option value="api">API</option></select>}</label>
+    <label>طريقة Checkout{paymob?<select name="checkout_mode" value="redirect" disabled><option value="redirect">Paymob Hosted Redirect</option></select>:<select name="checkout_mode" defaultValue={item.checkoutMode||'redirect'}><option value="redirect">Redirect</option><option value="embedded">Embedded</option><option value="api">API</option></select>}</label>
     <label className={styles.wide}>العملات{paymob?<input name="currencies" value="SAR" readOnly/>:<input name="currencies" defaultValue={(item.supportedCurrencies||['SAR']).join(', ')}/>} {paymob&&<small>مسار KSA في هذا الإصدار يقبل SAR فقط.</small>}</label>
-    {publicConfigKeys.map(configKey=>{const fixedRegion=paymob&&configKey==='region';const numericPaymobId=paymob&&['merchantAccountId','integrationId'].includes(configKey);return <label key={`${configKey}-${environment}`} className={styles.wide}>{PUBLIC_CONFIG_LABEL[configKey]||configKey}<small>{fixedRegion?'مثبتة خادميًا على المملكة العربية السعودية':environmentChanged?'تغيرت البيئة — أدخل المعرّف الخاص بهذه البيئة':'بيان عام للربط وليس مفتاحًا سريًا'}</small>{fixedRegion?<input name={`public_${configKey}`} value="ksa" readOnly maxLength="240" dir="ltr" required/>:<input name={`public_${configKey}`} defaultValue={environmentChanged?'':publicConfig[configKey]||''} inputMode={numericPaymobId?'numeric':undefined} pattern={numericPaymobId?'[1-9][0-9]*':undefined} maxLength="240" dir={numericPaymobId?'ltr':undefined} required/>}</label>})}
+    {paymob&&<label className={styles.wide}>مسار الربط
+      <small>QuickLink هو المسار الأبسط لإظهار البطاقات وApple Pay كخيارات مستقلة.</small>
+      <select name="public_integrationPath" value={integrationPath}
+        onChange={event=>setIntegrationPath(event.target.value)}>
+        <option value="quicklink">QuickLink — بطاقات وApple Pay</option>
+        <option value="intention">Unified Checkout — Intention</option>
+      </select>
+    </label>}
+    {visiblePublicConfigKeys.map(configKey=>{const fixedRegion=paymob&&configKey==='region';const numericPaymobId=paymob&&['merchantAccountId','integrationId','applePayIntegrationId'].includes(configKey);const optionalApple=paymob&&configKey==='applePayIntegrationId';const contextualLabel=paymob&&configKey==='integrationId'&&integrationPath==='quicklink'?'Integration ID للبطاقات/مدى':PUBLIC_CONFIG_LABEL[configKey]||configKey;return <label key={`${configKey}-${environment}`} className={styles.wide}>{contextualLabel}<small>{fixedRegion?'مثبتة خادميًا على المملكة العربية السعودية':optionalApple?'اختياري؛ اتركه فارغًا لإخفاء Apple Pay عن العميل':environmentChanged?'تغيرت البيئة — أدخل المعرّف الخاص بهذه البيئة':'بيان عام للربط وليس مفتاحًا سريًا'}</small>{fixedRegion?<input name={`public_${configKey}`} value="ksa" readOnly maxLength="240" dir="ltr" required/>:<input name={`public_${configKey}`} defaultValue={environmentChanged?'':publicConfig[configKey]||''} inputMode={numericPaymobId?'numeric':undefined} pattern={numericPaymobId?'[1-9][0-9]*':undefined} maxLength="240" dir={numericPaymobId?'ltr':undefined} required={!optionalApple}/>}</label>})}
     {secretKeys.map(secretKey=>{const mustReplace=environmentChanged&&(requiredSecrets.has(secretKey)||configured.has(secretKey));const required=mustReplace||(!configured.has(secretKey)&&requiredSecrets.has(secretKey));return <label key={`${secretKey}-${environment}`} className={styles.wide}>{SECRET_LABEL[secretKey]||secretKey}{configured.has(secretKey)&&<small>{mustReplace?'تغيرت البيئة — أدخل قيمة جديدة لهذه البيئة':'محفوظ في Vault — اتركه فارغًا للإبقاء عليه'}</small>}<input name={`secret_${secretKey}`} type="password" autoComplete="new-password" placeholder={configured.has(secretKey)&&!mustReplace?'••••••••':'أدخل القيمة السرية'} required={required}/></label>})}
     <label className={styles.check}><input name="enabled" type="checkbox" defaultChecked={item.status!=='disabled'}/><span>إتاحة الإعداد للاختبار</span></label>
-    <aside className={styles.safety}>{paymob?'حفظ مفاتيح Live لا يفعّل الدفع الحي. يلزم اجتياز إنشاء Intention وWebhook الموقّع ومنع التكرار والمطابقة والاسترداد قبل التفعيل.':'لا تُعرض الأسرار بعد الحفظ. ولا تتحول الحالة إلى «نشط» إلا من أدلة تشغيل خادمية موثّقة.'}</aside>
+    <aside className={styles.safety}>{paymob?'تغيير المسار أو Integration ID يعيد الجاهزية إلى وضع المراجعة ويُمنع مع وجود محاولة دفع مفتوحة. حفظ Live لا يفعّله؛ التفعيل يحتاج Webhook موقّعًا ومنع التكرار والمطابقة والاسترداد.':'لا تُعرض الأسرار بعد الحفظ. ولا تتحول الحالة إلى «نشط» إلا من أدلة تشغيل خادمية موثّقة.'}</aside>
     <footer><button type="button" onClick={onClose}>إلغاء</button><button className={styles.primary} disabled={busy==='provider'}>{busy==='provider'?'جارٍ الحفظ…':'حفظ آمن'}</button></footer>
   </form></Modal>;
 }

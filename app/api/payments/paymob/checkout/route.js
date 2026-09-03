@@ -12,6 +12,15 @@ const IDEMPOTENCY_KEY=/^[A-Za-z0-9_-]{16,120}$/;
 const MAX_BODY_BYTES=16*1024;
 const MAX_UPSTREAM_BYTES=128*1024;
 const PAYMOB_CHECKOUT_HOST='ksa.checkout.paymob.com';
+const PAYMOB_QUICKLINK_HOST='ksa.paymob.com';
+const PAYMOB_QUICKLINK_PATH='/api/ecommerce/payment-links/unrestricted';
+const PAYMENT_OPTIONS=new Set(['hosted','card','apple_pay']);
+const CHECKOUT_INPUT_KEYS=new Set([
+  'slug','orderId','idempotencyKey','paymentOption','billingContact'
+]);
+const BILLING_CONTACT_KEYS=new Set([
+  'firstName','lastName','email','phoneNumber'
+]);
 
 export async function POST(request){
   try{
@@ -81,6 +90,12 @@ export async function POST(request){
       attemptId:safeUuid(result.attemptId),
       orderId:safeUuid(result.orderId),
       orderNumber:safeString(result.orderNumber,80),
+      checkoutFlow:['intention','quicklink'].includes(result.checkoutFlow)
+        ?result.checkoutFlow
+        :undefined,
+      paymentOption:PAYMENT_OPTIONS.has(result.paymentOption)
+        ?result.paymentOption
+        :undefined,
       retryAllowed:result.retryAllowed===true
     };
 
@@ -205,13 +220,17 @@ function requestOrigin(request){
 
 function checkoutInput(body){
   if(!body||typeof body!=='object'||Array.isArray(body))return null;
+  if(Object.keys(body).some(key=>!CHECKOUT_INPUT_KEYS.has(key)))return null;
   const slug=String(body.slug||'').trim().toLowerCase();
   const orderId=String(body.orderId||'').trim();
   const idempotencyKey=String(body.idempotencyKey||'').trim();
+  const paymentOption=String(body.paymentOption||'hosted').trim().toLowerCase();
   const contact=body.billingContact;
   if(!SLUG.test(slug)||!UUID.test(orderId)
      ||!IDEMPOTENCY_KEY.test(idempotencyKey)
+     ||!PAYMENT_OPTIONS.has(paymentOption)
      ||!contact||typeof contact!=='object'||Array.isArray(contact))return null;
+  if(Object.keys(contact).some(key=>!BILLING_CONTACT_KEYS.has(key)))return null;
 
   const firstName=cleanText(contact.firstName,2,100);
   const lastName=cleanText(contact.lastName,2,100);
@@ -223,6 +242,7 @@ function checkoutInput(body){
     slug,
     orderId,
     idempotencyKey,
+    paymentOption,
     billingContact:{firstName,lastName,email,phoneNumber}
   };
 }
@@ -249,14 +269,23 @@ function verifiedCheckoutUrl(value){
   try{
     const url=new URL(String(value||''));
     const keys=[...url.searchParams.keys()];
-    if(url.protocol!=='https:'||url.hostname!==PAYMOB_CHECKOUT_HOST
-       ||url.port||url.pathname!=='/'||url.hash
-       ||url.username||url.password
-       ||keys.length!==2||new Set(keys).size!==2
-       ||url.searchParams.getAll('publicKey').length!==1
-       ||url.searchParams.getAll('clientSecret').length!==1
-       ||!url.searchParams.get('publicKey')
-       ||!url.searchParams.get('clientSecret'))return null;
+    if(url.protocol!=='https:'||url.port||url.hash
+       ||url.username||url.password)return null;
+    const unified=url.hostname===PAYMOB_CHECKOUT_HOST
+      &&url.pathname==='/'
+      &&keys.length===2&&new Set(keys).size===2
+      &&url.searchParams.getAll('publicKey').length===1
+      &&url.searchParams.getAll('clientSecret').length===1
+      &&Boolean(url.searchParams.get('publicKey'))
+      &&Boolean(url.searchParams.get('clientSecret'));
+    const quicklink=url.hostname===PAYMOB_QUICKLINK_HOST
+      &&url.pathname===PAYMOB_QUICKLINK_PATH
+      &&keys.length===1&&keys[0]==='token'
+      &&url.searchParams.getAll('token').length===1
+      &&/^\?token=(?:[A-Za-z0-9+/_=-]|%[0-9A-Fa-f]{2}){16,8192}$/.test(
+        url.search
+      );
+    if(!unified&&!quicklink)return null;
     return url.toString();
   }catch{return null;}
 }
@@ -297,6 +326,9 @@ function checkoutError(code){
     paymob_currency_not_supported:'عملة الطلب غير مدعومة عبر Paymob',
     paymob_checkout_attempt_unknown:'نتيجة محاولة سابقة غير محسومة؛ سنراجعها قبل السماح بمحاولة جديدة',
     payment_initialization_unknown:'نتيجة تهيئة الدفع غير محسومة؛ لا تبدأ عملية جديدة الآن',
+    paymob_payment_option_invalid:'خيار الدفع المحدد غير صالح',
+    paymob_payment_option_unavailable:'خيار الدفع المحدد غير متاح حاليًا',
+    paymob_idempotency_payment_option_conflict:'محاولة الدفع الحالية مرتبطة بخيار دفع آخر',
     invalid_billing_contact:'تحقق من بيانات الاسم والبريد والجوال'
   };
   return messages[code]||'تعذر فتح صفحة الدفع الآمنة حاليًا';

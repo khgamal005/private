@@ -18,6 +18,7 @@ const FILES={
   checkout:'supabase/functions/paymob-checkout/index.ts',
   webhook:'supabase/functions/paymob-webhook/index.ts',
   config:'supabase/config.toml',
+  checkoutRoute:'app/api/payments/paymob/checkout/route.js',
   statusRoute:'app/api/payments/paymob/status/route.js',
   returnStatus:'components/paymob-return-status.js'
 };
@@ -26,6 +27,7 @@ const paymob=source(FILES.shared);
 const checkout=source(FILES.checkout);
 const webhook=source(FILES.webhook);
 const config=source(FILES.config);
+const checkoutRoute=source(FILES.checkoutRoute);
 const statusRoute=source(FILES.statusRoute);
 const returnStatus=source(FILES.returnStatus);
 const edgeSurface=`${paymob}\n${checkout}\n${webhook}`;
@@ -156,21 +158,27 @@ test('customer status route and return surface omit provider and reconciliation 
   ])assert.match(response,new RegExp(`\\b${safeField}\\s*(?::|,|$)`,'im'));
 });
 
-test('checkout uses modern KSA Intention API and Unified Checkout only',()=>{
+test('checkout supports governed KSA Intention and QuickLink APIs without legacy iframe APIs',()=>{
   assert.match(paymob,/https:\/\/ksa\.paymob\.com\/v1\/intention\/?/i);
   assert.match(paymob,/https:\/\/ksa\.checkout\.paymob\.com\/?/i);
+  assert.match(paymob,/https:\/\/ksa\.paymob\.com\/api\/auth\/tokens/i);
+  assert.match(paymob,/https:\/\/ksa\.paymob\.com\/api\/ecommerce\/payment-links/i);
   assert.match(checkout,/PAYMOB_INTENTION_URL/);
   assert.match(checkout,/PAYMOB_CHECKOUT_URL/);
+  assert.match(checkout,/PAYMOB_AUTH_URL/);
+  assert.match(checkout,/PAYMOB_QUICKLINK_URL/);
   assert.match(checkout,/Authorization[\s\S]{0,120}?Token/i);
+  assert.match(checkout,/authorization:\s*`Bearer \$\{authToken\}`/i);
   assert.match(checkout,/payment_methods/i);
   assert.match(checkout,/special_reference/i);
+  assert.match(checkout,/reference_id/i);
   assert.match(checkout,/notification_url/i);
   assert.match(checkout,/redirection_url/i);
 
   assert.doesNotMatch(
     edgeSurface,
-    /\/api\/auth\/tokens|\/ecommerce\/orders|\/acceptance\/payment_keys|acceptance\/iframes|iframe_id/i,
-    'Legacy auth-token/order/payment-key/iframe integration must not return'
+    /\/ecommerce\/orders|\/acceptance\/payment_keys|acceptance\/iframes|iframe_id/i,
+    'Legacy order/payment-key/iframe integration must not return'
   );
 });
 
@@ -211,7 +219,7 @@ test('Paymob items and VAT come only from the immutable SQL-prepared snapshot',(
   assert.ok(requestKeys&&contactKeys,'Missing exact browser checkout allowlists');
   assert.deepEqual(
     quotedValues(requestKeys[1]),
-    ['slug','orderId','idempotencyKey','billingContact']
+    ['slug','orderId','idempotencyKey','paymentOption','billingContact']
   );
   assert.deepEqual(
     quotedValues(contactKeys[1]),
@@ -321,13 +329,15 @@ test('checkout consumes the SQL record result and emits a URL only for the exact
   );
 });
 
-test('checkout receives only API-key readiness, never the plaintext API key',()=>{
+test('QuickLink API key is confined to the service checkout and never reaches the browser route',()=>{
   assert.match(checkout,/apiKeyConfigured\s*!==\s*true/i);
-  assert.doesNotMatch(checkout,/payload\.apiKey\b|result\.apiKey\b/i);
-  assert.doesNotMatch(checkout,/apiKey\s*:\s*(?:payload|result|runtime)\./i);
+  assert.match(checkout,/checkoutFlow\s*===\s*['"]quicklink['"][\s\S]{0,500}?requiredText\(payload\.apiKey/i);
+  assert.match(checkout,/body:\s*JSON\.stringify\(\{\s*api_key:\s*runtime\.apiKey\s*\}\)/i);
+  assert.doesNotMatch(checkoutRoute,/\.(?:apiKey)\b|\bapi_key\b/i);
+  assert.doesNotMatch(checkout,/console\.(?:log|debug|info|warn|error)\s*\(/i);
 });
 
-test('ambiguous Intention outcomes remain unknown and are never blindly retried',()=>{
+test('ambiguous provider mutations remain unknown and are never blindly retried',()=>{
   assert.match(checkout,/!\[408,\s*409,\s*425,\s*429\]\.includes\(providerResponse\.status\)/i);
   assert.match(checkout,/if\s*\(outcome\s*===\s*['"]unknown['"]\)\s*return ambiguousResponse/i);
   assert.match(checkout,/if\s*\(!recorded\)[\s\S]{0,160}?intention_persistence_unknown/i);
@@ -337,6 +347,11 @@ test('ambiguous Intention outcomes remain unknown and are never blindly retried'
     (checkout.match(/fetchTextWithTimeout\(\s*PAYMOB_INTENTION_URL/g)||[]).length,
     1,
     'One checkout claim may issue at most one provider mutation'
+  );
+  assert.equal(
+    (checkout.match(/fetchTextWithTimeout\(\s*PAYMOB_QUICKLINK_URL/g)||[]).length,
+    1,
+    'One checkout claim may issue at most one QuickLink mutation'
   );
   assert.doesNotMatch(checkout,/while\s*\(|for\s*\([^)]*(?:retry|attempt)/i);
 });
@@ -371,6 +386,8 @@ test('HMAC rotation accepts exactly one bounded account-bound credential version
   assert.match(webhook,/normalizePaymobTransaction[\s\S]*?getWebhookRuntime/i);
   assert.match(webhook,/Promise\.all\s*\([\s\S]*?hmacCandidates\.map/i);
   assert.match(webhook,/candidate\.integrationId\s*===\s*transaction\.integrationId/i);
+  assert.match(webhook,/candidate\.applePayIntegrationId\s*===\s*transaction\.integrationId/i);
+  assert.match(webhook,/candidate\.historicalIntegrationIds\.includes\(transaction\.integrationId\)/i);
   assert.match(webhook,/candidate\.owner\s*===\s*transaction\.owner/i);
   assert.match(webhook,/matches\.length\s*!==\s*1/);
   assert.match(webhook,/p_credential_version_id\s*:\s*matchedCandidate\.credentialVersionId/i);

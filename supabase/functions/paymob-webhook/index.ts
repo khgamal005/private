@@ -29,6 +29,8 @@ type WebhookHmacCandidate = {
   environment: "sandbox" | "live";
   hmacSecret: string;
   integrationId: string;
+  applePayIntegrationId: string | null;
+  historicalIntegrationIds: string[];
   owner: string;
 };
 
@@ -81,11 +83,15 @@ Deno.serve(async (request: Request) => {
         )
       ),
     );
-    const matches = runtime.hmacCandidates.filter((candidate, index) =>
-      verificationResults[index] &&
-      candidate.integrationId === transaction.integrationId &&
-      candidate.owner === transaction.owner
-    );
+    const matches = runtime.hmacCandidates.filter((candidate, index) => {
+      const integrationMatches =
+        candidate.integrationId === transaction.integrationId ||
+        candidate.applePayIntegrationId === transaction.integrationId ||
+        candidate.historicalIntegrationIds.includes(transaction.integrationId);
+      return verificationResults[index] &&
+        integrationMatches &&
+        candidate.owner === transaction.owner;
+    });
     if (matches.length !== 1) return jsonResponse(401, { ok: false });
     const matchedCandidate = matches[0];
 
@@ -171,6 +177,8 @@ async function getWebhookRuntime(
       "credentialVersionId",
       "environment",
       "integrationId",
+      "applePayIntegrationId",
+      "historicalIntegrationIds",
       "owner",
       "hmacSecret",
     ]);
@@ -187,16 +195,48 @@ async function getWebhookRuntime(
       throw new PaymobInputError("invalid_runtime_config");
     }
     const integrationId = providerIdentifier(value.integrationId, "integration_id");
+    const applePayIntegrationId=value.applePayIntegrationId===undefined
+        ||value.applePayIntegrationId===null
+      ?null
+      :providerIdentifier(
+        value.applePayIntegrationId,
+        "apple_pay_integration_id",
+      );
+    if(!Array.isArray(value.historicalIntegrationIds)
+        ||value.historicalIntegrationIds.length>32){
+      throw new PaymobInputError("invalid_runtime_config");
+    }
+    const historicalIntegrationIds=value.historicalIntegrationIds.map(
+      (item)=>providerIdentifier(item,"historical_integration_id")
+    );
+    if(new Set(historicalIntegrationIds).size!==historicalIntegrationIds.length
+        ||historicalIntegrationIds.includes(integrationId)
+        ||applePayIntegrationId!==null
+          &&historicalIntegrationIds.includes(applePayIntegrationId)){
+      throw new PaymobInputError("invalid_runtime_config");
+    }
     const owner = providerIdentifier(value.owner, "owner");
     // The database repeats these signed account comparisons atomically against
     // the stored attempt and the matched credential version.
     requiredSafeInteger(integrationId, "integration_id", 1);
+    if(applePayIntegrationId){
+      requiredSafeInteger(
+        applePayIntegrationId,
+        "apple_pay_integration_id",
+        1,
+      );
+      if(applePayIntegrationId===integrationId){
+        throw new PaymobInputError("invalid_runtime_config");
+      }
+    }
     requiredSafeInteger(owner, "owner", 1);
     return {
       credentialVersionId,
       environment: environment as WebhookHmacCandidate["environment"],
       hmacSecret: requiredText(value.hmacSecret, "hmac_secret", 8192),
       integrationId,
+      applePayIntegrationId,
+      historicalIntegrationIds,
       owner,
     };
   });

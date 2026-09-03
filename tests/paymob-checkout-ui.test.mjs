@@ -29,9 +29,14 @@ test('Paymob checkout stays server-authenticated and only returns an allowlisted
   assert.match(source.checkoutRoute,/Authorization:`Bearer \$\{token\}`/);
   assert.match(source.checkoutRoute,/billingContact:\{firstName,lastName,email,phoneNumber\}/);
   assert.match(source.checkoutRoute,/PAYMOB_CHECKOUT_HOST='ksa\.checkout\.paymob\.com'/);
+  assert.match(source.checkoutRoute,/PAYMOB_QUICKLINK_HOST='ksa\.paymob\.com'/);
+  assert.match(source.checkoutRoute,/PAYMOB_QUICKLINK_PATH='\/api\/ecommerce\/payment-links\/unrestricted'/);
   assert.match(source.checkoutRoute,/url\.protocol!==['"]https:['"]/);
-  assert.match(source.checkoutRoute,/url\.hostname!==PAYMOB_CHECKOUT_HOST/);
+  assert.match(source.checkoutRoute,/url\.hostname===PAYMOB_CHECKOUT_HOST/);
+  assert.match(source.checkoutRoute,/url\.hostname===PAYMOB_QUICKLINK_HOST/);
   assert.match(source.checkoutRoute,/url\.port/);
+  assert.match(source.checkoutRoute,/Object\.keys\(body\)\.some\(key=>!CHECKOUT_INPUT_KEYS\.has\(key\)\)/);
+  assert.match(source.checkoutRoute,/Object\.keys\(contact\)\.some\(key=>!BILLING_CONTACT_KEYS\.has\(key\)\)/);
   assert.match(source.checkoutRoute,/safeErrorCode\(/);
   assert.match(source.checkoutRoute,/Cache-Control['"]?:['"]private, no-store/);
   assert.doesNotMatch(source.checkoutRoute,/SUPABASE_(?:SERVICE_ROLE|SECRET)_KEY/);

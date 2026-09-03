@@ -1,5 +1,10 @@
 export const PAYMOB_INTENTION_URL = "https://ksa.paymob.com/v1/intention/";
 export const PAYMOB_CHECKOUT_URL = "https://ksa.checkout.paymob.com/";
+export const PAYMOB_AUTH_URL = "https://ksa.paymob.com/api/auth/tokens";
+export const PAYMOB_QUICKLINK_URL =
+  "https://ksa.paymob.com/api/ecommerce/payment-links";
+export const PAYMOB_QUICKLINK_CHECKOUT_PATH =
+  "/api/ecommerce/payment-links/unrestricted";
 
 export const PAYMOB_TRANSACTION_HMAC_FIELDS = [
   "amount_cents",

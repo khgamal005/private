@@ -4,6 +4,11 @@ import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import styles from './marketplace-store.module.css';
+import {
+  defaultPaymobOption,
+  PaymentMethodPicker,
+  PaymobOptionPicker
+} from './payment-method-picker';
 
 const EMPTY=[];
 const STATUS={
@@ -90,6 +95,9 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   const [category,setCategory]=useState('all');
   const [checkout,setCheckout]=useState(null);
   const [paymentProvider,setPaymentProvider]=useState(paymentMethods[0]?.key||'bank_transfer');
+  const [paymentOption,setPaymentOption]=useState(
+    defaultPaymobOption(paymentMethods)
+  );
   const [notes,setNotes]=useState('');
   const [transferOrder,setTransferOrder]=useState(null);
   const [senderName,setSenderName]=useState('');
@@ -154,6 +162,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
       paymentRequestKey:requestKey()
     });
     setPaymentProvider(paymentMethods[0]?.key||'bank_transfer');
+    setPaymentOption(defaultPaymobOption(paymentMethods));
     resetBillingContact();
     setNotes('');setError('');setNotice('');
   }
@@ -172,6 +181,13 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
     };
   }
 
+  function choosePaymentProvider(providerKey){
+    setPaymentProvider(providerKey);
+    if(providerKey==='paymob'){
+      setPaymentOption(defaultPaymobOption(paymentMethods));
+    }
+  }
+
   async function redirectToPaymob(order,paymentRequestKey){
     const response=await fetch('/api/payments/paymob/checkout',{
       method:'POST',
@@ -180,6 +196,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
         slug,
         orderId:order.id,
         idempotencyKey:paymentRequestKey,
+        paymentOption,
         billingContact:billingContact()
       })
     });
@@ -240,6 +257,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
 
   function openPaymob(order){
     setPaymobOrder({order,paymentRequestKey:requestKey()});
+    setPaymentOption(defaultPaymobOption(paymentMethods));
     resetBillingContact();setError('');setNotice('');
   }
 
@@ -356,9 +374,11 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
       <form className={styles.modal} role="dialog" aria-modal="true" onSubmit={createOrder}>
         <header><div><small>اشتراك إضافة سنوي</small><h2>{checkout.item.name}</h2></div><button type="button" onClick={()=>setCheckout(null)} aria-label="إغلاق">×</button></header>
         <p>{checkout.item.description}</p>
-        <label><span>وسيلة الدفع</span><select value={paymentProvider} onChange={event=>setPaymentProvider(event.target.value)} required>
-          {paymentMethods.map(method=><option key={method.key} value={method.key}>{method.name}</option>)}
-        </select></label>
+        <PaymentMethodPicker methods={paymentMethods} value={paymentProvider}
+          onChange={choosePaymentProvider}/>
+        {selectedMethod?.key==='paymob'&&<PaymobOptionPicker
+          paymentMethods={paymentMethods} value={paymentOption}
+          onChange={setPaymentOption}/>}
         {selectedMethod?.publicConfig?.instructionsAr&&<div className={styles.activationNote}><span>↔</span><p>{selectedMethod.publicConfig.instructionsAr}</p></div>}
         {selectedMethod?.key==='bank_transfer'&&(selectedMethod.publicConfig?.bankName||selectedMethod.publicConfig?.iban)&&<div className={styles.info}>
           {selectedMethod.publicConfig.bankName&&<div><b>البنك:</b> {selectedMethod.publicConfig.bankName}</div>}
@@ -396,6 +416,8 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
       <form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="addon-paymob-title" onSubmit={continuePaymob}>
         <header><div><small>دفع إلكتروني آمن</small><h2 id="addon-paymob-title">{paymobOrder.order.orderNumber||'طلب الإضافة'}</h2></div><button type="button" onClick={()=>setPaymobOrder(null)} aria-label="إغلاق">×</button></header>
         <p>أدخل بيانات الفاتورة، ثم سننقلك إلى صفحة Paymob المشفّرة لإكمال الدفع. لا تُفعّل الإضافة إلا بعد وصول تأكيد الدفع الموثق إلى أودير.</p>
+        <PaymobOptionPicker paymentMethods={paymentMethods}
+          value={paymentOption} onChange={setPaymentOption} compact/>
         <PaymobBillingFields
           firstName={billingFirstName} lastName={billingLastName}
           email={billingEmail} phone={billingPhone}

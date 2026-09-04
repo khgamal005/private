@@ -11,25 +11,20 @@ const GLOBAL_DISABLE_KEYS=new Set(['action','confirmation']);
 const TENANT_ACTION_KEYS=new Set([
   'action','tenantId','environment','confirmation'
 ]);
-const EVIDENCE_REQUEST_KEYS=new Set([
+const EVIDENCE_ACTION_KEYS=new Set([
   'action','checkKey','artifactSha256','confirmation'
 ]);
-const EVIDENCE_APPROVE_KEYS=new Set([
-  'action','checkKey','artifactSha256','requestId','confirmation'
-]);
-const GLOBAL_ACTIONS=new Set(['global_request','global_approve']);
-const TENANT_ACTIONS=new Set([
-  'tenant_request','tenant_approve','tenant_disable'
-]);
+const GLOBAL_ACTIONS=new Set(['global_activate']);
+const TENANT_ACTIONS=new Set(['tenant_enable','tenant_disable']);
+const EVIDENCE_ACTIONS=new Set(['evidence_attest']);
 const PROVIDER_STATUSES=new Set([
   'disabled','draft','configured','active','error'
 ]);
 const ROLLOUT_MODES=new Set(['observe_only','sandbox','live']);
 const ENVIRONMENTS=new Set(['sandbox','live']);
-// Only evidence produced outside the payment ledger can enter the
-// maker/checker attestation flow. Intention, callback, settlement, duplicate,
-// inquiry and refund-result checks are derived by SQL and are never writable
-// from this operator endpoint.
+// Only evidence produced outside the payment ledger can enter this
+// digest-only attestation endpoint. Automated ledger checks remain
+// read-only and cannot be fabricated by an operator.
 const EVIDENCE_CHECKS=new Set([
   'refund_initiation','live_credentials','live_card_integration_callback',
   'edge_query_redaction_waf','reconciler_schedule','outbox_delivery'
@@ -110,8 +105,7 @@ function normalizeAction(value){
     if(!hasExactKeys(value,GLOBAL_ACTION_KEYS))return null;
     const targetMode=String(value.targetMode||'');
     if(!ENVIRONMENTS.has(targetMode))return null;
-    const verb=action==='global_request'?'REQUEST':'APPROVE';
-    const expected=`${verb} PAYMOB ${targetMode.toUpperCase()}`;
+    const expected=`ACTIVATE PAYMOB ${targetMode.toUpperCase()}`;
     if(value.confirmation!==expected)return null;
     return {
       kind:'global',
@@ -136,12 +130,9 @@ function normalizeAction(value){
     const tenantId=String(value.tenantId||'');
     const environment=String(value.environment||'');
     if(!UUID.test(tenantId)||!ENVIRONMENTS.has(environment))return null;
-    const enabled=action!=='tenant_disable';
-    const verb=action==='tenant_request'
-      ?'REQUEST'
-      :action==='tenant_approve'?'APPROVE':'DISABLE';
+    const enabled=action==='tenant_enable';
     const expected=enabled
-      ?`${verb} PAYMOB TENANT ${tenantId} ${environment.toUpperCase()}`
+      ?`ENABLE PAYMOB TENANT ${tenantId} ${environment.toUpperCase()}`
       :`DISABLE PAYMOB TENANT ${tenantId}`;
     if(value.confirmation!==expected)return null;
     return {
@@ -155,11 +146,11 @@ function normalizeAction(value){
       }
     };
   }
-  if(action==='evidence_request'){
-    if(!hasExactKeys(value,EVIDENCE_REQUEST_KEYS))return null;
+  if(EVIDENCE_ACTIONS.has(action)){
+    if(!hasExactKeys(value,EVIDENCE_ACTION_KEYS))return null;
     const checkKey=String(value.checkKey||'');
     const artifactSha256=String(value.artifactSha256||'');
-    const expected=`REQUEST PAYMOB EVIDENCE ${checkKey}`;
+    const expected=`ATTEST PAYMOB EVIDENCE ${checkKey}`;
     if(!EVIDENCE_CHECKS.has(checkKey)
        ||!/^[a-f0-9]{64}$/.test(artifactSha256)
        ||value.confirmation!==expected)return null;
@@ -167,26 +158,10 @@ function normalizeAction(value){
       kind:'evidence',
       rpc:'v1_platform_paymob_operational_evidence_action',
       body:{
-        p_check_key:checkKey,p_evidence_sha256:artifactSha256,
-        p_request_id:null,p_confirmation:expected
-      }
-    };
-  }
-  if(action==='evidence_approve'){
-    if(!hasExactKeys(value,EVIDENCE_APPROVE_KEYS))return null;
-    const checkKey=String(value.checkKey||'');
-    const artifactSha256=String(value.artifactSha256||'');
-    const requestId=String(value.requestId||'');
-    const expected=`APPROVE PAYMOB EVIDENCE ${requestId}`;
-    if(!EVIDENCE_CHECKS.has(checkKey)||!UUID.test(requestId)
-       ||!/^[a-f0-9]{64}$/.test(artifactSha256)
-       ||value.confirmation!==expected)return null;
-    return {
-      kind:'evidence',
-      rpc:'v1_platform_paymob_operational_evidence_action',
-      body:{
-        p_check_key:checkKey,p_evidence_sha256:artifactSha256,
-        p_request_id:requestId,p_confirmation:expected
+        p_check_key:checkKey,
+        p_evidence_sha256:artifactSha256,
+        p_request_id:null,
+        p_confirmation:expected
       }
     };
   }
@@ -446,19 +421,17 @@ function controlError(code){
     payment_provider_not_found:'إعداد Paymob غير موجود',
     paymob_activation_target_invalid:'بيئة التفعيل غير صالحة',
     paymob_activation_confirmation_invalid:'نص تأكيد التفعيل غير مطابق',
-    paymob_activation_checker_required:'يلزم مراجع مختلف خلال 24 ساعة',
     paymob_activation_evidence_incomplete:'أدلة الجاهزية لهذه البيئة غير مكتملة',
     tenant_not_found:'المنشأة غير موجودة',
     paymob_reef_skills_rollout_prohibited:'يحظر استخدام Reef Skills في Canary Paymob',
     paymob_environment_invalid:'بيئة Paymob غير صالحة',
     paymob_global_rollout_not_ready:'فعّل بوابة البيئة العامة بعد اكتمال الأدلة أولًا',
     paymob_rollout_confirmation_invalid:'نص تأكيد إتاحة المنشأة غير مطابق',
-    paymob_rollout_checker_required:'يلزم مراجع مختلف خلال 24 ساعة لإتاحة المنشأة',
     paymob_operational_evidence_invalid:'نوع الدليل أو بصمة الملف غير صالحة',
     paymob_live_credential_version_required:'يلزم إصدار اعتماد Live نشط ومطابق أولًا',
     paymob_operational_evidence_confirmation_invalid:'نص تأكيد الدليل التشغيلي غير مطابق',
-    paymob_operational_evidence_checker_required:'يلزم مراجع مختلف لدليل تشغيلي معلّق وساري',
-    paymob_operational_evidence_already_approved:'هذا الدليل التشغيلي معتمد بالفعل'
+    paymob_operational_evidence_already_approved:'هذا الدليل التشغيلي مسجل بالفعل',
+    paymob_operational_evidence_request_not_found:'سجل الدليل التشغيلي غير موجود أو لا يطابق البيئة الحالية'
   };
   return messages[code]||'تعذر تنفيذ إجراء حوكمة Paymob';
 }

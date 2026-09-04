@@ -491,19 +491,18 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
 
   if(control.loading&&!snapshot){
     return <section className={styles.governance} aria-busy="true">
-      <p>جارٍ تحميل بوابة حوكمة Paymob…</p>
+      <p>جارٍ تحميل بوابة تشغيل Paymob…</p>
     </section>;
   }
   if(control.error||!snapshot){
     return <section className={`${styles.governance} ${styles.governanceError}`}>
-      <div><h2>حوكمة تشغيل Paymob</h2><p>{control.error||'بيانات الجاهزية غير متاحة.'}</p></div>
+      <div><h2>تشغيل Paymob</h2><p>{control.error||'بيانات الجاهزية غير متاحة.'}</p></div>
       <button type="button" onClick={()=>void onRefresh()}>إعادة المحاولة</button>
     </section>;
   }
 
   const missing=(snapshot.missingChecks||EMPTY)
     .map(check=>PAYMOB_CHECK_LABEL[check]||check);
-  const pendingMode=snapshot.pendingActivationMode;
   const tenantRollout=(snapshot.tenantRollouts||EMPTY).find(item=>(
     item.tenantId===tenantId&&item.environment===environment
   ));
@@ -518,23 +517,14 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
     &&snapshot.status==='configured'
     &&snapshot.rolloutMode==='observe_only'
     &&snapshot.configured===true;
-  const evidenceRequests=snapshot.operationalEvidenceRequests||EMPTY;
-  const selectedEvidenceRequest=evidenceRequests.find(item=>(
-    item.checkKey===evidenceCheck&&item.pendingApproval
-  ));
 
-  function openGlobal(action,targetMode){
-    const verb=action==='global_request'?'REQUEST':'APPROVE';
-    const expected=`${verb} PAYMOB ${targetMode.toUpperCase()}`;
+  function openGlobal(targetMode){
+    const expected=`ACTIVATE PAYMOB ${targetMode.toUpperCase()}`;
     onAction({
-      title:action==='global_request'
-        ?`طلب فتح ${targetMode==='live'?'Live':'Sandbox'}`
-        :`مراجعة فتح ${targetMode==='live'?'Live':'Sandbox'}`,
+      title:`تفعيل ${targetMode==='live'?'Live':'Sandbox'}`,
       expected,
-      request:{action,targetMode},
-      successMessage:action==='global_request'
-        ?'سُجل الطلب. يلزم اعتماد مشغّل آخر خلال 24 ساعة.'
-        :'تم اعتماد بوابة البيئة بعد تحقق قاعدة البيانات من الأدلة.'
+      request:{action:'global_activate',targetMode},
+      successMessage:'تم تنفيذ التفعيل مباشرة بعد تحقق قاعدة البيانات من الصلاحية والأدلة.'
     });
   }
   function disableGlobal(){
@@ -542,60 +532,50 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
       title:'إيقاف بوابة Paymob العامة',
       expected:'DISABLE PAYMOB CHECKOUT',
       request:{action:'global_disable'},
-      successMessage:'أوقفت بوابة Paymob العامة ومُسح أي طلب اعتماد معلّق.'
+      successMessage:'أوقفت بوابة Paymob العامة فورًا.'
     });
   }
-  function openTenant(action){
+  function openTenant(enabled){
     const tenant=availableTenants.find(item=>item.id===tenantId);
     if(!tenant)return;
-    const verb=action==='tenant_request'
-      ?'REQUEST':action==='tenant_approve'?'APPROVE':'DISABLE';
-    const expected=action==='tenant_disable'
-      ?`DISABLE PAYMOB TENANT ${tenant.id}`
-      :`${verb} PAYMOB TENANT ${tenant.id} ${environment.toUpperCase()}`;
+    const expected=enabled
+      ?`ENABLE PAYMOB TENANT ${tenant.id} ${environment.toUpperCase()}`
+      :`DISABLE PAYMOB TENANT ${tenant.id}`;
     onAction({
-      title:action==='tenant_request'
-        ?`طلب Canary للمنشأة ${tenant.name}`
-        :action==='tenant_approve'
-          ?`اعتماد Canary للمنشأة ${tenant.name}`
-          :`إيقاف Paymob للمنشأة ${tenant.name}`,
-      expected,
-      request:{action,tenantId:tenant.id,environment},
-      successMessage:action==='tenant_request'
-        ?'سُجل طلب المنشأة. يلزم اعتماد مشغّل آخر خلال 24 ساعة.'
-        :action==='tenant_approve'
-          ?'تم اعتماد إتاحة Paymob للمنشأة المحددة فقط.'
-          :'أوقفت إتاحة المنشأة ومُسح طلب الاعتماد المعلّق.'
-    });
-  }
-  function openEvidence(action){
-    const pending=selectedEvidenceRequest;
-    const digest=action==='evidence_approve'
-      ?pending?.artifactSha256
-      :artifactSha256.trim().toLowerCase();
-    if(!digest||!/^[a-f0-9]{64}$/.test(digest))return;
-    const expected=action==='evidence_request'
-      ?`REQUEST PAYMOB EVIDENCE ${evidenceCheck}`
-      :`APPROVE PAYMOB EVIDENCE ${pending?.requestId||''}`;
-    onAction({
-      title:action==='evidence_request'
-        ?`طلب اعتماد دليل: ${PAYMOB_CHECK_LABEL[evidenceCheck]}`
-        :`مراجعة دليل: ${PAYMOB_CHECK_LABEL[evidenceCheck]}`,
+      title:enabled
+        ?`إتاحة Paymob للمنشأة ${tenant.name}`
+        :`إيقاف Paymob للمنشأة ${tenant.name}`,
       expected,
       request:{
-        action,checkKey:evidenceCheck,artifactSha256:digest,
-        ...(action==='evidence_approve'?{requestId:pending.requestId}:{})
+        action:enabled?'tenant_enable':'tenant_disable',
+        tenantId:tenant.id,
+        environment
       },
-      successMessage:action==='evidence_request'
-        ?'سُجلت بصمة الدليل فقط. يلزم اعتماد مشغّل آخر خلال 24 ساعة.'
-        :'اعتمد الدليل التشغيلي ببصمته بعد مراجعة منفّذ مختلف.'
+      successMessage:enabled
+        ?'تمت إتاحة Paymob للمنشأة مباشرة بعد تحقق جميع البوابات.'
+        :'أوقفت إتاحة Paymob للمنشأة.'
+    });
+  }
+  function openEvidence(){
+    const digest=artifactSha256.trim().toLowerCase();
+    if(!/^[a-f0-9]{64}$/.test(digest))return;
+    const expected=`ATTEST PAYMOB EVIDENCE ${evidenceCheck}`;
+    onAction({
+      title:`تسجيل دليل: ${PAYMOB_CHECK_LABEL[evidenceCheck]}`,
+      expected,
+      request:{
+        action:'evidence_attest',
+        checkKey:evidenceCheck,
+        artifactSha256:digest
+      },
+      successMessage:'سُجل واعتمد الدليل ببصمته من المنفّذ المخوّل نفسه.'
     });
   }
 
   return <section className={styles.governance}>
     <header>
-      <div><small>MAKER–CHECKER CONTROL</small><h2>حوكمة تشغيل Paymob</h2>
-        <p>الجاهزية أدلة خادمية للقراءة فقط. لا يمكن تأكيدها يدويًا من هذه الشاشة.</p>
+      <div><small>SINGLE AUTHORIZED OPERATOR</small><h2>تشغيل Paymob</h2>
+        <p>أي منفّذ يملك صلاحية إدارة الفوترة يستطيع إكمال الإجراء مباشرة. تبقى الأدلة والتأكيد الحرفي وسجل التدقيق إلزامية.</p>
       </div>
       <button type="button" onClick={()=>void onRefresh()}>تحديث الجاهزية</button>
     </header>
@@ -607,37 +587,30 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
           <div><dt>نطاق الإتاحة</dt><dd>{snapshot.rolloutMode}</dd></div>
           <div><dt>Sandbox</dt><dd>{snapshot.sandboxReady?'جاهز':'محجوب'}</dd></div>
           <div><dt>Live</dt><dd>{snapshot.liveReady&&!snapshot.liveGateBlocked?'جاهز':'محجوب'}</dd></div>
-          <div><dt>طلب معلّق</dt><dd>{snapshot.pendingActivation
-            ?pendingMode?.toUpperCase()||'موجود — حدّث بيانات العقد'
-            :'لا يوجد'}</dd></div>
+          <div><dt>سياسة التنفيذ</dt><dd>منفّذ مخوّل واحد</dd></div>
         </dl>
         {missing.length>0&&<aside className={styles.governanceWarning}>
           <b>أدلة ناقصة</b><span>{missing.join('، ')}</span>
         </aside>}
         <div className={styles.governanceActions}>
-          {!snapshot.pendingActivation&&<>
-            <button type="button" disabled={
-              snapshot.environment!=='sandbox'
-              ||snapshot.credentialsEnvironment!=='sandbox'
-              ||!snapshot.sandboxReady
-            }
-              onClick={()=>openGlobal('global_request','sandbox')}>طلب فتح Sandbox</button>
-            <button type="button" disabled={!snapshot.liveReady||snapshot.liveGateBlocked}
-              onClick={()=>openGlobal('global_request','live')}>طلب فتح Live</button>
-          </>}
-          {snapshot.pendingActivation&&pendingMode&&<button type="button"
-            className={styles.primary}
-            onClick={()=>openGlobal('global_approve',pendingMode)}>
-            اعتماد {pendingMode.toUpperCase()} كمراجع مختلف
-          </button>}
-          {(snapshot.pendingActivation||snapshot.rolloutMode!=='observe_only')&&
-            <button type="button" onClick={disableGlobal}>إيقاف ومسح الطلب</button>}
+          <button type="button" disabled={
+            snapshot.environment!=='sandbox'
+            ||snapshot.credentialsEnvironment!=='sandbox'
+            ||!snapshot.sandboxReady
+            ||(snapshot.rolloutMode==='sandbox'&&snapshot.status==='configured')
+          } onClick={()=>openGlobal('sandbox')}>تفعيل Sandbox</button>
+          <button type="button" disabled={
+            !snapshot.liveReady||snapshot.liveGateBlocked
+            ||(snapshot.rolloutMode==='live'&&snapshot.status==='active')
+          } onClick={()=>openGlobal('live')}>تفعيل Live</button>
+          {snapshot.rolloutMode!=='observe_only'&&
+            <button type="button" onClick={disableGlobal}>إيقاف بوابة الدفع</button>}
         </div>
-        <small className={styles.governanceNote}>طلب Live ليس تفعيلًا مباشرًا؛ قاعدة البيانات تشترط مراجعًا مختلفًا خلال 24 ساعة واكتمال جميع الأدلة.</small>
+        <small className={styles.governanceNote}>التنفيذ مباشر للمستخدم المخوّل، لكن قاعدة البيانات ترفضه ما لم تكتمل جميع أدلة البيئة وعقد الاعتمادات.</small>
       </article>
 
       <article>
-        <h3>Canary للمنشآت</h3>
+        <h3>إتاحة المنشآت</h3>
         <label>المنشأة<select value={tenantId}
           onChange={event=>setTenantId(event.target.value)}>
           {!availableTenants.length&&<option value="">لا توجد منشآت مؤهلة</option>}
@@ -651,23 +624,16 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
         </select></label>
         <dl>
           <div><dt>حالة المنشأة</dt><dd>{tenantRollout?.status||'غير مفعّلة'}</dd></div>
-          <div><dt>اعتماد معلّق</dt><dd>{tenantRollout?.pendingApproval?'نعم':'لا'}</dd></div>
+          <div><dt>سياسة التنفيذ</dt><dd>فوري بعد التحقق</dd></div>
         </dl>
         <div className={styles.governanceActions}>
-          {!tenantRollout?.pendingApproval&&tenantRollout?.status!=='enabled'&&
-            <button type="button" disabled={
-              !tenantId||(!globalReady&&!liveValidationReady)
-            }
-              onClick={()=>openTenant('tenant_request')}>طلب إتاحة المنشأة</button>}
-          {tenantRollout?.pendingApproval&&<button type="button"
-            className={styles.primary}
-            onClick={()=>openTenant('tenant_approve')}>اعتماد كمراجع مختلف</button>}
-          {(tenantRollout?.pendingApproval||tenantRollout?.status==='enabled')&&
-            <button type="button" onClick={()=>openTenant('tenant_disable')}>
-              إيقاف ومسح الطلب
-            </button>}
+          {tenantRollout?.status!=='enabled'&&<button type="button"
+            disabled={!tenantId||(!globalReady&&!liveValidationReady)}
+            onClick={()=>openTenant(true)}>إتاحة المنشأة</button>}
+          {tenantRollout?.status==='enabled'&&<button type="button"
+            onClick={()=>openTenant(false)}>إيقاف المنشأة</button>}
         </div>
-        <small className={styles.governanceNote}>Reef Skills مستبعد خادميًا ومن قائمة Canary. وضع تحقق Live يقتصر على مركز أودير النموذجي، بحد 500 ر.س للطلب، وبعد اعتماد مشغّل ثانٍ.</small>
+        <small className={styles.governanceNote}>Reef Skills مستبعد خادميًا ومن القائمة. وضع تحقق Live يقتصر على مركز أودير النموذجي وبحد 500 ر.س للطلب.</small>
       </article>
 
       <article>
@@ -676,11 +642,8 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
         <ul className={styles.evidenceList}>
           {PAYMOB_OPERATIONAL_CHECKS.map(check=>{
             const approved=(snapshot.passedChecks||EMPTY).includes(check);
-            const pending=evidenceRequests.some(item=>(
-              item.checkKey===check&&item.pendingApproval
-            ));
             return <li key={check}><span>{PAYMOB_CHECK_LABEL[check]}</span>
-              <b>{approved?'معتمد':pending?'بانتظار مراجع':'مطلوب'}</b></li>;
+              <b>{approved?'مسجل ومعتمد':'مطلوب'}</b></li>;
           })}
         </ul>
         <label>نوع الدليل<select value={evidenceCheck}
@@ -689,24 +652,18 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
             {PAYMOB_CHECK_LABEL[check]}
           </option>)}
         </select></label>
-        {!selectedEvidenceRequest&&<label>بصمة التقرير SHA-256
+        <label>بصمة التقرير SHA-256
           <input value={artifactSha256} dir="ltr" inputMode="text"
             maxLength="64" autoComplete="off" spellCheck="false"
             placeholder="64 lowercase hexadecimal characters"
             onChange={event=>setArtifactSha256(event.target.value.trim().toLowerCase())}/>
-        </label>}
-        {selectedEvidenceRequest&&<aside className={styles.governanceWarning}>
-          <b>طلب معلّق حتى {formatDate(selectedEvidenceRequest.expiresAt)}</b>
-          <code dir="ltr">{selectedEvidenceRequest.artifactSha256}</code>
-        </aside>}
+        </label>
         <div className={styles.governanceActions}>
-          {!selectedEvidenceRequest&&<button type="button"
+          <button type="button"
             disabled={snapshot.environment!=='live'||!/^[a-f0-9]{64}$/.test(artifactSha256)}
-            onClick={()=>openEvidence('evidence_request')}>طلب اعتماد البصمة</button>}
-          {selectedEvidenceRequest&&<button type="button" className={styles.primary}
-            onClick={()=>openEvidence('evidence_approve')}>اعتماد كمراجع مختلف</button>}
+            onClick={openEvidence}>تسجيل واعتماد البصمة</button>
         </div>
-        <small className={styles.governanceNote}>هذه الواجهة لا تكتب أدلة العمليات الآلية مثل Intention أو Webhook أو المطابقة؛ تلك تُستمد من السجل فقط.</small>
+        <small className={styles.governanceNote}>هذه الواجهة لا تكتب أدلة العمليات الآلية مثل إنشاء الدفع أو Webhook أو المطابقة؛ تلك تُستمد من السجل فقط.</small>
       </article>
     </div>
   </section>;
@@ -744,7 +701,7 @@ function Providers({rows,onConfigure}){
 function PaymobControlModal({action,busy,onClose,onSubmit}){
   return <Modal title={action.title} onClose={onClose}>
     <form onSubmit={onSubmit} className={styles.form} autoComplete="off">
-      <aside className={styles.safety}>هذا إجراء حوكمة مسجّل في سجل التدقيق. التفعيل يحتاج منفّذ طلب ومراجعًا مختلفًا، وتظل قاعدة البيانات هي صاحبة القرار.</aside>
+      <aside className={styles.safety}>هذا إجراء محمي ومسجّل في سجل التدقيق. يكفي منفّذ واحد يملك الصلاحية، مع بقاء نص التأكيد الحرفي وبوابات قاعدة البيانات إلزامية.</aside>
       <label className={styles.wide}>اكتب نص التأكيد حرفيًا
         <code className={styles.confirmation} dir="ltr">{action.expected}</code>
         <input name="confirmation" dir="ltr" autoComplete="off"

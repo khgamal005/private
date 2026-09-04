@@ -21,21 +21,29 @@ assert.ok(
 );
 const migration=readFileSync(migrationPath,'utf8');
 const serviceMarketplaceMigration=readFileSync(serviceMarketplaceMigrationPath,'utf8');
+const singleOperatorMigration=readFileSync(
+  join(root,'supabase/migrations/20260904223000_single_authorized_operator_policy_v1.sql'),
+  'utf8'
+);
 
 function escapeRegExp(value){
   return value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 }
 
-function sqlFunction(qualifiedName){
+function sqlFunctionFrom(text,qualifiedName){
   const start=new RegExp(
     `create\\s+or\\s+replace\\s+function\\s+${escapeRegExp(qualifiedName)}\\s*\\(`,
     'i'
-  ).exec(migration);
+  ).exec(text);
   assert.ok(start,`Missing SQL function ${qualifiedName}`);
-  const tail=migration.slice(start.index);
+  const tail=text.slice(start.index);
   const body=/\bas\s+(\$[A-Za-z0-9_]*\$)([\s\S]*?)\1\s*;/i.exec(tail);
   assert.ok(body,`Unterminated SQL function ${qualifiedName}`);
   return tail.slice(0,body.index+body[0].length);
+}
+
+function sqlFunction(qualifiedName){
+  return sqlFunctionFrom(migration,qualifiedName);
 }
 
 function sqlTable(qualifiedName){
@@ -815,7 +823,9 @@ test('refund callbacks are review-only; only exact authoritative inquiry reverse
   assert.match(reconcile,/p_cumulative_refunded_minor\s*=\s*v_attempt\.amount_minor\s+then[\s\S]*?paymob_apply_verified_full_refund_v1/i);
   assert.match(reconcile,/partial_refund_review_required/i);
   assert.match(refunds,/requested_by_subject_id[\s\S]*?approved_by_subject_id/i);
-  assert.match(refunds,/approved_by_subject_id\s*<>\s*requested_by_subject_id/i);
+  assert.match(singleOperatorMigration,/drop\s+constraint\s+if\s+exists\s+refunds_check/i);
+  assert.match(singleOperatorMigration,/refunds_single_operator_approval_integrity_v1/i);
+  assert.match(singleOperatorMigration,/requested_by_subject_id\s+is\s+not\s+null[\s\S]*?approved_at\s+is\s+not\s+null/i);
   assert.match(refunds,/dispatch_claim_token[\s\S]*?dispatch_claim_expires_at/i);
   assert.doesNotMatch(
     migration,
@@ -918,11 +928,15 @@ test('refund precedence follows committed entitlement application order, not tra
   );
 });
 
-test('activation and tenant rollout require evidence plus independent maker/checker approval',()=>{
+test('activation and tenant rollout remain evidence-gated under one authorized operator',()=>{
   const required=sqlFunction('private_app.paymob_required_checks');
   const evidence=sqlFunction('private_app.paymob_readiness_evidence_write');
-  const activation=sqlFunction('public.v1_platform_paymob_activation_gate');
-  const tenantRollout=sqlFunction('public.v1_platform_paymob_tenant_rollout_action');
+  const activation=sqlFunctionFrom(
+    singleOperatorMigration,'public.v1_platform_paymob_activation_gate'
+  );
+  const tenantRollout=sqlFunctionFrom(
+    singleOperatorMigration,'public.v1_platform_paymob_tenant_rollout_action'
+  );
 
   for(const sandboxCheck of ['credentials','intention_create','webhook_hmac']){
     assert.match(required,new RegExp(`'${sandboxCheck}'`));
@@ -936,25 +950,26 @@ test('activation and tenant rollout require evidence plus independent maker/chec
   assert.match(evidence,/then\s*'observe_only'/i);
   assert.match(evidence,/activated_by_subject_id\s*=\s*case[\s\S]*?then\s+null/i);
 
-  assert.match(activation,/REQUEST PAYMOB/i);
-  assert.match(activation,/APPROVE PAYMOB/i);
-  assert.match(activation,/activation_requested_by_subject_id\s*=\s*v_actor/i);
-  assert.match(activation,/activation_requested_by_subject_id\s*=\s*v_actor[\s\S]*?paymob_activation_checker_required/i);
-  assert.match(activation,/activation_requested_at\s*<\s*now\(\)\s*-\s*interval\s*'24 hours'/i);
+  assert.match(activation,/ACTIVATE PAYMOB/i);
+  assert.match(activation,/private_app\.has_platform_permission\(\s*'platform\.billing\.manage'\s*\)/i);
   assert.match(activation,/private_app\.paymob_missing_checks/i);
   assert.match(activation,/v_provider\.environment\s*<>\s*p_target_mode/i);
   assert.match(activation,/v_provider\.credentials_environment\s*<>\s*p_target_mode/i);
   assert.match(activation,/checkout_mode\s*<>\s*'redirect'/i);
   assert.match(activation,/supported_currencies\s*<>\s*array\['SAR'\]/i);
-  assert.match(activation,/status\s*=\s*case\s+when\s+p_target_mode\s*=\s*'live'\s+then\s*'active'/i);
-  assert.match(activation,/'active'\s*,\s*v_provider\.status\s*=\s*'active'\s+and\s+v_provider\.rollout_mode\s*=\s*'live'/i);
+  assert.match(activation,/integrationPath'\s*<>\s*'quicklink'/i);
+  assert.match(activation,/activated_by_subject_id\s*=\s*v_actor/i);
+  assert.match(activation,/'approvalPolicy'\s*,\s*'single_authorized_operator'/i);
+  assert.match(activation,/'pendingApproval'\s*,\s*false/i);
+  assert.doesNotMatch(activation,/checker_required|awaiting_checker|two_person_approved/i);
 
-  assert.match(tenantRollout,/REQUEST PAYMOB TENANT/i);
-  assert.match(tenantRollout,/APPROVE PAYMOB TENANT/i);
-  assert.match(tenantRollout,/requested_by_subject_id\s*=\s*v_actor[\s\S]*?paymob_rollout_checker_required/i);
-  assert.match(tenantRollout,/requested_at\s*<\s*now\(\)\s*-\s*interval\s*'24 hours'/i);
+  assert.match(tenantRollout,/ENABLE PAYMOB TENANT/i);
+  assert.match(tenantRollout,/requested_by_subject_id\s*=\s*v_actor[\s\S]*?approved_by_subject_id\s*=\s*v_actor/i);
+  assert.match(tenantRollout,/single_operator_approved/i);
   assert.match(tenantRollout,/paymob_global_rollout_not_ready/i);
   assert.match(tenantRollout,/paymob_reef_skills_rollout_prohibited/i);
+  assert.match(tenantRollout,/'pendingApproval'\s*,\s*false/i);
+  assert.doesNotMatch(tenantRollout,/checker_required|awaiting_checker|two_person_approved/i);
 
   const prepare=sqlFunction('public.v1_tenant_paymob_prepare_checkout');
   assert.match(prepare,/marketplace\.payment_tenant_rollouts[\s\S]*?rollout\.status\s*=\s*'enabled'/i);

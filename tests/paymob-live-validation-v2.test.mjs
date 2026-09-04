@@ -12,6 +12,9 @@ const migration=read(
 const nextAdmin=read('app/api/platform/payment-provider-secret/route.js');
 const edgeAdmin=read('supabase/functions/payment-provider-admin/index.ts');
 const ui=read('components/platform-addon-console.js');
+const singleOperatorMigration=read(
+  'supabase/migrations/20260904223000_single_authorized_operator_policy_v1.sql'
+);
 
 test('Hosted Redirect administration is fixed to QuickLink with API Key and HMAC only',()=>{
   for(const source of [nextAdmin,edgeAdmin]){
@@ -39,14 +42,25 @@ test('credential save repairs configured state but never activates global Live',
   assert.doesNotMatch(bundle,/set status\s*=\s*'active'|rollout_mode\s*=\s*'live'/i);
 });
 
-test('Live validation is one dual-approved non-Reef model tenant with a SAR 500 cap',()=>{
+test('Live validation is one single-operator non-Reef model tenant with a SAR 500 cap',()=>{
   assert.match(migration,/tenant\.slug\s*=\s*'modaar-training-center'/i);
   assert.match(migration,/tenant\.slug\s+is\s+distinct\s+from\s+'reef-skills'/i);
   assert.match(migration,/tenant\.tenant_key\s+is\s+distinct\s+from\s+'tenant-reef-skills'/i);
-  assert.match(migration,/requested_by_subject_id\s+is\s+not\s+null/i);
-  assert.match(migration,/approved_by_subject_id\s+<>\s+rollout\.requested_by_subject_id/i);
-  assert.match(migration,/requested_at\s*\+\s*interval '24 hours'/i);
-  assert.match(migration,/paymob_live_canary_single_tenant_required/i);
+  assert.match(singleOperatorMigration,/create\s+or\s+replace\s+function\s+private_app\.paymob_live_canary_eligible_v1/i);
+  const canary=singleOperatorMigration.slice(
+    singleOperatorMigration.indexOf('create or replace function private_app.paymob_live_canary_eligible_v1('),
+    singleOperatorMigration.indexOf('create or replace function public.v1_platform_paymob_activation_gate(')
+  );
+  assert.match(canary,/requested_by_subject_id\s+is\s+not\s+null/i);
+  assert.match(canary,/approved_by_subject_id\s+is\s+not\s+null/i);
+  assert.doesNotMatch(canary,/approved_by_subject_id\s*<>\s*rollout\.requested_by_subject_id/i);
+  const tenantAction=singleOperatorMigration.slice(
+    singleOperatorMigration.indexOf('create or replace function public.v1_platform_paymob_tenant_rollout_action('),
+    singleOperatorMigration.indexOf('create or replace function public.v1_platform_paymob_operational_evidence_action(')
+  );
+  assert.match(tenantAction,/requested_by_subject_id\s*=\s*v_actor[\s\S]*?approved_by_subject_id\s*=\s*v_actor/i);
+  assert.match(tenantAction,/live_canary_approved/i);
+  assert.match(tenantAction,/paymob_live_canary_single_tenant_required/i);
   assert.match(migration,/v_order\.total_minor\s*>\s*50000/i);
   assert.match(migration,/paymob_live_canary_amount_limit/i);
   assert.match(ui,/liveValidationReady/i);

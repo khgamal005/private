@@ -22,6 +22,9 @@ const migration=source(
 const quicklinkMigration=source(
   'supabase/migrations/20260903203000_paymob_quicklink_checkout_options_v1.sql'
 );
+const singleOperatorMigration=source(
+  'supabase/migrations/20260904223000_single_authorized_operator_policy_v1.sql'
+);
 
 const EXPECTED_PUBLIC_KEYS=[
   'merchantAccountId','integrationPath','integrationId',
@@ -231,14 +234,19 @@ test('Paymob control plane is caller-scoped, bounded, typed and sanitized',()=>{
 
   assert.deepEqual(
     declaredStrings(controlRoute,'GLOBAL_ACTIONS'),
-    ['global_request','global_approve']
+    ['global_activate']
   );
   assert.deepEqual(
     declaredStrings(controlRoute,'TENANT_ACTIONS'),
-    ['tenant_request','tenant_approve','tenant_disable']
+    ['tenant_enable','tenant_disable']
   );
   assert.match(controlRoute,/hasExactKeys\(value,GLOBAL_ACTION_KEYS\)/i);
   assert.match(controlRoute,/hasExactKeys\(value,TENANT_ACTION_KEYS\)/i);
+  assert.deepEqual(
+    declaredStrings(controlRoute,'EVIDENCE_ACTIONS'),
+    ['evidence_attest']
+  );
+  assert.match(controlRoute,/hasExactKeys\(value,EVIDENCE_ACTION_KEYS\)/i);
   assert.match(controlRoute,/targetMode\.toUpperCase\(\)/i);
   assert.match(controlRoute,/DISABLE PAYMOB CHECKOUT/i);
   assert.match(controlRoute,/PAYMOB TENANT/i);
@@ -268,28 +276,27 @@ test('Paymob control plane is caller-scoped, bounded, typed and sanitized',()=>{
   assert.doesNotMatch(controlRoute,/console\.|\bdetail\s*:|error\.message/i);
 });
 
-test('operator UI exposes maker-checker controls without one-click Live or Reef rollout',()=>{
+test('operator UI exposes one-step authorized actions while retaining hard safety gates',()=>{
   assert.match(ui,/fetch\(\s*['"]\/api\/platform\/paymob-control['"][\s\S]{0,120}?method\s*:\s*['"]GET['"][\s\S]{0,100}?cache\s*:\s*['"]no-store['"]/i);
   assert.match(ui,/fetch\(\s*['"]\/api\/platform\/paymob-control['"][\s\S]{0,120}?method\s*:\s*['"]POST['"]/i);
   assert.match(ui,/typed\s*!==\s*modal\.expected[\s\S]*?return/i);
   assert.match(ui,/body\s*:\s*JSON\.stringify\(\{\.\.\.modal\.request,confirmation:typed\}\)/i);
 
-  assert.match(ui,/action===['"]global_request['"]\s*\?\s*['"]REQUEST['"]\s*:\s*['"]APPROVE['"]/i);
-  assert.match(ui,/PAYMOB\s+\$\{targetMode\.toUpperCase\(\)\}/i);
-  assert.match(ui,/request:\{action,targetMode\}/i);
-  assert.match(ui,/expected:['"]DISABLE PAYMOB CHECKOUT['"]/i);
-  assert.match(ui,/action:['"]global_disable['"]/i);
-  assert.match(ui,/snapshot\.pendingActivation&&pendingMode[\s\S]*?global_approve/i);
-  assert.match(ui,/disabled=\{!snapshot\.liveReady\|\|snapshot\.liveGateBlocked\}/i);
-  assert.match(ui,/طلب Live ليس تفعيلًا مباشرًا/i);
+  assert.match(ui,/action:['"]global_activate['"]/i);
+  assert.match(ui,/ACTIVATE PAYMOB\s+\$\{targetMode\.toUpperCase\(\)\}/i);
+  assert.match(ui,/disabled=\{[\s\S]*?!snapshot\.liveReady\|\|snapshot\.liveGateBlocked/i);
+  assert.match(ui,/action:enabled\?['"]tenant_enable['"]:['"]tenant_disable['"]/i);
+  assert.match(ui,/ENABLE PAYMOB TENANT\s+\$\{tenant\.id\}/i);
+  assert.match(ui,/action:['"]evidence_attest['"]/i);
+  assert.match(ui,/ATTEST PAYMOB EVIDENCE/i);
+  assert.match(ui,/SINGLE AUTHORIZED OPERATOR/i);
+  assert.match(ui,/منفّذ واحد يملك الصلاحية/i);
+  assert.doesNotMatch(ui,/global_approve|tenant_approve|evidence_approve|maker[–-]checker|مراجع مختلف|مشغّل آخر/i);
 
   assert.match(ui,/tenantSlug===['"]reef-skills['"]/i);
   assert.match(ui,/tenantKey===['"]tenant-reef-skills['"]/i);
-  assert.match(ui,/tenant_request[\s\S]*?tenant_approve[\s\S]*?tenant_disable/i);
-  assert.match(ui,/PAYMOB TENANT\s+\$\{tenant\.id\}/i);
-  assert.match(ui,/Reef Skills مستبعد خادميًا ومن قائمة Canary/i);
-  assert.match(ui,/يلزم اعتماد مشغّل آخر خلال 24 ساعة/i);
-  assert.match(ui,/اعتماد كمراجع مختلف/i);
+  assert.match(ui,/Reef Skills مستبعد خادميًا ومن القائمة/i);
+  assert.match(ui,/500 ر\.س/);
 
   for(const checkKey of [
     'refund_inquiry','reconciler_schedule','outbox_delivery',
@@ -301,66 +308,43 @@ test('operator UI exposes maker-checker controls without one-click Live or Reef 
   );
 });
 
-test('operational evidence is digest-only, live-bound and independently approved',()=>{
-  const operational=sqlFunction(
-    'public.v1_platform_paymob_operational_evidence_action'
-  );
-  const evidenceTable=/create\s+table\s+marketplace\.paymob_operational_evidence_requests\s*\(([\s\S]*?)^\);/im.exec(migration);
-  assert.ok(evidenceTable,'Missing operational evidence request ledger');
-
+test('operational evidence is digest-only, live-bound and completed by one authorized operator',()=>{
   const expectedChecks=[
     'refund_initiation','live_credentials','live_card_integration_callback',
     'edge_query_redaction_waf','reconciler_schedule','outbox_delivery'
   ];
+  assert.deepEqual(declaredStrings(controlRoute,'EVIDENCE_CHECKS'),expectedChecks);
+  assert.deepEqual(declaredStrings(ui,'PAYMOB_OPERATIONAL_CHECKS'),expectedChecks);
   assert.deepEqual(
-    declaredStrings(controlRoute,'EVIDENCE_CHECKS'),
-    expectedChecks
-  );
-  assert.deepEqual(
-    declaredStrings(ui,'PAYMOB_OPERATIONAL_CHECKS'),
-    expectedChecks
-  );
-  assert.deepEqual(
-    declaredStrings(controlRoute,'EVIDENCE_REQUEST_KEYS'),
+    declaredStrings(controlRoute,'EVIDENCE_ACTION_KEYS'),
     ['action','checkKey','artifactSha256','confirmation']
   );
-  assert.deepEqual(
-    declaredStrings(controlRoute,'EVIDENCE_APPROVE_KEYS'),
-    ['action','checkKey','artifactSha256','requestId','confirmation']
-  );
+  assert.deepEqual(declaredStrings(controlRoute,'EVIDENCE_ACTIONS'),['evidence_attest']);
 
   assert.match(controlRoute,/\^\[a-f0-9\]\{64\}\$/i);
-  assert.match(controlRoute,/REQUEST PAYMOB EVIDENCE/i);
-  assert.match(controlRoute,/APPROVE PAYMOB EVIDENCE/i);
+  assert.match(controlRoute,/ATTEST PAYMOB EVIDENCE/i);
+  assert.match(controlRoute,/p_request_id:null/i);
   assert.match(controlRoute,/v1_platform_paymob_operational_evidence_action/i);
   assert.match(controlRoute,/sanitizeEvidenceAction\(result\.value\)/i);
-  assert.doesNotMatch(
-    controlRoute,
-    /FormData|multipart\/form-data|readAsArrayBuffer|arrayBuffer\s*\(/i
-  );
+  assert.doesNotMatch(controlRoute,/global_approve|tenant_approve|evidence_approve|checker_required/i);
+  assert.doesNotMatch(controlRoute,/FormData|multipart\/form-data|readAsArrayBuffer|arrayBuffer\s*\(/i);
 
-  assert.match(evidenceTable[0],/evidence_sha256\s+text\s+not\s+null[\s\S]*?\^\[a-f0-9\]\{64\}\$/i);
-  assert.match(evidenceTable[0],/environment\s+text\s+not\s+null\s+check\s*\(\s*environment\s*=\s*'live'\s*\)/i);
-  assert.match(evidenceTable[0],/approved_by_subject_id\s+uuid/i);
-  assert.match(evidenceTable[0],/approved_by_subject_id\s+is\s+null[\s\S]*?approved_by_subject_id\s*<>\s*requested_by_subject_id/i);
-  assert.doesNotMatch(evidenceTable[0],/\b(?:raw|body|payload|artifact_url|file|blob|report)\b/i);
-
-  assert.match(operational,/private_app\.has_platform_permission\(\s*'platform\.billing\.manage'\s*\)/i);
-  assert.match(operational,/version\.status\s*=\s*'active'[\s\S]*?version\.environment\s*=\s*'live'/i);
-  assert.match(operational,/REQUEST PAYMOB EVIDENCE/i);
-  assert.match(operational,/APPROVE PAYMOB EVIDENCE/i);
-  assert.match(operational,/requested_by_subject_id\s*=\s*v_actor/i);
-  assert.match(operational,/requested_by_subject_id\s*=\s*v_actor[\s\S]*?paymob_operational_evidence_checker_required/i);
-  assert.match(operational,/expires_at\s*<=\s*now\(\)/i);
-  assert.match(operational,/private_app\.paymob_readiness_evidence_write\([\s\S]*?'operational_attestation'/i);
-  assert.match(operational,/'secretStored'\s*,\s*false[\s\S]*?'piiStored'\s*,\s*false/i);
+  assert.match(singleOperatorMigration,/drop\s+constraint\s+if\s+exists\s+paymob_operational_evidence_requests_check/i);
+  assert.match(singleOperatorMigration,/create\s+or\s+replace\s+function\s+public\.v1_platform_paymob_operational_evidence_action/i);
+  assert.match(singleOperatorMigration,/private_app\.has_platform_permission\(\s*'platform\.billing\.manage'\s*\)/i);
+  assert.match(singleOperatorMigration,/version\.status\s*=\s*'active'[\s\S]*?version\.environment\s*=\s*'live'/i);
+  assert.match(singleOperatorMigration,/ATTEST PAYMOB EVIDENCE/i);
+  assert.match(singleOperatorMigration,/requested_by_subject_id\s*=\s*v_actor[\s\S]*?approved_by_subject_id\s*=\s*v_actor/i);
+  assert.match(singleOperatorMigration,/status\s*=\s*'approved'/i);
+  assert.match(singleOperatorMigration,/private_app\.paymob_readiness_evidence_write\([\s\S]*?'operational_attestation'/i);
+  assert.match(singleOperatorMigration,/'approvalPolicy'\s*,\s*'single_authorized_operator'/i);
+  assert.match(singleOperatorMigration,/'secretStored'\s*,\s*false[\s\S]*?'piiStored'\s*,\s*false/i);
 
   assert.match(ui,/بصمة SHA-256/i);
   assert.match(ui,/maxLength=['"]64['"]/i);
   assert.match(ui,/snapshot\.environment!==['"]live['"]/i);
-  assert.match(ui,/openEvidence\(['"]evidence_request['"]\)/i);
-  assert.match(ui,/openEvidence\(['"]evidence_approve['"]\)/i);
-  assert.match(ui,/سُجلت بصمة الدليل فقط/i);
+  assert.match(ui,/onClick=\{openEvidence\}/i);
+  assert.match(ui,/تسجيل واعتماد البصمة/i);
   assert.match(ui,/لا يُرفع التقرير أو أي بيانات عميل هنا/i);
   assert.doesNotMatch(ui,/type=['"]file['"]|FormData\([^)]*evidence|upload/i);
 });

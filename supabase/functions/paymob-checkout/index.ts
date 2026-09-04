@@ -985,20 +985,20 @@ async function createQuicklinkCheckout({
       : ambiguousResponse(prepared, "checkout_persistence_unknown");
   }
 
-  const quicklinkRequest = {
-    amount_cents: String(prepared.amountMinor),
-    expires_at: providerExpiresAt,
-    reference_id: prepared.attemptId,
-    payment_methods: String(runtime.integrationId),
-    email: billingContact.email,
-    notification_url: notificationUrl,
-    is_live: runtime.environment === "live",
-    full_name: `${billingContact.firstName} ${billingContact.lastName}`,
-    phone_number: billingContact.phoneNumber,
-    description: `ODEIR · ${prepared.orderNumber}`,
-  };
+  // QuickLink V2 requires multipart/form-data. Let fetch create the boundary.
+const quicklinkRequest = new FormData();
+quicklinkRequest.set("amount_cents", String(prepared.amountMinor));
+quicklinkRequest.set("expires_at", providerExpiresAt);
+quicklinkRequest.set("reference_id", prepared.attemptId);
+quicklinkRequest.set("payment_methods", String(runtime.integrationId));
+quicklinkRequest.set("email", billingContact.email);
+quicklinkRequest.set("notification_url", notificationUrl);
+quicklinkRequest.set("is_live", String(runtime.environment === "live"));
+quicklinkRequest.set("full_name", `${billingContact.firstName} ${billingContact.lastName}`);
+quicklinkRequest.set("phone_number", billingContact.phoneNumber);
+quicklinkRequest.set("description", `ODEIR · ${prepared.orderNumber}`);
 
-  let providerResult: { response: Response; text: string };
+let providerResult: { response: Response; text: string };
   try {
     // Authentication above is read-only. From this exact point onward an
     // ambiguous network outcome must never trigger another provider mutation.
@@ -1010,10 +1010,9 @@ async function createQuicklinkCheckout({
         redirect: "error",
         headers: {
           authorization: `Bearer ${authToken}`,
-          "content-type": "application/json",
           accept: "application/json",
         },
-        body: JSON.stringify(quicklinkRequest),
+        body: quicklinkRequest,
       },
       PAYMOB_TIMEOUT_MS,
       MAX_UPSTREAM_BYTES,
@@ -1035,7 +1034,7 @@ async function createQuicklinkCheckout({
 
   const responseHash = await sha256Hex(providerResult.text);
   const requestId = providerRequestId(providerResult.response);
-  if (providerResult.response.status !== 200) {
+  if (!providerResult.response.ok) {
     const duplicateReference = providerResult.response.status === 400 &&
       quicklinkDuplicateReference(providerResult.text);
     const deterministic = !duplicateReference &&
@@ -1095,11 +1094,11 @@ async function createQuicklinkCheckout({
       1,
       MAX_AMOUNT_MINOR,
     );
-    const currency = requiredText(
+    const returnedCurrency = optionalProviderText(
       quicklink.currency,
       "quicklink_currency",
       3,
-    ).toUpperCase();
+    )?.toUpperCase() ?? null;
     const referenceId = requiredText(
       quicklink.reference_id,
       "quicklink_reference",
@@ -1110,12 +1109,12 @@ async function createQuicklinkCheckout({
       "quicklink_state",
       40,
     ).toLowerCase();
-    const returnedNotificationUrl = requiredText(
+    const returnedNotificationUrl = optionalProviderText(
       quicklink.notification_url,
       "quicklink_notification_url",
       2048,
     );
-    const returnedRedirectionUrl = requiredText(
+    const returnedRedirectionUrl = optionalProviderText(
       quicklink.redirection_url,
       "quicklink_redirection_url",
       2048,
@@ -1128,11 +1127,13 @@ async function createQuicklinkCheckout({
     const returnedExpiryMs = Date.parse(returnedExpiresAt);
     if (
       amountMinor !== prepared.amountMinor ||
-      currency !== "SAR" ||
+      (returnedCurrency !== null && returnedCurrency !== "SAR") ||
       referenceId !== prepared.attemptId ||
-      state !== "active" ||
-      returnedNotificationUrl !== notificationUrl ||
-      returnedRedirectionUrl !== redirectionUrl ||
+      !["created", "active"].includes(state) ||
+      (returnedNotificationUrl !== null &&
+        returnedNotificationUrl !== notificationUrl) ||
+      (returnedRedirectionUrl !== null &&
+        returnedRedirectionUrl !== redirectionUrl) ||
       returnedExpiryMs <= Date.now() + 30_000 ||
       returnedExpiryMs > Date.parse(prepared.expiresAt) - 30_000
     ) throw new PaymobInputError("provider_binding_mismatch");
@@ -1213,6 +1214,15 @@ function verifiedQuicklinkCheckoutUrl(value: unknown): string {
   } catch {
     throw new PaymobInputError("invalid_quicklink_client_url");
   }
+  const token = url.searchParams.get("token") ?? "";
+  const keys = [...url.searchParams.keys()];
+  const isUnrestricted =
+    url.pathname === PAYMOB_QUICKLINK_CHECKOUT_PATH &&
+    keys.length === 1 && keys[0] === "token";
+  const isFlash = ["/flash", "/flash/"].includes(url.pathname) &&
+    keys.length === 2 && new Set(keys).size === 2 &&
+    url.searchParams.getAll("type").length === 1 &&
+    url.searchParams.get("type") === "new";
   if (
     url.protocol !== "https:" ||
     url.hostname !== "ksa.paymob.com" ||
@@ -1220,14 +1230,20 @@ function verifiedQuicklinkCheckoutUrl(value: unknown): string {
     url.username ||
     url.password ||
     url.hash ||
-    url.pathname !== PAYMOB_QUICKLINK_CHECKOUT_PATH ||
     url.searchParams.getAll("token").length !== 1 ||
-    [...url.searchParams.keys()].length !== 1 ||
-    !/^\?token=(?:[A-Za-z0-9+/_=-]|%[0-9A-Fa-f]{2}){16,8192}$/.test(
-      url.search,
-    )
+    !/^[A-Za-z0-9+/_=-]{16,8192}$/.test(token) ||
+    (!isUnrestricted && !isFlash)
   ) throw new PaymobInputError("invalid_quicklink_client_url");
   return url.toString();
+}
+
+function optionalProviderText(
+  value: unknown,
+  field: string,
+  maxLength: number,
+): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  return requiredText(value, field, maxLength);
 }
 
 async function postRpc(

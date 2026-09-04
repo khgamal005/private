@@ -98,23 +98,50 @@ test('QuickLink auth accepts every successful HTTP response including 201 Create
   assert.doesNotMatch(quicklinkAuth,/authResult\.response\.status\s*!==\s*200/i);
 });
 
-test('QuickLink response is fully bound and persisted before redirect exposure',()=>{
+test('QuickLink response is bound and persisted before redirect exposure',()=>{
   for(const binding of [
     /amountMinor\s*!==\s*prepared\.amountMinor/,
-    /currency\s*!==\s*"SAR"/,
+    /returnedCurrency\s*!==\s*null[\s\S]{0,60}?returnedCurrency\s*!==\s*"SAR"/,
     /referenceId\s*!==\s*prepared\.attemptId/,
-    /state\s*!==\s*"active"/,
-    /returnedNotificationUrl\s*!==\s*notificationUrl/,
-    /returnedRedirectionUrl\s*!==\s*redirectionUrl/,
+    /\["created",\s*"active"\]\.includes\(state\)/,
+    /returnedNotificationUrl\s*!==\s*null/,
+    /returnedRedirectionUrl\s*!==\s*null/,
     /returnedExpiryMs\s*>\s*Date\.parse\(prepared\.expiresAt\)/
   ])assert.match(checkout,binding);
+  assert.match(checkout,/const quicklinkRequest = new FormData\(\)/);
+  assert.match(checkout,/body:\s*quicklinkRequest/);
+  assert.doesNotMatch(checkout,/body:\s*JSON\.stringify\(quicklinkRequest\)/);
   assert.match(checkout,/url\.hostname\s*!==\s*"ksa\.paymob\.com"/i);
-  assert.match(checkout,/url\.pathname\s*!==\s*PAYMOB_QUICKLINK_CHECKOUT_PATH/i);
+  assert.match(checkout,/\["\/flash",\s*"\/flash\/"\]\.includes\(url\.pathname\)/);
   const recordAt=checkout.indexOf('recorded = await recordIntention(');
   const responseAt=checkout.indexOf('return jsonResponse(201',recordAt);
   assert.ok(recordAt!==-1&&responseAt>recordAt);
-  assert.match(nextCheckout,/PAYMOB_QUICKLINK_HOST='ksa\.paymob\.com'/);
-  assert.match(nextCheckout,/keys\.length===1&&keys\[0\]===['"]token['"]/);
+  assert.match(nextCheckout,/quicklinkUnrestricted/);
+  assert.match(nextCheckout,/quicklinkFlash/);
+  assert.match(nextCheckout,/\['\/flash','\/flash\/'\]\.includes\(url\.pathname\)/);
+});
+
+test('QuickLink create accepts every successful HTTP response including 201 Created',()=>{
+  const start=checkout.indexOf(
+    'const responseHash = await sha256Hex(providerResult.text);'
+  );
+  const end=checkout.indexOf('let quicklink: JsonObject;',start);
+  assert.ok(start!==-1&&end>start);
+  const responseGate=checkout.slice(start,end);
+  assert.match(responseGate,/if\s*\(\s*!providerResult\.response\.ok\s*\)/i);
+  assert.doesNotMatch(responseGate,/providerResult\.response\.status\s*!==\s*200/i);
+});
+
+test('QuickLink KSA request uses multipart without a forged content-type boundary',()=>{
+  const start=checkout.indexOf('const quicklinkRequest = new FormData();');
+  const end=checkout.indexOf('const responseHash = await sha256Hex(providerResult.text);',start);
+  assert.ok(start!==-1&&end>start);
+  const create=checkout.slice(start,end);
+  assert.doesNotMatch(create,/['"]content-type['"]:\s*['"]application\/json['"]/i);
+  for(const field of [
+    'amount_cents','expires_at','reference_id','payment_methods','email',
+    'notification_url','is_live','full_name','phone_number','description'
+  ])assert.match(create,new RegExp(`quicklinkRequest\\.set\\("${field}"`));
 });
 
 test('QuickLink static return is caller-authorized, scrubbed, and read-only',()=>{

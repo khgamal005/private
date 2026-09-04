@@ -278,13 +278,19 @@ function verifiedCheckoutUrl(value){
       &&url.searchParams.getAll('clientSecret').length===1
       &&Boolean(url.searchParams.get('publicKey'))
       &&Boolean(url.searchParams.get('clientSecret'));
-    const quicklink=url.hostname===PAYMOB_QUICKLINK_HOST
+    const quicklinkToken=url.searchParams.get('token')||'';
+    const quicklinkUnrestricted=url.hostname===PAYMOB_QUICKLINK_HOST
       &&url.pathname===PAYMOB_QUICKLINK_PATH
       &&keys.length===1&&keys[0]==='token'
+      &&url.searchParams.getAll('token').length===1;
+    const quicklinkFlash=url.hostname===PAYMOB_QUICKLINK_HOST
+      &&['/flash','/flash/'].includes(url.pathname)
+      &&keys.length===2&&new Set(keys).size===2
       &&url.searchParams.getAll('token').length===1
-      &&/^\?token=(?:[A-Za-z0-9+/_=-]|%[0-9A-Fa-f]{2}){16,8192}$/.test(
-        url.search
-      );
+      &&url.searchParams.getAll('type').length===1
+      &&url.searchParams.get('type')==='new';
+    const quicklink=(quicklinkUnrestricted||quicklinkFlash)
+      &&/^[A-Za-z0-9+/_=-]{16,8192}$/.test(quicklinkToken);
     if(!unified&&!quicklink)return null;
     return url.toString();
   }catch{return null;}

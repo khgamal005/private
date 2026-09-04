@@ -27,7 +27,7 @@ const EXPECTED_PUBLIC_KEYS=[
   'merchantAccountId','integrationPath','integrationId',
   'applePayIntegrationId','region'
 ];
-const EXPECTED_SECRET_KEYS=['secretKey','publicKey','hmacSecret','apiKey'];
+const EXPECTED_SECRET_KEYS=['apiKey','hmacSecret'];
 
 function escapeRegExp(value){
   return value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -67,7 +67,7 @@ test('all three admin layers enforce the governed Paymob credential contract',()
     assert.match(adminSource,/configKeys\.every\([^)]*PAYMOB_PUBLIC_CONFIG_KEYS\.has/i);
     assert.match(adminSource,/positiveSafeInteger\(publicConfig\.merchantAccountId/);
     assert.match(adminSource,/positiveSafeInteger\(publicConfig\.integrationId/);
-    assert.match(adminSource,/integrationPath\s*===\s*['"]intention['"]|\[['"]intention['"],['"]quicklink['"]\]\.includes\(integrationPath\)/i);
+    assert.match(adminSource,/integrationPath\s*===\s*['"]quicklink['"]/i);
     assert.match(adminSource,/applePayIntegrationId===null[\s\S]{0,220}?integrationPath===['"]quicklink['"]/i);
     assert.match(adminSource,/secretEntries\.every[\s\S]{0,100}?PAYMOB_SECRET_KEYS\.has/i);
   }

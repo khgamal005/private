@@ -13,16 +13,16 @@ const nextAdmin=read('app/api/platform/payment-provider-secret/route.js');
 const edgeAdmin=read('supabase/functions/payment-provider-admin/index.ts');
 const ui=read('components/platform-addon-console.js');
 
-test('Live Intention credentials are rejected unless their modes are Live',()=>{
+test('Hosted Redirect administration is fixed to QuickLink with API Key and HMAC only',()=>{
   for(const source of [nextAdmin,edgeAdmin]){
-    assert.match(source,/validPaymobLiveCredentials/i);
-    assert.match(source,/environment\s*!==\s*['"]live['"]/i);
-    assert.match(source,/integrationPath\s*!==\s*['"]intention['"]/i);
-    assert.match(source,/\^sklive\/i/);
-    assert.match(source,/\^pklive\/i/);
+    assert.match(source,/PAYMOB_SECRET_KEYS=new Set\(\['apiKey','hmacSecret'\]\)/);
+    assert.match(source,/integrationPath\s*===\s*['"]quicklink['"]/i);
+    assert.doesNotMatch(source,/function validPaymobLiveCredentials/i);
+    assert.doesNotMatch(source,/\^sklive|sklive%/i);
+    assert.doesNotMatch(source,/\^pklive|pklive%/i);
   }
-  assert.match(migration,/lower\(coalesce\(secret_key\.decrypted_secret,''\)\)\s+like\s+'sklive%'/i);
-  assert.match(migration,/lower\(coalesce\(public_key\.decrypted_secret,''\)\)\s+like\s+'pklive%'/i);
+  assert.match(migration,/paymob_live_credential_material_valid_v2/i);
+  assert.match(migration,/p_checkout_flow\s*=\s*'quicklink'/i);
   assert.match(migration,/paymob_live_credentials_invalid/i);
   assert.match(migration,/zz_paymob_live_material_guard_v2/i);
 });

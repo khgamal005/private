@@ -12,9 +12,7 @@ const PAYMOB_PUBLIC_CONFIG_KEYS=new Set([
   'merchantAccountId','integrationPath','integrationId',
   'applePayIntegrationId','region'
 ]);
-const PAYMOB_SECRET_KEYS=new Set([
-  'secretKey','publicKey','hmacSecret','apiKey'
-]);
+const PAYMOB_SECRET_KEYS=new Set(['apiKey','hmacSecret']);
 const SUBJECT_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 class UpstreamTimeoutError extends Error{
@@ -49,7 +47,7 @@ function validProviderConfig(
     &&configKeys.every(key=>PAYMOB_PUBLIC_CONFIG_KEYS.has(key))
     &&positiveSafeInteger(publicConfig.merchantAccountId)
     &&positiveSafeInteger(publicConfig.integrationId)
-    &&(integrationPath==='intention'||integrationPath==='quicklink')
+    &&integrationPath==='quicklink'
     &&Object.prototype.hasOwnProperty.call(
       publicConfig,'applePayIntegrationId'
     )
@@ -59,24 +57,7 @@ function validProviderConfig(
       &&applePayIntegrationId!==publicConfig.integrationId
     ))
     &&publicConfig.region==='ksa'
-    &&validPaymobLiveCredentials(environment,integrationPath,secrets)
     &&secretEntries.every(([key])=>PAYMOB_SECRET_KEYS.has(key));
-}
-
-function validPaymobLiveCredentials(
-  environment:string,
-  integrationPath:unknown,
-  secrets:Record<string,unknown>
-){
-  if(environment!=='live'||integrationPath!=='intention')return true;
-  const secretKey=secrets.secretKey;
-  const publicKey=secrets.publicKey;
-  return (secretKey===undefined||(
-      typeof secretKey==='string'&&/^sklive/i.test(secretKey)
-    ))
-    &&(publicKey===undefined||(
-      typeof publicKey==='string'&&/^pklive/i.test(publicKey)
-    ));
 }
 
 function json(status:number,body:Record<string,unknown>){

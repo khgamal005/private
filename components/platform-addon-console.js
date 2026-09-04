@@ -29,9 +29,7 @@ const SECRET_LABEL={
   hmacSecret:'HMAC Secret (توثيق Webhook)',
   apiKey:'API Key (QuickLink والاستعلام والمطابقة)'
 };
-const PAYMOB_REQUIRED_SECRET_KEYS=[
-  'secretKey','publicKey','hmacSecret','apiKey'
-];
+const PAYMOB_REQUIRED_SECRET_KEYS=['apiKey','hmacSecret'];
 const PAYMOB_PUBLIC_CONFIG_KEYS=[
   'merchantAccountId','integrationPath','integrationId',
   'applePayIntegrationId','region'
@@ -56,13 +54,12 @@ const PAYMOB_CHECK_LABEL={
 function unique(values){return [...new Set(values)]}
 
 function providerRequiredSecretKeys(provider){
-  return unique([
-    ...(provider.requiredSecretKeys||EMPTY),
-    ...(provider.key==='paymob'?PAYMOB_REQUIRED_SECRET_KEYS:EMPTY)
-  ]);
+  if(provider.key==='paymob')return PAYMOB_REQUIRED_SECRET_KEYS;
+  return unique(provider.requiredSecretKeys||EMPTY);
 }
 
 function providerSecretKeys(provider){
+  if(provider.key==='paymob')return PAYMOB_REQUIRED_SECRET_KEYS;
   return unique([
     ...providerRequiredSecretKeys(provider),
     ...(provider.optionalSecretKeys||EMPTY)
@@ -267,9 +264,11 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
       }
       const publicConfig={};
       for(const configKey of providerPublicConfigKeys(provider)){
-        const configValue=configKey==='region'&&provider.key==='paymob'
+        const configValue=provider.key==='paymob'&&configKey==='region'
           ?'ksa'
-          :String(form.get(`public_${configKey}`)||'').trim();
+          :provider.key==='paymob'&&configKey==='integrationPath'
+            ?'quicklink'
+            :String(form.get(`public_${configKey}`)||'').trim();
         if(configValue)publicConfig[configKey]=configValue;
         else if(provider.key==='paymob'&&configKey==='applePayIntegrationId'){
           // Explicit null clears a previously configured optional Integration
@@ -832,9 +831,7 @@ function ProviderModal({item,busy,onClose,onSubmit}){
   const [environment,setEnvironment]=useState(initialEnvironment);
   const environmentChanged=environment!==initialEnvironment;
   const paymob=item.key==='paymob';
-  const [integrationPath,setIntegrationPath]=useState(
-    paymob?(publicConfig.integrationPath||'intention'):''
-  );
+  const integrationPath=paymob?'quicklink':'';
   const visiblePublicConfigKeys=publicConfigKeys.filter(configKey=>(
     configKey!=='integrationPath'
     &&(configKey!=='applePayIntegrationId'||integrationPath==='quicklink')
@@ -843,18 +840,14 @@ function ProviderModal({item,busy,onClose,onSubmit}){
     <label>بيئة الاعتماد<select name="environment" value={environment} onChange={event=>setEnvironment(event.target.value)}><option value="sandbox">Sandbox</option><option value="live">Live credentials</option></select></label>
     <label>طريقة Checkout{paymob?<select name="checkout_mode" value="redirect" disabled><option value="redirect">Paymob Hosted Redirect</option></select>:<select name="checkout_mode" defaultValue={item.checkoutMode||'redirect'}><option value="redirect">Redirect</option><option value="embedded">Embedded</option><option value="api">API</option></select>}</label>
     <label className={styles.wide}>العملات{paymob?<input name="currencies" value="SAR" readOnly/>:<input name="currencies" defaultValue={(item.supportedCurrencies||['SAR']).join(', ')}/>} {paymob&&<small>مسار KSA في هذا الإصدار يقبل SAR فقط.</small>}</label>
-    {paymob&&<label className={styles.wide}>مسار الربط
-      <small>Unified Checkout يستخدم Web Integration. في Live يجب أن يبدأ Secret Key بـ sklive وPublic Key بـ pklive.</small>
-      <select name="public_integrationPath" value={integrationPath}
-        onChange={event=>setIntegrationPath(event.target.value)}>
-        <option value="quicklink">QuickLink — بطاقات وApple Pay</option>
-        <option value="intention">Unified Checkout — Intention</option>
-      </select>
-    </label>}
+    {paymob&&<aside className={`${styles.safety} ${styles.wide}`}>
+      <b>Paymob Hosted Redirect</b><br/>
+      مسار دفع واحد ثابت وآمن: ينشئ أودير رابط Paymob ثم يحوّل العميل إليه. يحتاج API Key وHMAC فقط، مع Integration ID للبطاقات/مدى وApple Pay اختياري.
+    </aside>}
     {visiblePublicConfigKeys.map(configKey=>{const fixedRegion=paymob&&configKey==='region';const numericPaymobId=paymob&&['merchantAccountId','integrationId','applePayIntegrationId'].includes(configKey);const optionalApple=paymob&&configKey==='applePayIntegrationId';const contextualLabel=paymob&&configKey==='integrationId'&&integrationPath==='quicklink'?'Integration ID للبطاقات/مدى':PUBLIC_CONFIG_LABEL[configKey]||configKey;return <label key={`${configKey}-${environment}`} className={styles.wide}>{contextualLabel}<small>{fixedRegion?'مثبتة خادميًا على المملكة العربية السعودية':optionalApple?'اختياري؛ اتركه فارغًا لإخفاء Apple Pay عن العميل':environmentChanged?'تغيرت البيئة — أدخل المعرّف الخاص بهذه البيئة':'بيان عام للربط وليس مفتاحًا سريًا'}</small>{fixedRegion?<input name={`public_${configKey}`} value="ksa" readOnly maxLength="240" dir="ltr" required/>:<input name={`public_${configKey}`} defaultValue={environmentChanged?'':publicConfig[configKey]||''} inputMode={numericPaymobId?'numeric':undefined} pattern={numericPaymobId?'[1-9][0-9]*':undefined} maxLength="240" dir={numericPaymobId?'ltr':undefined} required={!optionalApple}/>}</label>})}
     {secretKeys.map(secretKey=>{const mustReplace=environmentChanged&&(requiredSecrets.has(secretKey)||configured.has(secretKey));const required=mustReplace||(!configured.has(secretKey)&&requiredSecrets.has(secretKey));return <label key={`${secretKey}-${environment}`} className={styles.wide}>{SECRET_LABEL[secretKey]||secretKey}{configured.has(secretKey)&&<small>{mustReplace?'تغيرت البيئة — أدخل قيمة جديدة لهذه البيئة':'محفوظ في Vault — اتركه فارغًا للإبقاء عليه'}</small>}<input name={`secret_${secretKey}`} type="password" autoComplete="new-password" placeholder={configured.has(secretKey)&&!mustReplace?'••••••••':'أدخل القيمة السرية'} required={required}/></label>})}
     <label className={styles.check}><input name="enabled" type="checkbox" defaultChecked={item.status!=='disabled'}/><span>إتاحة الإعداد للاختبار</span></label>
-    <aside className={styles.safety}>{paymob?'تغيير المسار أو Integration ID يعيد الجاهزية إلى وضع المراجعة ويُمنع مع وجود محاولة دفع مفتوحة. حفظ Live لا يفعّله؛ التفعيل يحتاج Webhook موقّعًا ومنع التكرار والمطابقة والاسترداد.':'لا تُعرض الأسرار بعد الحفظ. ولا تتحول الحالة إلى «نشط» إلا من أدلة تشغيل خادمية موثّقة.'}</aside>
+    <aside className={styles.safety}>{paymob?'تغيير Integration ID يعيد الجاهزية إلى المراجعة ويُمنع مع وجود محاولة دفع مفتوحة. لا تُعرض المفاتيح بعد الحفظ، ويظل Webhook الموقّع هو مصدر حقيقة السداد والتفعيل.':'لا تُعرض الأسرار بعد الحفظ. ولا تتحول الحالة إلى «نشط» إلا من أدلة تشغيل خادمية موثّقة.'}</aside>
     <footer><button type="button" onClick={onClose}>إلغاء</button><button className={styles.primary} disabled={busy==='provider'}>{busy==='provider'?'جارٍ الحفظ…':'حفظ آمن'}</button></footer>
   </form></Modal>;
 }

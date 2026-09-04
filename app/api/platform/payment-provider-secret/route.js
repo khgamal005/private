@@ -17,9 +17,7 @@ const PAYMOB_PUBLIC_CONFIG_KEYS=new Set([
   'merchantAccountId','integrationPath','integrationId',
   'applePayIntegrationId','region'
 ]);
-const PAYMOB_SECRET_KEYS=new Set([
-  'secretKey','publicKey','hmacSecret','apiKey'
-]);
+const PAYMOB_SECRET_KEYS=new Set(['apiKey','hmacSecret']);
 
 function positiveSafeInteger(value){
   if(!/^[1-9]\d*$/.test(value))return false;
@@ -41,7 +39,7 @@ function validProviderConfig(
     &&configKeys.every(key=>PAYMOB_PUBLIC_CONFIG_KEYS.has(key))
     &&positiveSafeInteger(publicConfig.merchantAccountId||'')
     &&positiveSafeInteger(publicConfig.integrationId||'')
-    &&['intention','quicklink'].includes(integrationPath)
+    &&integrationPath==='quicklink'
     &&Object.prototype.hasOwnProperty.call(
       publicConfig,'applePayIntegrationId'
     )
@@ -51,20 +49,7 @@ function validProviderConfig(
       &&applePayIntegrationId!==publicConfig.integrationId
     ))
     &&publicConfig.region==='ksa'
-    &&validPaymobLiveCredentials(environment,integrationPath,secrets)
     &&secretEntries.every(entry=>PAYMOB_SECRET_KEYS.has(entry[0]));
-}
-
-function validPaymobLiveCredentials(environment,integrationPath,secrets){
-  if(environment!=='live'||integrationPath!=='intention')return true;
-  const secretKey=secrets.secretKey;
-  const publicKey=secrets.publicKey;
-  return (secretKey===undefined||(
-      typeof secretKey==='string'&&/^sklive/i.test(secretKey)
-    ))
-    &&(publicKey===undefined||(
-      typeof publicKey==='string'&&/^pklive/i.test(publicKey)
-    ));
 }
 
 export async function POST(request){
@@ -258,7 +243,7 @@ function providerError(code){
     platform_subject_not_found:'تعذر توثيق هوية منفّذ التغيير',
     invalid_credentials_payload:'بيانات الربط غير مكتملة أو غير صالحة',
     credential_store_rejected:'تعذر حفظ إعدادات الدفع الآمنة. لم يُحفظ أي تغيير؛ حدّث الصفحة وأعد المحاولة',
-    live_credentials_invalid:'مفاتيح Paymob لا تطابق وضع Live. استخدم Secret Key الذي يبدأ بـ sklive وPublic Key الذي يبدأ بـ pklive',
+    live_credentials_invalid:'بيانات Paymob Live غير صالحة',
     payload_too_large:'حجم بيانات الربط أكبر من الحد المسموح',
     unauthorized:'انتهت الجلسة'
   };

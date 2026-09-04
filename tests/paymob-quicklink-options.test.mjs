@@ -199,11 +199,12 @@ test('storefront exposes labels and option keys, never merchant Integration IDs'
   }
 });
 
-test('admin config is explicit and Reef Skills remains excluded from rollout',()=>{
-  assert.match(adminUi,/QuickLink — بطاقات وApple Pay/);
+test('admin config is a fixed Hosted Redirect adapter and Reef Skills remains excluded',()=>{
+  assert.match(adminUi,/Paymob Hosted Redirect/);
+  assert.match(adminUi,/const integrationPath=paymob\?'quicklink':''/);
   assert.match(adminUi,/Integration ID للبطاقات\/مدى/);
   assert.match(adminUi,/اختياري؛ اتركه فارغًا لإخفاء Apple Pay عن العميل/);
-  assert.match(adminUi,/تغيير المسار أو Integration ID يعيد الجاهزية إلى وضع المراجعة/);
+  assert.match(adminUi,/تغيير Integration ID يعيد الجاهزية إلى المراجعة/);
   assert.match(migration,/tenant\.slug\s+is\s+distinct\s+from\s+'reef-skills'/i);
   assert.match(migration,/tenant\.tenant_key\s+is\s+distinct\s+from\s+'tenant-reef-skills'/i);
   assert.match(migration,/v_tenant\.slug\s*=\s*'reef-skills'/i);

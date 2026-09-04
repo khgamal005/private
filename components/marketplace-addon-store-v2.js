@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import styles from './marketplace-store.module.css';
+import MarketplacePromoCode from './marketplace-promo-code';
 import {
   defaultPaymobOption,
   PaymentMethodPicker,
@@ -84,6 +85,7 @@ function today(){
 
 export default function MarketplaceAddonStoreV2({slug,initialData}){
   const router=useRouter();
+  const promotionsEnabled=slug!=='reef-skills';
   const data=initialData||{};
   const addons=data.addons||EMPTY;
   const addonCategories=data.addonCategories||EMPTY;
@@ -99,6 +101,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
     defaultPaymobOption(paymentMethods)
   );
   const [notes,setNotes]=useState('');
+  const [checkoutPromotionCode,setCheckoutPromotionCode]=useState('');
   const [transferOrder,setTransferOrder]=useState(null);
   const [senderName,setSenderName]=useState('');
   const [transferReference,setTransferReference]=useState('');
@@ -164,7 +167,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
     setPaymentProvider(paymentMethods[0]?.key||'bank_transfer');
     setPaymentOption(defaultPaymobOption(paymentMethods));
     resetBillingContact();
-    setNotes('');setError('');setNotice('');
+    setNotes('');setCheckoutPromotionCode('');setError('');setNotice('');
   }
 
   function resetBillingContact(){
@@ -226,7 +229,8 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
     try{
       order=await action('create_order',{
         itemType:'addon',productKey:checkout.item.key,quantity:1,notes,
-        idempotencyKey:checkout.requestKey,paymentProvider
+        idempotencyKey:checkout.requestKey,paymentProvider,
+        promotionCode:checkoutPromotionCode.trim()||undefined
       });
       setCheckout(null);
       if(order.paymentProvider==='bank_transfer'){
@@ -291,6 +295,30 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
       router.refresh();
     }catch(err){setError(err instanceof Error?err.message:'تعذر إرسال بيانات التحويل');}
     finally{setBusy('');}
+  }
+
+  async function applyPromotion(order,code){
+    if(busy||!order?.id)return;
+    setBusy('promo-apply-'+order.id);setError('');setNotice('');
+    try{
+      const result=await action('apply_promotion',{orderId:order.id,code});
+      setNotice('تم تطبيق الرمز '+(result.promotion?.code||code)+' وحساب الإجمالي الجديد داخل أودير.');
+      router.refresh();
+    }catch(err){
+      setError(err instanceof Error?err.message:'تعذر تطبيق رمز الخصم');
+    }finally{setBusy('');}
+  }
+
+  async function removePromotion(order){
+    if(busy||!order?.id)return;
+    setBusy('promo-remove-'+order.id);setError('');setNotice('');
+    try{
+      await action('remove_promotion',{orderId:order.id});
+      setNotice('تمت إزالة رمز الخصم واستعادة السعر الأساسي للطلب.');
+      router.refresh();
+    }catch(err){
+      setError(err instanceof Error?err.message:'تعذر إزالة رمز الخصم');
+    }finally{setBusy('');}
   }
 
   async function cancelOrder(order){
@@ -363,6 +391,9 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
             {order.status==='pending_payment'&&order.paymentProvider==='bank_transfer'&&(!transfer||transfer.status==='rejected')&&<button type="button" disabled={Boolean(busy)} onClick={()=>openTransfer(order)}>إرسال بيانات التحويل</button>}
             {order.status==='pending_payment'&&order.paymentProvider==='paymob'&&<button type="button" className={styles.payButton} disabled={Boolean(busy)} onClick={()=>openPaymob(order)}>{busy==='paymob-'+order.id?'جارٍ فتح الدفع…':'استكمال الدفع'}</button>}
             {order.status==='pending_payment'&&order.paymentProvider!=='paymob'&&<button type="button" className={styles.cancel} disabled={Boolean(busy)} onClick={()=>cancelOrder(order)}>{busy==='cancel-'+order.id?'جارٍ الإلغاء…':'إلغاء'}</button>}
+            {promotionsEnabled&&order.status==='pending_payment'&&<MarketplacePromoCode
+              order={order} busy={busy} canManage={canPurchase}
+              onApply={applyPromotion} onRemove={removePromotion}/>}
           </article>;
         })}
         {!orders.some(order=>order.kind==='addon')&&<div className={styles.emptyOrders}>لا توجد طلبات إضافات حتى الآن.</div>}
@@ -391,8 +422,9 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
           onFirstName={setBillingFirstName} onLastName={setBillingLastName}
           onEmail={setBillingEmail} onPhone={setBillingPhone}
         />}
+        {promotionsEnabled&&<label><span>برومو كود <small>(اختياري)</small></span><input dir="ltr" autoCapitalize="characters" autoComplete="off" spellCheck="false" minLength="3" maxLength="32" pattern="[A-Za-z0-9][A-Za-z0-9_-]{2,31}" placeholder="PROMO2026" value={checkoutPromotionCode} onChange={event=>setCheckoutPromotionCode(event.target.value.toUpperCase())}/><small className={styles.promoHint}>سيُتحقق منه خادميًا ويُحسب الخصم قبل فتح صفحة الدفع.</small></label>}
         <label><span>ملاحظات الطلب <small>(اختياري)</small></span><textarea rows="3" maxLength="1000" value={notes} onChange={event=>setNotes(event.target.value)}/></label>
-        <dl><div><dt>سعر الإضافة السنوي</dt><dd>{money(subtotal,checkout.item.currency)}</dd></div><div><dt>ضريبة القيمة المضافة 15%</dt><dd>{money(tax,checkout.item.currency)}</dd></div><div><dt>الإجمالي</dt><dd>{money(subtotal+tax,checkout.item.currency)}</dd></div></dl>
+        <dl><div><dt>سعر الإضافة السنوي</dt><dd>{money(subtotal,checkout.item.currency)}</dd></div><div><dt>ضريبة القيمة المضافة 15%</dt><dd>{money(tax,checkout.item.currency)}</dd></div><div><dt>الإجمالي قبل أي برومو</dt><dd>{money(subtotal+tax,checkout.item.currency)}</dd></div></dl>
         <footer><button type="button" onClick={()=>setCheckout(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={busy==='checkout'||!paymentMethods.length}>{busy==='checkout'?'جارٍ إنشاء الطلب…':selectedMethod?.key==='paymob'?'المتابعة إلى الدفع الآمن':'إنشاء طلب الاشتراك'}</button></footer>
       </form>
     </div>}

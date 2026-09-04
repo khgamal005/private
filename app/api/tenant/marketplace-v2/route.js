@@ -33,8 +33,9 @@ export async function POST(request){
       return json({error:'بيانات الطلب غير صالحة'},{status:400});
     }
 
+    const rpcRequest=promotionRpc(body);
     const response=await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/v2_tenant_marketplace_action`,
+      `${SUPABASE_URL}/rest/v1/rpc/${rpcRequest.name}`,
       {
         method:'POST',
         redirect:'error',
@@ -44,7 +45,7 @@ export async function POST(request){
           'Content-Type':'application/json',
           Accept:'application/json'
         },
-        body:JSON.stringify(body),
+        body:JSON.stringify(rpcRequest.body),
         cache:'no-store',
         signal:AbortSignal.timeout(RPC_TIMEOUT_MS)
       }
@@ -72,6 +73,26 @@ export async function POST(request){
         :'تعذر تنفيذ العملية'
     },{status:timedOut?504:503});
   }
+}
+
+
+function promotionRpc(body){
+  const action=String(body.p_action||'');
+  const payload=body.p_payload&&typeof body.p_payload==='object'
+    &&!Array.isArray(body.p_payload)?body.p_payload:{};
+  if(action==='apply_promotion'||action==='remove_promotion'){
+    return {
+      name:'v1_tenant_marketplace_promotion_action',
+      body:{p_slug:body.p_slug,p_action:action,p_payload:payload}
+    };
+  }
+  if(action==='create_order'&&String(payload.promotionCode||'').trim()){
+    return {
+      name:'v1_tenant_marketplace_create_order_with_promotion',
+      body:{p_slug:body.p_slug,p_payload:payload}
+    };
+  }
+  return {name:'v2_tenant_marketplace_action',body};
 }
 
 async function readTextLimited(source,maxBytes){
@@ -156,6 +177,23 @@ function translate(value){
     marketplace_payment_provider_unavailable:'وسيلة الدفع غير متاحة حاليًا',
     marketplace_order_not_found:'طلب الشراء غير موجود',
     marketplace_order_not_payable:'طلب الشراء لا يقبل الدفع الآن',
+    promotion_code_invalid:'صيغة البرومو كود غير صحيحة',
+    promotion_code_not_found:'البرومو كود غير موجود',
+    promotion_code_inactive:'البرومو كود غير نشط أو انتهت صلاحيته',
+    promotion_scope_mismatch:'البرومو كود لا يشمل هذا المنتج أو نوع الطلب',
+    promotion_payment_provider_mismatch:'البرومو كود لا يعمل مع وسيلة الدفع المختارة',
+    promotion_currency_mismatch:'البرومو كود لا يدعم عملة هذا الطلب',
+    promotion_minimum_not_met:'قيمة الطلب أقل من الحد الأدنى لهذا البرومو',
+    promotion_first_purchase_only:'هذا البرومو مخصص لأول عملية شراء فقط',
+    promotion_usage_limit_reached:'اكتمل الحد المتاح لاستخدام هذا البرومو',
+    promotion_tenant_limit_reached:'استُخدم هذا البرومو للمنشأة بالعدد الأقصى المسموح',
+    promotion_budget_exhausted:'انتهت ميزانية هذا العرض',
+    promotion_discount_not_applicable:'لا ينتج عن هذا البرومو خصم صالح لهذا الطلب',
+    promotion_order_not_eligible:'لا يمكن تعديل البرومو في حالة الطلب الحالية',
+    promotion_order_payment_locked:'تم قفل سعر الطلب بعد بدء عملية الدفع؛ أكملها أو انتظر حسمها',
+    promotion_order_already_redeemed:'تم استهلاك البرومو بالفعل في عملية دفع ناجحة',
+    promotion_reservation_expired:'انتهت مهلة حجز البرومو؛ أعد تطبيق الرمز قبل الدفع',
+    promotion_payment_binding_mismatch:'تعذر التحقق من تطابق البرومو مع مبلغ الدفع',
     marketplace_payment_provider_mismatch:'وسيلة الدفع لا تطابق الطلب',
     paymob_tenant_rollout_required:'وسيلة الدفع غير مفعلة لهذه المنشأة حاليًا',
     paymob_tenant_not_enabled:'وسيلة الدفع غير مفعلة لهذه المنشأة حاليًا',

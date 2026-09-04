@@ -21,6 +21,7 @@ const ICON_PATHS={
   catalog:['M4 8h16l-1 13H5L4 8Z','M7 8V6a5 5 0 0 1 10 0v2'],
   billing:['M3 6h18v12H3z','M3 10h18','M7 15h4'],
   payments:['M3 6h18v12H3z','M3 10h18','M7 15h4'],
+  promotions:['M5 5h14v14H5z','M8 9h8M8 13h5','M16 4v4M14 6h4'],
   providers:['M12 3v4M12 17v4M3 12h4M17 12h4','M8.5 8.5h7v7h-7z'],
   services:['M4 7h16v13H4z','M8 7V4h8v3','M8 12h8M8 16h5'],
   marketplace:['M4 8h16l-1 13H5L4 8Z','M7 8V6a5 5 0 0 1 10 0v2','M8 12h.01M16 12h.01'],
@@ -152,7 +153,8 @@ function platformItems(permissions,registrationSummary,supportSummary){
     {key:'catalog',label:'المنتجات والمتاجر',children:[
       {key:'plans',label:'الباقات وحدود الاستخدام',href:'/control/plans',permission:'platform.billing.manage'},
       {key:'addons',label:'متجر الإضافات',href:'/control/addons',permission:'platform.billing.manage'},
-      {key:'services',label:'متجر الخدمات',href:'/control/services',permission:'platform.billing.manage'}
+      {key:'services',label:'متجر الخدمات',href:'/control/services',permission:'platform.billing.manage'},
+      {key:'promotions',label:'العروض والبرومو كود',href:'/control/promotions',permission:'platform.billing.manage'}
     ]},
     {key:'billing',label:'الاشتراكات والتحصيل',children:[
       {key:'subscriptions',label:'اشتراكات المنشآت',href:'/control/subscriptions',permission:'platform.billing.manage'},
@@ -286,7 +288,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
     yeastar:pathname.includes('/yeastar')||pathname.includes('/call-reports'),
     marketing:pathname.includes('/marketing')||pathname.includes('/settings'),
     reports:pathname.includes('/reports'),
-    catalog:['/plans','/addons','/services'].some(path=>pathname.includes(path)),
+    catalog:['/plans','/addons','/services','/promotions'].some(path=>pathname.includes(path)),
     billing:['/subscriptions','/payments','/payment-providers','/marketplace'].some(path=>pathname.includes(path))
   }));
   const items=useMemo(()=>kind===WORKSPACE_KINDS.tenant

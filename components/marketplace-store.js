@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import styles from './marketplace-store.module.css';
+import MarketplacePromoCode from './marketplace-promo-code';
 import {
   defaultPaymobOption,
   PaymentMethodPicker,
@@ -97,6 +98,7 @@ function preferredPackage(item){
 
 export default function MarketplaceStore({slug,initialData}){
   const router=useRouter();
+  const promotionsEnabled=slug!=='reef-skills';
   const data=initialData||{};
   const paymentMethods=data.paymentMethods||EMPTY;
   const [query,setQuery]=useState('');
@@ -111,6 +113,7 @@ export default function MarketplaceStore({slug,initialData}){
   const [participantCount,setParticipantCount]=useState('');
   const [requirements,setRequirements]=useState('');
   const [notes,setNotes]=useState('');
+  const [checkoutPromotionCode,setCheckoutPromotionCode]=useState('');
   const [paymentProvider,setPaymentProvider]=useState(
     paymentMethods[0]?.key||'bank_transfer'
   );
@@ -176,6 +179,7 @@ export default function MarketplaceStore({slug,initialData}){
     setParticipantCount('');
     setRequirements('');
     setNotes('');
+    setCheckoutPromotionCode('');
     setPaymentProvider(paymentMethods[0]?.key||'bank_transfer');
     setPaymentOption(defaultPaymobOption(paymentMethods));
     resetBillingContact();
@@ -263,6 +267,7 @@ export default function MarketplaceStore({slug,initialData}){
             },
             notes:notes.trim()||undefined,
             paymentProvider,
+            promotionCode:checkoutPromotionCode.trim()||undefined,
             idempotencyKey:checkout.requestKey
           }
         })
@@ -358,6 +363,41 @@ export default function MarketplaceStore({slug,initialData}){
     }finally{
       if(!navigating)setBusy('');
     }
+  }
+
+  async function promotionAction(p_action,p_payload){
+    const response=await fetch('/api/tenant/service-marketplace',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({p_slug:slug,p_action,p_payload})
+    });
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.error||'تعذر تنفيذ رمز الخصم');
+    return result.data||{};
+  }
+
+  async function applyPromotion(order,code){
+    if(busy||!order?.id)return;
+    setBusy('promo-apply-'+order.id);setError('');setNotice('');
+    try{
+      const result=await promotionAction('apply_promotion',{orderId:order.id,code});
+      setNotice('تم تطبيق الرمز '+(result.promotion?.code||code)+' وحساب الإجمالي الجديد داخل أودير.');
+      router.refresh();
+    }catch(err){
+      setError(err instanceof Error?err.message:'تعذر تطبيق رمز الخصم');
+    }finally{setBusy('');}
+  }
+
+  async function removePromotion(order){
+    if(busy||!order?.id)return;
+    setBusy('promo-remove-'+order.id);setError('');setNotice('');
+    try{
+      await promotionAction('remove_promotion',{orderId:order.id});
+      setNotice('تمت إزالة رمز الخصم واستعادة السعر الأساسي للطلب.');
+      router.refresh();
+    }catch(err){
+      setError(err instanceof Error?err.message:'تعذر إزالة رمز الخصم');
+    }finally{setBusy('');}
   }
 
   async function cancelOrder(order){
@@ -493,6 +533,9 @@ export default function MarketplaceStore({slug,initialData}){
             disabled={Boolean(busy)}
             onClick={()=>cancelOrder(order)}
           >{busy==='cancel-'+order.id?'جارٍ الإلغاء…':'إلغاء'}</button>}
+          {promotionsEnabled&&order.status==='pending_payment'&&<MarketplacePromoCode
+            order={order} busy={busy} canManage={canPurchase}
+            onApply={applyPromotion} onRemove={removePromotion}/>}
         </article>})}
         {!orders.length&&<div className={styles.emptyOrders}>لم تُنشئ منشأتك طلبات خدمات حتى الآن.</div>}
       </div>
@@ -580,10 +623,19 @@ export default function MarketplaceStore({slug,initialData}){
           onEmail={setBillingEmail} onPhone={setBillingPhone}
         />}
 
+        {promotionsEnabled&&<label>
+          <span>برومو كود <small>(اختياري)</small></span>
+          <input dir="ltr" autoCapitalize="characters" autoComplete="off"
+            spellCheck="false" minLength="3" maxLength="32"
+            pattern="[A-Za-z0-9][A-Za-z0-9_-]{2,31}"
+            placeholder="PROMO2026" value={checkoutPromotionCode}
+            onChange={event=>setCheckoutPromotionCode(event.target.value.toUpperCase())}/>
+          <small className={styles.promoHint}>سيُتحقق منه خادميًا ويُحسب الخصم قبل فتح صفحة الدفع.</small>
+        </label>}
         <dl>
           <div><dt>السعر</dt><dd>{money(checkoutSubtotal,checkoutCurrency)}</dd></div>
           <div><dt>ضريبة القيمة المضافة 15%</dt><dd>{money(checkoutTax,checkoutCurrency)}</dd></div>
-          <div><dt>الإجمالي</dt><dd>{money(checkoutSubtotal+checkoutTax,checkoutCurrency)}</dd></div>
+          <div><dt>الإجمالي قبل أي برومو</dt><dd>{money(checkoutSubtotal+checkoutTax,checkoutCurrency)}</dd></div>
         </dl>
         <div className={styles.activationNote}>
           <span>✓</span>

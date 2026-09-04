@@ -32,9 +32,11 @@ function positiveSafeInteger(value:unknown){
 
 function validProviderConfig(
   providerKey:string,
+  environment:string,
   checkoutMode:string,
   supportedCurrencies:string[],
   publicConfig:Record<string,unknown>,
+  secrets:Record<string,unknown>,
   secretEntries:[string,unknown][]
 ){
   if(providerKey!=='paymob')return true;
@@ -57,7 +59,24 @@ function validProviderConfig(
       &&applePayIntegrationId!==publicConfig.integrationId
     ))
     &&publicConfig.region==='ksa'
+    &&validPaymobLiveCredentials(environment,integrationPath,secrets)
     &&secretEntries.every(([key])=>PAYMOB_SECRET_KEYS.has(key));
+}
+
+function validPaymobLiveCredentials(
+  environment:string,
+  integrationPath:unknown,
+  secrets:Record<string,unknown>
+){
+  if(environment!=='live'||integrationPath!=='intention')return true;
+  const secretKey=secrets.secretKey;
+  const publicKey=secrets.publicKey;
+  return (secretKey===undefined||(
+      typeof secretKey==='string'&&/^sklive/i.test(secretKey)
+    ))
+    &&(publicKey===undefined||(
+      typeof publicKey==='string'&&/^pklive/i.test(publicKey)
+    ));
 }
 
 function json(status:number,body:Record<string,unknown>){
@@ -226,7 +245,8 @@ Deno.serve(async(request:Request)=>{
              ||/[\u0000-\u001f\u007f]/.test(value))
        )
        ||!validProviderConfig(
-         providerKey,checkoutMode,supportedCurrencies,publicConfig,secretEntries
+         providerKey,environment,checkoutMode,supportedCurrencies,
+         publicConfig,secrets,secretEntries
        )){
       return json(400,{ok:false,error:'invalid_credentials_payload'});
     }
@@ -258,7 +278,17 @@ Deno.serve(async(request:Request)=>{
     const stored=storedResult.response;
     if(!stored.ok){
       console.warn('[payment-provider-admin] credential store rejected',stored.status);
-      return json(400,{ok:false,error:'credential_store_rejected'});
+      let upstreamCode='';
+      try{
+        const upstream=JSON.parse(storedResult.text) as {message?:unknown};
+        upstreamCode=String(upstream.message||'');
+      }catch{}
+      return json(400,{
+        ok:false,
+        error:upstreamCode.includes('paymob_live_credentials_invalid')
+          ?'live_credentials_invalid'
+          :'credential_store_rejected'
+      });
     }
     const result=JSON.parse(storedResult.text);
     return json(200,{

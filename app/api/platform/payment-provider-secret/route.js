@@ -28,7 +28,8 @@ function positiveSafeInteger(value){
 }
 
 function validProviderConfig(
-  providerKey,checkoutMode,supportedCurrencies,publicConfig,secretEntries
+  providerKey,environment,checkoutMode,supportedCurrencies,publicConfig,
+  secrets,secretEntries
 ){
   if(providerKey!=='paymob')return true;
   const configKeys=Object.keys(publicConfig);
@@ -50,7 +51,20 @@ function validProviderConfig(
       &&applePayIntegrationId!==publicConfig.integrationId
     ))
     &&publicConfig.region==='ksa'
+    &&validPaymobLiveCredentials(environment,integrationPath,secrets)
     &&secretEntries.every(entry=>PAYMOB_SECRET_KEYS.has(entry[0]));
+}
+
+function validPaymobLiveCredentials(environment,integrationPath,secrets){
+  if(environment!=='live'||integrationPath!=='intention')return true;
+  const secretKey=secrets.secretKey;
+  const publicKey=secrets.publicKey;
+  return (secretKey===undefined||(
+      typeof secretKey==='string'&&/^sklive/i.test(secretKey)
+    ))
+    &&(publicKey===undefined||(
+      typeof publicKey==='string'&&/^pklive/i.test(publicKey)
+    ));
 }
 
 export async function POST(request){
@@ -123,7 +137,8 @@ export async function POST(request){
              ||/[\u0000-\u001f\u007f]/.test(value))
        )
        ||!validProviderConfig(
-         providerKey,checkoutMode,supportedCurrencies,publicConfig,secretEntries
+         providerKey,environment,checkoutMode,supportedCurrencies,
+         publicConfig,secrets,secretEntries
        )){
       return json({error:'بيانات الاعتماد غير صالحة'},{status:400});
     }
@@ -243,6 +258,7 @@ function providerError(code){
     platform_subject_not_found:'تعذر توثيق هوية منفّذ التغيير',
     invalid_credentials_payload:'بيانات الربط غير مكتملة أو غير صالحة',
     credential_store_rejected:'تعذر حفظ إعدادات الدفع الآمنة. لم يُحفظ أي تغيير؛ حدّث الصفحة وأعد المحاولة',
+    live_credentials_invalid:'مفاتيح Paymob لا تطابق وضع Live. استخدم Secret Key الذي يبدأ بـ sklive وPublic Key الذي يبدأ بـ pklive',
     payload_too_large:'حجم بيانات الربط أكبر من الحد المسموح',
     unauthorized:'انتهت الجلسة'
   };

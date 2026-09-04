@@ -513,6 +513,12 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
       ?snapshot.status==='configured'
       :snapshot.status==='active'&&snapshot.active===true
   );
+  const liveValidationReady=environment==='live'
+    &&snapshot.environment==='live'
+    &&snapshot.credentialsEnvironment==='live'
+    &&snapshot.status==='configured'
+    &&snapshot.rolloutMode==='observe_only'
+    &&snapshot.configured===true;
   const evidenceRequests=snapshot.operationalEvidenceRequests||EMPTY;
   const selectedEvidenceRequest=evidenceRequests.find(item=>(
     item.checkKey===evidenceCheck&&item.pendingApproval
@@ -650,7 +656,9 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
         </dl>
         <div className={styles.governanceActions}>
           {!tenantRollout?.pendingApproval&&tenantRollout?.status!=='enabled'&&
-            <button type="button" disabled={!tenantId||!globalReady}
+            <button type="button" disabled={
+              !tenantId||(!globalReady&&!liveValidationReady)
+            }
               onClick={()=>openTenant('tenant_request')}>طلب إتاحة المنشأة</button>}
           {tenantRollout?.pendingApproval&&<button type="button"
             className={styles.primary}
@@ -660,7 +668,7 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
               إيقاف ومسح الطلب
             </button>}
         </div>
-        <small className={styles.governanceNote}>Reef Skills مستبعد خادميًا ومن قائمة Canary. الإتاحة تخص المنشأة والبيئة المحددتين فقط.</small>
+        <small className={styles.governanceNote}>Reef Skills مستبعد خادميًا ومن قائمة Canary. وضع تحقق Live يقتصر على مركز أودير النموذجي، بحد 500 ر.س للطلب، وبعد اعتماد مشغّل ثانٍ.</small>
       </article>
 
       <article>
@@ -836,7 +844,7 @@ function ProviderModal({item,busy,onClose,onSubmit}){
     <label>طريقة Checkout{paymob?<select name="checkout_mode" value="redirect" disabled><option value="redirect">Paymob Hosted Redirect</option></select>:<select name="checkout_mode" defaultValue={item.checkoutMode||'redirect'}><option value="redirect">Redirect</option><option value="embedded">Embedded</option><option value="api">API</option></select>}</label>
     <label className={styles.wide}>العملات{paymob?<input name="currencies" value="SAR" readOnly/>:<input name="currencies" defaultValue={(item.supportedCurrencies||['SAR']).join(', ')}/>} {paymob&&<small>مسار KSA في هذا الإصدار يقبل SAR فقط.</small>}</label>
     {paymob&&<label className={styles.wide}>مسار الربط
-      <small>QuickLink هو المسار الأبسط لإظهار البطاقات وApple Pay كخيارات مستقلة.</small>
+      <small>Unified Checkout يستخدم Web Integration. في Live يجب أن يبدأ Secret Key بـ sklive وPublic Key بـ pklive.</small>
       <select name="public_integrationPath" value={integrationPath}
         onChange={event=>setIntegrationPath(event.target.value)}>
         <option value="quicklink">QuickLink — بطاقات وApple Pay</option>

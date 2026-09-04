@@ -1,0 +1,38 @@
+name: Export promotions development snapshot
+
+on:
+  push:
+    branches:
+      - feat/marketplace-promotions-v1-real-20260905
+    paths:
+      - .github/workflows/export-promo-development-snapshot.yml
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/marketplace-promotions-v1-real-20260905
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='*.log' \
+            -czf /tmp/marktone-promotions-source.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: marktone-promotions-source
+          path: /tmp/marktone-promotions-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1

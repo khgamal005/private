@@ -158,7 +158,7 @@ test('customer status route and return surface omit provider and reconciliation 
   ])assert.match(response,new RegExp(`\\b${safeField}\\s*(?::|,|$)`,'im'));
 });
 
-test('checkout supports governed KSA Intention and QuickLink APIs without legacy iframe APIs',()=>{
+test('checkout activates only governed KSA QuickLink while Intention stays rollback-only and fail-closed',()=>{
   assert.match(paymob,/https:\/\/ksa\.paymob\.com\/v1\/intention\/?/i);
   assert.match(paymob,/https:\/\/ksa\.checkout\.paymob\.com\/?/i);
   assert.match(paymob,/https:\/\/ksa\.paymob\.com\/api\/auth\/tokens/i);
@@ -174,6 +174,37 @@ test('checkout supports governed KSA Intention and QuickLink APIs without legacy
   assert.match(checkout,/reference_id/i);
   assert.match(checkout,/notification_url/i);
   assert.match(checkout,/redirection_url/i);
+
+  assert.match(
+    checkout,
+    /LEGACY_INTENTION_PROVIDER_MUTATION_ENABLED\s*=\s*false/
+  );
+  const quicklinkBranch=checkout.indexOf(
+    'if (runtime.checkoutFlow === "quicklink")'
+  );
+  const legacyGuard=checkout.indexOf(
+    'if (!LEGACY_INTENTION_PROVIDER_MUTATION_ENABLED)'
+  );
+  const legacyRequest=checkout.indexOf(
+    'const intentionRequest = {',
+    legacyGuard
+  );
+  const legacyMutation=checkout.indexOf(
+    'PAYMOB_INTENTION_URL,',
+    legacyRequest
+  );
+  assert.ok(quicklinkBranch!==-1&&legacyGuard>quicklinkBranch);
+  assert.ok(legacyRequest>legacyGuard);
+  assert.ok(legacyMutation>legacyRequest);
+  const guardedLegacySurface=checkout.slice(legacyGuard,legacyRequest);
+  assert.match(guardedLegacySurface,/recordIntentionBestEffort/);
+  assert.match(guardedLegacySurface,/"failed"/);
+  assert.match(guardedLegacySurface,/"unsupported_checkout_flow"/);
+  assert.match(guardedLegacySurface,/return jsonResponse\(503/);
+  assert.doesNotMatch(
+    guardedLegacySurface,
+    /fetchTextWithTimeout|providerMutationStarted\s*=\s*true/
+  );
 
   assert.doesNotMatch(
     edgeSurface,

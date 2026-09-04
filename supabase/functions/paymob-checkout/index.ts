@@ -35,6 +35,10 @@ const PROVIDER_EXPIRATION_SAFETY_MS = 2 * 60 * 1_000;
 const MAX_AMOUNT_MINOR = 100_000_000_000;
 const MAX_INTENTION_ITEMS = 50;
 const MAX_ITEM_QUANTITY = 1_000;
+// Historical Intention code remains source-controlled for audited rollback only.
+// A non-QuickLink runtime must fail before any provider mutation. Re-enabling
+// this path requires an explicit reviewed code change and a fresh deployment.
+const LEGACY_INTENTION_PROVIDER_MUTATION_ENABLED = false;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{16,120}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -295,6 +299,26 @@ Deno.serve(async (request: Request) => {
         markProviderMutationStarted: () => {
           providerMutationStarted = true;
         },
+      });
+    }
+    if (!LEGACY_INTENTION_PROVIDER_MUTATION_ENABLED) {
+      // No provider request has started. Close the claimed attempt locally and
+      // fail without exposing credentials or allowing an automatic retry.
+      await recordIntentionBestEffort(
+        supabaseUrl,
+        serviceRoleKey,
+        prepared.attemptId,
+        runtime.claimToken,
+        "failed",
+        { errorCode: "unsupported_checkout_flow" },
+      );
+      return jsonResponse(503, {
+        ok: false,
+        status: "failed",
+        attemptId: prepared.attemptId,
+        orderId: prepared.orderId,
+        error: "checkout_not_available",
+        retryAllowed: false,
       });
     }
     const intentionRequest = {

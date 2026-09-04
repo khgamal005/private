@@ -38,6 +38,27 @@ test('Hosted Redirect validates required secrets by name instead of counting opt
   );
 });
 
+test('Hosted Redirect migration is replay-safe and fails closed on partial drift',()=>{
+  assert.match(migration,/deliberately replay-safe/i);
+  assert.match(migration,/v_helper_count\s*=\s*0/i);
+  for(const gate of ['runtime','resume','record']){
+    assert.match(
+      migration,
+      new RegExp(`paymob_${gate}_required_secret_patch_target_missing`,'i')
+    );
+    assert.match(
+      migration,
+      new RegExp(`paymob_${gate}_required_secret_patch_conflict`,'i')
+    );
+    assert.match(
+      migration,
+      new RegExp(`paymob_${gate}_required_secret_patch_postcondition_failed`,'i')
+    );
+  }
+  assert.match(migration,/v_helper_count\s*<>\s*1/i);
+  assert.doesNotMatch(migration,/drop\s+(?:function|table)|truncate\s+table/i);
+});
+
 test('Paymob administration exposes one fixed QuickLink route and only API Key plus HMAC',()=>{
   assert.match(ui,/PAYMOB_REQUIRED_SECRET_KEYS=\['apiKey','hmacSecret'\]/);
   assert.match(ui,/const integrationPath=paymob\?'quicklink':''/);

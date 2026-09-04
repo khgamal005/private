@@ -3,6 +3,11 @@
 -- QuickLink needs API Key to create/query and HMAC to authenticate callbacks.
 -- Secret/Public keys may remain in Vault for historical Intention attempts, but
 -- optional rows must never close the current QuickLink runtime gate.
+--
+-- This migration is deliberately replay-safe. A governed rollout may apply the
+-- SQL through the Supabase Management API before the repository migration
+-- version reaches an environment. Replaying the repository file therefore
+-- verifies the exact postcondition instead of failing or mutating a second time.
 
 create or replace function private_app.paymob_required_secret_refs_valid_v2(
   p_version_id uuid,
@@ -73,71 +78,179 @@ do $migration$
 declare
   v_definition text;
   v_before text;
+  v_helper constant text :=
+    'private_app.paymob_required_secret_refs_valid_v2(';
+  v_helper_count integer;
 begin
+  -- Runtime claim gate -------------------------------------------------------
   select pg_get_functiondef(
     'public.v1_service_paymob_runtime_config(uuid,text,text)'::regprocedure
   ) into v_definition;
-  v_before := v_definition;
-  v_definition := replace(
-    v_definition,
-$old$
+  v_helper_count := (
+    length(v_definition)-length(replace(v_definition,v_helper,''))
+  )/length(v_helper);
+
+  if v_helper_count = 0 then
+    v_before := v_definition;
+    v_definition := replace(
+      v_definition,
+$old_runtime$
      or v_bound_secret_ref_count <> (
        case when v_attempt.checkout_flow = 'quicklink' then 2 else 4 end
      )
-$old$,
-$new$
+$old_runtime$,
+$new_runtime$
      or not private_app.paymob_required_secret_refs_valid_v2(
        v_version.id,v_attempt.environment,v_attempt.checkout_flow
      )
-$new$
-  );
-  if v_definition = v_before then
-    raise exception 'paymob_runtime_required_secret_patch_target_missing';
+$new_runtime$
+    );
+    if v_definition = v_before then
+      raise exception 'paymob_runtime_required_secret_patch_target_missing';
+    end if;
+    execute v_definition;
+  elsif v_helper_count <> 1
+     or strpos(
+       v_definition,
+$old_runtime$
+     or v_bound_secret_ref_count <> (
+       case when v_attempt.checkout_flow = 'quicklink' then 2 else 4 end
+     )
+$old_runtime$
+     ) > 0 then
+    raise exception 'paymob_runtime_required_secret_patch_conflict';
   end if;
-  execute v_definition;
+
+  select pg_get_functiondef(
+    'public.v1_service_paymob_runtime_config(uuid,text,text)'::regprocedure
+  ) into v_definition;
+  v_helper_count := (
+    length(v_definition)-length(replace(v_definition,v_helper,''))
+  )/length(v_helper);
+  if v_helper_count <> 1
+     or strpos(
+       v_definition,
+$old_runtime$
+     or v_bound_secret_ref_count <> (
+       case when v_attempt.checkout_flow = 'quicklink' then 2 else 4 end
+     )
+$old_runtime$
+     ) > 0 then
+    raise exception 'paymob_runtime_required_secret_patch_postcondition_failed';
+  end if;
+
+  -- Resume gate --------------------------------------------------------------
+  select pg_get_functiondef(
+    'public.v1_service_paymob_resume_checkout(uuid)'::regprocedure
+  ) into v_definition;
+  v_helper_count := (
+    length(v_definition)-length(replace(v_definition,v_helper,''))
+  )/length(v_helper);
+
+  if v_helper_count = 0 then
+    v_before := v_definition;
+    v_definition := replace(
+      v_definition,
+$old_resume$
+     or v_bound_secret_ref_count <> (
+       case when v_attempt.checkout_flow = 'quicklink' then 2 else 4 end
+     )
+$old_resume$,
+$new_resume$
+     or not private_app.paymob_required_secret_refs_valid_v2(
+       v_version.id,v_attempt.environment,v_attempt.checkout_flow
+     )
+$new_resume$
+    );
+    if v_definition = v_before then
+      raise exception 'paymob_resume_required_secret_patch_target_missing';
+    end if;
+    execute v_definition;
+  elsif v_helper_count <> 1
+     or strpos(
+       v_definition,
+$old_resume$
+     or v_bound_secret_ref_count <> (
+       case when v_attempt.checkout_flow = 'quicklink' then 2 else 4 end
+     )
+$old_resume$
+     ) > 0 then
+    raise exception 'paymob_resume_required_secret_patch_conflict';
+  end if;
 
   select pg_get_functiondef(
     'public.v1_service_paymob_resume_checkout(uuid)'::regprocedure
   ) into v_definition;
-  v_before := v_definition;
-  v_definition := replace(
-    v_definition,
-$old$
+  v_helper_count := (
+    length(v_definition)-length(replace(v_definition,v_helper,''))
+  )/length(v_helper);
+  if v_helper_count <> 1
+     or strpos(
+       v_definition,
+$old_resume$
      or v_bound_secret_ref_count <> (
        case when v_attempt.checkout_flow = 'quicklink' then 2 else 4 end
      )
-$old$,
-$new$
-     or not private_app.paymob_required_secret_refs_valid_v2(
-       v_version.id,v_attempt.environment,v_attempt.checkout_flow
-     )
-$new$
-  );
-  if v_definition = v_before then
-    raise exception 'paymob_resume_required_secret_patch_target_missing';
+$old_resume$
+     ) > 0 then
+    raise exception 'paymob_resume_required_secret_patch_postcondition_failed';
   end if;
-  execute v_definition;
+
+  -- Provider-create persistence gate ----------------------------------------
+  select pg_get_functiondef(
+    'public.v1_service_paymob_record_intention(uuid,uuid,text,text,text,text,timestamptz,text,text,text)'::regprocedure
+  ) into v_definition;
+  v_helper_count := (
+    length(v_definition)-length(replace(v_definition,v_helper,''))
+  )/length(v_helper);
+
+  if v_helper_count = 0 then
+    v_before := v_definition;
+    v_definition := replace(
+      v_definition,
+$old_record$
+       or v_bound_secret_count <> (
+         case when v_attempt.checkout_flow = 'quicklink' then 2 else 4 end
+       ) then
+$old_record$,
+$new_record$
+       or not private_app.paymob_required_secret_refs_valid_v2(
+         v_version.id,v_attempt.environment,v_attempt.checkout_flow
+       ) then
+$new_record$
+    );
+    if v_definition = v_before then
+      raise exception 'paymob_record_required_secret_patch_target_missing';
+    end if;
+    execute v_definition;
+  elsif v_helper_count <> 1
+     or strpos(
+       v_definition,
+$old_record$
+       or v_bound_secret_count <> (
+         case when v_attempt.checkout_flow = 'quicklink' then 2 else 4 end
+       ) then
+$old_record$
+     ) > 0 then
+    raise exception 'paymob_record_required_secret_patch_conflict';
+  end if;
 
   select pg_get_functiondef(
     'public.v1_service_paymob_record_intention(uuid,uuid,text,text,text,text,timestamptz,text,text,text)'::regprocedure
   ) into v_definition;
-  v_before := v_definition;
-  v_definition := replace(
-    v_definition,
-$old$
+  v_helper_count := (
+    length(v_definition)-length(replace(v_definition,v_helper,''))
+  )/length(v_helper);
+  if v_helper_count <> 1
+     or strpos(
+       v_definition,
+$old_record$
        or v_bound_secret_count <> (
          case when v_attempt.checkout_flow = 'quicklink' then 2 else 4 end
        ) then
-$old$,
-$new$
-       or not private_app.paymob_required_secret_refs_valid_v2(
-         v_version.id,v_attempt.environment,v_attempt.checkout_flow
-       ) then
-$new$
-  );
-  if v_definition = v_before then
-    raise exception 'paymob_record_required_secret_patch_target_missing';
+$old_record$
+     ) > 0 then
+    raise exception 'paymob_record_required_secret_patch_postcondition_failed';
   end if;
-  execute v_definition;
 end
 $migration$;

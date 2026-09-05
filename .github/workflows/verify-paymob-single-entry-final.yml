@@ -1,0 +1,90 @@
+name: Final Paymob single-entry checkout verification
+
+on:
+  push:
+    branches:
+      - feat/paymob-single-entry-brands-v2-20260905
+    paths:
+      - .github/workflows/verify-paymob-single-entry-final.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paymob-single-entry-final-20260905
+  cancel-in-progress: false
+
+jobs:
+  verify-and-clean:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/paymob-single-entry-brands-v2-20260905
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Verify bounded change surface and security contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check origin/main...HEAD
+          changed="$(git diff --name-only origin/main...HEAD | grep -v -E '^\.github/(workflows|scripts)/(apply-paymob-single-entry-brands-v2\.py|paymob-single-entry-brands-v2\.yml|verify-paymob-single-entry-final\.yml)$' | sort)"
+          expected="$(printf '%s\n' \
+            app/api/payments/paymob/checkout/route.js \
+            components/marketplace-addon-store-v2.js \
+            components/marketplace-store.js \
+            components/marketplace-store.module.css \
+            components/payment-method-picker.js \
+            public/payment-brands/amex.svg \
+            public/payment-brands/apple-pay.svg \
+            public/payment-brands/mada.svg \
+            public/payment-brands/mastercard.svg \
+            public/payment-brands/visa.svg \
+            tests/paymob-checkout-ui.test.mjs | sort)"
+          test "$changed" = "$expected" || {
+            echo 'Unexpected product change surface:' >&2
+            diff -u <(printf '%s\n' "$expected") <(printf '%s\n' "$changed") || true
+            exit 1
+          }
+          ! grep -R "PaymobBillingFields\|billingFirstName\|billingContact:billingContact" \
+            components/marketplace-addon-store-v2.js components/marketplace-store.js
+          grep -Fq 'billingContact:checkoutCompatibilityContact(orderId)' \
+            app/api/payments/paymob/checkout/route.js
+          grep -Fq 'بطاقات مدى، Visa وMastercard وAmerican Express' \
+            components/payment-method-picker.js
+          grep -Fq '/payment-brands/mada.svg' components/payment-method-picker.js
+          grep -Fq '/payment-brands/apple-pay.svg' components/payment-method-picker.js
+          test "$(find public/payment-brands -maxdepth 1 -type f -name '*.svg' | wc -l)" -eq 5
+          ! grep -R -E '<(script|foreignObject|iframe)\b' public/payment-brands
+          ! grep -R -E 'name=["'"'](card|cardNumber|cvv|cvc|expiry)["'"']' \
+            components/marketplace-addon-store-v2.js components/marketplace-store.js
+
+      - name: Install immutable dependencies
+        run: npm ci
+
+      - name: Run complete quality gate
+        run: npm run check
+
+      - name: Reject critical dependency advisories
+        run: npm audit --audit-level=critical
+
+      - name: Remove one-time automation after successful verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm \
+            .github/workflows/verify-paymob-single-entry-final.yml \
+            .github/workflows/paymob-single-entry-brands-v2.yml \
+            .github/scripts/apply-paymob-single-entry-brands-v2.py
+          git commit -m 'chore: remove one-time Paymob checkout verification'
+          git push origin HEAD:feat/paymob-single-entry-brands-v2-20260905

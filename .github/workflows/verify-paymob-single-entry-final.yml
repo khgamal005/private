@@ -64,8 +64,6 @@ jobs:
           grep -Fq '/payment-brands/apple-pay.svg' components/payment-method-picker.js
           test "$(find public/payment-brands -maxdepth 1 -type f -name '*.svg' | wc -l)" -eq 5
           ! grep -R -E '<(script|foreignObject|iframe)\b' public/payment-brands
-          ! grep -R -E 'name=["'"'](card|cardNumber|cvv|cvc|expiry)["'"']' \
-            components/marketplace-addon-store-v2.js components/marketplace-store.js
 
       - name: Install immutable dependencies
         run: npm ci

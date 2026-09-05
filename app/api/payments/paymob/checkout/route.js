@@ -22,9 +22,6 @@ const PAYMENT_OPTIONS=new Set(['hosted','card','apple_pay']);
 const CHECKOUT_INPUT_KEYS=new Set([
   'slug','orderId','idempotencyKey','paymentOption','billingContact'
 ]);
-const BILLING_CONTACT_KEYS=new Set([
-  'firstName','lastName','email','phoneNumber'
-]);
 
 export async function POST(request){
   try{
@@ -48,7 +45,7 @@ export async function POST(request){
     }
     const input=checkoutInput(parsed.value);
     if(!input){
-      return json({error:'تحقق من الاسم والبريد ورقم الجوال السعودي ثم أعد المحاولة'},{status:400});
+      return json({error:'بيانات طلب الدفع غير صالحة'},{status:400});
     }
 
     let gateway=await callCheckoutGateway(token,input,30000);
@@ -253,49 +250,38 @@ function requestOrigin(request){
 
 function checkoutInput(body){
   if(!body||typeof body!=='object'||Array.isArray(body))return null;
+  // billingContact stays in the outer allowlist during rolling deployment so
+  // an older cached browser bundle remains safe. Any client-supplied contact
+  // object is ignored and never becomes part of the provider request.
   if(Object.keys(body).some(key=>!CHECKOUT_INPUT_KEYS.has(key)))return null;
   const slug=String(body.slug||'').trim().toLowerCase();
   const orderId=String(body.orderId||'').trim();
   const idempotencyKey=String(body.idempotencyKey||'').trim();
   const paymentOption=String(body.paymentOption||'hosted').trim().toLowerCase();
-  const contact=body.billingContact;
   if(!SLUG.test(slug)||!UUID.test(orderId)
      ||!IDEMPOTENCY_KEY.test(idempotencyKey)
-     ||!PAYMENT_OPTIONS.has(paymentOption)
-     ||!contact||typeof contact!=='object'||Array.isArray(contact))return null;
-  if(Object.keys(contact).some(key=>!BILLING_CONTACT_KEYS.has(key)))return null;
-
-  const firstName=cleanText(contact.firstName,2,100);
-  const lastName=cleanText(contact.lastName,2,100);
-  const email=String(contact.email||'').trim().toLowerCase();
-  const phoneNumber=saudiPhone(contact.phoneNumber);
-  if(!firstName||!lastName||!validEmail(email)||!phoneNumber)return null;
+     ||!PAYMENT_OPTIONS.has(paymentOption))return null;
 
   return {
     slug,
     orderId,
     idempotencyKey,
     paymentOption,
-    billingContact:{firstName,lastName,email,phoneNumber}
+    billingContact:checkoutCompatibilityContact(orderId)
   };
 }
 
-function cleanText(value,min,max){
-  const result=String(value||'').trim().replace(/\s+/g,' ');
-  if(result.length<min||result.length>max||/[\u0000-\u001f\u007f<>]/.test(result))return null;
-  return result;
-}
-
-function validEmail(value){
-  return value.length<=254
-    &&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-    &&!/[\u0000-\u001f\u007f]/.test(value);
-}
-
-function saudiPhone(value){
-  const normalized=String(value||'').trim().replace(/[\s()-]/g,'');
-  if(/^05[0-9]{8}$/.test(normalized))return `+966${normalized.slice(1)}`;
-  return /^\+9665[0-9]{8}$/.test(normalized)?normalized:null;
+function checkoutCompatibilityContact(orderId){
+  // The active provider route is QuickLink. Its outbound request contains only
+  // amount, integration, reference, expiry and notification URL. These values
+  // satisfy the existing keyed digest contract without collecting customer PII.
+  const opaqueOrder=orderId.replaceAll('-','');
+  return {
+    firstName:'ODEIR',
+    lastName:'Checkout',
+    email:`paymob-${opaqueOrder}@checkout.odeir.invalid`,
+    phoneNumber:'+966500000000'
+  };
 }
 
 function verifiedCheckoutUrl(value){

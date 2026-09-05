@@ -1,0 +1,6 @@
+{
+  "release": "paymob-decline-reconciliation-v1",
+  "sourceCommit": "2fd6c7b0cc973ee8139095eb4ea61395af3af380",
+  "purpose": "Supabase branch compile and production promotion attestation",
+  "containsSecrets": false
+}

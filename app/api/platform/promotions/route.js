@@ -73,6 +73,8 @@ async function readTextLimited(source,maxBytes){
     }
   }finally{reader.releaseLock();}
 }
+// The browser Origin is checked against ODEIR's canonical public URL; proxy
+// forwarding headers are never accepted as the CSRF authority for this action.
 function sameOrigin(request){
   const site=String(request.headers.get('sec-fetch-site')||'').toLowerCase();
   if(site&&site!=='same-origin')return false;

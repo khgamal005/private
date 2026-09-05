@@ -16,6 +16,10 @@ const ORDER_STATUSES=new Set([
   'pending_payment','paid','in_progress','completed','cancelled','refunded'
 ]);
 const PAYMENT_STATUSES=new Set(['pending','paid','failed','refunded','waived']);
+const RESULT_CODES=new Set([
+  'paid','review_required','issuer_declined_retry_available',
+  'payment_expired','payment_failed','payment_cancelled'
+]);
 const MAX_BODY_BYTES=4*1024;
 const MAX_UPSTREAM_BYTES=64*1024;
 
@@ -86,6 +90,9 @@ export async function POST(request){
     const orderStatus=safeEnum(result.orderStatus,ORDER_STATUSES,'pending_payment');
     const paymentStatus=safeEnum(result.paymentStatus,PAYMENT_STATUSES,'pending');
     const terminal=result.terminal===true;
+    const resultCode=safeEnum(result.resultCode,RESULT_CODES,null);
+    const retryAllowed=resultCode==='issuer_declined_retry_available'
+      &&result.retryAllowed===true;
     return json({
       attemptId:safeUuid(result.attemptId)||attemptId,
       orderId:safeUuid(result.orderId),
@@ -95,7 +102,11 @@ export async function POST(request){
       orderStatus,
       paymentStatus,
       terminal,
-      refreshAfterMs:terminal?null:safeRefresh(result.refreshAfterMs)
+      resultCode,
+      retryAllowed,
+      refreshAfterMs:terminal||resultCode==='issuer_declined_retry_available'
+        ?null
+        :safeRefresh(result.refreshAfterMs)
     });
   }catch(error){
     return json({

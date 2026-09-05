@@ -139,6 +139,7 @@ Deno.serve(async (request: Request) => {
       request,
       supabaseUrl,
       anonKey,
+      serviceRoleKey,
     );
     if (!authorized) {
       return jsonResponse(401, { ok: false, error: "unauthorized" });
@@ -379,6 +380,7 @@ async function authorizeDispatcher(
   request: Request,
   supabaseUrl: string,
   anonKey: string,
+  serviceRoleKey: string,
 ): Promise<boolean> {
   const configuredSecret = Deno.env.get(
     "PAYMOB_RECONCILE_DISPATCHER_SECRET",
@@ -387,13 +389,42 @@ async function authorizeDispatcher(
     "x-odeir-paymob-reconcile-secret",
   )?.trim() ?? "";
 
-  if (
-    configuredSecret.length >= 32 &&
-    configuredSecret.length <= 1024 &&
-    suppliedSecret.length >= 32 &&
-    suppliedSecret.length <= 1024 &&
-    await secretEqual(configuredSecret, suppliedSecret)
-  ) return true;
+  if (suppliedSecret.length >= 32 && suppliedSecret.length <= 1024) {
+    if (
+      configuredSecret.length >= 32 &&
+      configuredSecret.length <= 1024 &&
+      await secretEqual(configuredSecret, suppliedSecret)
+    ) return true;
+
+    // The scheduler keeps its random dispatcher secret in Vault. Fetch it
+    // only for a syntactically valid scheduled call, compare it timing-safely
+    // in request-scoped memory, and never log or return it to the caller.
+    try {
+      const stored = await serviceRpc(
+        supabaseUrl,
+        serviceRoleKey,
+        "v1_service_paymob_reconcile_dispatch_secret",
+        {},
+      );
+      const allowedKeys = new Set(["schemaVersion", "dispatcherSecret"]);
+      if (
+        stored.schemaVersion === 1 &&
+        Object.keys(stored).every((key) => allowedKeys.has(key))
+      ) {
+        const vaultSecret = requiredText(
+          stored.dispatcherSecret,
+          "dispatcher_secret",
+          1024,
+        );
+        if (
+          vaultSecret.length >= 32 &&
+          await secretEqual(vaultSecret, suppliedSecret)
+        ) return true;
+      }
+    } catch {
+      // Continue to the independently authorized administrator path.
+    }
+  }
 
   const authorization = request.headers.get("authorization")?.trim() ?? "";
   if (!/^Bearer\s+\S{20,8192}$/.test(authorization)) return false;

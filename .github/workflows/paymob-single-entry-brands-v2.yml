@@ -33,7 +33,15 @@ jobs:
           cache: npm
 
       - name: Apply bounded checkout UX patch
-        run: python3 .github/scripts/apply-paymob-single-entry-brands-v2.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply-paymob-single-entry-brands-v2.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('components/marketplace-store.module.css')
+          path.write_text(path.read_text(encoding='utf-8').rstrip()+'\n',encoding='utf-8')
+          PY
 
       - name: Prove narrow change surface and static contracts
         shell: bash

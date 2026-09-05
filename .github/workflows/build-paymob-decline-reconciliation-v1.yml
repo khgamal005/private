@@ -37,7 +37,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          changed="$(git diff --name-only | sort)"
+          changed="$(
+            {
+              git diff --name-only
+              git ls-files --others --exclude-standard
+            } | sort -u
+          )"
           expected="$(printf '%s\n' \
             app/api/payments/paymob/status/route.js \
             components/paymob-return-status.js \

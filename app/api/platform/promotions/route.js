@@ -77,7 +77,30 @@ function sameOrigin(request){
   if(site&&site!=='same-origin')return false;
   const origin=request.headers.get('origin');
   if(!origin)return site==='same-origin';
-  try{return new URL(origin).origin===new URL(request.url).origin;}catch{return false;}
+  try{
+    const source=new URL(origin);
+    const target=requestOrigin(request);
+    return Boolean(target)
+      &&source.username===''&&source.password===''
+      &&source.pathname==='/'&&!source.search&&!source.hash
+      &&source.origin===target;
+  }catch{return false;}
+}
+function requestOrigin(request){
+  const target=new URL(request.url);
+  const forwardedHost=String(request.headers.get('x-forwarded-host')||'').trim();
+  const forwardedProto=String(request.headers.get('x-forwarded-proto')||'')
+    .trim().toLowerCase();
+  if(forwardedHost||forwardedProto){
+    if(!forwardedHost||!forwardedProto||forwardedHost.includes(',')
+       ||forwardedProto.includes(',')
+       ||!['http','https'].includes(forwardedProto)
+       ||!/^(?:localhost|[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?)(?::\d{1,5})?$/i.test(forwardedHost)){
+      return null;
+    }
+    return `${forwardedProto}://${forwardedHost.toLowerCase()}`;
+  }
+  return ['https:','http:'].includes(target.protocol)?target.origin:null;
 }
 function safeErrorCode(value){
   const code=String(value||'').trim();

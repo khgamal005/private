@@ -180,8 +180,19 @@ test('tenant checkout surfaces optional promo codes without accepting client mon
   assert.match(promoControl,/يُفحص الرمز ويُحسب السعر داخل أودير/);
 });
 
-test('platform promotion API is same-origin, bounded and permissioned through RPC',()=>{
+test('platform promotion API validates the public reverse-proxy origin and remains bounded',()=>{
   assert.match(platformRoute,/sameOrigin\(request\)/);
+  assert.match(platformRoute,/function requestOrigin\(request\)/);
+  assert.match(platformRoute,/x-forwarded-host/);
+  assert.match(platformRoute,/x-forwarded-proto/);
+  assert.match(platformRoute,/forwardedHost\.includes\(','\)/);
+  assert.match(platformRoute,/forwardedProto\.includes\(','\)/);
+  assert.match(platformRoute,/source\.origin===target/);
+  assert.match(platformRoute,/\['http','https'\]\.includes\(forwardedProto\)/);
+  assert.doesNotMatch(
+    platformRoute,
+    /new URL\(origin\)\.origin\s*===\s*new URL\(request\.url\)\.origin/
+  );
   assert.match(platformRoute,/MAX_REQUEST_BYTES=48\*1024/);
   assert.match(platformRoute,/readTextLimited/);
   assert.match(platformRoute,/AbortSignal\.timeout\(RPC_TIMEOUT_MS\)/);

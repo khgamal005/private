@@ -15,6 +15,9 @@ const ui=read('components/platform-addon-console.js');
 const singleOperatorMigration=read(
   'supabase/migrations/20260904223000_single_authorized_operator_policy_v1.sql'
 );
+const automaticRolloutMigration=read(
+  'supabase/migrations/20260905170000_paymob_automatic_all_tenants_v1.sql'
+);
 
 test('Hosted Redirect administration is fixed to QuickLink with API Key and HMAC only',()=>{
   for(const source of [nextAdmin,edgeAdmin]){
@@ -42,29 +45,23 @@ test('credential save repairs configured state but never activates global Live',
   assert.doesNotMatch(bundle,/set status\s*=\s*'active'|rollout_mode\s*=\s*'live'/i);
 });
 
-test('Live validation is one single-operator non-Reef model tenant with a SAR 500 cap',()=>{
-  assert.match(migration,/tenant\.slug\s*=\s*'modaar-training-center'/i);
-  assert.match(migration,/tenant\.slug\s+is\s+distinct\s+from\s+'reef-skills'/i);
-  assert.match(migration,/tenant\.tenant_key\s+is\s+distinct\s+from\s+'tenant-reef-skills'/i);
-  assert.match(singleOperatorMigration,/create\s+or\s+replace\s+function\s+private_app\.paymob_live_canary_eligible_v1/i);
-  const canary=singleOperatorMigration.slice(
-    singleOperatorMigration.indexOf('create or replace function private_app.paymob_live_canary_eligible_v1('),
-    singleOperatorMigration.indexOf('create or replace function public.v1_platform_paymob_activation_gate(')
-  );
-  assert.match(canary,/requested_by_subject_id\s+is\s+not\s+null/i);
-  assert.match(canary,/approved_by_subject_id\s+is\s+not\s+null/i);
-  assert.doesNotMatch(canary,/approved_by_subject_id\s*<>\s*rollout\.requested_by_subject_id/i);
-  const tenantAction=singleOperatorMigration.slice(
-    singleOperatorMigration.indexOf('create or replace function public.v1_platform_paymob_tenant_rollout_action('),
-    singleOperatorMigration.indexOf('create or replace function public.v1_platform_paymob_operational_evidence_action(')
-  );
-  assert.match(tenantAction,/requested_by_subject_id\s*=\s*v_actor[\s\S]*?approved_by_subject_id\s*=\s*v_actor/i);
-  assert.match(tenantAction,/live_canary_approved/i);
-  assert.match(tenantAction,/paymob_live_canary_single_tenant_required/i);
-  assert.match(migration,/v_order\.total_minor\s*>\s*50000/i);
-  assert.match(migration,/paymob_live_canary_amount_limit/i);
-  assert.match(ui,/liveValidationReady/i);
-  assert.match(ui,/500 ر\.س/);
+test('controlled Live automatically enrolls every existing and future tenant',()=>{
+  assert.match(automaticRolloutMigration,/paymob_controlled_live_provider_ready_v1/i);
+  assert.match(automaticRolloutMigration,/paymob_required_secret_refs_valid_v2[\s\S]*?'quicklink'/i);
+  assert.match(automaticRolloutMigration,/paymob_live_credential_material_valid_v2[\s\S]*?'quicklink'/i);
+  assert.match(automaticRolloutMigration,/create\s+trigger\s+zz_tenants_paymob_auto_enroll_after_insert/i);
+  assert.match(automaticRolloutMigration,/after\s+insert\s+on\s+core\.tenants/i);
+  assert.match(automaticRolloutMigration,/automatic_all_tenants/i);
+  assert.match(automaticRolloutMigration,/v_enabled\s*<>\s*v_tenants/i);
+  assert.match(automaticRolloutMigration,/paymob_automatic_rollout_prepare_patch_failed/i);
+  assert.match(automaticRolloutMigration,/paymob_automatic_rollout_action_patch_failed/i);
+  assert.match(automaticRolloutMigration,/position\('modaar-training-center' in v_definition\) > 0/i);
+  assert.match(automaticRolloutMigration,/position\('paymob_live_canary_amount_limit' in v_definition\) > 0/i);
+
+  assert.doesNotMatch(ui,/500 ر\.س|Reef Skills مستبعد/i);
+  assert.match(ui,/automaticTenantEnrollment/i);
+  assert.match(ui,/controlledLiveActive/i);
+  assert.match(ui,/كل المنشآت الحالية والجديدة/i);
 });
 
 test('canonical Live events can satisfy automated evidence without manual fabrication',()=>{
@@ -81,13 +78,12 @@ test('canonical Live events can satisfy automated evidence without manual fabric
   assert.match(migration,/source validation still happens inside the writer/i);
 });
 
-test('legacy unsafe canary is disabled and Reef remains untouched',()=>{
+test('historical canary evidence is preserved while the new policy is explicit and auditable',()=>{
   assert.match(migration,/live_canary_reapproval_required/i);
-  assert.match(migration,/rollout\.requested_by_subject_id is null/i);
-  assert.doesNotMatch(
-    migration,
-    /where[^;]*(?:slug|tenant_key)\s*=\s*['"](?:reef-skills|tenant-reef-skills)['"][^;]*update/is
-  );
   assert.match(migration,/'globalLiveActivated',false/i);
-  assert.match(migration,/'reefSkillsExcluded',true/i);
+  assert.match(automaticRolloutMigration,/Compatibility alias retained for older audited payment functions/i);
+  assert.match(automaticRolloutMigration,/marketplace\.paymob\.automatic_tenant_rollout_enabled/i);
+  assert.match(automaticRolloutMigration,/fullOperationalEvidenceStillRequired',true/i);
+  assert.match(automaticRolloutMigration,/secretReturned',false/i);
+  assert.doesNotMatch(automaticRolloutMigration,/update\s+marketplace\.payment_provider_configs/i);
 });

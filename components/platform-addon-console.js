@@ -469,8 +469,7 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
       const tenantSlug=String(tenant.slug||tenant.tenantSlug||'')
         .trim().toLowerCase();
       const tenantKey=String(tenant.tenantKey||'').trim().toLowerCase();
-      if(!UUID.test(tenantId)||tenantSlug==='reef-skills'
-         ||tenantKey==='tenant-reef-skills')continue;
+      if(!UUID.test(tenantId))continue;
       byId.set(tenantId,{
         id:tenantId,
         name:String(tenant.name||tenant.tenantName||tenantSlug||'منشأة'),
@@ -480,7 +479,7 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
     return [...byId.values()].sort((a,b)=>a.name.localeCompare(b.name,'ar'));
   },[snapshot?.tenantRollouts,tenants]);
   const [tenantId,setTenantId]=useState('');
-  const [environment,setEnvironment]=useState('sandbox');
+  const [environment,setEnvironment]=useState('live');
   const [evidenceCheck,setEvidenceCheck]=useState(PAYMOB_OPERATIONAL_CHECKS[0]);
   const [artifactSha256,setArtifactSha256]=useState('');
   useEffect(()=>{
@@ -506,7 +505,9 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
   const tenantRollout=(snapshot.tenantRollouts||EMPTY).find(item=>(
     item.tenantId===tenantId&&item.environment===environment
   ));
-  const globalReady=snapshot.rolloutMode===environment&&(
+  const globalReady=(
+    environment==='live'&&snapshot.controlledLiveActive===true
+  )||snapshot.rolloutMode===environment&&(
     environment==='sandbox'
       ?snapshot.status==='configured'
       :snapshot.status==='active'&&snapshot.active===true
@@ -574,8 +575,10 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
 
   return <section className={styles.governance}>
     <header>
-      <div><small>SINGLE AUTHORIZED OPERATOR</small><h2>تشغيل Paymob</h2>
-        <p>أي منفّذ يملك صلاحية إدارة الفوترة يستطيع إكمال الإجراء مباشرة. تبقى الأدلة والتأكيد الحرفي وسجل التدقيق إلزامية.</p>
+      <div><small>SINGLE AUTHORIZED OPERATOR · AUTOMATIC TENANT ENROLLMENT</small><h2>تشغيل Paymob</h2>
+        <p>{snapshot.automaticTenantEnrollment
+          ?'Paymob متاح تلقائيًا لكل المنشآت الحالية والجديدة، مع إمكانية إيقافه لمنشأة بعينها وسجل تدقيق كامل. منفّذ واحد يملك الصلاحية يدير الاستثناء مباشرة.'
+          :'أي منفّذ يملك صلاحية إدارة الفوترة يستطيع إكمال الإجراء مباشرة. تبقى الأدلة والتأكيد الحرفي وسجل التدقيق إلزامية.'}</p>
       </div>
       <button type="button" onClick={()=>void onRefresh()}>تحديث الجاهزية</button>
     </header>
@@ -611,6 +614,7 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
 
       <article>
         <h3>إتاحة المنشآت</h3>
+        {snapshot.automaticTenantEnrollment&&<aside className={styles.safety}>كل المنشآت الحالية والجديدة تُضاف تلقائيًا إلى Paymob Live. يبقى الإيقاف الفردي متاحًا كاستثناء تشغيلي.</aside>}
         <label>المنشأة<select value={tenantId}
           onChange={event=>setTenantId(event.target.value)}>
           {!availableTenants.length&&<option value="">لا توجد منشآت مؤهلة</option>}
@@ -623,7 +627,7 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
           <option value="sandbox">Sandbox</option><option value="live">Live</option>
         </select></label>
         <dl>
-          <div><dt>حالة المنشأة</dt><dd>{tenantRollout?.status||'غير مفعّلة'}</dd></div>
+          <div><dt>حالة المنشأة</dt><dd>{tenantRollout?.status||(snapshot.automaticTenantEnrollment?'مفعّلة تلقائيًا':'غير مفعّلة')}</dd></div>
           <div><dt>سياسة التنفيذ</dt><dd>فوري بعد التحقق</dd></div>
         </dl>
         <div className={styles.governanceActions}>
@@ -633,7 +637,7 @@ function PaymobGovernance({control,tenants,onRefresh,onAction}){
           {tenantRollout?.status==='enabled'&&<button type="button"
             onClick={()=>openTenant(false)}>إيقاف المنشأة</button>}
         </div>
-        <small className={styles.governanceNote}>Reef Skills مستبعد خادميًا ومن القائمة. وضع تحقق Live يقتصر على مركز أودير النموذجي وبحد 500 ر.س للطلب.</small>
+        <small className={styles.governanceNote}>الإتاحة التلقائية تشمل كل المنشآت القديمة والجديدة. يمكن إيقاف منشأة محددة يدويًا دون التأثير على بقية المنشآت.</small>
       </article>
 
       <article>

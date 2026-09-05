@@ -2,32 +2,38 @@
 
 ## Production policy
 
-Paymob Hosted Redirect is available automatically to every tenant that exists in `core.tenants`, including tenants created after this policy was deployed. No per-tenant enable action or rollout row is required.
+Paymob Hosted Redirect is available automatically to every current tenant through an explicit `payment_tenant_rollouts` row. A database trigger creates the same enabled rollout for every tenant created later:
 
-The global policy is stored in `marketplace.payment_provider_configs.public_config`:
+- policy: `automatic_all_tenants`
+- environment: `live`
+- trigger: `zz_tenants_paymob_auto_enroll_after_insert`
 
-- `tenantAccessPolicy: all_tenants`
-- `autoEnableNewTenants: true`
-- `tenantAccessPolicyVersion: 1`
+The authoritative implementation is:
 
-## Fail-closed controls
+`supabase/migrations/20260905171951_paymob_automatic_all_tenants_v1.sql`
 
-Automatic tenant availability does not bypass payment readiness. Checkout remains unavailable unless all of the following remain true:
+The timestamp in the filename matches the migration version recorded by the production database.
 
-- provider status is `active`;
-- provider and credentials environments match the requested environment;
-- rollout mode equals the environment (`live` in production);
-- checkout mode is `redirect` and the integration path is `quicklink`;
-- an active, non-revoked QuickLink credential version matches the configured merchant and integration IDs;
-- the required API key and HMAC references are valid in Vault;
-- no explicit per-tenant `disabled` override exists.
+## Controlled Live gate
 
-Provider status or rollout mode remains the global emergency stop. An explicit disabled tenant rollout remains the per-tenant emergency stop.
+Automatic enrollment does not bypass payment readiness. Checkout remains fail-closed unless the provider and its active credential version continue to satisfy the governed KSA QuickLink contract, including:
+
+- Live provider and credential environments;
+- redirect checkout using `quicklink`;
+- SAR as the supported currency;
+- matching merchant account and integration bindings;
+- valid API-key and HMAC references in Vault;
+- successful credential and checkout-creation readiness evidence;
+- exactly one active, non-revoked credential version.
+
+The provider can remain in the governed `configured / observe_only` state while the structural Controlled Live gate is healthy. Full operational evidence is still collected independently and is not fabricated by tenant enrollment.
 
 ## Existing and future tenants
 
-`private_app.paymob_tenant_checkout_eligible_v1` derives eligibility from tenant existence and the global provider policy. This avoids fragile backfills and guarantees that a newly created tenant inherits Paymob immediately without a trigger or background task.
+The rollout migration backfills every existing tenant and verifies that the enabled rollout count equals the tenant count. The trigger enrolls future tenants in the same transaction that creates the tenant, so no background task or manual enable action is required.
+
+An authorized platform operator can still disable Paymob for one tenant as an explicit operational exception without affecting other tenants.
 
 ## Security invariants unchanged
 
-This policy changes availability only. Server-side price calculation, promotion discounts, VAT, amount binding, idempotency, signed webhook settlement, reconciliation, refunds, Vault isolation, and audit logging remain unchanged.
+This policy changes availability only. Server-side price calculation, promotions, VAT, amount binding, idempotency, signed webhook settlement, reconciliation, refunds, credential rotation, Vault isolation, and audit logging remain unchanged.

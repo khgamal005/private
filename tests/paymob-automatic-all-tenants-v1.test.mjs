@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
 const migration=readFileSync(
-  'supabase/migrations/20260905170000_paymob_automatic_all_tenants_v1.sql',
+  'supabase/migrations/20260905171951_paymob_automatic_all_tenants_v1.sql',
   'utf8'
 );
 const api=readFileSync('app/api/platform/paymob-control/route.js','utf8');

@@ -16,7 +16,7 @@ const singleOperatorMigration=read(
   'supabase/migrations/20260904223000_single_authorized_operator_policy_v1.sql'
 );
 const automaticRolloutMigration=read(
-  'supabase/migrations/20260905170000_paymob_automatic_all_tenants_v1.sql'
+  'supabase/migrations/20260905171951_paymob_automatic_all_tenants_v1.sql'
 );
 
 test('Hosted Redirect administration is fixed to QuickLink with API Key and HMAC only',()=>{

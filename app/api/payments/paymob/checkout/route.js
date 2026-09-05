@@ -11,6 +11,10 @@ const SLUG=/^[a-z0-9](?:[a-z0-9_-]{0,118}[a-z0-9])?$/i;
 const IDEMPOTENCY_KEY=/^[A-Za-z0-9_-]{16,120}$/;
 const MAX_BODY_BYTES=16*1024;
 const MAX_UPSTREAM_BYTES=128*1024;
+// A duplicate request can observe the same attempt while the first request is
+// persisting the provider link. Replaying the identical idempotency key is
+// resume-only after the database claim and never creates a second Paymob link.
+const CHECKOUT_RESUME_DELAYS_MS=[200,400,800,1200,1600];
 const PAYMOB_CHECKOUT_HOST='ksa.checkout.paymob.com';
 const PAYMOB_QUICKLINK_HOST='ksa.paymob.com';
 const PAYMOB_QUICKLINK_PATH='/api/ecommerce/payment-links/unrestricted';
@@ -47,28 +51,31 @@ export async function POST(request){
       return json({error:'تحقق من الاسم والبريد ورقم الجوال السعودي ثم أعد المحاولة'},{status:400});
     }
 
-    const response=await fetch(`${SUPABASE_URL}/functions/v1/paymob-checkout`,{
-      method:'POST',
-      redirect:'error',
-      headers:{
-        apikey:SUPABASE_KEY,
-        Authorization:`Bearer ${token}`,
-        'Content-Type':'application/json',
-        Accept:'application/json'
-      },
-      body:JSON.stringify(input),
-      cache:'no-store',
-      signal:AbortSignal.timeout(30000)
-    });
-    const upstream=await readTextLimited(response,MAX_UPSTREAM_BYTES);
-    if(upstream.tooLarge){
+    let gateway=await callCheckoutGateway(token,input,30000);
+    if(gateway.tooLarge){
       return json({
         ok:false,error:'تعذر التحقق من استجابة بوابة الدفع',
         errorCode:'invalid_checkout_response',retryAllowed:false
       },{status:502});
     }
-    let result;
-    try{result=JSON.parse(upstream.text)}catch{result={}}
+
+    // A 202 with a concrete attempt means another request owns the provider
+    // mutation. Poll the same idempotent checkout briefly so the browser gets
+    // the link already being persisted instead of a premature status page.
+    for(const delayMs of CHECKOUT_RESUME_DELAYS_MS){
+      if(gateway.response.status!==202
+         ||gateway.result.status==='unknown'
+         ||!safeUuid(gateway.result.attemptId))break;
+      await wait(delayMs);
+      gateway=await callCheckoutGateway(token,input,6000);
+      if(gateway.tooLarge){
+        return json({
+          ok:false,error:'تعذر التحقق من استجابة بوابة الدفع',
+          errorCode:'invalid_checkout_response',retryAllowed:false
+        },{status:502});
+      }
+    }
+    const {response,result}=gateway;
 
     if(!response.ok&&response.status!==202){
       const errorCode=safeErrorCode(
@@ -143,6 +150,32 @@ export async function POST(request){
       retryAllowed:false
     },{status:timedOut?504:500});
   }
+}
+
+async function callCheckoutGateway(token,input,timeoutMs){
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/paymob-checkout`,{
+    method:'POST',
+    redirect:'error',
+    headers:{
+      apikey:SUPABASE_KEY,
+      Authorization:`Bearer ${token}`,
+      'Content-Type':'application/json',
+      Accept:'application/json'
+    },
+    body:JSON.stringify(input),
+    cache:'no-store',
+    signal:AbortSignal.timeout(timeoutMs)
+  });
+  const upstream=await readTextLimited(response,MAX_UPSTREAM_BYTES);
+  let result={};
+  if(!upstream.tooLarge){
+    try{result=JSON.parse(upstream.text)}catch{result={}}
+  }
+  return {response,result,tooLarge:upstream.tooLarge};
+}
+
+function wait(milliseconds){
+  return new Promise(resolve=>setTimeout(resolve,milliseconds));
 }
 
 async function limitedJson(request){

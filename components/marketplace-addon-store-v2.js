@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import {useMemo,useState} from 'react';
+import {useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import styles from './marketplace-store.module.css';
 import MarketplacePromoCode from './marketplace-promo-code';
@@ -85,6 +85,9 @@ function today(){
 
 export default function MarketplaceAddonStoreV2({slug,initialData}){
   const router=useRouter();
+  // `busy` renders asynchronously. This synchronous lock closes the tiny
+  // double-tap window before the first checkout request leaves the browser.
+  const paymobNavigationLock=useRef(false);
   const promotionsEnabled=slug!=='reef-skills';
   const data=initialData||{};
   const addons=data.addons||EMPTY;
@@ -192,32 +195,39 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   }
 
   async function redirectToPaymob(order,paymentRequestKey){
-    const response=await fetch('/api/payments/paymob/checkout',{
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body:JSON.stringify({
-        slug,
-        orderId:order.id,
-        idempotencyKey:paymentRequestKey,
-        paymentOption,
-        billingContact:billingContact()
-      })
-    });
-    const result=await response.json().catch(()=>({}));
-    if(response.status===202&&result.attemptId){
-      const returnUrl='/tenant/'+encodeURIComponent(slug)
-        +'/payments/paymob/return?attempt='
-        +encodeURIComponent(result.attemptId);
-      router.push(returnUrl);
+    if(paymobNavigationLock.current)return true;
+    paymobNavigationLock.current=true;
+    try{
+      const response=await fetch('/api/payments/paymob/checkout',{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({
+          slug,
+          orderId:order.id,
+          idempotencyKey:paymentRequestKey,
+          paymentOption,
+          billingContact:billingContact()
+        })
+      });
+      const result=await response.json().catch(()=>({}));
+      if(response.status===202&&result.attemptId){
+        const returnUrl='/tenant/'+encodeURIComponent(slug)
+          +'/payments/paymob/return?attempt='
+          +encodeURIComponent(result.attemptId);
+        router.push(returnUrl);
+        return true;
+      }
+      if(!response.ok){
+        throw new Error(result.error||'تعذر فتح صفحة الدفع الآمنة');
+      }
+      const checkoutUrl=String(result.checkoutUrl||'');
+      if(!checkoutUrl)throw new Error('لم تُرجع بوابة الدفع رابطًا صالحًا');
+      window.location.assign(checkoutUrl);
       return true;
+    }catch(error){
+      paymobNavigationLock.current=false;
+      throw error;
     }
-    if(!response.ok){
-      throw new Error(result.error||'تعذر فتح صفحة الدفع الآمنة');
-    }
-    const checkoutUrl=String(result.checkoutUrl||'');
-    if(!checkoutUrl)throw new Error('لم تُرجع بوابة الدفع رابطًا صالحًا');
-    window.location.assign(checkoutUrl);
-    return true;
   }
 
   async function createOrder(event){

@@ -131,3 +131,28 @@ test('store, checkout status, and return access share the canonical purchase per
   assert.match(source.workspaceShell,/key:'servicesStore'[\s\S]{0,160}?permission:'tenant\.settings\.manage'/);
   assert.doesNotMatch(source.workspaceShell,/key:'(?:addonsStore|servicesStore)'[\s\S]{0,160}?permission:'tenant\.users\.manage'/);
 });
+
+
+test('checkout route absorbs the short provider-link persistence race',()=>{
+  assert.match(source.checkoutRoute,/CHECKOUT_RESUME_DELAYS_MS=\[200,400,800,1200,1600\]/);
+  assert.match(source.checkoutRoute,/let gateway=await callCheckoutGateway\(token,input,30000\)/);
+  assert.match(source.checkoutRoute,/for\(const delayMs of CHECKOUT_RESUME_DELAYS_MS\)/);
+  assert.match(source.checkoutRoute,/gateway\.response\.status!==202/);
+  assert.match(source.checkoutRoute,/gateway\.result\.status===['"]unknown['"]/);
+  assert.match(source.checkoutRoute,/await wait\(delayMs\)/);
+  assert.match(source.checkoutRoute,/callCheckoutGateway\(token,input,6000\)/);
+  assert.match(source.checkoutRoute,/body:JSON\.stringify\(input\)/);
+  assert.doesNotMatch(source.checkoutRoute,/callCheckoutGateway\([^\n]*crypto\.randomUUID/);
+});
+
+test('both storefronts synchronously lock Paymob navigation before the first await',()=>{
+  for(const [name,text] of [['addons',source.addons],['services',source.services]]){
+    assert.match(text,/import \{useMemo,useRef,useState\} from ['"]react['"]/);
+    assert.match(text,/const paymobNavigationLock=useRef\(false\)/);
+    const start=text.indexOf('async function redirectToPaymob');
+    const fetchAt=text.indexOf("fetch('/api/payments/paymob/checkout'",start);
+    const lockAt=text.indexOf('if(paymobNavigationLock.current)return true;',start);
+    assert.ok(start!==-1&&lockAt>start&&fetchAt>lockAt,`${name} must lock before checkout fetch`);
+    assert.match(text,/catch\(error\)\{[\s\S]{0,120}?paymobNavigationLock\.current=false/);
+  }
+});

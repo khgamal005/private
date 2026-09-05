@@ -78,8 +78,8 @@ test('QuickLink uses the official KSA request contract and one provider mutation
   assert.match(checkout,/PAYMOB_AUTH_URL[\s\S]*?api_key:\s*runtime\.apiKey/i);
   assert.match(checkout,/PAYMOB_QUICKLINK_URL[\s\S]*?authorization:\s*`Bearer \$\{authToken\}`/i);
   for(const field of [
-    'amount_cents','expires_at','reference_id','payment_methods','email',
-    'notification_url','is_live','full_name','phone_number','description'
+    'amount_cents','expires_at','reference_id','payment_methods',
+    'notification_url','is_live'
   ])assert.match(checkout,new RegExp(`\\b${field}\\b`));
   assert.equal(
     (checkout.match(/fetchTextWithTimeout\(\s*PAYMOB_QUICKLINK_URL/g)||[]).length,
@@ -139,9 +139,12 @@ test('QuickLink KSA request uses multipart without a forged content-type boundar
   const create=checkout.slice(start,end);
   assert.doesNotMatch(create,/['"]content-type['"]:\s*['"]application\/json['"]/i);
   for(const field of [
-    'amount_cents','expires_at','reference_id','payment_methods','email',
-    'notification_url','is_live','full_name','phone_number','description'
+    'amount_cents','expires_at','reference_id','payment_methods',
+    'notification_url','is_live'
   ])assert.match(create,new RegExp(`quicklinkRequest\\.set\\("${field}"`));
+  for(const field of ['email','full_name','phone_number','description']){
+    assert.doesNotMatch(create,new RegExp(`quicklinkRequest\\.set\\("${field}"`));
+  }
 });
 
 test('QuickLink static return is caller-authorized, scrubbed, and read-only',()=>{

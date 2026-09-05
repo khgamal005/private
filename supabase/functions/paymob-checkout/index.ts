@@ -1009,18 +1009,17 @@ async function createQuicklinkCheckout({
       : ambiguousResponse(prepared, "checkout_persistence_unknown");
   }
 
-  // QuickLink V2 requires multipart/form-data. Let fetch create the boundary.
+  // QuickLink is a hosted checkout. Send only the immutable payment contract
+// and let Paymob collect customer details on its own page. This avoids
+// account-specific validation of optional PII without changing pricing,
+// promotion, webhook, reconciliation, or order semantics.
 const quicklinkRequest = new FormData();
 quicklinkRequest.set("amount_cents", String(prepared.amountMinor));
 quicklinkRequest.set("expires_at", providerExpiresAt);
 quicklinkRequest.set("reference_id", prepared.attemptId);
 quicklinkRequest.set("payment_methods", String(runtime.integrationId));
-quicklinkRequest.set("email", billingContact.email);
 quicklinkRequest.set("notification_url", notificationUrl);
 quicklinkRequest.set("is_live", String(runtime.environment === "live"));
-quicklinkRequest.set("full_name", `${billingContact.firstName} ${billingContact.lastName}`);
-quicklinkRequest.set("phone_number", billingContact.phoneNumber);
-quicklinkRequest.set("description", `ODEIR · ${prepared.orderNumber}`);
 
 let providerResult: { response: Response; text: string };
   try {

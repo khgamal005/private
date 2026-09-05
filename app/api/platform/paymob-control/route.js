@@ -216,6 +216,8 @@ function sanitizeSnapshot(value){
     rolloutMode,
     configured:value.configured===true,
     active:value.active===true,
+    automaticTenantEnrollment:value.automaticTenantEnrollment===true,
+    controlledLiveActive:value.controlledLiveActive===true,
     nativeAdapterDeployed:value.nativeAdapterDeployed===true,
     verifiedAt:safeDate(value.verifiedAt),
     requiredChecks:safeCodes(value.requiredChecks),

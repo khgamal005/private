@@ -293,10 +293,12 @@ test('operator UI exposes one-step authorized actions while retaining hard safet
   assert.match(ui,/منفّذ واحد يملك الصلاحية/i);
   assert.doesNotMatch(ui,/global_approve|tenant_approve|evidence_approve|maker[–-]checker|مراجع مختلف|مشغّل آخر/i);
 
-  assert.match(ui,/tenantSlug===['"]reef-skills['"]/i);
-  assert.match(ui,/tenantKey===['"]tenant-reef-skills['"]/i);
-  assert.match(ui,/Reef Skills مستبعد خادميًا ومن القائمة/i);
-  assert.match(ui,/500 ر\.س/);
+  assert.doesNotMatch(ui,/tenantSlug===['"]reef-skills['"]|tenantKey===['"]tenant-reef-skills['"]/i);
+  assert.match(ui,/automaticTenantEnrollment/i);
+  assert.match(ui,/controlledLiveActive/i);
+  assert.match(ui,/كل المنشآت الحالية والجديدة/i);
+  assert.match(ui,/إيقاف المنشأة/i);
+  assert.doesNotMatch(ui,/500 ر\.س|Reef Skills مستبعد/i);
 
   for(const checkKey of [
     'refund_inquiry','reconciler_schedule','outbox_delivery',

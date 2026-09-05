@@ -180,15 +180,14 @@ test('tenant checkout surfaces optional promo codes without accepting client mon
   assert.match(promoControl,/يُفحص الرمز ويُحسب السعر داخل أودير/);
 });
 
-test('platform promotion API validates the public reverse-proxy origin and remains bounded',()=>{
+test('platform promotion API binds CSRF validation to the canonical public origin',()=>{
   assert.match(platformRoute,/sameOrigin\(request\)/);
-  assert.match(platformRoute,/function requestOrigin\(request\)/);
-  assert.match(platformRoute,/x-forwarded-host/);
-  assert.match(platformRoute,/x-forwarded-proto/);
-  assert.match(platformRoute,/forwardedHost\.includes\(','\)/);
-  assert.match(platformRoute,/forwardedProto\.includes\(','\)/);
-  assert.match(platformRoute,/source\.origin===target/);
-  assert.match(platformRoute,/\['http','https'\]\.includes\(forwardedProto\)/);
+  assert.match(platformRoute,/publicAppOrigin/);
+  assert.match(platformRoute,/if\(!origin\)return false/);
+  assert.match(platformRoute,/site&&site!=='same-origin'/);
+  assert.match(platformRoute,/source\.origin===publicAppOrigin\(\)/);
+  assert.doesNotMatch(platformRoute,/x-forwarded-host|x-forwarded-proto/);
+  assert.doesNotMatch(platformRoute,/function requestOrigin\(request\)/);
   assert.doesNotMatch(
     platformRoute,
     /new URL\(origin\)\.origin\s*===\s*new URL\(request\.url\)\.origin/

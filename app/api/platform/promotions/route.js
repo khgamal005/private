@@ -1,6 +1,7 @@
 import {cookies} from 'next/headers';
 import {NextResponse} from 'next/server';
 import {ACCESS_COOKIE,SUPABASE_KEY,SUPABASE_URL} from '../../../../lib/config';
+import {publicAppOrigin} from '../../../../lib/public-app-origin';
 
 const MAX_REQUEST_BYTES=48*1024;
 const MAX_UPSTREAM_BYTES=128*1024;
@@ -75,32 +76,14 @@ async function readTextLimited(source,maxBytes){
 function sameOrigin(request){
   const site=String(request.headers.get('sec-fetch-site')||'').toLowerCase();
   if(site&&site!=='same-origin')return false;
-  const origin=request.headers.get('origin');
-  if(!origin)return site==='same-origin';
+  const origin=String(request.headers.get('origin')||'').trim();
+  if(!origin)return false;
   try{
     const source=new URL(origin);
-    const target=requestOrigin(request);
-    return Boolean(target)
-      &&source.username===''&&source.password===''
+    return source.username===''&&source.password===''
       &&source.pathname==='/'&&!source.search&&!source.hash
-      &&source.origin===target;
+      &&source.origin===publicAppOrigin();
   }catch{return false;}
-}
-function requestOrigin(request){
-  const target=new URL(request.url);
-  const forwardedHost=String(request.headers.get('x-forwarded-host')||'').trim();
-  const forwardedProto=String(request.headers.get('x-forwarded-proto')||'')
-    .trim().toLowerCase();
-  if(forwardedHost||forwardedProto){
-    if(!forwardedHost||!forwardedProto||forwardedHost.includes(',')
-       ||forwardedProto.includes(',')
-       ||!['http','https'].includes(forwardedProto)
-       ||!/^(?:localhost|[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?)(?::\d{1,5})?$/i.test(forwardedHost)){
-      return null;
-    }
-    return `${forwardedProto}://${forwardedHost.toLowerCase()}`;
-  }
-  return ['https:','http:'].includes(target.protocol)?target.origin:null;
 }
 function safeErrorCode(value){
   const code=String(value||'').trim();

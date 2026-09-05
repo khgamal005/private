@@ -2,6 +2,7 @@
 
 import {useCallback,useEffect,useId,useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import TamaraSetupForm from './tamara-setup-form';
 import styles from './platform-addon-console.module.css';
 
 const EMPTY=[];
@@ -24,6 +25,8 @@ const PUBLIC_CONFIG_LABEL={
   region:'منطقة تشغيل Paymob'
 };
 const SECRET_LABEL={
+  apiToken:'API Token — مفتاح اتصال تمارا',
+  notificationToken:'Notification key — مفتاح إشعارات تمارا',
   secretKey:'Secret Key (Unified Checkout والعمليات المحكومة)',
   publicKey:'Public Key (Unified Checkout)',
   hmacSecret:'HMAC Secret (توثيق Webhook)',
@@ -781,6 +784,13 @@ function AssignCategoryModal({item,categories,busy,onClose,onSubmit}){
 }
 
 function ProviderModal({item,busy,onClose,onSubmit}){
+  if(item.key==='tamara')return <Modal title="إعداد تمارا" onClose={onClose}>
+    <TamaraSetupForm item={item} busy={busy} onClose={onClose} onSubmit={onSubmit}/>
+  </Modal>;
+  return <GenericProviderModal item={item} busy={busy} onClose={onClose} onSubmit={onSubmit}/>;
+}
+
+function GenericProviderModal({item,busy,onClose,onSubmit}){
   const configured=new Set(item.configuredSecretKeys||EMPTY);
   const requiredSecrets=new Set(providerRequiredSecretKeys(item));
   const publicConfig=item.configuredPublicConfig||{};

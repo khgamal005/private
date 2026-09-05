@@ -30,18 +30,25 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Expose the automatic rollout policy without exposing secrets
+      - name: Expose and govern the automatic rollout policy
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           def replace_once(text,old,new,label):
               count=text.count(old)
               if count!=1:
                   raise SystemExit(f'{label}: expected exactly one target, found {count}')
               return text.replace(old,new,1)
+
+          def replace_regex_once(text,pattern,replacement,label):
+              text,count=re.subn(pattern,replacement,text,count=1,flags=re.S)
+              if count!=1:
+                  raise SystemExit(f'{label}: expected exactly one target, found {count}')
+              return text
 
           api_path=Path('app/api/platform/paymob-control/route.js')
           api=api_path.read_text(encoding='utf-8')
@@ -76,7 +83,7 @@ jobs:
           ui=replace_once(
               ui,
               "      <div><small>SINGLE AUTHORIZED OPERATOR</small><h2>تشغيل Paymob</h2>\n        <p>أي منفّذ يملك صلاحية إدارة الفوترة يستطيع إكمال الإجراء مباشرة. تبقى الأدلة والتأكيد الحرفي وسجل التدقيق إلزامية.</p>",
-              "      <div><small>AUTOMATIC TENANT ENROLLMENT</small><h2>تشغيل Paymob</h2>\n        <p>{snapshot.automaticTenantEnrollment\n          ?'Paymob متاح تلقائيًا لكل المنشآت الحالية والجديدة، مع إمكانية إيقافه لمنشأة بعينها وسجل تدقيق كامل.'\n          :'أي منفّذ يملك صلاحية إدارة الفوترة يستطيع إكمال الإجراء مباشرة. تبقى الأدلة والتأكيد الحرفي وسجل التدقيق إلزامية.'}</p>",
+              "      <div><small>SINGLE AUTHORIZED OPERATOR · AUTOMATIC TENANT ENROLLMENT</small><h2>تشغيل Paymob</h2>\n        <p>{snapshot.automaticTenantEnrollment\n          ?'Paymob متاح تلقائيًا لكل المنشآت الحالية والجديدة، مع إمكانية إيقافه لمنشأة بعينها وسجل تدقيق كامل. منفّذ واحد يملك الصلاحية يدير الاستثناء مباشرة.'\n          :'أي منفّذ يملك صلاحية إدارة الفوترة يستطيع إكمال الإجراء مباشرة. تبقى الأدلة والتأكيد الحرفي وسجل التدقيق إلزامية.'}</p>",
               'governance header',
           )
           ui=replace_once(
@@ -98,6 +105,105 @@ jobs:
               'rollout policy note',
           )
           ui_path.write_text(ui,encoding='utf-8')
+
+          admin_test_path=Path('tests/paymob-admin-governance.test.mjs')
+          admin_test=admin_test_path.read_text(encoding='utf-8')
+          admin_test=replace_regex_once(
+              admin_test,
+              r"test\('operator UI exposes one-step authorized actions while retaining hard safety gates',\(\)=>\{.*?\n\}\);\n\ntest\('operational evidence is digest-only",
+              """test('operator UI exposes one-step authorized actions while retaining hard safety gates',()=>{
+            assert.match(ui,/fetch\\(\\s*['\"]\\/api\\/platform\\/paymob-control['\"][\\s\\S]{0,120}?method\\s*:\\s*['\"]GET['\"][\\s\\S]{0,100}?cache\\s*:\\s*['\"]no-store['\"]/i);
+            assert.match(ui,/fetch\\(\\s*['\"]\\/api\\/platform\\/paymob-control['\"][\\s\\S]{0,120}?method\\s*:\\s*['\"]POST['\"]/i);
+            assert.match(ui,/typed\\s*!==\\s*modal\\.expected[\\s\\S]*?return/i);
+            assert.match(ui,/body\\s*:\\s*JSON\\.stringify\\(\\{\\.\\.\\.modal\\.request,confirmation:typed\\}\\)/i);
+
+            assert.match(ui,/action:['\"]global_activate['\"]/i);
+            assert.match(ui,/ACTIVATE PAYMOB\\s+\\$\\{targetMode\\.toUpperCase\\(\\)\\}/i);
+            assert.match(ui,/disabled=\\{[\\s\\S]*?!snapshot\\.liveReady\\|\\|snapshot\\.liveGateBlocked/i);
+            assert.match(ui,/action:enabled\\?['\"]tenant_enable['\"]:['\"]tenant_disable['\"]/i);
+            assert.match(ui,/ENABLE PAYMOB TENANT\\s+\\$\\{tenant\\.id\\}/i);
+            assert.match(ui,/action:['\"]evidence_attest['\"]/i);
+            assert.match(ui,/ATTEST PAYMOB EVIDENCE/i);
+            assert.match(ui,/SINGLE AUTHORIZED OPERATOR/i);
+            assert.match(ui,/منفّذ واحد يملك الصلاحية/i);
+            assert.doesNotMatch(ui,/global_approve|tenant_approve|evidence_approve|maker[–-]checker|مراجع مختلف|مشغّل آخر/i);
+
+            assert.doesNotMatch(ui,/tenantSlug===['\"]reef-skills['\"]|tenantKey===['\"]tenant-reef-skills['\"]/i);
+            assert.match(ui,/automaticTenantEnrollment/i);
+            assert.match(ui,/controlledLiveActive/i);
+            assert.match(ui,/كل المنشآت الحالية والجديدة/i);
+            assert.match(ui,/إيقاف المنشأة/i);
+            assert.doesNotMatch(ui,/500 ر\\.س|Reef Skills مستبعد/i);
+
+            for(const checkKey of [
+              'refund_inquiry','reconciler_schedule','outbox_delivery',
+              'live_card_integration_callback'
+            ])assert.match(
+              ui,
+              new RegExp('\\\\b'+checkKey+'\\\\s*:'),
+              'Missing Arabic operator label for '+checkKey
+            );
+          });
+
+          test('operational evidence is digest-only""",
+              'Paymob operator UI governance test',
+          )
+          admin_test_path.write_text(admin_test,encoding='utf-8')
+
+          live_test_path=Path('tests/paymob-live-validation-v2.test.mjs')
+          live_test=live_test_path.read_text(encoding='utf-8')
+          automatic_import="""const automaticRolloutMigration=read(
+            'supabase/migrations/20260905170000_paymob_automatic_all_tenants_v1.sql'
+          );
+          """
+          import_anchor="""const singleOperatorMigration=read(
+            'supabase/migrations/20260904223000_single_authorized_operator_policy_v1.sql'
+          );
+          """
+          live_test=replace_once(
+              live_test,
+              import_anchor,
+              import_anchor+automatic_import,
+              'automatic rollout migration test import',
+          )
+          live_test=replace_regex_once(
+              live_test,
+              r"test\('Live validation is one single-operator non-Reef model tenant with a SAR 500 cap',\(\)=>\{.*?\n\}\);\n\ntest\('canonical Live events",
+              """test('controlled Live automatically enrolls every existing and future tenant',()=>{
+            assert.match(automaticRolloutMigration,/paymob_controlled_live_provider_ready_v1/i);
+            assert.match(automaticRolloutMigration,/paymob_required_secret_refs_valid_v2[\\s\\S]*?'quicklink'/i);
+            assert.match(automaticRolloutMigration,/paymob_live_credential_material_valid_v2[\\s\\S]*?'quicklink'/i);
+            assert.match(automaticRolloutMigration,/create\\s+trigger\\s+zz_tenants_paymob_auto_enroll_after_insert/i);
+            assert.match(automaticRolloutMigration,/after\\s+insert\\s+on\\s+core\\.tenants/i);
+            assert.match(automaticRolloutMigration,/automatic_all_tenants/i);
+            assert.match(automaticRolloutMigration,/v_enabled\\s*<>\\s*v_tenants/i);
+            assert.doesNotMatch(automaticRolloutMigration,/modaar-training-center/);
+            assert.doesNotMatch(automaticRolloutMigration,/v_order\\.total_minor\\s*>\\s*50000/i);
+            assert.doesNotMatch(ui,/500 ر\\.س|Reef Skills مستبعد/i);
+            assert.match(ui,/automaticTenantEnrollment/i);
+            assert.match(ui,/controlledLiveActive/i);
+            assert.match(ui,/كل المنشآت الحالية والجديدة/i);
+          });
+
+          test('canonical Live events""",
+              'legacy one-tenant Live validation test',
+          )
+          live_test=replace_regex_once(
+              live_test,
+              r"test\('legacy unsafe canary is disabled and Reef remains untouched',\(\)=>\{.*?\n\}\);\s*$",
+              """test('historical canary evidence is preserved while the new policy is explicit and auditable',()=>{
+            assert.match(migration,/live_canary_reapproval_required/i);
+            assert.match(migration,/'globalLiveActivated',false/i);
+            assert.match(automaticRolloutMigration,/Compatibility alias retained for older audited payment functions/i);
+            assert.match(automaticRolloutMigration,/marketplace\\.paymob\\.automatic_tenant_rollout_enabled/i);
+            assert.match(automaticRolloutMigration,/fullOperationalEvidenceStillRequired',true/i);
+            assert.match(automaticRolloutMigration,/secretReturned',false/i);
+            assert.doesNotMatch(automaticRolloutMigration,/update\\s+marketplace\\.payment_provider_configs/i);
+          });
+          """,
+              'historical canary policy test',
+          )
+          live_test_path.write_text(live_test,encoding='utf-8')
           PY
 
       - name: Prove the change surface is bounded
@@ -107,7 +213,9 @@ jobs:
           changed="$(git diff --name-only | sort)"
           expected="$(printf '%s\n' \
             app/api/platform/paymob-control/route.js \
-            components/platform-addon-console.js | sort)"
+            components/platform-addon-console.js \
+            tests/paymob-admin-governance.test.mjs \
+            tests/paymob-live-validation-v2.test.mjs | sort)"
           test "$changed" = "$expected" || {
             echo 'Unexpected files changed:' >&2
             printf '%s\n' "$changed" >&2
@@ -115,8 +223,10 @@ jobs:
           }
           grep -Fq 'automaticTenantEnrollment:value.automaticTenantEnrollment===true' app/api/platform/paymob-control/route.js
           grep -Fq 'controlledLiveActive:value.controlledLiveActive===true' app/api/platform/paymob-control/route.js
+          grep -Fq 'SINGLE AUTHORIZED OPERATOR · AUTOMATIC TENANT ENROLLMENT' components/platform-addon-console.js
           grep -Fq 'كل المنشآت الحالية والجديدة' components/platform-addon-console.js
           grep -Fq "const [environment,setEnvironment]=useState('live');" components/platform-addon-console.js
+          grep -Fq 'controlled Live automatically enrolls every existing and future tenant' tests/paymob-live-validation-v2.test.mjs
 
       - name: Install immutable dependencies
         run: npm ci
@@ -127,13 +237,17 @@ jobs:
       - name: Reject critical dependency advisories
         run: npm audit --audit-level=critical
 
-      - name: Commit the verified UI and remove the one-time workflow
+      - name: Commit the verified policy and remove the one-time workflow
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git rm .github/workflows/paymob-auto-all-tenants-build.yml
-          git add app/api/platform/paymob-control/route.js components/platform-addon-console.js
-          git commit -m 'feat(paymob): show automatic availability for every tenant'
+          git add \
+            app/api/platform/paymob-control/route.js \
+            components/platform-addon-console.js \
+            tests/paymob-admin-governance.test.mjs \
+            tests/paymob-live-validation-v2.test.mjs
+          git commit -m 'feat(paymob): automate availability for all tenants'
           git push origin HEAD:feat/paymob-auto-all-tenants-20260905

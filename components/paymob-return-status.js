@@ -42,6 +42,10 @@ export default function PaymobReturnStatus({slug,attemptId}){
           setPhase('paid');
           return;
         }
+        if(result.resultCode==='issuer_declined_retry_available'){
+          setPhase('declined');
+          return;
+        }
         if(result.attemptStatus==='quarantined'){
           setPhase('review');
           return;
@@ -97,7 +101,7 @@ export default function PaymobReturnStatus({slug,attemptId}){
       {['checking','pending','unknown'].includes(phase)&&<div className={styles.resultProgress}><i/><span>قد يستغرق وصول تأكيد Paymob بضع لحظات. يمكنك إبقاء الصفحة مفتوحة.</span></div>}
       <div className={styles.resultGuard}>صفحة العودة لا تعتمد الدفع ولا تفعّل إضافة أو خدمة. يعتمد أودير فقط الحالة الموثقة من الخادم.</div>
       <footer>
-        {phase==='paused'&&<button type="button" onClick={()=>setRetryCycle(value=>value+1)}>تحقق مرة أخرى</button>}
+        {['paused','declined'].includes(phase)&&<button type="button" onClick={()=>setRetryCycle(value=>value+1)}>{phase==='declined'?'تحقق بعد إعادة المحاولة':'تحقق مرة أخرى'}</button>}
         {snapshot?.orderKind==='addon'?<Link href={addonsHref}>العودة إلى طلبات الإضافات</Link>
           :snapshot?.orderKind==='service'?<Link href={servicesHref}>العودة إلى طلبات الخدمات</Link>
             :<><Link href={addonsHref}>طلبات الإضافات</Link><Link href={servicesHref}>طلبات الخدمات</Link></>}
@@ -133,6 +137,12 @@ function refreshDelay(value){
 }
 
 function paymentResultContent(phase,snapshot,message){
+  if(phase==='declined')return {
+    tone:'failed',icon:'×',title:'رفض البنك عملية الدفع',
+    description:snapshot?.retryAllowed
+      ?'لم يعتمد أودير أي دفعة ناجحة. ارجع إلى الطلب واضغط «استكمال الدفع» لتجربة بطاقة أخرى داخل صفحة Paymob الآمنة؛ لا تحتاج إلى إنشاء طلب جديد.'
+      :'لم يعتمد أودير أي دفعة ناجحة. انتهت صلاحية هذه المحاولة، ويمكنك العودة إلى الطلب وبدء محاولة آمنة جديدة.'
+  };
   if(phase==='paid')return {
     tone:'success',icon:'✓',title:'تم تأكيد الدفع بنجاح',
     description:'وصل التأكيد الموثق إلى أودير. ستظهر حالة الطلب والتفعيل أو بدء التنفيذ وفق نوعه داخل المتجر المختص.'

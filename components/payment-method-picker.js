@@ -77,7 +77,7 @@ export function PaymobOptionPicker({
       {options.map(option=>{
         const selected=option.key===value;
         const description=option.key==='card'
-          ?'البطاقات البنكية المدعومة داخل صفحة Paymob'
+          ?'بطاقات مدى، Visa وMastercard وAmerican Express'
           :option.key==='apple_pay'
             ?'الدفع السريع من أجهزة Apple المدعومة'
             :'تختار وسيلة الدفع داخل صفحة Paymob';

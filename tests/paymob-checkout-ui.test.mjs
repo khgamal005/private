@@ -10,6 +10,13 @@ const paths={
   returnClient:'components/paymob-return-status.js',
   addons:'components/marketplace-addon-store-v2.js',
   services:'components/marketplace-store.js',
+  paymentPicker:'components/payment-method-picker.js',
+  paymentStyles:'components/marketplace-store.module.css',
+  visaLogo:'public/payment-brands/visa.svg',
+  mastercardLogo:'public/payment-brands/mastercard.svg',
+  madaLogo:'public/payment-brands/mada.svg',
+  applePayLogo:'public/payment-brands/apple-pay.svg',
+  amexLogo:'public/payment-brands/amex.svg',
   tenantRoute:'app/api/tenant/[action]/route.js',
   marketplaceV2Route:'app/api/tenant/marketplace-v2/route.js',
   workspaceShell:'components/workspace-shell.js',
@@ -27,7 +34,9 @@ test('Paymob checkout stays server-authenticated and only returns an allowlisted
   assert.match(source.checkoutRoute,/cookies\(\)[\s\S]*?ACCESS_COOKIE/);
   assert.match(source.checkoutRoute,/\/functions\/v1\/paymob-checkout/);
   assert.match(source.checkoutRoute,/Authorization:`Bearer \$\{token\}`/);
-  assert.match(source.checkoutRoute,/billingContact:\{firstName,lastName,email,phoneNumber\}/);
+  assert.match(source.checkoutRoute,/billingContact:checkoutCompatibilityContact\(orderId\)/);
+  assert.match(source.checkoutRoute,/@checkout\.odeir\.invalid/);
+  assert.match(source.checkoutRoute,/phoneNumber:'\+966500000000'/);
   assert.match(source.checkoutRoute,/PAYMOB_CHECKOUT_HOST='ksa\.checkout\.paymob\.com'/);
   assert.match(source.checkoutRoute,/PAYMOB_QUICKLINK_HOST='ksa\.paymob\.com'/);
   assert.match(source.checkoutRoute,/PAYMOB_QUICKLINK_PATH='\/api\/ecommerce\/payment-links\/unrestricted'/);
@@ -36,7 +45,7 @@ test('Paymob checkout stays server-authenticated and only returns an allowlisted
   assert.match(source.checkoutRoute,/url\.hostname===PAYMOB_QUICKLINK_HOST/);
   assert.match(source.checkoutRoute,/url\.port/);
   assert.match(source.checkoutRoute,/Object\.keys\(body\)\.some\(key=>!CHECKOUT_INPUT_KEYS\.has\(key\)\)/);
-  assert.match(source.checkoutRoute,/Object\.keys\(contact\)\.some\(key=>!BILLING_CONTACT_KEYS\.has\(key\)\)/);
+  assert.doesNotMatch(source.checkoutRoute,/contact\.(?:firstName|lastName|email|phoneNumber)/);
   assert.match(source.checkoutRoute,/safeErrorCode\(/);
   assert.match(source.checkoutRoute,/Cache-Control['"]?:['"]private, no-store/);
   assert.doesNotMatch(source.checkoutRoute,/SUPABASE_(?:SERVICE_ROLE|SECRET)_KEY/);
@@ -66,19 +75,40 @@ test('both stores create an order once, initialize Paymob, and preserve unknown 
   }
 });
 
-test('billing UI asks only for identity/contact data and validates Saudi mobile formats',()=>{
+test('ODEIR asks for contact and card data once, inside Paymob only',()=>{
   for(const text of [source.addons,source.services]){
-    for(const field of ['given-name','family-name','email','tel']){
-      assert.match(text,new RegExp(`(?:autoComplete|type)=["']${field}["']`));
-    }
-    assert.match(text,/pattern="\(\?:\[\+\]9665\[0-9\]\{8\}\|05\[0-9\]\{8\}\)"/);
-    assert.match(text,/type="checkbox" required/);
-    assert.match(text,/إرسال بيانات الفاتورة أعلاه إلى Paymob/);
-    assert.match(text,/تُدخل بيانات البطاقة داخل صفحة Paymob فقط/);
+    assert.doesNotMatch(text,/PaymobBillingFields/);
+    assert.doesNotMatch(text,/(?:given-name|family-name|billingFirstName|billingEmail|billingPhone)/);
+    assert.doesNotMatch(text,/billingContact:billingContact\(\)/);
+    assert.match(text,/مرة واحدة فقط داخل صفحة Paymob الآمنة/);
     assert.doesNotMatch(text,/name=["'](?:card|cardNumber|cvv|cvc|expiry)["']/i);
   }
-  assert.match(source.checkoutRoute,/^\s*if\(\/\^05\[0-9\]\{8\}\$\/\.test\(normalized\)\)/m);
-  assert.match(source.checkoutRoute,/return `\+966\$\{normalized\.slice\(1\)\}`/);
+  assert.match(source.checkoutRoute,/function checkoutCompatibilityContact\(orderId\)/);
+  assert.match(source.checkoutRoute,/const opaqueOrder=orderId\.replaceAll\('-',''\)/);
+  assert.match(source.checkoutRoute,/billingContact:checkoutCompatibilityContact\(orderId\)/);
+  assert.doesNotMatch(source.checkoutRoute,/function (?:cleanText|validEmail|saudiPhone)\(/);
+});
+
+test('configured Paymob rails display local payment-brand marks',()=>{
+  for(const asset of [
+    source.visaLogo,source.mastercardLogo,source.madaLogo,
+    source.applePayLogo,source.amexLogo
+  ]){
+    assert.match(asset,/^<svg[\s\S]*<\/svg>\s*$/);
+    assert.doesNotMatch(asset,/<(?:script|foreignObject|iframe)\b/i);
+  }
+  for(const path of [
+    'visa.svg','mastercard.svg','mada.svg','apple-pay.svg','amex.svg'
+  ]){
+    assert.match(source.paymentPicker,new RegExp(`/payment-brands/${path.replace('.', '\\.')}`));
+  }
+  assert.match(source.paymentPicker,/CARD_BRANDS/);
+  assert.match(source.paymentPicker,/Visa وMastercard ومدى وAmerican Express وApple Pay/);
+  assert.match(source.paymentPicker,/role="img"/);
+  assert.match(source.paymentStyles,/PAYMOB_SINGLE_ENTRY_BRANDS_V2/);
+  assert.match(source.paymentStyles,/cardBrandStrip/);
+  assert.match(source.paymentStyles,/applePayBrand/);
+  assert.match(source.paymentStyles,/paymentBrandStrip/);
 });
 
 test('return page is display-only and trusts server status rather than redirect query flags',()=>{

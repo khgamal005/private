@@ -128,10 +128,6 @@ export default function MarketplaceStore({slug,initialData}){
   const [transferReference,setTransferReference]=useState('');
   const [transferDate,setTransferDate]=useState(today());
   const [paymobOrder,setPaymobOrder]=useState(null);
-  const [billingFirstName,setBillingFirstName]=useState('');
-  const [billingLastName,setBillingLastName]=useState('');
-  const [billingEmail,setBillingEmail]=useState('');
-  const [billingPhone,setBillingPhone]=useState('');
   const [busy,setBusy]=useState('');
   const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
@@ -185,23 +181,9 @@ export default function MarketplaceStore({slug,initialData}){
     setCheckoutPromotionCode('');
     setPaymentProvider(paymentMethods[0]?.key||'bank_transfer');
     setPaymentOption(defaultPaymobOption(paymentMethods));
-    resetBillingContact();
+
     setNotice('');
     setError('');
-  }
-
-  function resetBillingContact(){
-    setBillingFirstName('');setBillingLastName('');
-    setBillingEmail('');setBillingPhone('');
-  }
-
-  function billingContact(){
-    return {
-      firstName:billingFirstName.trim(),
-      lastName:billingLastName.trim(),
-      email:billingEmail.trim(),
-      phoneNumber:billingPhone.trim()
-    };
   }
 
   function choosePaymentProvider(providerKey){
@@ -222,8 +204,7 @@ export default function MarketplaceStore({slug,initialData}){
           slug,
           orderId:order.id,
           idempotencyKey:paymentRequestKey,
-          paymentOption,
-          billingContact:billingContact()
+          paymentOption
         })
       });
       const result=await response.json().catch(()=>({}));
@@ -353,7 +334,7 @@ export default function MarketplaceStore({slug,initialData}){
   function openPaymob(order){
     setPaymobOrder({order,paymentRequestKey:idempotencyKey()});
     setPaymentOption(defaultPaymobOption(paymentMethods));
-    resetBillingContact();setError('');setNotice('');
+setError('');setNotice('');
   }
 
   async function continuePaymob(event){
@@ -626,12 +607,6 @@ export default function MarketplaceStore({slug,initialData}){
           {selectedMethod.publicConfig.accountName&&<div><b>اسم الحساب:</b> {selectedMethod.publicConfig.accountName}</div>}
           {selectedMethod.publicConfig.iban&&<div><b>IBAN:</b> <span dir="ltr">{selectedMethod.publicConfig.iban}</span></div>}
         </div>}
-        {selectedMethod?.key==='paymob'&&<PaymobBillingFields
-          firstName={billingFirstName} lastName={billingLastName}
-          email={billingEmail} phone={billingPhone}
-          onFirstName={setBillingFirstName} onLastName={setBillingLastName}
-          onEmail={setBillingEmail} onPhone={setBillingPhone}
-        />}
 
         {promotionsEnabled&&<label>
           <span>برومو كود <small>(اختياري)</small></span>
@@ -682,34 +657,13 @@ export default function MarketplaceStore({slug,initialData}){
       <button className={styles.backdrop} type="button" aria-label="إغلاق" onClick={()=>setPaymobOrder(null)}/>
       <form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="service-paymob-title" onSubmit={continuePaymob}>
         <header><div><small>دفع خدمة عبر Paymob</small><h2 id="service-paymob-title">{paymobOrder.order.orderNumber||'طلب الخدمة'}</h2></div><button type="button" onClick={()=>setPaymobOrder(null)} aria-label="إغلاق">×</button></header>
-        <p>أدخل بيانات الفاتورة، ثم سننقلك إلى صفحة Paymob المشفّرة. لا يبدأ تنفيذ الخدمة إلا بعد وصول تأكيد الدفع الموثق إلى أودير.</p>
+        <p>اختر وسيلة الدفع، ثم سننقلك مباشرة إلى Paymob. ستدخل بيانات الاتصال والبطاقة مرة واحدة فقط داخل صفحة Paymob الآمنة، ولا يبدأ تنفيذ الخدمة إلا بعد وصول التأكيد الموثق إلى أودير.</p>
         <PaymobOptionPicker paymentMethods={paymentMethods}
           value={paymentOption} onChange={setPaymentOption} compact/>
-        <PaymobBillingFields
-          firstName={billingFirstName} lastName={billingLastName}
-          email={billingEmail} phone={billingPhone}
-          onFirstName={setBillingFirstName} onLastName={setBillingLastName}
-          onEmail={setBillingEmail} onPhone={setBillingPhone}
-        />
         <footer><button type="button" onClick={()=>setPaymobOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={Boolean(busy)}>{busy==='paymob-'+paymobOrder.order.id?'جارٍ فتح الدفع…':'المتابعة إلى Paymob'}</button></footer>
       </form>
     </div>}
   </section>;
-}
-
-function PaymobBillingFields({
-  firstName,lastName,email,phone,
-  onFirstName,onLastName,onEmail,onPhone
-}){
-  return <fieldset className={styles.paymobFields}>
-    <legend>بيانات الفاتورة والدفع</legend>
-    <label><span>الاسم الأول</span><input autoComplete="given-name" value={firstName} onChange={event=>onFirstName(event.target.value)} minLength="2" maxLength="100" required/></label>
-    <label><span>اسم العائلة</span><input autoComplete="family-name" value={lastName} onChange={event=>onLastName(event.target.value)} minLength="2" maxLength="100" required/></label>
-    <label><span>البريد الإلكتروني</span><input type="email" inputMode="email" autoComplete="email" dir="ltr" value={email} onChange={event=>onEmail(event.target.value)} maxLength="254" required/></label>
-    <label><span>رقم الجوال السعودي</span><input type="tel" inputMode="tel" autoComplete="tel" dir="ltr" value={phone} onChange={event=>onPhone(event.target.value)} pattern="(?:[+]9665[0-9]{8}|05[0-9]{8})" title="اكتب الرقم بصيغة 05XXXXXXXX أو +9665XXXXXXXX" placeholder="+9665XXXXXXXX" required/></label>
-    <label className={styles.paymentConsent}><input type="checkbox" required/><span>أوافق على إرسال بيانات الفاتورة أعلاه إلى Paymob لإتمام الدفع.</span></label>
-    <p>لن يطلب أودير رقم البطاقة أو رمزها السري؛ تُدخل بيانات البطاقة داخل صفحة Paymob فقط.</p>
-  </fieldset>;
 }
 
 function ServiceCard({item,canPurchase,pending,onBuy}){

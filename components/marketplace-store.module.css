@@ -53,3 +53,39 @@
 .promoControl{grid-column:1/-1;border:1px solid #dbe8ef;border-radius:14px;background:#f8fbfd;padding:13px 14px;display:grid;gap:11px}.promoHeading{display:flex;align-items:center;justify-content:space-between;gap:12px}.promoHeading>div{display:grid;gap:3px}.promoHeading small{font-size:8px;font-weight:900;color:#6f8797}.promoHeading b{font-size:10px;color:#163c54}.promoHeading>span{direction:ltr;border-radius:999px;background:#e6f6eb;color:#217140;padding:6px 10px;font:900 9px ui-monospace,SFMono-Regular,Menlo,monospace}.promoForm{display:grid;grid-template-columns:minmax(150px,280px) auto 1fr;align-items:center;gap:8px}.promoForm input{min-width:0;border:1px solid #cbdce5;border-radius:10px;background:#fff;padding:10px 12px;font:800 11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase}.promoForm button,.promoRemove{border:1px solid #176b95;border-radius:10px;background:#176b95;color:#fff;padding:9px 14px;font:900 9px Tahoma;cursor:pointer}.promoForm button:disabled,.promoRemove:disabled{opacity:.5;cursor:not-allowed}.promoForm small,.promoHint{color:#718897;font-size:8px;line-height:1.7}.promoTotals{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0}.promoTotals>div{border-radius:10px;background:#fff;border:1px solid #e1ebf0;padding:9px;display:grid;gap:4px}.promoTotals dt{font-size:8px;color:#758997}.promoTotals dd{margin:0;font-size:9px;font-weight:900;color:#173d55}.promoTotals .promoDiscount{background:#f0faf3;border-color:#cee9d6}.promoTotals .promoDiscount dd{color:#217140}.promoTotals .promoGrandTotal{background:#edf7fc;border-color:#c9e4f1}.promoTotals .promoGrandTotal dd{color:#0d638e}.promoRemove{justify-self:start;background:#fff;color:#9b3446;border-color:#e7bdc5}
 @media(max-width:850px){.promoControl{grid-column:1/-1}.promoTotals{grid-template-columns:repeat(2,minmax(0,1fr))}.promoTotals .promoGrandTotal{grid-column:1/-1}.promoForm{grid-template-columns:1fr auto}.promoForm small{grid-column:1/-1}}
 @media(max-width:560px){.promoTotals{grid-template-columns:1fr}.promoTotals .promoGrandTotal{grid-column:auto}.promoForm{grid-template-columns:1fr}.promoForm button{width:100%}}
+
+
+/* PAYMOB_SINGLE_ENTRY_BRANDS_V2 */
+.paymobProviderMark{width:68px!important;height:34px!important;border:1px solid #cddff1!important;background:#fff!important;color:#2367f2!important;padding:0 6px!important;font-family:Arial,sans-serif!important;font-size:13px!important;font-style:italic!important;font-weight:900!important;text-transform:lowercase}
+.paymentBrandStrip{display:flex!important;width:max-content;max-width:100%;align-items:center;gap:7px;margin-top:4px;padding:6px 8px;border:1px solid #dce7ed;border-radius:9px;background:#fff}
+.paymentBrandStripCompact{gap:5px;padding:4px 6px}
+.paymentBrandStrip img{display:block;width:auto;height:17px;max-width:38px;object-fit:contain}
+.paymentBrandStrip img[src$="mada.svg"]{height:19px;max-width:44px}
+.paymentBrandStrip img[src$="apple-pay.svg"]{height:20px;max-width:52px}
+.paymobOptionMark{display:flex!important;overflow:hidden;min-width:96px;height:46px;align-items:center;justify-content:center;border:1px solid #dce7ed;border-radius:10px;background:#fff!important;padding:0 9px!important;box-sizing:border-box}
+.cardBrandStrip{min-width:194px!important;gap:8px}
+.cardBrandStrip img{display:block;width:auto;height:21px;max-width:43px;object-fit:contain}
+.cardBrandStrip img[src$="mada.svg"]{height:23px;max-width:49px}
+.applePayBrand{min-width:110px!important}
+.applePayBrand img{display:block;width:92px;height:auto;max-height:29px;object-fit:contain}
+.hostedPaymobBrand{min-width:112px!important;color:#2367f2!important;font-family:Arial,sans-serif!important;font-size:17px!important;font-style:italic!important;font-weight:900!important;text-transform:lowercase}
+.paymobOptionPicker>p{border-top:1px solid #dce8ee;padding-top:10px;color:#466b82;font-weight:800}
+@media(max-width:760px){
+  .paymobOptionGrid{grid-template-columns:1fr}
+  .paymobOption,.paymobOptionSelected{grid-template-columns:minmax(118px,auto) minmax(0,1fr) auto;padding:11px}
+  .cardBrandStrip{min-width:166px!important;gap:6px}
+  .cardBrandStrip img{height:18px;max-width:36px}
+  .cardBrandStrip img[src$="mada.svg"]{height:20px;max-width:42px}
+  .applePayBrand{min-width:104px!important}
+}
+@media(max-width:430px){
+  .paymentBrandStrip{width:100%;justify-content:space-around;box-sizing:border-box}
+  .paymentBrandStrip img{height:15px;max-width:31px}
+  .paymentBrandStrip img[src$="mada.svg"]{height:18px;max-width:38px}
+  .paymentBrandStrip img[src$="apple-pay.svg"]{height:18px;max-width:44px}
+  .paymobOption,.paymobOptionSelected{grid-template-columns:1fr auto;gap:8px}
+  .paymobOptionMark{grid-column:1/-1;width:100%}
+  .cardBrandStrip{min-width:0!important;justify-content:space-around}
+  .paymobOption>span:not(.paymobOptionMark),.paymobOptionSelected>span:not(.paymobOptionMark){grid-column:1}
+  .paymobOption>em,.paymobOptionSelected>em{grid-column:2;grid-row:2}
+}

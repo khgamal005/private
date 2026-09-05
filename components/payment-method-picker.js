@@ -1,8 +1,16 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import styles from './marketplace-store.module.css';
 
 const OPTION_KEYS=new Set(['hosted','card','apple_pay']);
+const CARD_BRANDS=[
+  {src:'/payment-brands/visa.svg',label:'Visa'},
+  {src:'/payment-brands/mastercard.svg',label:'Mastercard'},
+  {src:'/payment-brands/mada.svg',label:'مدى'},
+  {src:'/payment-brands/amex.svg',label:'American Express'}
+];
+const APPLE_PAY={src:'/payment-brands/apple-pay.svg',label:'Apple Pay'};
 
 export function paymobOptions(paymentMethods){
   const paymob=(paymentMethods||[]).find(method=>method?.key==='paymob');
@@ -34,7 +42,7 @@ export function PaymentMethodPicker({methods,value,onChange}){
       {(methods||[]).map(method=>{
         const selected=method.key===value;
         const description=method.key==='paymob'
-          ?'صفحة دفع مشفّرة، والتفعيل بعد التأكيد الموثق'
+          ?'Visa وMastercard ومدى وAmerican Express وApple Pay'
           :method.key==='bank_transfer'
             ?'إرسال بيانات التحويل ثم مراجعتها'
             :'إتمام الدفع بالطريقة المحددة';
@@ -42,8 +50,13 @@ export function PaymentMethodPicker({methods,value,onChange}){
           className={selected?styles.paymentMethodSelected:styles.paymentMethodOption}>
           <input type="radio" name="paymentProvider" value={method.key}
             checked={selected} onChange={()=>onChange(method.key)} required/>
-          <i aria-hidden="true">{method.key==='paymob'?'P':method.key==='bank_transfer'?'↔':'•'}</i>
-          <span><b>{method.name}</b><small>{description}</small></span>
+          <i className={method.key==='paymob'?styles.paymobProviderMark:''}
+            aria-hidden="true">{method.key==='paymob'?'paymob':method.key==='bank_transfer'?'↔':'•'}</i>
+          <span>
+            <b>{method.name}</b>
+            <small>{description}</small>
+            {method.key==='paymob'&&<PaymentBrandStrip includeApple compact/>}
+          </span>
           <em aria-hidden="true">{selected?'✓':''}</em>
         </label>;
       })}
@@ -64,7 +77,7 @@ export function PaymobOptionPicker({
       {options.map(option=>{
         const selected=option.key===value;
         const description=option.key==='card'
-          ?'بطاقات مدى، Visa وMastercard'
+          ?'البطاقات البنكية المدعومة داخل صفحة Paymob'
           :option.key==='apple_pay'
             ?'الدفع السريع من أجهزة Apple المدعومة'
             :'تختار وسيلة الدفع داخل صفحة Paymob';
@@ -72,14 +85,40 @@ export function PaymobOptionPicker({
           className={selected?styles.paymobOptionSelected:styles.paymobOption}>
           <input type="radio" name="paymobPaymentOption" value={option.key}
             checked={selected} onChange={()=>onChange(option.key)} required/>
-          <span className={styles.paymobOptionMark} aria-hidden="true">
-            {option.key==='apple_pay'?'Apple Pay':option.key==='card'?'CARD':'PAY'}
-          </span>
+          <PaymobBrandMark optionKey={option.key}/>
           <span><b>{option.name}</b><small>{description}</small></span>
           <em aria-hidden="true">{selected?'✓':''}</em>
         </label>;
       })}
     </div>
-    <p>لن تُرسل بيانات البطاقة إلى أودير؛ تُدخل داخل صفحة Paymob فقط.</p>
+    <p>ستدخل بيانات الاتصال والبطاقة مرة واحدة فقط داخل صفحة Paymob الآمنة؛ أودير لا يطلب بيانات البطاقة ولا يخزنها.</p>
   </fieldset>;
+}
+
+function PaymentBrandStrip({includeApple=false,compact=false}){
+  const brands=includeApple?[...CARD_BRANDS,APPLE_PAY]:CARD_BRANDS;
+  return <span className={[
+    styles.paymentBrandStrip,
+    compact?styles.paymentBrandStripCompact:''
+  ].filter(Boolean).join(' ')} role="img"
+    aria-label={brands.map(brand=>brand.label).join('، ')}>
+    {brands.map(brand=><img key={brand.src} src={brand.src} alt="" aria-hidden="true"/>)}
+  </span>;
+}
+
+function PaymobBrandMark({optionKey}){
+  if(optionKey==='card'){
+    return <span className={[styles.paymobOptionMark,styles.cardBrandStrip].join(' ')}
+      role="img" aria-label="Visa، Mastercard، مدى، American Express">
+      {CARD_BRANDS.map(brand=><img key={brand.src} src={brand.src} alt="" aria-hidden="true"/>)}
+    </span>;
+  }
+  if(optionKey==='apple_pay'){
+    return <span className={[styles.paymobOptionMark,styles.applePayBrand].join(' ')}
+      role="img" aria-label="Apple Pay">
+      <img src={APPLE_PAY.src} alt="" aria-hidden="true"/>
+    </span>;
+  }
+  return <span className={[styles.paymobOptionMark,styles.hostedPaymobBrand].join(' ')}
+    role="img" aria-label="Paymob">paymob</span>;
 }

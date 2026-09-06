@@ -4,7 +4,7 @@
 
 ODEIR uses **Paymob QuickLink Hosted Redirect** for card, mada and Apple Pay checkout in Saudi riyals. ODEIR calculates the immutable order total on the server, stores the provider link before returning it to the browser, and accepts financial settlement only from a verified signed webhook or an authenticated read-only provider inquiry applied through the same database ledger checks.
 
-This release removes the unnecessary database-to-Edge scheduler hop. The production minute scheduler calls a bounded database-owned reconciliation tick directly, so an HTTP `401` can no longer be hidden behind a successful pg_cron SQL invocation.
+This release removes the unnecessary database-to-Edge scheduler hop. The production minute scheduler calls a bounded database-owned reconciliation tick directly, so an HTTP `401` can no longer be hidden behind a successful pg_cron SQL invocation. The `paymob-reconcile` Edge Function is now only a JWT-protected manual administrator wrapper and is not part of scheduled processing.
 
 ## Recovery order
 

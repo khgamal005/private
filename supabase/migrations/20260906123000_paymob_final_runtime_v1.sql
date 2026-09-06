@@ -307,7 +307,7 @@ $old$;
           jsonb_build_object('merchant_order_id',v_attempt_id::text)::text::varchar
         )::extensions.http_request);
       end if;
-$old$;
+$new$;
   v_before := v_definition;
   v_definition := replace(v_definition,v_old,v_new);
   if v_definition = v_before then

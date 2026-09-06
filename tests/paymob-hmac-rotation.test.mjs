@@ -17,6 +17,9 @@ const migration=source(
 );
 const webhook=source('supabase/functions/paymob-webhook/index.ts');
 const reconciler=source('supabase/functions/paymob-reconcile/index.ts');
+const finalRuntime=source(
+  'supabase/migrations/20260906123000_paymob_final_runtime_v1.sql'
+);
 
 function escapeRegExp(value){
   return value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -163,7 +166,13 @@ test('reconciliation rotates API auth without losing the attempt credential audi
   assert.match(jobs,/inquiry_credential_version_id\s+uuid[\s\S]*?references\s+marketplace\.paymob_credential_versions/i);
   assert.match(runtime,/set\s+inquiry_credential_version_id\s*=\s*v_inquiry_version\.id/i);
   assert.match(runtime,/where\s+id\s*=\s*v_job\.id/i);
-  assert.match(reconciler,/p_inquiry_credential_version_id\s*:\s*runtime\.inquiryCredentialVersionId/i);
+// Scheduled inquiry now runs in the leased database worker. The optional
+// Edge endpoint is deliberately provider-blind and only delegates a caller JWT.
+assert.doesNotMatch(
+  reconciler,
+  /SUPABASE_SERVICE_ROLE_KEY|PAYMOB_RECONCILE_DISPATCHER_SECRET|ksa\.paymob\.com/i
+);
+assert.match(finalRuntime,/ODEIR_PAYMOB_ORDER_ID_RECOVERY_V1/);
   assert.match(apply,/\bp_inquiry_credential_version_id\s+uuid\b/i);
   assert.match(apply,/version\.id\s*=\s*p_inquiry_credential_version_id/i);
   assert.match(apply,/version\.status\s*=\s*'active'/i);
@@ -174,10 +183,14 @@ test('reconciliation rotates API auth without losing the attempt credential audi
     /decrypted\.id\s*=\s*v_attempt_version\.api_key_vault_secret_id/i
   );
 
-  assert.match(
-    reconciler,
-    /const\s+providerResult\s*=\s*runtime\.inquiryMode\s*===\s*["']transaction_id["']\s*\?\s*await\s+inquireByTransactionId[\s\S]*?:\s*await\s+inquireByMerchantOrderId/i
-  );
+assert.match(
+  finalRuntime,
+  /jsonb_build_object\('order_id',v_provider_order_id\)/
+);
+assert.match(
+  finalRuntime,
+  /jsonb_build_object\('merchant_order_id',v_attempt_id::text\)/
+);
   assert.doesNotMatch(
     reconciler,
     /while\s*\([^)]*inquir|for\s*\([^)]*(?:retry|inquir)/i

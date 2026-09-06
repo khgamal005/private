@@ -76,9 +76,9 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.paymob-reconcile]
-# Scheduled runs authenticate with a dedicated dispatcher secret; manual runs
-# require a platform billing administrator JWT, both rechecked in the function.
-verify_jwt = false
+# Scheduling is database-owned. This optional manual gateway requires a valid
+# caller JWT and delegates only to the platform.billing.manage RPC.
+verify_jwt = true
 
 [functions.odeir-registration-intake]
 # Public registration uses a server-to-server ingress token. The browser never

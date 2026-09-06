@@ -104,3 +104,7 @@ verify_jwt = false
 [functions.tamara-setup]
 verify_jwt = true
 
+
+[functions.meta-oauth-v2]
+# User routes authorize through caller-scoped RPCs; compliance callbacks verify HMAC.
+verify_jwt = false

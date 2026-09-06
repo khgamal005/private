@@ -562,10 +562,10 @@ test('database surface keys resolve only through the tenant-safe placement regis
   const routeKeys=sortedUnique(quotedObjectKeys(routesBody));
   const placements=productPlacementEntries(productBody);
 
-  assert.equal(placements.length,17);
+  assert.equal(placements.length,18);
   assert.deepEqual(
     sortedUnique(placements.map(entry=>entry.productKey)),
-    EXPECTED_PRODUCTS
+    sortedUnique([...EXPECTED_PRODUCTS,'social_connect'])
   );
   for(const {placementKey} of placements){
     assert.ok(routeKeys.includes(placementKey),`Unknown placement: ${placementKey}`);

@@ -8,6 +8,8 @@ import './followup-split-history.css';
 import './auth-mobile-input-fix.css';
 import './odeir-landing-experience.css';
 import './odeir-hero-copy-tuning.css';
+import './legal-pages.css';
+import './social-connect-v2.css';
 import SystemActionFeedback from '../components/system-action-feedback';
 import SystemDataPagination from '../components/system-data-pagination';
 

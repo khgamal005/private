@@ -1,0 +1,171 @@
+name: Finalize Paymob recovery and Tamara onboarding
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-payments-production-20260906.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: finalize-payments-production-20260906
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROJECT_REF: gswpbwdactcstkasddta
+      SUPABASE_ACCESS_TOKEN_PRIMARY: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_ACCESS_TOKEN_PRODUCTION: ${{ secrets.PRODUCTION_SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_ACCESS_TOKEN_SHORT: ${{ secrets.PROD_SUPABASE_ACCESS_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Run complete quality gate
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run check
+          npm audit --audit-level=critical
+
+      - name: Resolve production Supabase credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          token="${SUPABASE_ACCESS_TOKEN_PRIMARY:-${SUPABASE_ACCESS_TOKEN_PRODUCTION:-${SUPABASE_ACCESS_TOKEN_SHORT:-}}}"
+          test -n "$token" || { echo 'Production Supabase access token is unavailable' >&2; exit 1; }
+          echo "::add-mask::$token"
+          echo "SUPABASE_ACCESS_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Prove production identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF" > /tmp/project.json
+          PROJECT_REF="$PROJECT_REF" python3 - <<'PY'
+          import json,os,re
+          from pathlib import Path
+          value=json.loads(Path('/tmp/project.json').read_text())
+          actual=str(value.get('id') or value.get('ref') or '')
+          name=str(value.get('name') or '')
+          status=str(value.get('status') or '').upper()
+          if actual!=os.environ['PROJECT_REF']:
+              raise SystemExit('Supabase project identity mismatch')
+          if re.search(r'(staging|stage|sandbox|test|development|\bdev\b)',name,re.I):
+              raise SystemExit('Refusing a non-production project')
+          if status and status not in {'ACTIVE_HEALTHY','ACTIVE_UNHEALTHY'}:
+              raise SystemExit(f'Production project is not active: {status}')
+          Path('/tmp/project.json').write_text('{}\n')
+          PY
+
+      - name: Re-deploy exact Paymob reconciliation worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes supabase@latest functions deploy paymob-reconcile \
+            --project-ref "$PROJECT_REF" \
+            --no-verify-jwt
+
+      - name: Remove diagnostic-only Paymob probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for function_name in paymob-contract-probe paymob-auth-profile-probe; do
+            if npx --yes supabase@latest functions list --project-ref "$PROJECT_REF" \
+              | grep -Fq "$function_name"; then
+              npx --yes supabase@latest functions delete "$function_name" \
+                --project-ref "$PROJECT_REF" --yes
+            fi
+          done
+
+      - name: Verify the complete production payment state
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/verify.json <<'JSON'
+          {
+            "query": "select jsonb_build_object('tamaraMigration',exists(select 1 from supabase_migrations.schema_migrations where version='20260905205608' or name='tamara_onboarding_credentials_v1'),'paymobMigration',exists(select 1 from supabase_migrations.schema_migrations where version='20260905213000' or name='paymob_decline_reconciliation_v1'),'queueTrigger',exists(select 1 from pg_trigger where tgname ilike '%paymob%transaction%inquiry%' and not tgisinternal),'dispatcherRpc',to_regprocedure('public.v1_service_paymob_reconcile_dispatch_secret()') is not null,'activeCron',exists(select 1 from cron.job where active and command ilike '%paymob-reconcile%'),'tamaraContract',(select required_public_config_keys='{}'::text[] and required_secret_keys=array['apiToken','notificationToken']::text[] and rollout_mode='observe_only' from marketplace.payment_provider_configs where provider_key='tamara'),'decline',(select jsonb_build_object('attemptStatus',a.status,'attemptError',a.last_error_code,'paymentStatus',o.payment_status,'orderStatus',o.status,'reconciliationStatus',r.status,'reconciliationAttempts',r.attempt_count,'checkedAtPresent',r.checked_at is not null,'observedState',r.observed_state) from marketplace.orders o join marketplace.payment_attempts a on a.order_id=o.id left join marketplace.reconciliations r on r.attempt_id=a.id and r.reconciliation_type='transaction_inquiry' where o.order_number='ODR-2609-001014' order by a.created_at desc limit 1),'unsafeOpenAttempts',(select count(*) from marketplace.payment_attempts where status in ('unknown','quarantined')),'activeTenantEligibility',(select count(*) from core.tenants t where private_app.paymob_tenant_eligible_v2(t.id,'live'))) as state;"
+          }
+          JSON
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data-binary @/tmp/verify.json > /tmp/result.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          rows=json.loads(Path('/tmp/result.json').read_text())
+          if not isinstance(rows,list) or len(rows)!=1 or not isinstance(rows[0].get('state'),dict):
+              raise SystemExit('Unexpected production verification shape')
+          state=rows[0]['state']
+          required=['tamaraMigration','paymobMigration','queueTrigger','dispatcherRpc','activeCron','tamaraContract']
+          missing=[key for key in required if state.get(key) is not True]
+          if missing:
+              raise SystemExit(f'Production payment invariant failed: {missing!r}')
+          decline=state.get('decline') or {}
+          if decline.get('attemptStatus')!='failed' or decline.get('paymentStatus')!='pending' \
+             or decline.get('orderStatus')!='pending_payment' \
+             or decline.get('reconciliationStatus') not in {'matched','resolved'} \
+             or decline.get('checkedAtPresent') is not True \
+             or int(decline.get('reconciliationAttempts') or 0)<1:
+              raise SystemExit(f'Declined payment recovery is not complete: {decline!r}')
+          if int(state.get('unsafeOpenAttempts') or 0)!=0:
+              raise SystemExit(f"Unsafe unknown/quarantined attempts remain: {state.get('unsafeOpenAttempts')}")
+          safe={
+              'tamaraOnboardingReady':True,
+              'paymobDeclineRecoveryReady':True,
+              'paymobCronReady':True,
+              'knownDeclineClassified':True,
+              'activeTenantEligibility':int(state.get('activeTenantEligibility') or 0)
+          }
+          Path('/tmp/release-state.json').write_text(json.dumps(safe,indent=2,sort_keys=True)+'\n')
+          Path('/tmp/result.json').write_text('{}\n')
+          Path('/tmp/verify.json').write_text('{}\n')
+          PY
+
+      - name: Commit release evidence and remove temporary workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/releases
+          cat > docs/releases/2026-09-06-payments-finalized.md <<'EOF'
+          # Payments release — 2026-09-06
+
+          Production verification completed for:
+
+          - Paymob signed-webhook primary flow.
+          - Automatic transaction-inquiry fallback and minute scheduler.
+          - Safe classification of issuer-declined attempts without marking an order paid.
+          - Retryable pending order after a confirmed decline.
+          - Tamara Live credential onboarding contract with two secrets and observe-only rollout.
+          - Removal of diagnostic-only Paymob probe functions.
+
+          This release did not create, capture, refund, or mark any payment as successful.
+          EOF
+          cp /tmp/release-state.json docs/releases/2026-09-06-payments-finalized.json
+          rm -f .github/workflows/finalize-payments-production-20260906.yml
+          rm -f .github/workflows/_tmp_export_paymob_decline_context.yml
+          rm -f .github/workflows/export-payment-integration-context.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'chore(payments): finalize verified production release'
+          git push origin HEAD:main

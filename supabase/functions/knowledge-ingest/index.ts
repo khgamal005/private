@@ -225,7 +225,8 @@ async function ingestSource(source:Source,trigger:string,stopAt:number){
  let fetched=0,filteredOut=0,newCount=0,duplicates=0,review=0,published=0,errors=0;
  try{
   const batch=await sourceItems(source,{stopAt:Math.min(stopAt-25_000,Date.now()+45_000)});fetched=batch.items.length;
-  if(!fetched&&!batch.complete)throw new Error('knowledge_no_items_check_parser');
+  // Persist an empty-page confirmation checkpoint before the next bounded run.
+  if(!fetched&&!batch.complete&&!batch.cursor?.emptyPageChecks)throw new Error('knowledge_no_items_check_parser');
   for(const item of batch.items){
    // Leave time to record progress; retain the cursor when the batch needs a retry.
    if(Date.now()>stopAt-8_000){errors++;break;}

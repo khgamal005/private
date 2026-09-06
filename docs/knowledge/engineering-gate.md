@@ -1,7 +1,7 @@
 # Knowledge Intelligence archive and synchronization
 
 Scope: ODEIR, `Marktonesa/marktone-platform-control`, base `0ce5785`.
-Production: `gswpbwdactcstkasddta`. User explicitly authorized deployment under the ODEIR engineering gate on 6 September 2026. Application changes from #208 and #210 are merged and live; source corrections are deployed in knowledge worker v16 and tracked in #211.
+Production: `gswpbwdactcstkasddta`. User explicitly authorized deployment under the ODEIR engineering gate on 6 September 2026. Application changes from #208 and #210 are merged and live; source corrections are deployed in knowledge worker v17 and tracked in #211.
 
 ## Baseline findings before deployment (6 September 2026)
 

@@ -5,7 +5,7 @@ import {
 } from '../../../../../lib/config';
 import {
   matchesBrowserState,sameOriginMutation,
-  safeCompletionPath,stateCookieName,stateDigest,trustedAuthorizeUrl
+  safeCompletionPath,stateCookieName,stateDigest,trustedAuthorizeUrl,publicRequestOrigin
 } from '../../../../../lib/social-connect-protocol.mjs';
 
 export const runtime='nodejs';
@@ -61,7 +61,7 @@ export async function POST(request,{params}){
     }
     if(action==='start'){
       const authorizeUrl=String(result.authorizeUrl||'');
-      const parsed=trustedAuthorizeUrl(authorizeUrl,new URL(request.url).origin);
+      const parsed=trustedAuthorizeUrl(authorizeUrl,publicRequestOrigin(request));
       const reply=json({ok:true,authorizeUrl,expiresIn:result.expiresIn});
       reply.cookies.set(stateCookieName(parsed.searchParams.get('state')),stateDigest(parsed.searchParams.get('state')),{
         httpOnly:true,secure:true,sameSite:'lax',path:'/',maxAge:600
@@ -82,13 +82,15 @@ export async function POST(request,{params}){
 export async function GET(request,{params}){
   if((await params).action!=='callback')return json({ok:false,error:'not_found'},404);
   const url=new URL(request.url);
+  const origin=publicRequestOrigin(request);
+  if(!origin)return json({ok:false,error:'forbidden'},403);
   const jar=await cookies();
   const state=url.searchParams.get('state')||'';
   const cookieName=stateCookieName(state);
   const browserMatches=Boolean(cookieName&&matchesBrowserState(state,jar.get(cookieName)?.value));
   const accessToken=jar.get(ACCESS_COOKIE)?.value||'';
   function finish(path){
-    const response=NextResponse.redirect(new URL(path,url.origin),303);
+    const response=NextResponse.redirect(new URL(path,origin),303);
     response.headers.set('cache-control','private, no-store, max-age=0');
     response.headers.set('referrer-policy','no-referrer');
     if(browserMatches)response.cookies.set(cookieName,'',{

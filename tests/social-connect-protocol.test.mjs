@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {matchesBrowserState,stateDigest,stateCookieName,sameOriginMutation,trustedAuthorizeUrl,
+import {matchesBrowserState,stateDigest,stateCookieName,sameOriginMutation,trustedAuthorizeUrl,publicRequestOrigin,
   safeCompletionPath} from '../lib/social-connect-protocol.mjs';
 
 test('OAuth callback requires the state of the initiating browser',()=>{
@@ -35,4 +35,17 @@ test('authorization cannot send code or browser state to another callback',()=>{
   assert.equal(safeCompletionPath('//attacker.example/path'),'/');
   assert.equal(safeCompletionPath('/tenant/demo/addons/social-connect?social_connect=connected'),
     '/tenant/demo/addons/social-connect?social_connect=connected');
+});
+
+test('Hostinger forwarding resolves only an approved HTTPS public origin',()=>{
+  const headers={origin:'https://odeir.com','x-forwarded-host':'odeir.com',
+    'x-forwarded-proto':'https','content-type':'application/json'};
+  const request=new Request('http://0.0.0.0:3000/api/tenant/social-connect/start',{headers});
+  assert.equal(publicRequestOrigin(request),'https://odeir.com');
+  assert.equal(sameOriginMutation(request),true);
+  for(const host of ['attacker.example','odeir.com,attacker.example','odeir.com:443']){
+    const invalid=new Request(request.url,{headers:{...headers,'x-forwarded-host':host}});
+    assert.equal(publicRequestOrigin(invalid),'');
+    assert.equal(sameOriginMutation(invalid),false);
+  }
 });

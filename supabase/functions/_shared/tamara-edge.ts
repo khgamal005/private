@@ -7,8 +7,8 @@ const url=Deno.env.get('SUPABASE_URL')!;
 const anon=Deno.env.get('SUPABASE_ANON_KEY')!;
 const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 function json(body:unknown,status=200){return new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});}
-function rpcClient(token:string){return async(name:string,body:unknown={})=>{
-  const response=await fetch(`${url}/rest/v1/rpc/${name}`,{method:'POST',redirect:'error',headers:{apikey:anon,Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
+function rpcClient(token:string,apiKey:string=anon){return async(name:string,body:unknown={})=>{
+  const response=await fetch(`${url}/rest/v1/rpc/${name}`,{method:'POST',redirect:'error',headers:{apikey:apiKey,Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
   if(!response.ok){await response.body?.cancel();throw new Error('tamara_rpc_'+response.status);}
   if(response.status===204)return null;
   return boundedJson(response,262144,10000);
@@ -19,7 +19,7 @@ async function authenticatedUser(token:string){
   const user=await boundedJson(response,32768,10000);
   return UUID.test(user?.id||'');
 }
-const rpc=rpcClient(service);
+const rpc=rpcClient(service,service);
 const provider=makeProvider();
 
 export async function checkout(request:Request){

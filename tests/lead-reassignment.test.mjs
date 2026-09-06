@@ -33,17 +33,19 @@ test('data officers can see every distribution screen and authorized roles can r
 });
 
 test('distribution log searches the complete tenant history by name or phone',async()=>{
-  const [component,migration,exportMigration,route]=await Promise.all([
+  const [component,migration,exportMigration,route,pageHook,pageRoute]=await Promise.all([
     read('components/lead-intake-workspace.js'),
     read(migrationPath),
     read(exportMigrationPath),
-    read('app/api/tenant/[action]/route.js')
+    read('app/api/tenant/[action]/route.js'),
+    read('components/use-lead-intake-page.js'),
+    read('app/api/tenant/lead-intake-page/route.js')
   ]);
 
   assert.match(component,/ابحث مباشرة باسم العميل أو رقم الهاتف/);
-  assert.match(component,/\/api\/tenant\/lead-assignment-search/);
-  assert.match(component,/p_query:search/);
-  assert.match(component,/جارٍ البحث في كامل السجل/);
+  assert.match(component,/useLeadIntakePage\(/);
+  assert.match(pageHook,/\/api\/tenant\/lead-intake-page/);
+  assert.match(pageRoute,/v1_tenant_lead_intake_page/);
   assert.match(route,/'lead-assignment-search':'v1_tenant_lead_assignment_search'/);
   assert.match(migration,/v1_tenant_lead_assignment_search/);
   assert.match(migration,/lower\(contact\.full_name\) like/);

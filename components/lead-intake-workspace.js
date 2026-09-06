@@ -8,6 +8,8 @@ import {
   leadIntakeDateBasis
 } from '../lib/assignment-metric-contract.mjs';
 import ReportExcelButton from './report-excel-button';
+import useLeadIntakePage from './use-lead-intake-page';
+import LeadIntakePagination from './lead-intake-pagination';
 
 const EMPTY=[];
 
@@ -369,12 +371,10 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   const [filters,setFilters]=useState(DEFAULT_FILTERS);
   const [query,setQuery]=useState('');
   const [assignmentQuery,setAssignmentQuery]=useState('');
-  const [assignmentSearchResults,setAssignmentSearchResults]=useState(null);
-  const [assignmentSearchBusy,setAssignmentSearchBusy]=useState(false);
-  const [assignmentSearchError,setAssignmentSearchError]=useState('');
-  const [selectedRows,setSelectedRows]=useState([]);
+  const [rowSelection,setRowSelection]=useState(null);
+  const [chosenBatch,setChosenBatch]=useState(null);
   const [selectedOrders,setSelectedOrders]=useState([]);
-  const [selectedAssignments,setSelectedAssignments]=useState([]);
+  const [assignmentSelection,setAssignmentSelection]=useState(null);
   const [orderAssignee,setOrderAssignee]=useState('');
   const [routingDraft,setRoutingDraft]=useState({
     mode:'queue',queueOwnerStaffId:'',slaMinutes:60
@@ -441,12 +441,6 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   const timeZone=data.timezone||'Asia/Riyadh';
   const dateBasis=leadIntakeDateBasis(tab);
 
-  const awaitingRows=useMemo(
-    ()=>rows.filter(row=>row.validationStatus==='valid'
-      &&row.queueStatus==='awaiting_distribution'),
-    [rows]
-  );
-
   const assignmentsByRow=useMemo(
     ()=>{
       const latest=new Map();
@@ -485,66 +479,44 @@ export default function LeadIntakeWorkspace({slug,initialData}){
     matchesAssignment(assignment,filters,timeZone)
   ),[assignments,filters,timeZone]);
 
-  const locallySearchedAssignments=useMemo(()=>{
-    const needle=normalizeHeader(assignmentQuery);
-    if(!needle)return filteredAssignments;
-    return filteredAssignments.filter(assignment=>normalizeHeader([
-      assignment.contactName,
-      assignment.phone
-    ].join(' ')).includes(needle));
-  },[filteredAssignments,assignmentQuery]);
+  const page=useLeadIntakePage({
+    slug,
+    section:['queue','assignments','batches'].includes(tab)?tab:null,
+    from:filters.from||null,to:filters.to||null,
+    quality:filters.quality==='all'?null:filters.quality,
+    source:filters.source==='all'?null:filters.source,
+    campaign:filters.campaign==='all'?null:filters.campaign,
+    query:tab==='assignments'?assignmentQuery.trim():tab==='queue'?query.trim():null,
+    batchId:tab==='queue'&&batchFilter!=='all'?batchFilter:null,
+    validation:tab==='queue'&&validationFilter!=='all'?validationFilter:null
+  },initialData);
+  const shownAssignments=tab==='assignments'?page.records:EMPTY;
+  const shownRows=tab==='queue'?page.records:EMPTY;
+  const shownBatches=tab==='batches'?page.records:EMPTY;
+  const batchOptions=[...new Map([
+    ...batches,
+    ...(chosenBatch?[chosenBatch]:[]),
+    ...shownRows.map(row=>({id:row.batchId,fileName:row.batchFileName,
+      source:row.source,campaignName:row.campaignName}))
+  ].map(batch=>[batch.id,batch])).values()];
 
-  const shownAssignments=assignmentQuery.trim()
-    &&assignmentSearchResults!==null
-    ?assignmentSearchResults
-    :locallySearchedAssignments;
-
-  const shownRows=useMemo(()=>rows.filter(row=>{
-    if(batchFilter!=='all'&&row.batchId!==batchFilter)return false;
-    if(validationFilter==='awaiting'){
-      if(row.queueStatus!=='awaiting_distribution')return false;
-    }else if(validationFilter!=='all'
-      &&row.validationStatus!==validationFilter){
-      return false;
-    }
-    const assignment=assignmentsByRow.get(row.id);
-    if(!matchesUniversal(
-      row,
-      [row.createdAt,assignment?.assignedAt,assignment?.firstActionAt],
-      filters,
-      assignmentQualities(assignment),
-      timeZone
-    ))return false;
-    const haystack=[
-      row.name,row.phone,row.whatsapp,row.email,row.programName,
-      row.source,row.campaignName,row.adName,row.batchFileName
-    ].join(' ').toLowerCase();
-    return haystack.includes(query.trim().toLowerCase());
-  }),[
-    rows,
-    batchFilter,
-    validationFilter,
-    query,
-    assignmentsByRow,
-    filters,
-    timeZone
-  ]);
-
-  const shownBatches=useMemo(()=>batches.filter(batch=>{
-    if(!matchesUniversal(
-      batch,
-      [batch.createdAt,batch.distributedAt],
-      {...filters,quality:'all'},
-      ['unrated'],
-      timeZone
-    ))return false;
-    if(filters.quality==='all')return true;
-    return rows.some(row=>{
-      if(row.batchId!==batch.id)return false;
-      return assignmentQualities(assignmentsByRow.get(row.id))
-        .includes(filters.quality);
-    });
-  }),[batches,rows,assignmentsByRow,filters,timeZone]);
+  // Bulk actions are always limited to the current, successfully loaded page.
+  const selectedRows=rowSelection?.key===page.selectionKey
+    &&rowSelection.token===shownRows
+    ?rowSelection.ids.filter(id=>shownRows.some(row=>row.id===id
+      &&row.validationStatus==='valid'&&row.queueStatus==='awaiting_distribution')):EMPTY;
+  const selectedAssignments=assignmentSelection?.key===page.selectionKey
+    &&assignmentSelection.token===shownAssignments
+    ?assignmentSelection.ids.filter(id=>shownAssignments.some(row=>row.id===id
+      &&row.status==='active')):EMPTY;
+  function setSelectedRows(update){
+    setRowSelection({key:page.selectionKey,token:shownRows,
+      ids:typeof update==='function'?update(selectedRows):update});
+  }
+  function setSelectedAssignments(update){
+    setAssignmentSelection({key:page.selectionKey,token:shownAssignments,
+      ids:typeof update==='function'?update(selectedAssignments):update});
+  }
 
   const shownCampaigns=useMemo(()=>{
     const needsRowLevel=Boolean(filters.from||filters.to)
@@ -610,63 +582,6 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   const selectableAssignments=shownAssignments.filter(
     assignment=>assignment.status==='active'
   );
-
-  useEffect(()=>{
-    const search=assignmentQuery.trim();
-    if(!search){
-      setAssignmentSearchResults(null);
-      setAssignmentSearchBusy(false);
-      setAssignmentSearchError('');
-      return undefined;
-    }
-
-    const controller=new AbortController();
-    const timer=setTimeout(async()=>{
-      setAssignmentSearchBusy(true);
-      setAssignmentSearchError('');
-      try{
-        const response=await fetch('/api/tenant/lead-assignment-search',{
-          method:'POST',
-          headers:{'content-type':'application/json'},
-          body:JSON.stringify({
-            p_slug:slug,
-            p_query:search,
-            p_from:filters.from||null,
-            p_to:filters.to||null,
-            p_quality:filters.quality==='all'?null:filters.quality,
-            p_source:filters.source==='all'?null:filters.source,
-            p_campaign:filters.campaign==='all'?null:filters.campaign,
-            p_limit:100
-          }),
-          signal:controller.signal
-        });
-        const result=await response.json();
-        if(!response.ok){
-          throw new Error(result.error||'تعذر البحث في سجل التوزيع');
-        }
-        setAssignmentSearchResults(result.data?.assignments||[]);
-      }catch(searchError){
-        if(searchError.name!=='AbortError'){
-          setAssignmentSearchError(searchError.message);
-        }
-      }finally{
-        if(!controller.signal.aborted)setAssignmentSearchBusy(false);
-      }
-    },250);
-
-    return ()=>{
-      clearTimeout(timer);
-      controller.abort();
-    };
-  },[
-    assignmentQuery,
-    filters.from,
-    filters.to,
-    filters.quality,
-    filters.source,
-    filters.campaign,
-    slug
-  ]);
 
   async function call(action,payload){
     const response=await fetch('/api/tenant/lead-intake',{
@@ -907,7 +822,6 @@ export default function LeadIntakeWorkspace({slug,initialData}){
         +'وإرسال الإشعارات وحفظ التغيير في سجل العملاء.'
       );
       setSelectedAssignments([]);
-      setAssignmentSearchResults(null);
       setModal(null);
       router.refresh();
     }catch(reassignmentError){
@@ -953,7 +867,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
       if(current.includes(row.id)){
         return current.filter(id=>id!==row.id);
       }
-      const selectedBatch=rows.find(item=>current.includes(item.id))?.batchId;
+      const selectedBatch=shownRows.find(item=>current.includes(item.id))?.batchId;
       if(selectedBatch&&selectedBatch!==row.batchId)return [row.id];
       return [...current,row.id];
     });
@@ -989,7 +903,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
     );
   }
 
-  const selectedBatchId=rows.find(
+  const selectedBatchId=shownRows.find(
     row=>selectedRows.includes(row.id)
   )?.batchId;
 
@@ -1230,6 +1144,15 @@ export default function LeadIntakeWorkspace({slug,initialData}){
       </div>
     </section>}
 
+    {page.enabled&&<>
+      <LeadIntakePagination page={page} section={tab}/>
+      {page.error&&<div className="mt-alert error" role="alert">
+        {page.error} <button type="button" className="mt-button" onClick={page.retry}>
+          إعادة المحاولة
+        </button>
+      </div>}
+    </>}
+
     {tab==='queue'&&<section className="mt-panel">
       <div className="mt-toolbar mt-lead-queue-toolbar">
         <input
@@ -1246,7 +1169,9 @@ export default function LeadIntakeWorkspace({slug,initialData}){
           }}
         >
           <option value="all">كل دفعات الرفع</option>
-          {batches.map(batch=><option key={batch.id} value={batch.id}>
+          {batchFilter!=='all'&&!batchOptions.some(batch=>batch.id===batchFilter)
+            &&<option value={batchFilter}>الدفعة المحددة</option>}
+          {batchOptions.map(batch=><option key={batch.id} value={batch.id}>
             {batch.fileName} — {batch.campaignName||batch.source}
           </option>)}
         </select>
@@ -1265,12 +1190,12 @@ export default function LeadIntakeWorkspace({slug,initialData}){
         </select>
       </div>
       <div className="mt-table-wrap">
-        <table className="mt-table mt-lead-queue-table">
+        <table className="mt-table mt-lead-queue-table" data-pagination="off">
           <thead><tr>
             <th>
               {viewer.canDistribute&&<input
                 type="checkbox"
-                aria-label="تحديد الصفوف الظاهرة"
+                aria-label="تحديد الصفوف الظاهرة في هذه الصفحة"
                 checked={Boolean(selectableRows.length)
                   &&selectableRows.every(row=>selectedRows.includes(row.id))}
                 onChange={toggleVisibleRows}
@@ -1331,7 +1256,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
             </tr>)}
           </tbody>
         </table>
-        {!shownRows.length&&<div className="mt-empty">لا توجد صفوف مطابقة للفلاتر الحالية.</div>}
+        {!shownRows.length&&!page.loading&&!page.error&&<div className="mt-empty">لا توجد صفوف مطابقة للفلاتر الحالية.</div>}
       </div>
     </section>}
 
@@ -1369,6 +1294,10 @@ export default function LeadIntakeWorkspace({slug,initialData}){
         <footer>
           <small>رفعها: {batch.importerName||'مستخدم النظام'}</small>
           <div>
+            <button className="mt-button" onClick={()=>{
+              setChosenBatch(batch);setBatchFilter(batch.id);
+              setQuery('');setValidationFilter('all');setTab('queue');
+            }}>عرض صفوف الدفعة</button>
             {viewer.canDistribute&&batch.awaitingRows>0&&<button
               className="mt-button primary"
               onClick={()=>openDistribution(batch.id)}
@@ -1383,7 +1312,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
           </div>
         </footer>
       </article>)}
-      {!shownBatches.length&&<div className="mt-empty">لا توجد دفعات مطابقة للفلاتر الحالية.</div>}
+      {!shownBatches.length&&!page.loading&&!page.error&&<div className="mt-empty">لا توجد دفعات مطابقة للفلاتر الحالية.</div>}
     </section>}
 
     {tab==='assignments'&&<section className="mt-panel">
@@ -1404,27 +1333,17 @@ export default function LeadIntakeWorkspace({slug,initialData}){
           value={assignmentQuery}
           onChange={event=>{
             setAssignmentQuery(event.target.value);
-            setAssignmentSearchResults(null);
             setSelectedAssignments([]);
           }}
         />
-        {assignmentSearchBusy&&<span className="mt-status warning">
-          جارٍ البحث في كامل السجل...
-        </span>}
-        {!assignmentSearchBusy&&assignmentQuery.trim()&&<span className="mt-status good">
-          {number(shownAssignments.length)} نتيجة
-        </span>}
       </div>
-      {assignmentSearchError&&<div className="mt-alert error">
-        {assignmentSearchError}
-      </div>}
       <div className="mt-table-wrap">
-        <table className="mt-table mt-lead-assignment-table">
+        <table className="mt-table mt-lead-assignment-table" data-pagination="off">
           <thead><tr>
             <th>
               {viewer.canReassign&&<input
                 type="checkbox"
-                aria-label="تحديد الإسنادات الحالية الظاهرة"
+                aria-label="تحديد الإسنادات الحالية في هذه الصفحة"
                 checked={Boolean(selectableAssignments.length)
                   &&selectableAssignments.every(assignment=>
                     selectedAssignments.includes(assignment.id)
@@ -1505,13 +1424,15 @@ export default function LeadIntakeWorkspace({slug,initialData}){
             </tr>)}
           </tbody>
         </table>
-        {!shownAssignments.length&&!assignmentSearchBusy&&<div className="mt-empty">
+        {!shownAssignments.length&&!page.loading&&!page.error&&<div className="mt-empty">
           {assignmentQuery.trim()
             ?'لا يوجد عميل مطابق للاسم أو رقم الهاتف.'
             :'لا توجد عمليات توزيع مطابقة للفلاتر الحالية.'}
         </div>}
       </div>
     </section>}
+
+    {page.enabled&&page.records.length>0&&<LeadIntakePagination page={page} section={tab}/>}
 
     {tab==='analytics'&&(viewer.canAnalytics||viewer.isDataOfficer)&&<section className="mt-panel">
       <div className="mt-panel-head">

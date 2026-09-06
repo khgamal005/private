@@ -4,7 +4,7 @@ import {minorUnits,money,verifiedOrder,checkoutUrl,verifiedNotification,boundedJ
 import {processClaim,makeProvider,validContact,selectPaymentType} from '../supabase/functions/_shared/tamara-runtime.mjs';
 import {tamaraGateway} from '../lib/tamara-gateway.mjs';
 const id='10000000-0000-4000-8000-000000000001',orderId='20000000-0000-4000-8000-000000000001';
-const snapshot={id,amount_minor:11500,subtotal_minor:10000,tax_minor:1500,discount_minor:0,currency:'SAR',slug:'fixture',order_number:'TEST-1',items:[{id:orderId,quantity:1,line_total_minor:10000,product_name_ar:'إضافة',product_key:'fixture'}]};
+const snapshot={id,amount_minor:11500,subtotal_minor:10000,tax_minor:1500,discount_minor:0,currency:'SAR',slug:'fixture',order_number:'TEST-1',items:[{id:orderId,quantity:1,unit_amount_minor:10000,line_total_minor:10000,product_name_ar:'إضافة',product_key:'fixture'}]};
 const contact={firstName:'Test',lastName:'Buyer',phone:'+966500000000',email:'test@example.test',city:'Riyadh',address:'Fixture address'};
 const body=status=>({order_id:orderId,order_reference_id:id,status,items:[{reference_id:orderId,sku:'fixture',quantity:1,total_amount:money(11500)}],total_amount:money(11500),captured_amount:money(status==='fully_captured'?11500:0),refunded_amount:money(0),canceled_amount:money(0)});
 const baseClaim={id,claim_token:orderId,environment:'sandbox',apiToken:'fixture-token',status:'prepared',snapshot};
@@ -71,4 +71,13 @@ test('server gateway rejects cross-origin, strips upstream secrets and verifies 
  const req=origin=>new Request('https://odeir.com/api/payments/tamara/checkout',{method:'POST',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify({slug:'fixture',orderId,contact})});
  assert.equal((await gateway(req('https://evil.test'),'checkout')).status,403);assert.equal(calls,0);
  const response=await gateway(req('https://odeir.com'),'checkout');const result=await response.json();assert.equal(result.checkoutUrl,null);assert.equal(result.apiToken,undefined);
+});
+
+test('undelivered services cancel only after the deadline and never replay an uncertain cancel',async()=>{
+ const c={...baseClaim,status:'authorised',provider_order_id:orderId,create_started_at:new Date(Date.now()-21*86400000).toISOString(),snapshot:{...snapshot,order_kind:'service',provider_order_id:orderId}};
+ let mutations=0,posts=0;
+ const rpc=async(name,args)=>{if(name==='v1_service_tamara_observe')return {status:'authorised'};if(name==='v1_service_tamara_mutation'){assert.equal(args.p_operation,'cancel');return ++mutations===1;}return true;};
+ const provider=async(_claim,path,payload)=>{if(payload){posts++;assert.match(path,/\/cancel$/);assert.deepEqual(payload.total_amount,money(11500));throw new Error('tamara_provider_unavailable');}return body('authorised');};
+ await processClaim(c,{rpc,provider});await processClaim(c,{rpc,provider});assert.equal(posts,1);
+ mutations=0;posts=0;await processClaim({...c,create_started_at:new Date().toISOString()},{rpc,provider});assert.equal(mutations,0);assert.equal(posts,0);
 });

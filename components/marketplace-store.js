@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import {useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import TamaraContactFields from './tamara-contact-fields';
 import styles from './marketplace-store.module.css';
 import MarketplacePromoCode from './marketplace-promo-code';
 import {
@@ -101,6 +102,9 @@ export default function MarketplaceStore({slug,initialData}){
   // `busy` renders asynchronously. This synchronous lock closes the tiny
   // double-tap window before the first checkout request leaves the browser.
   const paymobNavigationLock=useRef(false);
+  const tamaraNavigationLock=useRef(false);
+  const [tamaraContact,setTamaraContact]=useState({});
+  const [tamaraOrder,setTamaraOrder]=useState(null);
   const promotionsEnabled=slug!=='reef-skills';
   const data=initialData||{};
   const paymentMethods=data.paymentMethods||EMPTY;
@@ -228,6 +232,30 @@ export default function MarketplaceStore({slug,initialData}){
     }
   }
 
+  async function redirectToTamara(order){
+    if(tamaraNavigationLock.current)return true;
+    tamaraNavigationLock.current=true;
+    try{
+      const response=await fetch('/api/payments/tamara/checkout',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({slug,orderId:order.id,contact:tamaraContact})
+      });
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error||'تعذر فتح تمارا');
+      if(result.checkoutUrl){window.location.assign(result.checkoutUrl);return true;}
+      if(!result.attemptId)throw new Error('تعذر التحقق من محاولة الدفع');
+      router.push('/tenant/'+encodeURIComponent(slug)+'/payments/tamara/return?attempt='+encodeURIComponent(result.attemptId));
+      return true;
+    }catch(error){tamaraNavigationLock.current=false;throw error;}
+  }
+
+  async function continueTamara(event){
+    event.preventDefault();if(!tamaraOrder||busy)return;
+    setBusy('tamara');setError('');
+    try{await redirectToTamara(tamaraOrder);setTamaraOrder(null);}
+    catch(err){setError(err.message||'تعذر فتح تمارا');setBusy('');}
+  }
+
   async function createOrder(event){
     event.preventDefault();
     if(!checkout||busy||checkout.item.pricingMode==='quote'
@@ -272,6 +300,8 @@ export default function MarketplaceStore({slug,initialData}){
         setSenderName('');setTransferReference('');setTransferDate(today());
         setNotice('تم إنشاء طلب الخدمة '+(order.orderNumber||'')+'. أدخل بيانات التحويل لإرساله إلى المراجعة.');
         router.refresh();
+      }else if(order.paymentProvider==='tamara'){
+        navigating=await redirectToTamara(order);
       }else if(order.paymentProvider==='paymob'){
         navigating=await redirectToPaymob(order,checkout.paymentRequestKey);
       }else{
@@ -332,6 +362,7 @@ export default function MarketplaceStore({slug,initialData}){
   }
 
   function openPaymob(order){
+    setPaymentProvider('paymob');
     setPaymobOrder({order,paymentRequestKey:idempotencyKey()});
     setPaymentOption(defaultPaymobOption(paymentMethods));
 setError('');setNotice('');
@@ -343,6 +374,15 @@ setError('');setNotice('');
     setBusy('paymob-'+paymobOrder.order.id);setError('');setNotice('');
     let navigating=false;
     try{
+      if(paymentProvider!=='paymob'){
+        const response=await fetch('/api/tenant/service-marketplace',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({p_slug:slug,p_action:'replace_payment',p_payload:{orderId:paymobOrder.order.id,paymentProvider}})});
+        const result=await response.json();
+        if(!response.ok)throw new Error(result.error||'تعذر تغيير وسيلة الدفع');
+        setPaymobOrder(null);router.refresh();
+        if(result.data.paymentProvider==='bank_transfer')openTransfer(result.data);
+        else setTamaraOrder(result.data);
+        return;
+      }
       navigating=await redirectToPaymob(
         paymobOrder.order,
         paymobOrder.paymentRequestKey
@@ -518,7 +558,8 @@ setError('');setNotice('');
             disabled={Boolean(busy)}
             onClick={()=>openPaymob(order)}
           >{busy==='paymob-'+order.id?'جارٍ فتح الدفع…':'استكمال الدفع'}</button>}
-          {order.status==='pending_payment'&&order.paymentProvider!=='paymob'&&<button
+          {order.status==='pending_payment'&&order.paymentProvider==='tamara'&&<button type="button" disabled={Boolean(busy)} onClick={()=>setTamaraOrder(order)}>متابعة تمارا</button>}
+          {order.status==='pending_payment'&&order.paymentProvider!=='paymob'&&order.paymentProvider!=='tamara'&&<button
             type="button"
             className={styles.cancel}
             disabled={Boolean(busy)}
@@ -597,6 +638,7 @@ setError('');setNotice('');
 
         <PaymentMethodPicker methods={paymentMethods} value={paymentProvider}
           onChange={choosePaymentProvider}/>
+        {selectedMethod?.key==='tamara'&&<><TamaraContactFields value={tamaraContact} onChange={setTamaraContact}/><p>يُحصّل مبلغ الخدمة بعد تأكيد تسليمها من إدارة ماركتون. إذا تأخر التسليم عن مهلة الطلب فسيُلغى تفويض الدفع.</p></>}
         {selectedMethod?.key==='paymob'&&<PaymobOptionPicker
           paymentMethods={paymentMethods} value={paymentOption}
           onChange={setPaymentOption}/>}
@@ -629,7 +671,7 @@ setError('');setNotice('');
         <footer>
           <button type="button" onClick={()=>setCheckout(null)}>رجوع</button>
           <button type="submit" className={styles.primary} disabled={busy==='checkout'||!paymentMethods.length}>
-            {busy==='checkout'?'جارٍ إنشاء الطلب…':selectedMethod?.key==='paymob'?'المتابعة إلى الدفع الآمن':'تأكيد طلب الخدمة'}
+            {busy==='checkout'?'جارٍ إنشاء الطلب…':selectedMethod?.key==='tamara'?'المتابعة إلى تمارا':selectedMethod?.key==='paymob'?'المتابعة إلى الدفع الآمن':'تأكيد طلب الخدمة'}
           </button>
         </footer>
       </form>
@@ -653,14 +695,26 @@ setError('');setNotice('');
       </form>
     </div>}
 
+    {tamaraOrder&&<div className={styles.modalLayer}>
+      <button className={styles.backdrop} type="button" aria-label="إغلاق" onClick={()=>setTamaraOrder(null)}/>
+      <form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="tamara-resume-title" onSubmit={continueTamara}>
+        <header><h2 id="tamara-resume-title">متابعة الدفع مع تمارا</h2><button type="button" aria-label="إغلاق" onClick={()=>setTamaraOrder(null)}>×</button></header>
+        <p>سنستكمل نفس طلب الشراء {tamaraOrder.orderNumber}.</p>
+        <TamaraContactFields value={tamaraContact} onChange={setTamaraContact}/>
+        <footer><button type="button" onClick={()=>setTamaraOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={Boolean(busy)}>{busy==='tamara'?'جارٍ المتابعة…':'المتابعة إلى تمارا'}</button></footer>
+      </form>
+    </div>}
+
     {paymobOrder&&<div className={styles.modalLayer}>
       <button className={styles.backdrop} type="button" aria-label="إغلاق" onClick={()=>setPaymobOrder(null)}/>
       <form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="service-paymob-title" onSubmit={continuePaymob}>
-        <header><div><small>دفع خدمة عبر Paymob</small><h2 id="service-paymob-title">{paymobOrder.order.orderNumber||'طلب الخدمة'}</h2></div><button type="button" onClick={()=>setPaymobOrder(null)} aria-label="إغلاق">×</button></header>
-        <p>اختر وسيلة الدفع، ثم سننقلك مباشرة إلى Paymob. ستدخل بيانات الاتصال والبطاقة مرة واحدة فقط داخل صفحة Paymob الآمنة، ولا يبدأ تنفيذ الخدمة إلا بعد وصول التأكيد الموثق إلى أودير.</p>
-        <PaymobOptionPicker paymentMethods={paymentMethods}
-          value={paymentOption} onChange={setPaymentOption} compact/>
-        <footer><button type="button" onClick={()=>setPaymobOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={Boolean(busy)}>{busy==='paymob-'+paymobOrder.order.id?'جارٍ فتح الدفع…':'المتابعة إلى Paymob'}</button></footer>
+        <header><div><small>وسائل دفع الخدمة</small><h2 id="service-paymob-title">{paymobOrder.order.orderNumber||'طلب الخدمة'}</h2></div><button type="button" onClick={()=>setPaymobOrder(null)} aria-label="إغلاق">×</button></header>
+        <p>اختر وسيلة الدفع المناسبة. عند اختيار Paymob ستدخل بيانات الاتصال والبطاقة مرة واحدة فقط داخل صفحة Paymob الآمنة.</p>
+        <PaymentMethodPicker methods={paymentMethods} value={paymentProvider} onChange={choosePaymentProvider}/>
+        {paymentProvider!=='paymob'&&<p>سيتحقق أودير من انتهاء محاولة Paymob دون دفع، ثم ينشئ طلبًا مرتبطًا بالوسيلة المختارة مع حفظ سجل الطلب السابق.</p>}
+        {paymentProvider==='paymob'&&<PaymobOptionPicker paymentMethods={paymentMethods}
+          value={paymentOption} onChange={setPaymentOption} compact/>}
+        <footer><button type="button" onClick={()=>setPaymobOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={Boolean(busy)}>{busy==='paymob-'+paymobOrder.order.id?'جارٍ فتح الدفع…':paymentProvider==='paymob'?'المتابعة إلى Paymob':'اعتماد وسيلة الدفع المختارة'}</button></footer>
       </form>
     </div>}
   </section>;

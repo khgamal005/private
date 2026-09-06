@@ -74,30 +74,7 @@ export async function POST(request){
 }
 
 
-function promotionRpc(body){
-  const action=String(body.p_action||'');
-  const payload=body.p_payload&&typeof body.p_payload==='object'
-    &&!Array.isArray(body.p_payload)?body.p_payload:{};
-  if(action==='replace_payment'){return {name:'v1_tenant_marketplace_replace_payment',body:{p_slug:body.p_slug,p_payload:payload}};}
-  if(action==='create_service_order'&&payload.paymentProvider==='tamara'){return {name:'v1_tenant_tamara_service_create',body:{p_slug:body.p_slug,p_payload:payload}};}
-  if(action==='apply_promotion'||action==='remove_promotion'){
-    return {
-      name:'v1_tenant_marketplace_promotion_action',
-      body:{p_slug:body.p_slug,p_action:action,p_payload:payload}
-    };
-  }
-  if(action==='create_service_order'
-     &&String(payload.promotionCode||'').trim()){
-    return {
-      name:'v1_tenant_service_marketplace_create_order_with_promotion',
-      body:{p_slug:body.p_slug,p_payload:payload}
-    };
-  }
-  if(action==='submit_bank_transfer'){
-    return {name:'v2_tenant_marketplace_action',body};
-  }
-  return {name:'v2_tenant_service_marketplace_action',body};
-}
+function promotionRpc(body){return {name:'v1_platform_tamara_service_delivered',body:{p_order_id:body.p_payload?.orderId,p_reference:body.p_payload?.reference}};}
 
 async function readTextLimited(source,maxBytes){
   const contentLength=source.headers.get('content-length');
@@ -177,6 +154,8 @@ function translate(value){
   const messages={
     payment_replacement_requires_resolution:'توجد محاولة دفع تحتاج حسمًا قبل تغيير الوسيلة. تابع المطابقة أو تواصل مع الدعم برقم الطلب.',
     payment_replacement_price_changed:'تغيّر سعر المنتج؛ راجع الطلب مع الدعم قبل تغيير وسيلة الدفع.',
+    tamara_delivery_reference_required:'أدخل مرجعًا واضحًا لتأكيد تسليم الخدمة.',
+    tamara_delivery_window_closed:'لا يمكن تأكيد التحصيل في حالة الطلب الحالية؛ راجع حالة تمارا وموعد التسليم.',
     forbidden:'ليس لديك صلاحية لتنفيذ العملية',
     tenant_not_found:'المنشأة غير موجودة',
     marketplace_order_not_found:'طلب الشراء غير موجود',

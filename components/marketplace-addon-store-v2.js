@@ -281,6 +281,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   }
 
   function openPaymob(order){
+    setPaymentProvider('paymob');
     setPaymobOrder({order,paymentRequestKey:requestKey()});
     setPaymentOption(defaultPaymobOption(paymentMethods));
 setError('');setNotice('');
@@ -292,6 +293,15 @@ setError('');setNotice('');
     setBusy('paymob-'+paymobOrder.order.id);setError('');setNotice('');
     let navigating=false;
     try{
+      if(paymentProvider!=='paymob'){
+        const response=await fetch('/api/tenant/marketplace-v2',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({p_slug:slug,p_action:'replace_payment',p_payload:{orderId:paymobOrder.order.id,paymentProvider}})});
+        const result=await response.json();
+        if(!response.ok)throw new Error(result.error||'تعذر تغيير وسيلة الدفع');
+        setPaymobOrder(null);router.refresh();
+        if(result.data.paymentProvider==='bank_transfer')openTransfer(result.data);
+        else setTamaraOrder(result.data);
+        return;
+      }
       navigating=await redirectToPaymob(
         paymobOrder.order,
         paymobOrder.paymentRequestKey
@@ -474,10 +484,13 @@ setError('');setNotice('');
       <button className={styles.backdrop} type="button" aria-label="إغلاق" onClick={()=>setPaymobOrder(null)}/>
       <form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="addon-paymob-title" onSubmit={continuePaymob}>
         <header><div><small>دفع إلكتروني آمن</small><h2 id="addon-paymob-title">{paymobOrder.order.orderNumber||'طلب الإضافة'}</h2></div><button type="button" onClick={()=>setPaymobOrder(null)} aria-label="إغلاق">×</button></header>
-        <p>اختر وسيلة الدفع، ثم سننقلك مباشرة إلى Paymob. ستدخل بيانات الاتصال والبطاقة مرة واحدة فقط داخل صفحة Paymob الآمنة، ولا تُفعّل الإضافة إلا بعد وصول التأكيد الموثق إلى أودير.</p>
-        <PaymobOptionPicker paymentMethods={paymentMethods}
-          value={paymentOption} onChange={setPaymentOption} compact/>
-        <footer><button type="button" onClick={()=>setPaymobOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={Boolean(busy)}>{busy==='paymob-'+paymobOrder.order.id?'جارٍ فتح الدفع…':'المتابعة إلى Paymob'}</button></footer>
+        <p>اختر وسيلة الدفع المناسبة. يتأكد أودير من حالة الطلب قبل المتابعة، ولا تُفعّل الإضافة إلا بعد اعتماد الدفع.</p>
+        <PaymentMethodPicker methods={paymentMethods} value={paymentProvider} onChange={choosePaymentProvider}/>
+        {paymentProvider!=='paymob'&&<p>سيتحقق أودير من انتهاء محاولة Paymob دون دفع، ثم ينشئ طلبًا مرتبطًا بالوسيلة المختارة مع حفظ سجل الطلب السابق.</p>}
+        {paymentProvider==='paymob'&&<p>ستدخل بيانات الاتصال والبطاقة مرة واحدة فقط داخل صفحة Paymob الآمنة.</p>}
+        {paymentProvider==='paymob'&&<PaymobOptionPicker paymentMethods={paymentMethods}
+          value={paymentOption} onChange={setPaymentOption} compact/>}
+        <footer><button type="button" onClick={()=>setPaymobOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={Boolean(busy)}>{busy==='paymob-'+paymobOrder.order.id?'جارٍ فتح الدفع…':paymentProvider==='paymob'?'المتابعة إلى Paymob':'اعتماد وسيلة الدفع المختارة'}</button></footer>
       </form>
     </div>}
   </section>;

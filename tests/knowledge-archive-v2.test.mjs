@@ -27,6 +27,7 @@ test('missing images stay empty; HTML, RSS and JSON preserve real cover URLs',()
  assert.equal(streamed.image,'https://cdn.example.gov.sa/actual.jpg');
  assert.equal(streamed.publishedAt,'2026-01-25T21:00:00.000Z');
  assert.doesNotMatch(streamed.content,/خبر من القائمة|خبر ذو صلة/);
+ assert.equal(pageItem('<h1>خبر</h1><section><div class="prose"><p>&nbsp;</p><p>المقدمة الفعلية</p></div></section>','https://example.gov.sa/news/real').excerpt,'المقدمة الفعلية');
  const links=listingLinks({base_url:'https://example.gov.sa',parser_config:{linkPattern:'^/news/[^/]+$'}},'<a href="/news/1">1</a><a href="/news/1">كرر</a><a href="https://evil.test/news/2">آخر</a>','https://example.gov.sa/news');
  assert.deepEqual(links,['https://example.gov.sa/news/1']);
 });
@@ -149,4 +150,9 @@ test('bounded backfill advances beyond 200 items and detects repeated/empty page
  const repeated={...source,backfill_cursor:{enabled:true,page:1,offset:0,previousSignature:'15|https://example.gov.sa/news/0|https://example.gov.sa/news/14'}};
  const result=await sourceItems(repeated,{fetcher:raw=>fetcher(raw.replace('?page=1',''))});assert.equal(result.cursor.enabled,false);assert.equal(result.complete,true);
  const dry=await sourceItems({...source,backfill_cursor:{}},{dryRun:true,fetcher});assert.equal(dry.items.length,3);assert.equal(dry.cursor.enabled,false);
+ const transient={...source,backfill_cursor:{enabled:true,page:7,offset:0}};
+ const empty=await sourceItems(transient,{fetcher:async url=>({body:'<main></main>',type:'text/html',url})});
+ assert.equal(empty.cursor.enabled,true);assert.equal(empty.cursor.page,7);
+ const recovered=await sourceItems({...transient,backfill_cursor:empty.cursor},{fetcher});
+ assert.equal(recovered.items.length,12);assert.equal(recovered.cursor.emptyPageChecks,0);
 });

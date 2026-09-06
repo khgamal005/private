@@ -32,7 +32,8 @@ export function pageItem(html:string,url:string):Item{
  const article=section||main.match(/<article\b[\s\S]*?<\/article>/i)?.[0]||main||html.match(/<article\b[\s\S]*?<\/article>/i)?.[0]||'';
  const content=stripHtml(article);
  const generic=meta(html,'og:description')||meta(html,'description')||meta(html,'twitter:description');
- const excerpt=!section&&generic&&!/مركز مستقل تأسس|موقع حكومي رسمي|جميع الحقوق محفوظة/.test(generic)?generic:stripHtml(article.match(/<p\b[^>]*>[\s\S]*?<\/p>/i)?.[0]||'');
+ const paragraph=[...article.matchAll(/<p\b[^>]*>[\s\S]*?<\/p>/gi)].map(m=>stripHtml(m[0])).find(Boolean)||'';
+ const excerpt=!section&&generic&&!/مركز مستقل تأسس|موقع حكومي رسمي|جميع الحقوق محفوظة/.test(generic)?generic:paragraph;
  const image=imageIn(article,url)||normalizeUrl(meta(html,'og:image')||meta(html,'twitter:image'),url);
  const time=attr(html.match(/<time\b[^>]*>/i)?.[0]||'','datetime');
  return {externalId:url,url,title:stripHtml(tag(html,'h1')||meta(html,'og:title')||meta(html,'twitter:title')||tag(html,'title')),excerpt:stripHtml(excerpt).slice(0,800),content:content.slice(0,12000),image,publishedAt:dateValue(meta(html,'article:published_time')||meta(html,'datePublished')||time)||(section?visibleDate(section.split(/<p\b/i)[0]):undefined),payload:{format:'html',parser_version:'scoped-v2'}};

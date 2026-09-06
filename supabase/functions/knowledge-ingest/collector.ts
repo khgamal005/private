@@ -22,7 +22,13 @@ export async function sourceItems(source:Source,{dryRun=false,stopAt=Date.now()+
   return {items:items.slice(0,dryRun?3:40),cursor:{...cursor,enabled:false,completedAt:new Date().toISOString()},discovered:items.length};
  }
  const links=listingLinks(source,remote.body,remote.url);
- if(!links.length){if(backfill&&page>0)return {items:[],discovered:0,complete:true,cursor:{...cursor,enabled:false,completedAt:new Date().toISOString()}};throw new Error('knowledge_no_items_check_parser');}
+ if(!links.length){
+  if(backfill&&page>0){
+   const checks=Number(cursor.emptyPageChecks||0)+1;
+   return {items:[],discovered:0,complete:checks>=2,cursor:{...cursor,emptyPageChecks:checks,enabled:checks<2,...(checks>=2?{completedAt:new Date().toISOString(),reason:'empty_page_confirmed'}:{})}};
+  }
+  throw new Error('knowledge_no_items_check_parser');
+ }
  const signature=`${links.length}|${links[0]}|${links.at(-1)}`;
  if(backfill&&page>0&&!cursor.offset&&cursor.previousSignature===signature)return {items:[],discovered:links.length,complete:true,cursor:{...cursor,enabled:false,completedAt:new Date().toISOString(),reason:'pagination_not_advancing'}};
  const start=Math.max(0,Number(cursor.offset||0));
@@ -39,11 +45,10 @@ export async function sourceItems(source:Source,{dryRun=false,stopAt=Date.now()+
  const exhausted=offset>=links.length;
  const canPage=Boolean(config.paginationParam||next);
  const maxPages=Math.max(1,Math.min(Number(config.maxPages||25),100));
- return {items,discovered:links.length,cursor:{...cursor,
+ return {items,discovered:links.length,cursor:{...cursor,emptyPageChecks:0,
   page:exhausted?page+1:page,offset:exhausted?0:offset,previousSignature:exhausted?signature:cursor.previousSignature,
   nextUrl:exhausted?(next||null):cursor.nextUrl||null,
   enabled:backfill&&(!exhausted||(canPage&&page+1<maxPages)),
   ...(exhausted&&(!canPage||page+1>=maxPages)?{completedAt:new Date().toISOString()}:{}),
  }};
 }
-

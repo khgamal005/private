@@ -417,11 +417,22 @@ async function boundedText(request:Request){
   if(Number.isFinite(declared)&&declared>MAX_BODY_BYTES){
     throw new PublicError('payload_too_large');
   }
-  const raw=await request.text();
-  if(new TextEncoder().encode(raw).byteLength>MAX_BODY_BYTES){
-    throw new PublicError('payload_too_large');
-  }
-  return raw;
+  if(!request.body)return '';
+  const reader=request.body.getReader(),decoder=new TextDecoder();
+  let total=0,raw='';
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>MAX_BODY_BYTES){
+        await reader.cancel();
+        throw new PublicError('payload_too_large');
+      }
+      raw+=decoder.decode(value,{stream:true});
+    }
+    return raw+decoder.decode();
+  }finally{reader.releaseLock();}
 }
 
 function routeName(pathname:string){

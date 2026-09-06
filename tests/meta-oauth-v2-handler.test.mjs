@@ -48,6 +48,12 @@ test('OAuth handler enforces authenticated claims and rejects excessive grants',
       calls=[];const response=await handler(request('complete',{state:'a'.repeat(64),code:'code'},false));
       assert.equal(response.status,401);assert.equal(calls.length,0);
     });
+    await t.test('oversized undeclared request body is rejected before any RPC',async()=>{
+      calls=[];
+      const response=await handler(request('complete',{state:'a'.repeat(64),code:'x'.repeat(20_000)}));
+      assert.equal((await response.json()).error,'payload_too_large');
+      assert.equal(calls.length,0);
+    });
     await t.test('wrong actor is rejected before provider token exchange',async()=>{
       calls=[];claimAllowed=false;
       await handler(request('complete',{state:'a'.repeat(64),code:'code'}));

@@ -24,12 +24,12 @@ test('payment picker uses native mutually exclusive radios and local brand asset
  assert.ok(doc.querySelector('img[src="/payment-brands/tamara-ar.svg"]'));
  assert.ok(doc.querySelector('img[src="/payment-brands/visa.svg"]'));
  assert.ok(doc.querySelector('img[src="/payment-brands/mastercard.svg"]'));
- assert.equal(doc.querySelector('img[src="/payment-brands/apple-pay.svg"]'),null);
+ assert.equal(doc.querySelector('img[src="/payment-brands/apple-pay-v2.svg"]'),null);
 });
 test('Apple Pay is shown only for a server-supplied available option',()=>{
  const enabled=[methods[0],{...methods[1],paymentOptions:[{key:'card',name:'بطاقة'},{key:'apple_pay',name:'Apple Pay'}]},methods[2]];
  const doc=render(PaymentMethodPicker,{methods:enabled,value:'paymob',onChange(){}});
- assert.ok(doc.querySelector('img[src="/payment-brands/apple-pay.svg"]'));
+ assert.ok(doc.querySelector('img[src="/payment-brands/apple-pay-v2.svg"]'));
  const options=render(PaymobOptionPicker,{paymentMethods:enabled,value:'apple_pay',onChange(){}});
  assert.equal(options.querySelectorAll('input[type=radio]').length,2);
  assert.equal(options.querySelector('input:checked').value,'apple_pay');

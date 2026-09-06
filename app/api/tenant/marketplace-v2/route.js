@@ -83,6 +83,7 @@ function promotionRpc(body){
   if(action==='create_order'&&payload.paymentProvider==='tamara'){
     return {name:'v1_tenant_tamara_create_order',body:{p_slug:body.p_slug,p_payload:payload}};
   }
+  if(action==='replace_payment'){return {name:'v1_tenant_marketplace_replace_payment',body:{p_slug:body.p_slug,p_payload:payload}};}
   if(action==='apply_promotion'||action==='remove_promotion'){
     return {
       name:'v1_tenant_marketplace_promotion_action',
@@ -174,6 +175,8 @@ function safeUpstreamStatus(status){
 
 function translate(value){
   const messages={
+    payment_replacement_requires_resolution:'توجد محاولة دفع تحتاج حسمًا قبل تغيير الوسيلة. تابع المطابقة أو تواصل مع الدعم برقم الطلب.',
+    payment_replacement_price_changed:'تغيّر سعر المنتج؛ راجع الطلب مع الدعم قبل تغيير وسيلة الدفع.',
     forbidden:'ليس لديك صلاحية لإدارة اشتراكات المنشأة',
     tenant_not_found:'المنشأة غير موجودة',
     marketplace_product_not_found:'الإضافة غير متاحة حاليًا',

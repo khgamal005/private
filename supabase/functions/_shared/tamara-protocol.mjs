@@ -45,7 +45,7 @@ export function verifiedOrder(body, snapshot) {
       || !STATES.has(body.status)) return fail();
   if (!Array.isArray(body.items) || body.items.length !== 1 || !Array.isArray(snapshot.items)
       || snapshot.items.length !== 1 || body.items[0].reference_id !== snapshot.items[0].id
-      || body.items[0].sku !== snapshot.items[0].product_key || body.items[0].quantity !== 1
+      || body.items[0].sku !== snapshot.items[0].product_key || body.items[0].quantity !== snapshot.items[0].quantity
       || amount(body.items[0].total_amount) !== snapshot.amount_minor) return fail();
   const captured = amount(body.captured_amount);
   const refunded = amount(body.refunded_amount);
@@ -62,7 +62,7 @@ export function checkoutPayload(snapshot, contact, paymentType) {
   if (!UUID.test(snapshot.id) || snapshot.currency !== 'SAR'
       || snapshot.amount_minor !== snapshot.subtotal_minor + snapshot.tax_minor
       || !Array.isArray(snapshot.items) || snapshot.items.length !== 1
-      || snapshot.items[0].quantity !== 1 || !paymentType?.name) return fail();
+      || (!Number.isInteger(snapshot.items[0].quantity) || snapshot.items[0].quantity < 1 || snapshot.items[0].quantity > 100) || !paymentType?.name) return fail();
   const item = snapshot.items[0];
   if (item.line_total_minor - snapshot.discount_minor !== snapshot.subtotal_minor) return fail();
   const address = {first_name: contact.firstName, last_name: contact.lastName,
@@ -74,7 +74,7 @@ export function checkoutPayload(snapshot, contact, paymentType) {
     country_code: 'SA', payment_type: paymentType.name, locale: 'ar_SA',
     ...(paymentType.instalments ? {instalments: paymentType.instalments} : {}),
     items: [{reference_id: item.id, type: 'Digital', name: item.product_name_ar,
-      sku: item.product_key, quantity: 1, unit_price: money(item.line_total_minor),
+      sku: item.product_key, quantity: item.quantity, unit_price: money(item.unit_amount_minor),
       total_amount: money(snapshot.amount_minor), tax_amount: money(snapshot.tax_minor),
       discount_amount: money(snapshot.discount_minor)}],
     consumer: {first_name: contact.firstName, last_name: contact.lastName,

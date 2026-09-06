@@ -1,4 +1,4 @@
-import {TAMARA_API,boundedJson,checkoutUrl,checkoutPayload,capturePayload,verifiedOrder,minorUnits} from './tamara-protocol.mjs';
+import {TAMARA_API,boundedJson,checkoutUrl,checkoutPayload,capturePayload,verifiedOrder,minorUnits,money} from './tamara-protocol.mjs';
 
 export function validContact(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -74,7 +74,11 @@ export async function processClaim(claim,{rpc,provider,contact}) {
       ...args,p_evidence:evidence,p_sha256:await digest(order)
     });
     if (observed.stale) return observed;
-    if (observed.status === 'approved' && !claim.authorise_started_at) {
+    if (observed.status === 'authorised' && claim.snapshot.order_kind === 'service'
+        && Date.now() >= Date.parse(claim.create_started_at) + 20 * 86400000) {
+      const owns = await rpc('v1_service_tamara_mutation',{...args,p_operation:'cancel'});
+      if (owns) await provider(claim,`/orders/${evidence.providerOrderId}/cancel`,{total_amount:money(claim.snapshot.amount_minor)});
+    } else if (observed.status === 'approved' && !claim.authorise_started_at) {
       const owns = await rpc('v1_service_tamara_mutation',{...args,p_operation:'authorise'});
       if (owns) await provider(claim,`/orders/${evidence.providerOrderId}/authorise`,{order_id:evidence.providerOrderId});
     } else if (observed.status === 'provisioned' && !claim.capture_started_at) {

@@ -1,9 +1,9 @@
 # Knowledge Intelligence archive and synchronization
 
 Scope: ODEIR, `Marktonesa/marktone-platform-control`, base `0ce5785`.
-Production inspected read-only: `gswpbwdactcstkasddta`; deployed knowledge worker v11 matches the repository.
+Production: `gswpbwdactcstkasddta`. User explicitly authorized deployment under the ODEIR engineering gate on 6 September 2026. Application changes from #208 and #210 are merged and live; source corrections are deployed in knowledge worker v16 and tracked in #211.
 
-## Findings (6 September 2026)
+## Baseline findings before deployment (6 September 2026)
 
 - 23 published posts: 18 news/regulations and five expired tenders. Four archived and five rejected posts remain stored. No 200-post corpus exists yet.
 - Feed requests 60 rows, no page controls; expiry hides tenders; global metrics ignore tenant targeting. The REST fallback can bypass the selected tenant scope.
@@ -26,9 +26,9 @@ Proceed with additive, reversible development. Difficulty 7/10. Canonical entiti
 
 ## Release and rollback
 
-Implementation is authorized; production deployment is not requested in this turn. Keep schema SQL under `supabase/changes` for review, and record it through the deployment migration tool when releasing (CLI unavailable in this workspace). Apply `knowledge-archive-v2.sql`, then `knowledge-source-catalog-v2.sql`, then worker, then application; only afterward change the existing knowledge cron to every 15 minutes and activate verified sources. Preserve the current cron command and secret. Never enable the faster schedule against the old worker.
+Deployment was explicitly authorized in the follow-up request. Reviewed SQL remains under `supabase/changes`; the exact versions returned by Supabase are recorded under `supabase/migrations`: `20260906145458_knowledge_archive_v2`, `20260906145505_knowledge_source_catalog_v2`, and `20260906150527_knowledge_schedule_v2`. Schema and catalog were applied before the worker and application; the existing cron was changed only after the new worker was verified. The endpoint and Vault secret remain intact.
 
-The source catalog adds NIEPD and DGA as paused candidates without overwriting existing sources. The admin catalog also supplies corrected NeLC, HRSD and Monshaat settings, each requiring runtime verification before activation. TVTC TLS errors and Taqeem HTTP 403 still require provider-side resolution. Etimad remains manual until an authorized API integration is supplied.
+NeLC, HRSD and the newly added NIEPD passed real worker checks and ingested official materials. NeLC uses one-based pages and streamed article sections; the parser preserves the real article image and Arabic publication date. Historical collection confirms an empty page twice before ending, after a live page transiently returned an empty listing. HRSD's current public pagination repeats its first page, so historical collection stops safely while regular latest-page sync remains active. TVTC (TLS), Taqeem and DGA (403), and Monshaat (connection timeout) are paused with visible errors. Etimad remains manual until an authorized API integration is supplied. An additional Ministry of Education candidate was examined but not activated because its listing requires a separate integration.
 
 Rollback: pause the knowledge cron, restore application/worker versions, retain additive columns and all imported data. Do not undo by deleting posts. Reverting to the old UI restores its historical display limits; retain the database deletion guard.
 
@@ -41,5 +41,8 @@ Local SQL tests: 260+ records across pages, exact scoped counts, archived/reject
 - Production build succeeds on the unchanged project dependency versions (Next.js 16.3.0). Typecheck passes; scoped ESLint has no errors (one intentional standard `img` advisory for external source media).
 - 19 targeted tests pass, including real PostgreSQL execution via PGlite and actual React component interactions through JSDOM. Fixture: 267 visible posts; old/new role and tenant scopes checked; list payload about 26 KB for 24 cards with full article bodies deferred.
 - Historical collector test reaches 270 unique items through bounded 12-article batches, stops at exhaustion, and detects pagination endpoints that repeat the same page.
-- No production mutation was performed. Source runtime dry-runs and actual 250-material backfill are release checks, not completed imports.
-- Cloud browser rejected both local preview hostnames (`ERR_BLOCKED_BY_CLIENT`). Visual approval remains required; no desktop/mobile screenshot verification is claimed. Local component interaction tests provide behavioral coverage separately.
+- Production mutations are limited to shared knowledge schema, source settings, ingestion, editorial archive review and its schedule. No tenant/customer/financial records or Reef business data were changed. All 32 original material IDs remain in place; the original editorial publication states are preserved.
+- Live desktop browser verification in the authenticated Marktone tenant covered the expired-tender card (five materials), historical details, full-text search, source filtering, pagination and real image loading. No horizontal overflow was observed. Mobile behavior has component/CSS coverage; a mobile device visual inspection was not available.
+- All 26 NeLC records collected before the streamed-article correction were returned to review, then repaired from their canonical pages. Original raw extraction remains stored. Reviewed additions are published as archived news with source publication dates and historical-use guidance. Source text/date inconsistencies remain in review. The 250 target is a collection target, not a claimed published count; final live counts are recorded in the release PR and completion message.
+- Full GitHub quality checks passed on #208 and #210 and the #211 runtime changes. The latest scoped PostgreSQL/parser/network and React/review checks pass (14 combined). Source dates are displayed in Asia/Riyadh with the year visible on cards.
+- Post-deployment security advisor differences are the three expected authenticated SECURITY DEFINER RPC advisories for the new permission-checked tenant/admin functions. Anonymous access is revoked; ingestion RPCs remain service-only. No new unexpected advisor finding was observed.

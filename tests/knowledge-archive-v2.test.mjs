@@ -27,6 +27,7 @@ test('missing images stay empty; HTML, RSS and JSON preserve real cover URLs',()
  assert.equal(streamed.image,'https://cdn.example.gov.sa/actual.jpg');
  assert.equal(streamed.publishedAt,'2026-01-25T21:00:00.000Z');
  assert.doesNotMatch(streamed.content,/خبر من القائمة|خبر ذو صلة/);
+ assert.equal(pageItem('<h1>خبر</h1><section><div class="prose"><p>&nbsp;</p><p>المقدمة الفعلية</p></div></section>','https://example.gov.sa/news/real').excerpt,'المقدمة الفعلية');
  const links=listingLinks({base_url:'https://example.gov.sa',parser_config:{linkPattern:'^/news/[^/]+$'}},'<a href="/news/1">1</a><a href="/news/1">كرر</a><a href="https://evil.test/news/2">آخر</a>','https://example.gov.sa/news');
  assert.deepEqual(links,['https://example.gov.sa/news/1']);
 });

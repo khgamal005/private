@@ -91,7 +91,8 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.tamara-checkout]
-verify_jwt = true
+# Validate current ES256 sessions through Auth, then caller-scoped permission RPCs.
+verify_jwt = false
 
 [functions.tamara-webhook]
 # Native HS256 authentication is checked internally.
@@ -102,7 +103,8 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.tamara-setup]
-verify_jwt = true
+# Auth validates the session; the billing-admin RPC authorizes setup.
+verify_jwt = false
 
 
 [functions.meta-oauth-v2]

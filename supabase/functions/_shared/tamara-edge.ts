@@ -13,6 +13,12 @@ function rpcClient(token:string){return async(name:string,body:unknown={})=>{
   if(response.status===204)return null;
   return boundedJson(response,262144,10000);
 };}
+async function authenticatedUser(token:string){
+  const response=await fetch(`${url}/auth/v1/user`,{headers:{apikey:anon,Authorization:`Bearer ${token}`},redirect:'error',signal:AbortSignal.timeout(10000)});
+  if(!response.ok){await response.body?.cancel();return false;}
+  const user=await boundedJson(response,32768,10000);
+  return UUID.test(user?.id||'');
+}
 const rpc=rpcClient(service);
 const provider=makeProvider();
 
@@ -21,6 +27,7 @@ export async function checkout(request:Request){
   const token=request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
   if(!token)return json({error:'forbidden'},401);
   try{
+    if(!await authenticatedUser(token))return json({error:'forbidden'},401);
     const input=await boundedJson(request,8192,5000);
     if(!SLUG.test(input?.slug)||!UUID.test(input?.orderId))return json({error:'invalid_input'},400);
     const contact=validContact(input.contact);
@@ -73,6 +80,7 @@ export async function setup(request:Request){
   const token=request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
   if(!token)return json({error:'forbidden'},401);
   try{
+    if(!await authenticatedUser(token))return json({error:'forbidden'},401);
     const user=rpcClient(token);
     await user('v3_platform_payment_provider_admin_snapshot');
     const input=await boundedJson(request,2048,5000);

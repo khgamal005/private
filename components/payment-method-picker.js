@@ -56,7 +56,7 @@ export function PaymentMethodPicker({methods,value,onChange}){
           <input type="radio" name={group} value={method.key}
             checked={selected} onChange={()=>onChange(method.key)} required/>
           {method.key==='tamara'?<img className={styles.tamaraLogo} src="/payment-brands/tamara-ar.svg" alt="" width="100" height="44"/>:<i className={method.key==='paymob'?styles.paymobProviderMark:''}
-            aria-hidden="true">{method.key==='paymob'?'paymob':method.key==='bank_transfer'?'↔':'•'}</i>}
+            aria-hidden="true">{method.key==='paymob'?'paymob':method.key==='bank_transfer'?<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" focusable="false"><path d="m3 9 9-6 9 6H3Z"/><path d="M5 10v8m5-8v8m4-8v8m5-8v8M3 21h18M4 18h16"/></svg>:'•'}</i>}
           <span>
             <b>{method.name}</b>
             <small>{description}</small>

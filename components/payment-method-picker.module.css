@@ -30,3 +30,23 @@
 .result{max-width:520px;margin:48px auto;padding:32px;display:grid;justify-items:center;gap:18px;text-align:center;border:1px solid #dce5ec;border-radius:24px;background:#fff;color:#233b4e}.result h1{font-size:24px;font-weight:600;margin:16px 0 10px}.result p{font-size:14px;line-height:1.9;color:#516578;margin:0}.result a,.result button{font:inherit;font-size:14px;border:1px solid #d4dfe7;border-radius:12px;padding:12px 18px;color:#176b95;text-decoration:none;background:#fff;cursor:pointer;min-height:44px}.result .continue{background:#176b95;color:#fff}.success,.pending{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;margin:24px auto 0;background:#e9f6ef;color:#167149;font-size:26px}.pending{background:#f1f5f9;color:#516578}
 @media(max-width:420px){.paymentMethodOption,.paymentMethodSelected,.paymobOption,.paymobOptionSelected{padding:16px}.contact>div{grid-template-columns:1fr}.result{margin:20px 12px;padding:24px 18px}}
 @media(prefers-reduced-motion:reduce){.paymentMethodOption,.paymentMethodSelected,.paymobOption,.paymobOptionSelected{transition:none}}
+
+/* Keep the provider choices together, including in narrow checkout dialogs. */
+.paymentMethodGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.paymentMethodOption,.paymentMethodSelected{padding:12px;gap:8px;min-height:144px;border-radius:12px;grid-template-columns:minmax(0,1fr) 18px}
+.paymentMethodOption>em,.paymentMethodSelected>em{width:18px;height:18px}
+.paymentMethodOption>span,.paymentMethodSelected>span{gap:4px}
+.paymentMethodOption b,.paymentMethodSelected b{font-size:12px}
+.paymentMethodOption small,.paymentMethodSelected small{font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+.paymentMethodOption>.paymobProviderMark,.paymentMethodSelected>.paymobProviderMark{width:86px;max-width:100%;height:32px;font-size:21px}
+.paymentMethodOption>i,.paymentMethodSelected>i{width:36px;height:32px}
+.tamaraLogo{width:86px;max-width:100%;height:32px}
+.paymentBrandStripCompact{gap:5px;margin-top:5px}
+.paymentBrandStripCompact img{width:27px;height:19px}
+.paymentBrandStripCompact img[src$="apple-pay-v2.svg"]{width:30px;height:20px}
+@media(max-width:420px){
+  .paymentMethodGrid{gap:6px}
+  .paymentMethodOption,.paymentMethodSelected{padding:8px;gap:6px}
+  .paymentMethodOption>.paymobProviderMark,.paymentMethodSelected>.paymobProviderMark{font-size:17px;letter-spacing:-.7px}
+  .paymentBrandStripCompact{gap:4px}
+}

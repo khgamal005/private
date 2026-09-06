@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  hmacSha256Hex,
   base64UrlEncode,
   normalizedGraphVersion,
   safeReturnUrl,
@@ -8,6 +9,13 @@ import {
   validReturnPath,
   verifySignedRequest
 } from '../supabase/functions/meta-oauth-v2/security.mjs';
+
+test('appsecret proof uses HMAC-SHA256 without exposing either input',async()=>{
+  assert.equal(
+    await hmacSha256Hex('access-token-value','app-secret-placeholder'),
+    '26414212a2ac727ce73771d67f04517547466b418a5ef6ee4beb90a0739795da'
+  );
+});
 
 async function signedRequest(payload,secret){
   const encodedPayload=base64UrlEncode(
@@ -91,4 +99,3 @@ test('pins a valid version and hashes state without echoing it',async()=>{
     'a6b030ed072d78a2caca42e89ea32156d2568ec2988a048d9b684ce1e71ecd3b'
   );
 });
-

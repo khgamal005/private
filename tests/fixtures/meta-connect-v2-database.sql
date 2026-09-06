@@ -76,8 +76,38 @@ create table catalog.addon_manifests(
   unique(product_id,manifest_version)
 );
 create table marketing_hub.connections(
-  id uuid primary key default gen_random_uuid(),tenant_id uuid,provider_key text,status text,
+  id uuid primary key default gen_random_uuid(),tenant_id uuid,provider_key text,
+  display_name text,status text default 'draft',frequency text default 'daily',
+  sync_lookback_days integer default 14,api_version text,configuration jsonb default '{}',
+  secret_refs jsonb default '{}',external_user_id text,token_expires_at timestamptz,
+  last_checked_at timestamptz,last_synced_at timestamptz,next_sync_at timestamptz,
+  last_error_code text,last_error_detail text,remote_metadata jsonb default '{}',
+  created_by_subject_id uuid,updated_by_subject_id uuid,
+  created_at timestamptz default now(),updated_at timestamptz default now(),
   unique(tenant_id,provider_key)
+);
+create function private_app.marketing_next_sync(text,timestamptz)
+returns timestamptz language sql stable as $$ select $2+interval '1 day' $$;
+create table marketing_hub.ad_accounts(
+  id uuid primary key default gen_random_uuid(),tenant_id uuid,connection_id uuid,
+  provider_key text,external_account_id text,name text,currency text default 'SAR',
+  timezone text,status text default 'active',is_selected boolean default true,
+  metadata jsonb default '{}',remote_updated_at timestamptz,last_synced_at timestamptz,
+  created_at timestamptz default now(),updated_at timestamptz default now(),
+  unique(connection_id,external_account_id)
+);
+create table marketing_hub.campaigns(
+  id uuid primary key default gen_random_uuid(),tenant_id uuid,ad_account_id uuid,
+  provider_key text,external_campaign_id text,name text,objective text,status text,
+  effective_status text,updated_at timestamptz default now()
+);
+create table marketing_hub.daily_metrics(
+  id uuid primary key default gen_random_uuid(),tenant_id uuid,ad_account_id uuid,
+  campaign_id uuid,provider_key text,metric_date date,entity_level text,
+  impressions bigint default 0,clicks bigint default 0,link_clicks bigint default 0,
+  spend_minor bigint default 0,platform_leads numeric default 0,
+  platform_conversions numeric default 0,platform_revenue_minor bigint default 0,
+  video_views bigint default 0
 );
 create table audit_log.events(
   id uuid primary key default gen_random_uuid(),tenant_id uuid,actor_subject_id uuid,
@@ -88,6 +118,8 @@ create function private_app.write_audit(text,text,text,uuid,jsonb) returns void 
   values($1,$2,$3,$4,$5);
 $$;
 create table vault.secrets(id uuid primary key default gen_random_uuid(),secret text,name text);
+create view vault.decrypted_secrets as
+select id,name,secret as decrypted_secret from vault.secrets;
 create function vault.create_secret(text,text,text,uuid) returns uuid language plpgsql as $$
 declare result uuid;begin
   insert into vault.secrets(secret,name) values($1,$2) returning id into result;

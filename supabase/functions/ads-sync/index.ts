@@ -453,8 +453,12 @@ Deno.serve(async request => {
     const authorized = asRecord(await rpcUser(
       config,
       token,
-      'v2_marketing_hub_authorize',
-      {p_tenant_slug: tenantSlug, p_provider: provider, p_action: action}
+      text(payload.source) === 'social_connect' && provider === 'meta'
+        ? 'v1_tenant_meta_connect_v2_authorize_sync'
+        : 'v2_marketing_hub_authorize',
+      text(payload.source) === 'social_connect' && provider === 'meta'
+        ? {p_tenant_slug: tenantSlug, p_action: action}
+        : {p_tenant_slug: tenantSlug, p_provider: provider, p_action: action}
     ));
     const connectionId = text(authorized?.connectionId);
     if (!connectionId) throw new AdsSyncError('marketing_authorization_failed', 403);

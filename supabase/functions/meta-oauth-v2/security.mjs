@@ -31,6 +31,21 @@ export async function sha256Hex(value){
     .join('');
 }
 
+export async function hmacSha256Hex(value,secret){
+  if(typeof value!=='string'||typeof secret!=='string'||secret.length<16){
+    throw new Error('invalid_hmac_input');
+  }
+  const key=await crypto.subtle.importKey(
+    'raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']
+  );
+  const signature=new Uint8Array(await crypto.subtle.sign(
+    'HMAC',key,encoder.encode(value)
+  ));
+  return Array.from(signature)
+    .map(byte=>byte.toString(16).padStart(2,'0'))
+    .join('');
+}
+
 export function randomHex(byteLength=32){
   if(!Number.isInteger(byteLength)||byteLength<16||byteLength>64){
     throw new Error('invalid_random_length');
@@ -122,4 +137,3 @@ export function normalizedGraphVersion(value){
   }
   return version;
 }
-

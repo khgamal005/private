@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
+  hmacSha256Hex,
   normalizedGraphVersion,
   randomHex,
   safeReturnUrl,
@@ -29,7 +30,9 @@ type OAuthContext={
 Deno.serve(async(request:Request)=>{
   const url=new URL(request.url);
   const route=routeName(url.pathname);
-  if(request.method==='OPTIONS'&&['start','disconnect','complete'].includes(route)){
+  if(request.method==='OPTIONS'&&[
+    'start','disconnect','complete','assets','select'
+  ].includes(route)){
     const origin=allowedOrigin(request);
     if(!origin)return json(403,{ok:false,error:'origin_not_allowed'});
     return new Response(null,{status:204,headers:corsHeaders(origin)});
@@ -39,7 +42,9 @@ Deno.serve(async(request:Request)=>{
     if(route==='health'&&request.method==='GET'){
       let configurationReady=false;
       try{runtimeConfig();configurationReady=true;}catch{/* No configuration values leave the server. */}
-      return json(200,{ok:true,phase:'oauth_only',configurationReady,analyticsReady:false});
+      return json(200,{
+        ok:true,phase:'ads_reporting',configurationReady,analyticsReady:true
+      });
     }
     if(route==='start'&&request.method==='POST')return await startOAuth(request);
     if(route==='disconnect'&&request.method==='POST'){
@@ -47,6 +52,12 @@ Deno.serve(async(request:Request)=>{
     }
     if(route==='complete'&&request.method==='POST'){
       return await completeOAuth(request);
+    }
+    if(route==='assets'&&request.method==='POST'){
+      return await discoverAssets(request);
+    }
+    if(route==='select'&&request.method==='POST'){
+      return await selectAsset(request);
     }
     if(route==='deauthorize'&&request.method==='POST'){
       return await processComplianceCallback(request,'deauthorization');
@@ -189,6 +200,165 @@ async function completeOAuth(request:Request){
     }
     return json(400,{ok:false,error:code});
   }
+}
+
+type AdsAuthorization={
+  tenantId:string;
+  connectionId:string;
+  actorSubjectId:string;
+};
+
+type TokenContext={accessToken:string};
+
+type AdAccount={
+  externalAccountId:string;
+  name:string;
+  currency:string;
+  timezone:string;
+  status:'active'|'inactive'|'closed'|'unknown';
+  accountStatus:number|null;
+  businessId:string;
+  businessName:string;
+};
+
+async function authorizeAdsRequest(
+  request:Request,
+  capability:'asset_discovery'|'account_selection'
+){
+  const config=runtimeConfig();
+  const origin=allowedOrigin(request);
+  if(request.headers.has('origin')&&!origin){
+    throw new PublicError('origin_not_allowed');
+  }
+  const authorization=request.headers.get('authorization')||'';
+  if(!authorization.startsWith('Bearer ')){
+    throw new PublicError('authentication_required');
+  }
+  const body=await boundedJson(request);
+  const tenantSlug=clean(body.tenantSlug,80);
+  if(!/^[a-z0-9][a-z0-9-]{1,79}$/.test(tenantSlug)){
+    throw new PublicError('invalid_tenant');
+  }
+  const authorized=await userRpc<AdsAuthorization>(
+    'v1_tenant_meta_connect_v2_authorize_ads_action',authorization,
+    {p_tenant_slug:tenantSlug,p_action:capability}
+  );
+  if(!authorized?.connectionId||!authorized?.actorSubjectId){
+    throw new PublicError('forbidden');
+  }
+  const token=await serviceRpc<TokenContext>(
+    'v1_service_meta_connect_v2_token_context',
+    {p_connection_id:authorized.connectionId}
+  );
+  if(clean(token?.accessToken,8192).length<32){
+    throw new PublicError('meta_connect_v2_reauthorization_required');
+  }
+  return {
+    config,origin,authorization,body,tenantSlug,authorized,
+    accessToken:token.accessToken
+  };
+}
+
+async function discoverAssets(request:Request){
+  const context=await authorizeAdsRequest(request,'asset_discovery');
+  const accounts=await fetchAdAccounts(context.accessToken,context.config);
+  return json(200,{ok:true,accounts},context.origin);
+}
+
+async function selectAsset(request:Request){
+  const context=await authorizeAdsRequest(request,'account_selection');
+  const requested=clean(context.body.externalAccountId,48).replace(/^act_/i,'');
+  if(!/^[0-9]{1,40}$/.test(requested)){
+    throw new PublicError('meta_connect_v2_account_invalid');
+  }
+  const accounts=await fetchAdAccounts(context.accessToken,context.config);
+  const selected=accounts.find(account=>account.externalAccountId===requested);
+  if(!selected)throw new PublicError('meta_connect_v2_account_not_available');
+  const result=await serviceRpc<JsonRecord>(
+    'v1_service_meta_connect_v2_bind_ad_account',{
+      p_connection_id:context.authorized.connectionId,
+      p_actor_subject_id:context.authorized.actorSubjectId,
+      p_account:selected
+    }
+  );
+  return json(200,{ok:true,...result},context.origin);
+}
+
+async function fetchAdAccounts(
+  accessToken:string,
+  config:RuntimeConfig
+):Promise<AdAccount[]>{
+  const proof=await hmacSha256Hex(accessToken,config.appSecret);
+  const accounts=new Map<string,AdAccount>();
+  let after='';
+  for(let page=0;page<10;page+=1){
+    const endpoint=new URL(
+      `https://graph.facebook.com/${config.graphVersion}/me/adaccounts`
+    );
+    endpoint.searchParams.set('fields',[
+      'id','name','currency','timezone_name','account_status'
+    ].join(','));
+    endpoint.searchParams.set('limit','100');
+    endpoint.searchParams.set('appsecret_proof',proof);
+    if(after)endpoint.searchParams.set('after',after);
+    const payload=await metaJson(endpoint,accessToken) as {
+      data?:unknown;
+      paging?:{cursors?:{after?:unknown}};
+    };
+    const rows=Array.isArray(payload.data)?payload.data:[];
+    for(const value of rows){
+      if(!value||Array.isArray(value)||typeof value!=='object')continue;
+      const row=value as Record<string,unknown>;
+      const id=clean(row.id,48).replace(/^act_/i,'');
+      const name=clean(row.name,240);
+      const currency=clean(row.currency,3).toUpperCase();
+      const timezone=clean(row.timezone_name,120);
+      const accountStatus=Number(row.account_status);
+      if(!/^[0-9]{1,40}$/.test(id)||!name||!/^[A-Z]{3}$/.test(currency))continue;
+      accounts.set(id,{
+        externalAccountId:id,name,currency,timezone,
+        status:accountStatus===1?'active':accountStatus===101?'closed':
+          Number.isFinite(accountStatus)?'inactive':'unknown',
+        accountStatus:Number.isFinite(accountStatus)?accountStatus:null,
+        businessId:'',businessName:''
+      });
+    }
+    const cursor=clean(payload.paging?.cursors?.after,512);
+    if(!cursor||rows.length===0)break;
+    after=cursor;
+  }
+  return Array.from(accounts.values()).sort((left,right)=>
+    left.name.localeCompare(right.name,'ar')
+  );
+}
+
+async function metaJson(endpoint:URL,accessToken:string):Promise<unknown>{
+  for(let attempt=0;attempt<3;attempt+=1){
+    const response=await fetch(endpoint,{
+      headers:{authorization:`Bearer ${accessToken}`,accept:'application/json'},
+      cache:'no-store',signal:AbortSignal.timeout(12_000),redirect:'error'
+    });
+    const declared=Number(response.headers.get('content-length')||0);
+    if(declared>2*1024*1024)throw new PublicError('meta_asset_discovery_failed');
+    const raw=await response.text();
+    if(new TextEncoder().encode(raw).byteLength>2*1024*1024){
+      throw new PublicError('meta_asset_discovery_failed');
+    }
+    let payload:unknown={};
+    try{payload=raw?JSON.parse(raw):{};}catch{
+      throw new PublicError('meta_asset_discovery_failed');
+    }
+    if(response.ok)return payload;
+    if(![429,500,502,503,504].includes(response.status)||attempt===2){
+      throw new PublicError(
+        [401,403].includes(response.status)
+          ?'meta_connect_v2_reauthorization_required'
+          :'meta_asset_discovery_failed'
+      );
+    }
+    await new Promise(resolve=>setTimeout(resolve,400*2**attempt));
+  }
+  throw new PublicError('meta_asset_discovery_failed');
 }
 
 async function exchangeCode(code:string,config:RuntimeConfig){
@@ -489,7 +659,12 @@ function databasePublicCode(message:string){
     'tenant_not_found','forbidden','addon_not_enabled',
     'meta_connect_v2_not_in_rollout','meta_connect_v2_oauth_disabled',
     'meta_connect_v2_callback_disabled','legacy_meta_connection_present',
-    'oauth_state_invalid_or_used','invalid_oauth_request'
+    'oauth_state_invalid_or_used','invalid_oauth_request',
+    'meta_connect_v2_action_invalid','meta_connect_v2_capability_disabled',
+    'meta_connect_v2_reauthorization_required',
+    'meta_connect_v2_credential_unavailable',
+    'meta_connect_v2_account_invalid','meta_connect_v2_account_not_available',
+    'marketing_connection_not_found'
   ]);
   return allowed.has(message)?message:'service_unavailable';
 }
@@ -498,7 +673,7 @@ function publicError(error:unknown){
   if(error instanceof PublicError)return error.code;
   if(error instanceof Error&&[
     'signed_request_invalid','invalid_return_path','invalid_return_origin',
-    'invalid_graph_version'
+    'invalid_graph_version','invalid_hmac_input'
   ].includes(error.message))return error.message;
   return 'service_unavailable';
 }

@@ -8,6 +8,9 @@ const migrationUrl=new URL(
   root
 );
 const edgeUrl=new URL('supabase/functions/meta-oauth-v2/index.ts',root);
+const reportingMigrationUrl=new URL(
+  'supabase/migrations/20260906120000_meta_connect_v2_ads_reporting.sql',root
+);
 
 test('migration is additive, tenant-gated, and fail-closed',async()=>{
   const sql=await readFile(migrationUrl,'utf8');
@@ -73,6 +76,30 @@ test('edge function protects every protocol boundary',async()=>{
   assert.doesNotMatch(source,/return\s+json\([^\n]*accessToken/);
 });
 
+test('ads reporting bridge remains read-only, V2-owned, and fail-closed',async()=>{
+  const [sql,edge,worker,adapter]=await Promise.all([
+    readFile(reportingMigrationUrl,'utf8'),
+    readFile(edgeUrl,'utf8'),
+    readFile(new URL('supabase/functions/ads-sync/index.ts',root),'utf8'),
+    readFile(new URL('supabase/functions/ads-sync/adapters/meta.ts',root),'utf8')
+  ]);
+  for(const pattern of [
+    /configuration ->> 'authSource'='meta_connect_v2'/,
+    /legacy_meta_connection_present/,
+    /v1_tenant_meta_connect_v2_authorize_ads_action/,
+    /v1_service_meta_connect_v2_token_context/,
+    /v1_service_meta_connect_v2_bind_ad_account/,
+    /entity_level='campaign'/,
+    /from public,anon,authenticated/
+  ])assert.match(sql,pattern);
+  assert.match(edge,/\/me\/adaccounts/);
+  assert.match(edge,/appsecret_proof/);
+  assert.match(worker,/v1_tenant_meta_connect_v2_authorize_sync/);
+  assert.match(adapter,/appSecretProof/);
+  assert.match(adapter,/configuration\(connection, 'authSource'\) !== 'meta_connect_v2'/);
+  assert.doesNotMatch(`${sql}\n${edge}`,/ads_management/);
+});
+
 test('public compliance pages and callback configuration are present',async()=>{
   const [privacy,terms,deletion,config,layout]=await Promise.all([
     readFile(new URL('app/privacy/page.js',root),'utf8'),
@@ -99,7 +126,8 @@ test('private add-on UI uses its own server gateway and never calls legacy save'
   assert.match(page,/requireTenantPermission\(slug,'tenant\.meta_connect\.read'\)/);
   assert.match(page,/v1_tenant_meta_connect_v2_snapshot/);
   assert.match(component,/legacyProtected/);
-  assert.match(route,/\/functions\/v1\/meta-oauth-v2\/\$\{action\}/);
+  assert.match(route,/functionName=action==='sync'\?'ads-sync':'meta-oauth-v2'/);
+  assert.match(route,/new Set\(\['start','disconnect','assets','select','sync'\]\)/);
   assert.match(route,/authorization:`Bearer \$\{accessToken\}`/);
   assert.doesNotMatch(`${page}\n${component}\n${route}`,/v3_tenant_marketing_hub_action/);
   assert.doesNotMatch(route,/SERVICE_ROLE|service_role/i);

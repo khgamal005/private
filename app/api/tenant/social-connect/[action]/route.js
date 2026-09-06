@@ -11,7 +11,7 @@ import {
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 
-const ACTIONS=new Set(['start','disconnect']);
+const ACTIONS=new Set(['start','disconnect','assets','select','sync']);
 
 function json(body,status=200){
   return NextResponse.json(body,{
@@ -40,9 +40,15 @@ export async function POST(request,{params}){
         tenantSlug,
         returnPath:`/tenant/${encodeURIComponent(tenantSlug)}/addons/social-connect`
       }
-      :{tenantSlug};
+      :action==='select'
+        ?{tenantSlug,externalAccountId:String(body.externalAccountId||'').trim()}
+        :action==='sync'
+          ?{tenantSlug,provider:'meta',action:'sync_now',source:'social_connect'}
+          :{tenantSlug};
+    const functionName=action==='sync'?'ads-sync':'meta-oauth-v2';
+    const functionRoute=action==='sync'?'':`/${action}`;
     const response=await fetch(
-      `${SUPABASE_URL}/functions/v1/meta-oauth-v2/${action}`,
+      `${SUPABASE_URL}/functions/v1/${functionName}${functionRoute}`,
       {
         method:'POST',
         headers:{
@@ -52,7 +58,7 @@ export async function POST(request,{params}){
         },
         body:JSON.stringify(edgeBody),
         cache:'no-store',
-        signal:AbortSignal.timeout(10_000)
+        signal:AbortSignal.timeout(action==='sync'?60_000:15_000)
       }
     );
     const result=await response.json().catch(()=>({}));
@@ -68,6 +74,11 @@ export async function POST(request,{params}){
       });
       return reply;
     }
+    if(action==='assets')return json({ok:true,accounts:result.accounts||[]});
+    if(action==='select')return json({ok:true,
+      status:result.status,externalAccountId:result.externalAccountId
+    });
+    if(action==='sync')return json({ok:true,status:result.status,stats:result.stats||{}});
     return json({ok:true,status:result.status});
   }catch(error){
     console.error('[social-connect-v2-route]',
@@ -124,6 +135,12 @@ function publicError(code){
     'authentication_required','forbidden','addon_not_enabled',
     'meta_connect_v2_not_in_rollout','meta_connect_v2_oauth_disabled',
     'legacy_meta_connection_present','service_unavailable'
+    ,'meta_connect_v2_capability_disabled',
+    'meta_connect_v2_reauthorization_required',
+    'meta_connect_v2_account_invalid',
+    'meta_connect_v2_account_not_available',
+    'meta_asset_discovery_failed','marketing_connection_not_found',
+    'marketing_sync_range_invalid','marketing_configuration_invalid'
   ]);
   return allowed.has(code)?code:'request_rejected';
 }

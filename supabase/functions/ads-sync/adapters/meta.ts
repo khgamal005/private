@@ -37,16 +37,43 @@ function headers(connection: MarketingConnection) {
   return {authorization: `Bearer ${secret(connection, 'accessToken')}`};
 }
 
+async function appSecretProof(connection: MarketingConnection) {
+  if (configuration(connection, 'authSource') !== 'meta_connect_v2') return '';
+  const appSecret = Deno.env.get('META_CONNECT_V2_APP_SECRET')?.trim() || '';
+  const accessToken = secret(connection, 'accessToken');
+  if (appSecret.length < 16 || accessToken.length < 32) {
+    throw new Error('meta_appsecret_proof_unavailable');
+  }
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(appSecret),
+    {name: 'HMAC', hash: 'SHA-256'},
+    false,
+    ['sign']
+  );
+  const signature = new Uint8Array(await crypto.subtle.sign(
+    'HMAC',
+    key,
+    encoder.encode(accessToken)
+  ));
+  return Array.from(signature)
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 async function* graphPages(
   connection: MarketingConnection,
   path: string,
   parameters: Record<string, string | number>
 ): AsyncGenerator<{items: JsonRecord[]; page: number}> {
+  const proof = await appSecretProof(connection);
   let after = '';
   let page = 1;
   while (page <= 500) {
     const {data} = await remoteJson(queryUrl(`${base(connection)}${path}`, {
       ...parameters,
+      appsecret_proof: proof || null,
       limit: 500,
       after: after || null
     }), {headers: headers(connection)});
@@ -61,9 +88,13 @@ async function* graphPages(
 }
 
 async function test(connection: MarketingConnection): Promise<AccountIdentity> {
+  const proof = await appSecretProof(connection);
   const {data} = await remoteJson(queryUrl(
     `${base(connection)}/act_${accountId(connection)}`,
-    {fields: 'id,name,currency,timezone_name,account_status'}
+    {
+      fields: 'id,name,currency,timezone_name,account_status',
+      appsecret_proof: proof || null
+    }
   ), {headers: headers(connection)});
   const account = asRecord(data) || {};
   const externalAccountId = text(account.id).replace(/^act_/, '');

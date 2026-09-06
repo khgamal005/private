@@ -32,6 +32,20 @@ test('OAuth handler enforces authenticated claims and rejects excessive grants',
       if(url.pathname.endsWith('/debug_token'))return reply({data:{is_valid:true,type:'USER',app_id:'123456789',
         user_id:'123123123',scopes,expires_at:Math.floor(Date.now()/1000)+5184000}});
       if(url.pathname.endsWith('finalize_oauth'))return reply({status:'connected'});
+      if(url.pathname.endsWith('authorize_ads_action'))return reply({
+        tenantId:'tenant',connectionId:'connection',actorSubjectId:'actor'
+      });
+      if(url.pathname.endsWith('token_context'))return reply({
+        accessToken:'provider-token-'.repeat(4)
+      });
+      if(url.pathname.endsWith('/me/adaccounts'))return reply({data:[{
+        id:'act_123456789',name:'Demo Ads',currency:'SAR',
+        timezone_name:'Asia/Riyadh',account_status:1,
+        business:{id:'987',name:'Demo Business'}
+      }]});
+      if(url.pathname.endsWith('bind_ad_account'))return reply({
+        status:'selected',externalAccountId:'123456789'
+      });
       throw new Error('Unexpected request: '+url.pathname);
     };
     const request=(route,body,authorized=true)=>new Request('https://database.example/functions/v1/meta-oauth-v2/'+route,{
@@ -71,6 +85,23 @@ test('OAuth handler enforces authenticated claims and rejects excessive grants',
       const result=await response.text();
       assert.match(result,/social_connect=connected/);assert.doesNotMatch(result,/provider-token/);
       assert.equal(calls.filter(c=>c.url.pathname.endsWith('finalize_oauth')).length,1);
+    });
+    await t.test('account discovery never exposes the token and selection is server verified',async()=>{
+      calls=[];
+      const assets=await handler(request('assets',{tenantSlug:'demo'}));
+      const assetBody=await assets.json();
+      assert.equal(assetBody.accounts[0].externalAccountId,'123456789');
+      assert.doesNotMatch(JSON.stringify(assetBody),/provider-token/);
+      const metaCall=calls.find(c=>c.url.pathname.endsWith('/me/adaccounts'));
+      assert.match(metaCall.url.searchParams.get('appsecret_proof'),/^[a-f0-9]{64}$/);
+      assert.equal(metaCall.init.headers.authorization,'Bearer '+'provider-token-'.repeat(4));
+
+      calls=[];
+      const selected=await handler(request('select',{
+        tenantSlug:'demo',externalAccountId:'123456789'
+      }));
+      assert.equal((await selected.json()).status,'selected');
+      assert.equal(calls.some(c=>c.url.pathname.endsWith('bind_ad_account')),true);
     });
     await t.test('old public callback can no longer exchange a code',async()=>{
       calls=[];const response=await handler(new Request('https://database.example/functions/v1/meta-oauth-v2/oauth/callback?code=code&state='+'a'.repeat(64)));

@@ -46,14 +46,22 @@ async function connected(){const transaction=await start();await claim(transacti
 before(async()=>{
   await db.exec(await readFile(new URL('./fixtures/meta-connect-v2-database.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260825190000_meta_connect_v2_oauth_control_plane.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20260906120000_meta_connect_v2_ads_reporting.sql',import.meta.url),'utf8'));
   legacyBaseline=(await db.query('select * from marketing_hub.connections order by id')).rows;
 });
 after(async()=>{
-  assert.deepEqual((await db.query('select * from marketing_hub.connections order by id')).rows,legacyBaseline);
+  assert.deepEqual((await db.query(`select connection.*
+    from marketing_hub.connections connection
+    join core.tenants tenant on tenant.id=connection.tenant_id
+    where tenant.slug='legacy-fixture' order by connection.id`)).rows,legacyBaseline);
   await db.close();
 });
 beforeEach(async()=>{
   await db.exec(`
+    truncate marketing_hub.daily_metrics,marketing_hub.campaigns,
+      marketing_hub.ad_accounts;
+    delete from marketing_hub.connections
+      where configuration->>'authSource'='meta_connect_v2';
     truncate meta_connect_v2.deletion_requests,meta_connect_v2.callback_events,
       meta_connect_v2.credential_refs,meta_connect_v2.connections,
       meta_connect_v2.oauth_transactions,meta_connect_v2.rollout_targets,vault.secrets,audit_log.events;
@@ -190,4 +198,55 @@ test('SQL legacy Meta connection is rejected without changing its stored row',as
   await assert.rejects(start('legacy-fixture'),/legacy_meta_connection_present/);
   assert.deepEqual((await db.query('select * from marketing_hub.connections order by id')).rows,legacyBaseline);
   assert.equal(await scalar('select count(*)::integer from meta_connect_v2.oauth_transactions'),0);
+});
+
+test('SQL account selection creates an isolated read-only reporting bridge',async()=>{
+  await connected();await identity();
+  await db.exec("update meta_connect_v2.rollout_targets set capabilities=array['oauth','asset_discovery','account_selection','sync']");
+  const authorized=await scalar(
+    "select public.v1_tenant_meta_connect_v2_authorize_ads_action($1,$2)",
+    ['demo','account_selection']
+  );
+  await identity('','service_role');
+  const bound=await scalar(
+    'select public.v1_service_meta_connect_v2_bind_ad_account($1,$2,$3)',
+    [authorized.connectionId,authorized.actorSubjectId,JSON.stringify({
+      externalAccountId:'123456789',name:'Demo Ads',currency:'SAR',
+      timezone:'Asia/Riyadh',status:'active',accountStatus:1
+    })]
+  );
+  assert.equal(bound.status,'selected');
+  assert.equal(await scalar("select configuration->>'authSource' from marketing_hub.connections where tenant_id=$1",[tenant]),'meta_connect_v2');
+  assert.equal(await scalar("select configuration->>'accountId' from marketing_hub.connections where tenant_id=$1",[tenant]),'123456789');
+  assert.match(await scalar("select decrypted_secret from vault.decrypted_secrets limit 1"),/^fake-token/);
+
+  await identity();
+  const snapshot=await scalar('select public.v1_tenant_meta_connect_v2_snapshot($1)',['demo']);
+  assert.equal(snapshot.selectedAccount.externalAccountId,'123456789');
+  assert.equal(snapshot.legacyProtected,false);
+  const sync=await scalar(
+    'select public.v1_tenant_meta_connect_v2_authorize_sync($1,$2)',
+    ['demo','sync_now']
+  );
+  assert.equal(sync.connectionId,bound.marketingConnectionId);
+});
+
+test('SQL credential removal disables only the V2-owned reporting connection',async()=>{
+  await connected();await identity();
+  await db.exec("update meta_connect_v2.rollout_targets set capabilities=array['oauth','asset_discovery','account_selection','sync']");
+  const authorized=await scalar(
+    "select public.v1_tenant_meta_connect_v2_authorize_ads_action($1,$2)",
+    ['demo','account_selection']
+  );
+  await identity('','service_role');
+  await scalar('select public.v1_service_meta_connect_v2_bind_ad_account($1,$2,$3)',[
+    authorized.connectionId,authorized.actorSubjectId,JSON.stringify({
+      externalAccountId:'123456789',name:'Demo Ads',currency:'SAR',status:'active'
+    })
+  ]);
+  await identity();
+  await scalar('select public.v1_tenant_meta_connect_v2_disconnect($1)',['demo']);
+  assert.equal(await scalar('select status from marketing_hub.connections where tenant_id=$1',[tenant]),'disabled');
+  assert.deepEqual(await scalar('select secret_refs from marketing_hub.connections where tenant_id=$1',[tenant]),{});
+  assert.equal(await scalar("select status from marketing_hub.connections where tenant_id=(select id from core.tenants where slug='legacy-fixture')"),'reauth_required');
 });

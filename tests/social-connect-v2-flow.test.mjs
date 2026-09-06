@@ -55,6 +55,25 @@ test('network and invalid redirect failures release controls without navigation'
   }
 });
 
+test('selection sends only the tenant and chosen Meta account',async()=>{
+  let completed=false;
+  await runConnectionAction({
+    name:'select',slug:'example-center',payload:{externalAccountId:'123456789'},
+    fetcher:async(url,options)=>{
+      assert.equal(url,'/api/tenant/social-connect/select');
+      assert.deepEqual(JSON.parse(options.body),{
+        tenantSlug:'example-center',externalAccountId:'123456789'
+      });
+      return new Response(JSON.stringify({ok:true,status:'selected'}));
+    },
+    navigate(){assert.fail('selection must not navigate');},
+    onStart(){},onDisconnected(){assert.fail('selection must not disconnect');},
+    onSuccess(result){completed=result.status==='selected';},
+    onError:code=>assert.fail(code),onSettled(){}
+  });
+  assert.equal(completed,true);
+});
+
 test('either expired token or expired data access requires reauthorization',()=>{
   const now=Date.parse('2026-09-06T12:00:00Z');
   const future='2026-09-07T12:00:00Z';

@@ -5,12 +5,12 @@ import {readFile} from 'node:fs/promises';
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 
-test('knowledge API uses configured Supabase origin and resilient fallback',async()=>{
+test('knowledge API uses configured Supabase origin and tenant-scoped archive pagination',async()=>{
   const source=await read('app/api/knowledge/[action]/route.js');
   assert.match(source,/SUPABASE_URL[\s\S]*from '\.\.\/\.\.\/\.\.\/\.\.\/lib\/config'/);
   assert.doesNotMatch(source,/SUPABASE_URL\s*=.*\|\|\s*''/);
-  assert.match(source,/v2_tenant_knowledge_snapshot/);
-  assert.match(source,/warning:'يعمل القسم حاليًا بوضع القراءة الاحتياطي/);
+  assert.match(source,/v3_tenant_knowledge_snapshot/);
+  assert.doesNotMatch(source,/warning:'يعمل القسم حاليًا بوضع القراءة الاحتياطي/);
   assert.match(source,/validatePublicUrl/);
   assert.match(source,/preview-link/);
   assert.match(source,/source-toggle/);
@@ -67,11 +67,12 @@ test('ingestion worker authenticates, deduplicates, and requires HTTPS',async()=
   const review=await read('supabase/functions/knowledge-ingest/review.ts');
   assert.match(source,/knowledge_ingestion_validate_secret/);
   assert.match(source,/platformAccess\s*\|\|\s*context\?\.platform_access/);
-  assert.match(source,/knowledge_private_url_rejected/);
+  assert.match(await read('supabase/functions/knowledge-ingest/network.ts'),/knowledge_private_url_rejected/);
   assert.match(source,/SHA-256/);
-  assert.match(source,/knowledge_raw_items/);
+  assert.match(source,/knowledge_store_item/);
   assert.match(source,/source_fingerprint/);
   assert.match(source,/reviewForAutoPublish/);
   assert.match(review,/source\.requires_review/);
   assert.match(source,/duplicate_count/);
 });
+

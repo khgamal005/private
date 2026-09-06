@@ -101,7 +101,7 @@ test("publishes only an active official tender with a future deadline", () => {
   assert.equal(decision.tender?.deadline, "2026-08-11T09:00:00.000Z");
 });
 
-test("filters expired tenders before ingestion", () => {
+test("identifies expired tenders for archival review (without discarding them)", () => {
   const source = {
     name: "جهة حكومية — المنافسات",
     base_url: "https://example.gov.sa",
@@ -116,12 +116,15 @@ test("filters expired tenders before ingestion", () => {
   assert.equal(isInactiveTender(source, item, NOW), true);
 });
 
-test("daily scheduled runs do not drift behind next_sync_at", async () => {
+test("scheduled runs honor per-source due time and leases", async () => {
   const source = await readFile(
     new URL("../supabase/functions/knowledge-ingest/index.ts", import.meta.url),
     "utf8",
   );
-  assert.match(source, /trigger === "scheduled"/);
+  assert.match(source, /trigger==='scheduled'/);
+  assert.match(source, /next_sync_at.lte/);
+  assert.match(source, /knowledge_claim_source/);
   assert.match(source, /sync_frequency=neq\.manual/);
   assert.match(source, /setUTCHours\(3, 15, 0, 0\)/);
 });
+

@@ -11,7 +11,11 @@ export async function POST(request){
   const headers={apikey:SUPABASE_KEY,Authorization:`Bearer ${token}`,'Content-Type':'application/json'};
   async function call(path,body={}){
    const response=await fetch(`${SUPABASE_URL}/${path}`,{method:'POST',headers,body:JSON.stringify(body),cache:'no-store',redirect:'error',signal:AbortSignal.timeout(45000)});
-   if(!response.ok){await response.body?.cancel();throw new Error('runtime_unavailable');}
+   if(!response.ok){
+    let code='tamara_runtime_http_'+response.status;
+    try{const detail=await boundedJson(response,4096,5000);if(/^tamara_[a-z0-9_]{1,100}$/.test(detail?.error||''))code=detail.error;}catch{}
+    throw new Error(code);
+   }
    if(response.status===204)return null;
    return boundedJson(response,32768,10000);
   }
@@ -23,5 +27,5 @@ export async function POST(request){
    await call('rest/v1/rpc/v1_platform_tamara_rollout',{p_version_id:input.versionId,p_tenant_id:input.tenantId,p_enabled:input.enabled});
   }else if(input.action!=='snapshot')return json({error:'طلب غير صالح'},400);
   return json(await call('rest/v1/rpc/v1_platform_tamara_runtime_snapshot'));
- }catch{return json({error:'لم يكتمل تجهيز تمارا. تحقّق من حالة الربط قبل إعادة المحاولة.'},503);}
+ }catch(error){const code=/^tamara_[a-z0-9_]{1,100}$/.test(error?.message||'')?error.message:'tamara_runtime_unavailable';return json({error:'لم يكتمل تجهيز تمارا. تحقّق من حالة الربط قبل إعادة المحاولة.',code},503);}
 }

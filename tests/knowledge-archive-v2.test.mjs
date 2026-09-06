@@ -150,4 +150,9 @@ test('bounded backfill advances beyond 200 items and detects repeated/empty page
  const repeated={...source,backfill_cursor:{enabled:true,page:1,offset:0,previousSignature:'15|https://example.gov.sa/news/0|https://example.gov.sa/news/14'}};
  const result=await sourceItems(repeated,{fetcher:raw=>fetcher(raw.replace('?page=1',''))});assert.equal(result.cursor.enabled,false);assert.equal(result.complete,true);
  const dry=await sourceItems({...source,backfill_cursor:{}},{dryRun:true,fetcher});assert.equal(dry.items.length,3);assert.equal(dry.cursor.enabled,false);
+ const transient={...source,backfill_cursor:{enabled:true,page:7,offset:0}};
+ const empty=await sourceItems(transient,{fetcher:async url=>({body:'<main></main>',type:'text/html',url})});
+ assert.equal(empty.cursor.enabled,true);assert.equal(empty.cursor.page,7);
+ const recovered=await sourceItems({...transient,backfill_cursor:empty.cursor},{fetcher});
+ assert.equal(recovered.items.length,12);assert.equal(recovered.cursor.emptyPageChecks,0);
 });

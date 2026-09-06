@@ -12,16 +12,30 @@ function dateValue(value:string){const date=new Date(value||'');return Number.is
 export function meta(html:string,key:string){for(const match of html.matchAll(/<meta\b[^>]*>/gi)){if([attr(match[0],'property'),attr(match[0],'name')].includes(key))return attr(match[0],'content');}return '';}
 function imageIn(html:string,base:string){
  const image=html.match(/<img\b[^>]*>/i)?.[0]||'';
- return normalizeUrl(attr(image,'data-src')||attr(image,'src'),base);
+ const value=normalizeUrl(attr(image,'data-src')||attr(image,'src'),base);
+ if(value){const u=new URL(value);if(u.origin===new URL(base).origin&&u.pathname==='/_next/image')return normalizeUrl(u.searchParams.get('url')||'',base)||value;}
+ return value;
+}
+function visibleDate(html:string){
+ const value=stripHtml(html).replace(/[٠-٩]/g,n=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(n))).replace(/[\u200e\u200f\u061c]/g,'');
+ const match=value.match(/\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/);
+ if(!match)return undefined;
+ const [,day,month,year]=match;
+ return dateValue(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T00:00:00+03:00`);
 }
 export function pageItem(html:string,url:string):Item{
- const article=html.match(/<article\b[\s\S]*?<\/article>/i)?.[0]||html.match(/<main\b[\s\S]*?<\/main>/i)?.[0]||'';
+ // Streamed pages may put navigation cards before the real article outside an
+ // initially empty main element. Scope the prose section after the page heading.
+ const heading=html.search(/<h1\b/i);
+ const section=heading<0?'':[...html.slice(heading).matchAll(/<section\b[\s\S]*?<\/section>/gi)].map(m=>m[0]).find(s=>/class=["'][^"']*\bprose(?:\s|["'])/i.test(s))||'';
+ const main=html.match(/<main\b[\s\S]*?<\/main>/i)?.[0]||'';
+ const article=section||main.match(/<article\b[\s\S]*?<\/article>/i)?.[0]||main||html.match(/<article\b[\s\S]*?<\/article>/i)?.[0]||'';
  const content=stripHtml(article);
  const generic=meta(html,'og:description')||meta(html,'description')||meta(html,'twitter:description');
- const excerpt=generic&&!/مركز مستقل تأسس|موقع حكومي رسمي|جميع الحقوق محفوظة/.test(generic)?generic:stripHtml(article.match(/<p\b[^>]*>[\s\S]*?<\/p>/i)?.[0]||'');
- const image=normalizeUrl(meta(html,'og:image')||meta(html,'twitter:image'),url)||imageIn(article,url);
+ const excerpt=!section&&generic&&!/مركز مستقل تأسس|موقع حكومي رسمي|جميع الحقوق محفوظة/.test(generic)?generic:stripHtml(article.match(/<p\b[^>]*>[\s\S]*?<\/p>/i)?.[0]||'');
+ const image=imageIn(article,url)||normalizeUrl(meta(html,'og:image')||meta(html,'twitter:image'),url);
  const time=attr(html.match(/<time\b[^>]*>/i)?.[0]||'','datetime');
- return {externalId:url,url,title:stripHtml(meta(html,'og:title')||meta(html,'twitter:title')||tag(html,'h1')||tag(html,'title')),excerpt:stripHtml(excerpt).slice(0,800),content:content.slice(0,12000),image,publishedAt:dateValue(meta(html,'article:published_time')||meta(html,'datePublished')||time),payload:{format:'html'}};
+ return {externalId:url,url,title:stripHtml(tag(html,'h1')||meta(html,'og:title')||meta(html,'twitter:title')||tag(html,'title')),excerpt:stripHtml(excerpt).slice(0,800),content:content.slice(0,12000),image,publishedAt:dateValue(meta(html,'article:published_time')||meta(html,'datePublished')||time)||(section?visibleDate(section.split(/<p\b/i)[0]):undefined),payload:{format:'html',parser_version:'scoped-v2'}};
 }
 export function parseRss(xml:string,maxItems=40,base=''):Item[]{
  return [...xml.matchAll(/<(?:item|entry)\b[\s\S]*?<\/(?:item|entry)>/gi)].slice(0,maxItems).map(([block])=>{

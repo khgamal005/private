@@ -94,7 +94,11 @@ test('ads reporting bridge remains read-only, V2-owned, and fail-closed',async()
   ])assert.match(sql,pattern);
   assert.match(edge,/\/me\/adaccounts/);
   assert.match(edge,/appsecret_proof/);
-  assert.match(worker,/v1_tenant_meta_connect_v2_authorize_sync/);
+  assert.match(worker,/v1_tenant_meta_connect_v2_authorize_ads_action/);
+  assert.match(worker,/v1_service_meta_connect_v2_token_context/);
+  assert.match(worker,/authorized\?\.marketingConnectionId/);
+  assert.match(worker,/tokenContext\?\.tenantId\) !== current\.tenantId/);
+  assert.doesNotMatch(worker,/v1_tenant_meta_connect_v2_authorize_sync/);
   assert.match(adapter,/appSecretProof/);
   assert.match(adapter,/configuration\(connection, 'authSource'\) !== 'meta_connect_v2'/);
   assert.doesNotMatch(`${sql}\n${edge}`,/ads_management/);

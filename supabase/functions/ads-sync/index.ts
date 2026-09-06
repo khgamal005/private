@@ -371,13 +371,34 @@ async function synchronize(
 
 async function connectionConfiguration(
   config: ReturnType<typeof configuredKeys>,
-  connectionId: string
+  connectionId: string,
+  metaConnectV2ConnectionId = ''
 ) {
-  return connection(await rpcService(
+  const current = connection(await rpcService(
     config,
     'v2_marketing_hub_connection_configuration',
     {p_connection_id: connectionId}
   ));
+  if (!metaConnectV2ConnectionId) return current;
+
+  const tokenContext = asRecord(await rpcService(
+    config,
+    'v1_service_meta_connect_v2_token_context',
+    {p_connection_id: metaConnectV2ConnectionId}
+  ));
+  const accessToken = text(tokenContext?.accessToken);
+  if (
+    text(tokenContext?.connectionId) !== metaConnectV2ConnectionId
+    || text(tokenContext?.tenantId) !== current.tenantId
+    || accessToken.length < 32
+    || accessToken.length > 8192
+  ) {
+    throw new AdsSyncError('meta_connect_v2_credential_unavailable', 500);
+  }
+  return {
+    ...current,
+    secrets: {...current.secrets, accessToken}
+  };
 }
 
 async function dispatchDue(
@@ -450,19 +471,31 @@ Deno.serve(async request => {
       throw new AdsSyncError('invalid_marketing_request', 400);
     }
 
+    const socialConnect = text(payload.source) === 'social_connect' && provider === 'meta';
     const authorized = asRecord(await rpcUser(
       config,
       token,
-      text(payload.source) === 'social_connect' && provider === 'meta'
-        ? 'v1_tenant_meta_connect_v2_authorize_sync'
+      socialConnect
+        ? 'v1_tenant_meta_connect_v2_authorize_ads_action'
         : 'v2_marketing_hub_authorize',
-      text(payload.source) === 'social_connect' && provider === 'meta'
-        ? {p_tenant_slug: tenantSlug, p_action: action}
+      socialConnect
+        ? {p_tenant_slug: tenantSlug, p_action: 'sync'}
         : {p_tenant_slug: tenantSlug, p_provider: provider, p_action: action}
     ));
-    const connectionId = text(authorized?.connectionId);
-    if (!connectionId) throw new AdsSyncError('marketing_authorization_failed', 403);
-    const current = await connectionConfiguration(config, connectionId);
+    const connectionId = text(
+      socialConnect ? authorized?.marketingConnectionId : authorized?.connectionId
+    );
+    const metaConnectV2ConnectionId = socialConnect
+      ? text(authorized?.connectionId)
+      : '';
+    if (!connectionId || (socialConnect && !metaConnectV2ConnectionId)) {
+      throw new AdsSyncError('marketing_authorization_failed', 403);
+    }
+    const current = await connectionConfiguration(
+      config,
+      connectionId,
+      metaConnectV2ConnectionId
+    );
     const selected = adapter(provider);
     const account = await completeTest(config, current, selected);
     if (action === 'test_connection') {

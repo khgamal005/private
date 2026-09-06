@@ -1,0 +1,41 @@
+name: Clean temporary payment release artifacts
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/cleanup-payment-release-artifacts-20260906.yml
+permissions:
+  contents: write
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify persistent release evidence exists
+        run: |
+          set -euo pipefail
+          test -s docs/releases/2026-09-06-payments-finalized.json
+          grep -Fq 'paymobDeclineRecoveryReady' docs/releases/2026-09-06-payments-finalized.json
+          grep -Fq 'tamaraOnboardingReady' docs/releases/2026-09-06-payments-finalized.json
+      - name: Remove temporary workflows and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/cleanup-payment-release-artifacts-20260906.yml
+          rm -f .github/workflows/export-full-payment-context-20260906.yml
+          rm -f .github/workflows/_tmp_export_paymob_decline_context.yml
+          rm -f .github/workflows/export-payment-integration-context.yml
+          rm -f .github/workflows/finalize-payments-production-20260906.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'chore(payments): clean temporary release automation'
+          git push origin HEAD:main

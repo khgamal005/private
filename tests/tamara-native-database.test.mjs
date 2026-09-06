@@ -15,7 +15,7 @@ async function seed(db){
  await db.query(`select set_config('fixture.role','service_role',false),set_config('fixture.tenant',$1,false)`,[TENANT]);
  await db.query(`insert into core.tenants(id,organization_id,tenant_key,slug,name) values($1,$1,'test','tamara-fixture','Fixture'),($2,$2,'other','other-fixture','Other')`,[TENANT,OTHER]);
  const feature=(await db.query(`insert into catalog.features(feature_key,name_ar) values('module.fixture','Fixture') returning id`)).rows[0].id;
- const module=(await db.query(`insert into core.modules(module_key,name_ar) values('fixture','Fixture') returning id`)).rows[0].id;
+ const moduleId=(await db.query(`insert into core.modules(module_key,name_ar) values('fixture','Fixture') returning id`)).rows[0].id;
  const product=(await db.query(`insert into catalog.addon_products(product_key,feature_id,name_ar,usage_metric,interval,activation_mode) values('fixture',$1,'Fixture','none','year','module') returning id`,[feature])).rows[0].id;
  const secret=(await db.query(`insert into vault.secrets(secret,name) values('fixture-only','fixture') returning id`)).rows[0].id;
  const version=(await db.query(`insert into marketplace.tamara_credential_versions(environment,api_secret_id,notification_secret_id,source_rotated_at,webhook_id,enabled) values('sandbox',$1,$1,now(),$1,true) returning id`,[secret])).rows[0].id;
@@ -24,7 +24,7 @@ async function seed(db){
  const order=(await db.query(`insert into marketplace.orders(tenant_id,order_kind,payment_provider,subtotal_minor,list_subtotal_minor,tax_minor,total_minor,idempotency_key,activation_state) values($1,'addon','tamara',10000,10000,1500,11500,'fixture-order-key','pending') returning id`,[TENANT])).rows[0].id;
  await db.query(`insert into marketplace.order_items(order_id,item_type,addon_product_id,product_key,product_name_ar,unit_amount_minor,line_total_minor) values($1,'addon',$2,'fixture','Fixture',10000,10000)`,[order,product]);
  const prepared=(await db.query(`select public.v1_tenant_tamara_prepare('tamara-fixture',$1) value`,[order])).rows[0].value;
- return {order,product,module,version,id:prepared.attemptId};
+ return {order,product,moduleId,version,id:prepared.attemptId};
 }
 const claim=async(db,id)=>(await db.query('select public.v1_service_tamara_claim($1) value',[id])).rows[0].value;
 const observe=async(db,c,status,captured=0,refunded=0)=>(await db.query(`select public.v1_service_tamara_observe($1,$2,$3,$4) value`,[c.id,c.claim_token,{providerOrderId:PROVIDER_ORDER,status,capturedMinor:captured,refundedMinor:refunded,canceledMinor:0},(status==='authorised'?'a':status==='fully_captured'?'b':'c').repeat(64)])).rows[0].value;

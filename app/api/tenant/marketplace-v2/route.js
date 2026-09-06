@@ -80,6 +80,9 @@ function promotionRpc(body){
   const action=String(body.p_action||'');
   const payload=body.p_payload&&typeof body.p_payload==='object'
     &&!Array.isArray(body.p_payload)?body.p_payload:{};
+  if(action==='create_order'&&payload.paymentProvider==='tamara'){
+    return {name:'v1_tenant_tamara_create_order',body:{p_slug:body.p_slug,p_payload:payload}};
+  }
   if(action==='apply_promotion'||action==='remove_promotion'){
     return {
       name:'v1_tenant_marketplace_promotion_action',
@@ -220,3 +223,4 @@ function json(body,init={}){
     }
   });
 }
+

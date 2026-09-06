@@ -2,6 +2,7 @@
 
 import {useEffect,useRef,useState} from 'react';
 import styles from './tamara-setup-form.module.css';
+import TamaraRuntimeControl from './tamara-runtime-control';
 
 export default function TamaraSetupForm({item,busy,onClose,onSubmit}){
   // New account: the operator confirmed Live. Preserve an already stored
@@ -72,7 +73,7 @@ export default function TamaraSetupForm({item,busy,onClose,onSubmit}){
     </div>
     <aside className={styles.scope}>
       <b>إعداد مركزي لتحصيل مشتريات أودير</b>
-      <span>فحص الاتصال لا ينشئ طلبًا ولا يخصم مبلغًا. الدفع للمنشآت غير مفعّل في هذه المرحلة.</span>
+      <span>فحص الاتصال لا ينشئ طلبًا ولا يخصم مبلغًا. إتاحة الدفع تُدار بشكل مستقل لكل منشأة.</span>
     </aside>
     <fieldset disabled={saving}>
       <legend><span>١</span> حساب تمارا</legend>
@@ -121,6 +122,7 @@ export default function TamaraSetupForm({item,busy,onClose,onSubmit}){
     {!contractReady&&<p className={styles.error} role="alert">
       إعداد الربط المبسّط غير متاح بعد. يمكنك فحص المفتاح الآن، وسيُتاح الحفظ بعد اكتمال تحديث لوحة المنصة.
     </p>}
+    {configured.has('apiToken')&&configured.has('notificationToken')&&<TamaraRuntimeControl/>}
     <div className={styles.summary}>
       <span>طريقة الدفع <b>صفحة تمارا الآمنة</b></span>
       <span>العملة <b>SAR · ريال سعودي</b></span>
@@ -128,7 +130,7 @@ export default function TamaraSetupForm({item,busy,onClose,onSubmit}){
     <input type="hidden" name="checkout_mode" value="redirect"/>
     <input type="hidden" name="currencies" value="SAR"/>
     <input type="hidden" name="enabled" value="on"/>
-    <p className={styles.note}>حفظ الإعداد لا يفعّل التحصيل. يلزم اكتمال مسار الدفع والتحقق من الإشعارات قبل إتاحته للمشترين.</p>
+    <p className={styles.note}>حفظ الإعداد لا يفعّل التحصيل. استخدم إعداد تشغيل الدفع لإتاحته للمنشأة المطلوبة بعد التحقق.</p>
     <footer>
       <button type="button" onClick={onClose} disabled={saving}>إغلاق</button>
       <button type="submit" className={styles.primary}

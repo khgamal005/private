@@ -89,3 +89,18 @@ verify_jwt = false
 # Only an authenticated platform reviewer can enter this gateway. Canonical
 # database permission checks still run inside every user-scoped RPC.
 verify_jwt = true
+
+[functions.tamara-checkout]
+verify_jwt = true
+
+[functions.tamara-webhook]
+# Native HS256 authentication is checked internally.
+verify_jwt = false
+
+[functions.tamara-reconcile]
+# Dedicated Vault dispatcher token; service JWTs are checked through the RPC.
+verify_jwt = false
+
+[functions.tamara-setup]
+verify_jwt = true
+

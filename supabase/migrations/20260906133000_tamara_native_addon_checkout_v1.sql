@@ -195,7 +195,7 @@ begin
  if coalesce(auth.jwt()->>'role','')<>'service_role' then raise exception 'forbidden'; end if;
  select * into a from marketplace.tamara_attempts
  where (p_attempt_id is null or id=p_attempt_id) and (claim_until is null or claim_until<now())
- and (p_attempt_id is not null or next_check_at<=now()) and status not in ('cancelled','refunded')
+ and (p_attempt_id is not null or (next_check_at<=now() and status<>'prepared')) and status not in ('cancelled','refunded')
  order by next_check_at,id limit 1 for update skip locked;
  if a.id is null then return null; end if;
  select * into v from marketplace.tamara_credential_versions where id=a.version_id and revoked_at is null;

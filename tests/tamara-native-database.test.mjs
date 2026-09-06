@@ -47,6 +47,7 @@ test('tenant isolation and one attempt per canonical order',async()=>withFixture
  await assert.rejects(db.query(`select public.v1_tenant_tamara_status('other-fixture',$1)`,[f.id]),/marketplace_order_not_found/);
 }));
 test('claims fence workers and each financial POST is consumed once',async()=>withFixture(async(db,f)=>{
+ assert.equal((await db.query('select public.v1_service_tamara_claim() value')).rows[0].value,null);
  const c=await claim(db,f.id);assert.ok(c.claim_token);assert.equal(await claim(db,f.id),null);
  const mutate=()=>db.query(`select public.v1_service_tamara_mutation($1,$2,'create','{}') ok`,[f.id,c.claim_token]);
  assert.equal((await mutate()).rows[0].ok,true);assert.equal((await mutate()).rows[0].ok,false);

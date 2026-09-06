@@ -76,9 +76,9 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.paymob-reconcile]
-# Scheduled runs authenticate with a dedicated dispatcher secret; manual runs
-# require a platform billing administrator JWT, both rechecked in the function.
-verify_jwt = false
+# Scheduling is database-owned. This optional manual gateway requires a valid
+# caller JWT and delegates only to the platform.billing.manage RPC.
+verify_jwt = true
 
 [functions.odeir-registration-intake]
 # Public registration uses a server-to-server ingress token. The browser never
@@ -90,17 +90,17 @@ verify_jwt = false
 # database permission checks still run inside every user-scoped RPC.
 verify_jwt = true
 
-
 [functions.tamara-checkout]
 verify_jwt = true
 
 [functions.tamara-webhook]
-# Native Tamara HS256 token is verified internally; it is not a Supabase JWT.
+# Native HS256 authentication is checked internally.
 verify_jwt = false
 
 [functions.tamara-reconcile]
-# Dedicated dispatcher token is verified in Vault; manual service JWTs use RPC auth.
+# Dedicated Vault dispatcher token; service JWTs are checked through the RPC.
 verify_jwt = false
 
 [functions.tamara-setup]
 verify_jwt = true
+

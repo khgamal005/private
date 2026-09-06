@@ -21,6 +21,7 @@ test('missing images stay empty; HTML, RSS and JSON preserve real cover URLs',()
  assert.equal(parseRss(rss)[0].url,'https://example.gov.sa/news/2');
  assert.equal(parseJson({base_url:'https://example.gov.sa'},JSON.stringify([{url:'/a',title:'خبر',description:'<b>وصف</b>'}]))[0].image,'');
  assert.equal(nextListing('<a rel="next" href="?page=2">التالي</a>','https://example.gov.sa/news'),'https://example.gov.sa/news?page=2');
+ assert.equal(nextListing('<link rel="next" href="/news">','https://example.gov.sa/news'),'');
  const links=listingLinks({base_url:'https://example.gov.sa',parser_config:{linkPattern:'^/news/[^/]+$'}},'<a href="/news/1">1</a><a href="/news/1">كرر</a><a href="https://evil.test/news/2">آخر</a>','https://example.gov.sa/news');
  assert.deepEqual(links,['https://example.gov.sa/news/1']);
 });

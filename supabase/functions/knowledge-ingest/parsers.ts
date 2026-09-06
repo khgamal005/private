@@ -45,7 +45,7 @@ export function listingLinks(source:Source,html:string,listingUrl:string){
  return [...links].slice(0,500);
 }
 export function nextListing(html:string,url:string){
- for(const match of html.matchAll(/<(?:a|link)\b[^>]*>/gi)){if(attr(match[0],'rel').split(/\s+/).includes('next')){const next=normalizeUrl(attr(match[0],'href'),url);if(next&&new URL(next).origin===new URL(url).origin)return next;}}
+ for(const match of html.matchAll(/<(?:a|link)\b[^>]*>/gi)){if(attr(match[0],'rel').split(/\s+/).includes('next')){const next=normalizeUrl(attr(match[0],'href'),url);if(next&&next!==normalizeUrl(url)&&new URL(next).origin===new URL(url).origin)return next;}}
  return '';
 }
 function getPath(value:any,path:string){return path.split('.').filter(Boolean).reduce((v,k)=>v?.[k],value);}

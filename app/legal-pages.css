@@ -1,0 +1,163 @@
+.odeir-legal-page{
+  min-height:100vh;
+  padding:28px;
+  background:radial-gradient(circle at 12% 0,#eaf7f4 0,transparent 33%),linear-gradient(145deg,#f7fafc,#eef3f8);
+  color:#102e4f;
+}
+.odeir-legal-header{
+  width:min(1050px,100%);
+  margin:0 auto 22px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:20px;
+}
+.odeir-legal-brand{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  text-decoration:none;
+  color:#0c2d4d;
+  font-family:var(--font-latin);
+}
+.odeir-legal-brand span{
+  width:38px;
+  height:38px;
+  border-radius:12px;
+  display:grid;
+  place-items:center;
+  background:#0d355d;
+  color:#e2b94f;
+  font-weight:900;
+}
+.odeir-legal-brand b{letter-spacing:1.8px}
+.odeir-legal-header nav{display:flex;gap:8px;flex-wrap:wrap}
+.odeir-legal-header nav a{
+  padding:8px 11px;
+  border:1px solid #d9e3eb;
+  border-radius:99px;
+  background:#ffffffbf;
+  color:#36536f;
+  text-decoration:none;
+  font-size:12px;
+  font-weight:700;
+}
+.odeir-legal-card{
+  width:min(1050px,100%);
+  margin:auto;
+  border:1px solid #dbe5ec;
+  border-radius:26px;
+  background:#fff;
+  box-shadow:0 24px 70px #123a5a14;
+  overflow:hidden;
+}
+.odeir-legal-hero{
+  padding:54px 60px;
+  background:linear-gradient(135deg,#092846,#0f4668);
+  color:#fff;
+}
+.odeir-legal-hero small{color:#e4ba50;font-weight:800;letter-spacing:.7px}
+.odeir-legal-hero h1{
+  margin:10px 0 14px;
+  font-size:clamp(30px,5vw,48px);
+  line-height:1.25;
+}
+.odeir-legal-hero p{
+  max-width:760px;
+  margin:0;
+  color:#d3e2ec;
+  font-size:16px;
+  line-height:1.9;
+}
+.odeir-legal-hero time{
+  display:block;
+  margin-top:20px;
+  color:#a9c3d5;
+  font-size:11px;
+}
+.odeir-legal-notice{
+  margin:34px 60px 0;
+  padding:20px 22px;
+  border:1px solid #bddfce;
+  border-radius:16px;
+  background:#effaf4;
+}
+.odeir-legal-notice small,.odeir-legal-notice code,.odeir-legal-notice p{display:block}
+.odeir-legal-notice small{color:#39705a;font-weight:800}
+.odeir-legal-notice code{
+  width:max-content;
+  max-width:100%;
+  margin:9px 0;
+  padding:8px 11px;
+  border-radius:9px;
+  background:#fff;
+  color:#0d5137;
+  overflow-wrap:anywhere;
+  font-family:var(--font-latin);
+  font-weight:800;
+}
+.odeir-legal-notice p{margin:0;color:#527060;font-size:12px}
+.odeir-legal-sections{padding:38px 60px;display:grid;gap:10px}
+.odeir-legal-sections section{padding:22px 0;border-bottom:1px solid #e8edf1}
+.odeir-legal-sections section:last-child{border-bottom:0}
+.odeir-legal-sections h2,.odeir-legal-english h2{
+  margin:0 0 12px;
+  font-size:20px;
+}
+.odeir-legal-sections p,.odeir-legal-sections li,.odeir-legal-english p{
+  color:#4b6176;
+  font-size:14px;
+  line-height:2;
+}
+.odeir-legal-sections p{margin:8px 0}
+.odeir-legal-sections ul{
+  margin:10px 0;
+  padding-inline-start:22px;
+  display:grid;
+  gap:6px;
+}
+.odeir-legal-sections li::marker{color:#c2962d}
+.odeir-legal-english{
+  margin:0 60px 42px;
+  padding:28px;
+  border-radius:18px;
+  background:#f3f7fa;
+  border:1px solid #dfe7ed;
+  text-align:left;
+}
+.odeir-legal-english small{color:#9b7420;font-weight:900;letter-spacing:1px}
+.odeir-legal-english h2{margin-top:7px}
+.odeir-legal-english p{margin:8px 0}
+.odeir-legal-contact{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:24px 60px;
+  background:#f7f9fb;
+  border-top:1px solid #e4e9ed;
+}
+.odeir-legal-contact small,.odeir-legal-contact b{display:block}
+.odeir-legal-contact small{color:#718196;font-size:10px;margin-bottom:5px}
+.odeir-legal-contact a{
+  direction:ltr;
+  color:#0b5f83;
+  font-family:var(--font-latin);
+  font-weight:800;
+  text-decoration:none;
+}
+@media(max-width:720px){
+  .odeir-legal-page{padding:14px}
+  .odeir-legal-header{align-items:flex-start}
+  .odeir-legal-header nav{justify-content:flex-end}
+  .odeir-legal-hero,.odeir-legal-sections{padding:32px 24px}
+  .odeir-legal-notice{margin:24px 24px 0}
+  .odeir-legal-english{margin:0 24px 28px;padding:21px}
+  .odeir-legal-contact{
+    padding:22px 24px;
+    align-items:flex-start;
+    flex-direction:column;
+  }
+  .odeir-legal-hero p{font-size:14px}
+}
+

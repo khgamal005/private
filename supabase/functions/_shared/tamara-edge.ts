@@ -9,7 +9,7 @@ const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 function json(body:unknown,status=200){return new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});}
 function rpcClient(token:string){return async(name:string,body:unknown={})=>{
   const response=await fetch(`${url}/rest/v1/rpc/${name}`,{method:'POST',redirect:'error',headers:{apikey:anon,Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
-  if(!response.ok){await response.body?.cancel();throw new Error('tamara_rpc_failed');}
+  if(!response.ok){await response.body?.cancel();throw new Error('tamara_rpc_'+response.status);}
   if(response.status===204)return null;
   return boundedJson(response,262144,10000);
 };}
@@ -76,21 +76,26 @@ export async function reconcile(request:Request){
 }
 
 export async function setup(request:Request){
+  let stage='authentication';
   if(request.method!=='POST')return json({error:'method_not_allowed'},405);
   const token=request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
   if(!token)return json({error:'forbidden'},401);
   try{
     if(!await authenticatedUser(token))return json({error:'forbidden'},401);
+    stage='permission';
     const user=rpcClient(token);
     await user('v3_platform_payment_provider_admin_snapshot');
     const input=await boundedJson(request,2048,5000);
     const versionId=input.versionId;
     if(!UUID.test(versionId||''))return json({error:'invalid_input'},400);
+    stage='credentials';
     const version=await rpc('v1_service_tamara_version',{p_version_id:versionId});
     if(!version)return json({error:'tamara_version_not_found'},404);
     let webhookId=version.webhook_id;
     if(!webhookId){
+      stage='registration_claim';
       if(!await rpc('v1_service_tamara_claim_webhook',{p_version_id:versionId}))return json({error:'tamara_webhook_registration_pending'},409);
+      stage='registration';
       const registered=await provider(version,'/webhooks',{
         url:`${url}/functions/v1/tamara-webhook`,
         events:['order_approved','order_authorised','order_captured','order_refunded','order_canceled','order_declined','order_expired'],headers:{}
@@ -98,11 +103,14 @@ export async function setup(request:Request){
       webhookId=registered?.webhook_id;
       if(!UUID.test(webhookId||''))return json({error:'tamara_webhook_response_invalid'},502);
     }
+    stage='verification';
     const confirmed=await provider(version,`/webhooks/${webhookId}`);
     if(confirmed?.webhook_id!==webhookId||confirmed?.url!==`${url}/functions/v1/tamara-webhook`)
       return json({error:'tamara_webhook_binding_invalid'},502);
+    stage='binding';
     await rpc('v1_service_tamara_bind_webhook',{p_version_id:versionId,p_webhook_id:webhookId});
+    stage='scheduling';
     await rpc('v1_service_tamara_schedule');
     return json({versionId,webhookVerified:true,enabled:false});
-  }catch{return json({error:'tamara_setup_unavailable'},503);}
+  }catch(error){const status=String(error?.message||'').match(/^tamara_rpc_(\d{3})$/)?.[1];return json({error:`tamara_setup_${stage}_failed${status?'_'+status:''}`},503);}
 }

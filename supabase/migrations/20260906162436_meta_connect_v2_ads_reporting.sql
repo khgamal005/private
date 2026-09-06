@@ -17,7 +17,10 @@ $preflight$;
 alter table meta_connect_v2.connections
   add column if not exists marketing_connection_id uuid
     references marketing_hub.connections(id) on delete set null,
-  add column if not exists selected_external_account_id text,
+  add column if not exists selected_external_account_id text;
+alter table meta_connect_v2.connections
+  drop constraint if exists meta_connect_v2_selected_account_check;
+alter table meta_connect_v2.connections
   add constraint meta_connect_v2_selected_account_check
     check (
       selected_external_account_id is null
@@ -626,3 +629,4 @@ revoke execute on function public.v1_tenant_meta_connect_v2_snapshot(text)
 from public,anon,authenticated;
 grant execute on function public.v1_tenant_meta_connect_v2_snapshot(text)
 to authenticated;
+

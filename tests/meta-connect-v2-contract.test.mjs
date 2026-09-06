@@ -9,7 +9,7 @@ const migrationUrl=new URL(
 );
 const edgeUrl=new URL('supabase/functions/meta-oauth-v2/index.ts',root);
 const reportingMigrationUrl=new URL(
-  'supabase/migrations/20260906120000_meta_connect_v2_ads_reporting.sql',root
+  'supabase/migrations/20260906162436_meta_connect_v2_ads_reporting.sql',root
 );
 
 test('migration is additive, tenant-gated, and fail-closed',async()=>{

@@ -46,7 +46,7 @@ async function connected(){const transaction=await start();await claim(transacti
 before(async()=>{
   await db.exec(await readFile(new URL('./fixtures/meta-connect-v2-database.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260825190000_meta_connect_v2_oauth_control_plane.sql',import.meta.url),'utf8'));
-  await db.exec(await readFile(new URL('../supabase/migrations/20260906120000_meta_connect_v2_ads_reporting.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20260906162436_meta_connect_v2_ads_reporting.sql',import.meta.url),'utf8'));
   legacyBaseline=(await db.query('select * from marketing_hub.connections order by id')).rows;
 });
 after(async()=>{

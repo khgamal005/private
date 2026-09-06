@@ -11,6 +11,9 @@ const edgeUrl=new URL('supabase/functions/meta-oauth-v2/index.ts',root);
 const reportingMigrationUrl=new URL(
   'supabase/migrations/20260906162436_meta_connect_v2_ads_reporting.sql',root
 );
+const analyticsMigrationUrl=new URL(
+  'supabase/migrations/20260906180018_meta_connect_v2_ad_analytics.sql',root
+);
 
 test('migration is additive, tenant-gated, and fail-closed',async()=>{
   const sql=await readFile(migrationUrl,'utf8');
@@ -104,6 +107,32 @@ test('ads reporting bridge remains read-only, V2-owned, and fail-closed',async()
   assert.doesNotMatch(`${sql}\n${edge}`,/ads_management/);
 });
 
+test('ad analytics are date-bounded, tenant-authorized, searchable, and read-only',async()=>{
+  const [sql,adapter,component,route]=await Promise.all([
+    readFile(analyticsMigrationUrl,'utf8'),
+    readFile(new URL('supabase/functions/ads-sync/adapters/meta.ts',root),'utf8'),
+    readFile(new URL('components/social-connect-v2.js',root),'utf8'),
+    readFile(new URL('app/api/tenant/social-connect/[action]/route.js',root),'utf8')
+  ]);
+  for(const pattern of [
+    /v2_tenant_meta_connect_v2_report/,
+    /security definer/,
+    /set search_path=''/,
+    /v_to-v_from>92/,
+    /tenant\.meta_connect\.read/,
+    /addon\.integrations\.social_connect/,
+    /entity_level='ad'/,
+    /from public,anon,authenticated/
+  ])assert.match(sql,pattern);
+  assert.match(adapter,/\['campaign', 'ad'\] as const/);
+  assert.match(adapter,/level: entityLevel/);
+  assert.match(route,/dateFrom,dateTo/);
+  assert.match(component,/إعلان بعينه/);
+  assert.match(component,/الإعلانات الداخلية/);
+  assert.match(component,/تحميل\/تحديث هذه الفترة من Meta/);
+  assert.doesNotMatch(`${sql}\n${adapter}\n${route}\n${component}`,/ads_management/);
+});
+
 test('public compliance pages and callback configuration are present',async()=>{
   const [privacy,terms,deletion,config,layout]=await Promise.all([
     readFile(new URL('app/privacy/page.js',root),'utf8'),
@@ -129,6 +158,7 @@ test('private add-on UI uses its own server gateway and never calls legacy save'
   ]);
   assert.match(page,/requireTenantPermission\(slug,'tenant\.meta_connect\.read'\)/);
   assert.match(page,/v1_tenant_meta_connect_v2_snapshot/);
+  assert.match(page,/v2_tenant_meta_connect_v2_report/);
   assert.match(component,/legacyProtected/);
   assert.match(route,/functionName=action==='sync'\?'ads-sync':'meta-oauth-v2'/);
   assert.match(route,/new Set\(\['start','disconnect','assets','select','sync'\]\)/);

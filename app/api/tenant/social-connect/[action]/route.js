@@ -10,8 +10,10 @@ import {
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
+export const maxDuration=150;
 
 const ACTIONS=new Set(['start','disconnect','assets','select','sync']);
+const DATE_ONLY=/^\d{4}-\d{2}-\d{2}$/;
 
 function json(body,status=200){
   return NextResponse.json(body,{
@@ -35,6 +37,13 @@ export async function POST(request,{params}){
     if(!/^[a-z0-9][a-z0-9-]{1,79}$/.test(tenantSlug)){
       return json({ok:false,error:'invalid_tenant'},400);
     }
+    const dateFrom=String(body.dateFrom||'').trim();
+    const dateTo=String(body.dateTo||'').trim();
+    if(action==='sync'&&(
+      Boolean(dateFrom)!==Boolean(dateTo)
+      ||(dateFrom&&!DATE_ONLY.test(dateFrom))
+      ||(dateTo&&!DATE_ONLY.test(dateTo))
+    ))return json({ok:false,error:'marketing_sync_range_invalid'},400);
     const edgeBody=action==='start'
       ?{
         tenantSlug,
@@ -43,7 +52,10 @@ export async function POST(request,{params}){
       :action==='select'
         ?{tenantSlug,externalAccountId:String(body.externalAccountId||'').trim()}
         :action==='sync'
-          ?{tenantSlug,provider:'meta',action:'sync_now',source:'social_connect'}
+          ?{
+            tenantSlug,provider:'meta',action:'sync_now',source:'social_connect',
+            ...(dateFrom&&dateTo?{dateFrom,dateTo}:{})
+          }
           :{tenantSlug};
     const functionName=action==='sync'?'ads-sync':'meta-oauth-v2';
     const functionRoute=action==='sync'?'':`/${action}`;
@@ -58,7 +70,7 @@ export async function POST(request,{params}){
         },
         body:JSON.stringify(edgeBody),
         cache:'no-store',
-        signal:AbortSignal.timeout(action==='sync'?60_000:15_000)
+        signal:AbortSignal.timeout(action==='sync'?140_000:15_000)
       }
     );
     const result=await response.json().catch(()=>({}));

@@ -101,13 +101,25 @@ create table marketing_hub.campaigns(
   provider_key text,external_campaign_id text,name text,objective text,status text,
   effective_status text,updated_at timestamptz default now()
 );
+create table marketing_hub.ad_groups(
+  id uuid primary key default gen_random_uuid(),tenant_id uuid,ad_account_id uuid,
+  campaign_id uuid,provider_key text,external_ad_group_id text,name text,status text,
+  effective_status text,updated_at timestamptz default now()
+);
+create table marketing_hub.ads(
+  id uuid primary key default gen_random_uuid(),tenant_id uuid,ad_account_id uuid,
+  campaign_id uuid,ad_group_id uuid,provider_key text,external_ad_id text,
+  external_creative_id text,name text,status text,effective_status text,
+  updated_at timestamptz default now()
+);
 create table marketing_hub.daily_metrics(
   id uuid primary key default gen_random_uuid(),tenant_id uuid,ad_account_id uuid,
-  campaign_id uuid,provider_key text,metric_date date,entity_level text,
-  impressions bigint default 0,clicks bigint default 0,link_clicks bigint default 0,
+  campaign_id uuid,ad_group_id uuid,ad_id uuid,provider_key text,metric_date date,
+  entity_level text,external_entity_id text,breakdown_key text default '',currency text,
+  impressions bigint default 0,reach bigint default 0,clicks bigint default 0,link_clicks bigint default 0,
   spend_minor bigint default 0,platform_leads numeric default 0,
   platform_conversions numeric default 0,platform_revenue_minor bigint default 0,
-  video_views bigint default 0
+  video_views bigint default 0,raw_metrics jsonb default '{}'
 );
 create table audit_log.events(
   id uuid primary key default gen_random_uuid(),tenant_id uuid,actor_subject_id uuid,

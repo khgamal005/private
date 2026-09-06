@@ -42,12 +42,31 @@ async function callback(type='data_deletion',issuedAt=new Date().toISOString(),p
   ]);
 }
 async function connected(){const transaction=await start();await claim(transaction);await finalize(transaction);return transaction;}
+async function bindSelectedAccount(){
+  await connected();await identity();
+  await db.exec("update meta_connect_v2.rollout_targets set capabilities=array['oauth','asset_discovery','account_selection','sync']");
+  const authorized=await scalar(
+    "select public.v1_tenant_meta_connect_v2_authorize_ads_action($1,$2)",
+    ['demo','account_selection']
+  );
+  await identity('','service_role');
+  const bound=await scalar(
+    'select public.v1_service_meta_connect_v2_bind_ad_account($1,$2,$3)',
+    [authorized.connectionId,authorized.actorSubjectId,JSON.stringify({
+      externalAccountId:'123456789',name:'Demo Ads',currency:'SAR',
+      timezone:'Asia/Riyadh',status:'active',accountStatus:1
+    })]
+  );
+  await identity();
+  return bound;
+}
 
 before(async()=>{
   await db.exec(await readFile(new URL('./fixtures/meta-connect-v2-database.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260825190000_meta_connect_v2_oauth_control_plane.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260906162436_meta_connect_v2_ads_reporting.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260906165421_meta_connect_v2_account_selection_audit_context_fix.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20260906180018_meta_connect_v2_ad_analytics.sql',import.meta.url),'utf8'));
   legacyBaseline=(await db.query('select * from marketing_hub.connections order by id')).rows;
 });
 after(async()=>{
@@ -59,7 +78,7 @@ after(async()=>{
 });
 beforeEach(async()=>{
   await db.exec(`
-    truncate marketing_hub.daily_metrics,marketing_hub.campaigns,
+    truncate marketing_hub.daily_metrics,marketing_hub.ads,marketing_hub.ad_groups,marketing_hub.campaigns,
       marketing_hub.ad_accounts;
     delete from marketing_hub.connections
       where configuration->>'authSource'='meta_connect_v2';
@@ -233,6 +252,65 @@ test('SQL account selection creates an isolated read-only reporting bridge',asyn
     ['demo','sync_now']
   );
   assert.equal(sync.connectionId,bound.marketingConnectionId);
+});
+
+test('SQL ad report applies dates, search, status, campaign, analysis, and pagination',async()=>{
+  await bindSelectedAccount();
+  const account=await scalar('select id from marketing_hub.ad_accounts where tenant_id=$1',[tenant]);
+  const campaignA='61000000-0000-0000-0000-000000000001';
+  const campaignB='61000000-0000-0000-0000-000000000002';
+  const groupA='62000000-0000-0000-0000-000000000001';
+  const groupB='62000000-0000-0000-0000-000000000002';
+  const adA='63000000-0000-0000-0000-000000000001';
+  const adB='63000000-0000-0000-0000-000000000002';
+  await db.query(`insert into marketing_hub.campaigns
+    (id,tenant_id,ad_account_id,provider_key,external_campaign_id,name,objective,status,effective_status)
+    values($1,$2,$3,'meta','campaign-a','Leads Campaign','OUTCOME_LEADS','active','active'),
+      ($4,$2,$3,'meta','campaign-b','Awareness Campaign','OUTCOME_AWARENESS','paused','paused')`,
+    [campaignA,tenant,account,campaignB]);
+  await db.query(`insert into marketing_hub.ad_groups
+    (id,tenant_id,ad_account_id,campaign_id,provider_key,external_ad_group_id,name,status,effective_status)
+    values($1,$2,$3,$4,'meta','group-a','Main Audience','active','active'),
+      ($5,$2,$3,$6,'meta','group-b','Retargeting','paused','paused')`,
+    [groupA,tenant,account,campaignA,groupB,campaignB]);
+  await db.query(`insert into marketing_hub.ads
+    (id,tenant_id,ad_account_id,campaign_id,ad_group_id,provider_key,external_ad_id,name,status,effective_status)
+    values($1,$2,$3,$4,$5,'meta','ad-needle-101','Needle Creative','active','active'),
+      ($6,$2,$3,$7,$8,'meta','ad-202','Quiet Creative','paused','paused')`,
+    [adA,tenant,account,campaignA,groupA,adB,campaignB,groupB]);
+  await db.query(`insert into marketing_hub.daily_metrics
+    (tenant_id,ad_account_id,campaign_id,ad_group_id,ad_id,provider_key,metric_date,
+      entity_level,external_entity_id,currency,impressions,reach,clicks,spend_minor,
+      platform_conversions,platform_revenue_minor)
+    values($1,$2,$3,$4,$5,'meta','2026-09-01','ad','ad-needle-101','SAR',1000,800,50,10000,5,25000),
+      ($1,$2,$6,$7,$8,'meta','2026-09-02','ad','ad-202','SAR',200,180,2,5000,0,0)`,
+    [tenant,account,campaignA,groupA,adA,campaignB,groupB,adB]);
+
+  const all=await scalar(`select public.v2_tenant_meta_connect_v2_report(
+    'demo','2026-09-01','2026-09-02',null,null,'all',1,25)`);
+  assert.equal(all.filters.totalAds,2);
+  assert.equal(all.summary.spendMinor,15000);
+  assert.equal(all.summary.impressions,1200);
+  assert.equal(all.analysis.topSpendAd.name,'Needle Creative');
+  assert.equal(all.analysis.bestCtrAd.name,'Needle Creative');
+  assert.equal(all.analysis.zeroResultAds,1);
+  assert.equal(all.ads.length,2);
+
+  const filtered=await scalar(`select public.v2_tenant_meta_connect_v2_report(
+    'demo','2026-09-01','2026-09-02','needle',$1,'active',1,10)`,[campaignA]);
+  assert.equal(filtered.filters.totalAds,1);
+  assert.equal(filtered.ads[0].externalAdId,'ad-needle-101');
+  assert.equal(filtered.campaigns[0].adCount,1);
+  await assert.rejects(
+    scalar(`select public.v2_tenant_meta_connect_v2_report(
+      'demo','2026-01-01','2026-09-02',null,null,'all',1,25)`),
+    /marketing_report_range_invalid/
+  );
+  await identity(otherUser);
+  await assert.rejects(
+    scalar(`select public.v2_tenant_meta_connect_v2_report(
+      'demo','2026-09-01','2026-09-02',null,null,'all',1,25)`),/forbidden/
+  );
 });
 
 test('SQL credential removal disables only the V2-owned reporting connection',async()=>{

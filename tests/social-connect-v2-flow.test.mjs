@@ -74,6 +74,23 @@ test('selection sends only the tenant and chosen Meta account',async()=>{
   assert.equal(completed,true);
 });
 
+test('manual sync sends the exact selected report range',async()=>{
+  await runConnectionAction({
+    name:'sync',slug:'example-center',
+    payload:{dateFrom:'2026-07-01',dateTo:'2026-09-01'},
+    fetcher:async(url,options)=>{
+      assert.equal(url,'/api/tenant/social-connect/sync');
+      assert.deepEqual(JSON.parse(options.body),{
+        tenantSlug:'example-center',dateFrom:'2026-07-01',dateTo:'2026-09-01'
+      });
+      return new Response(JSON.stringify({ok:true,status:'completed'}));
+    },
+    navigate(){assert.fail('sync must not navigate');},onStart(){},
+    onDisconnected(){assert.fail('sync must not disconnect');},onSuccess(){},
+    onError:code=>assert.fail(code),onSettled(){}
+  });
+});
+
 test('either expired token or expired data access requires reauthorization',()=>{
   const now=Date.parse('2026-09-06T12:00:00Z');
   const future='2026-09-07T12:00:00Z';

@@ -199,11 +199,9 @@ async function* metrics(
   account: AccountIdentity,
   range: SyncRange
 ): AsyncGenerator<MetricPage> {
-  const fields = [
+  const commonFields = [
     'date_start',
     'account_currency',
-    'campaign_id',
-    'campaign_name',
     'impressions',
     'reach',
     'clicks',
@@ -213,54 +211,70 @@ async function* metrics(
     'action_values',
     'video_play_actions'
   ].join(',');
-  for await (const page of graphPages(
-    connection,
-    `/act_${accountId(connection)}/insights`,
-    {
-      fields,
-      level: 'campaign',
-      time_increment: 1,
-      time_range: JSON.stringify({since: range.dateFrom, until: range.dateTo})
+  for (const entityLevel of ['campaign', 'ad'] as const) {
+    const dimensions = entityLevel === 'ad'
+      ? 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name'
+      : 'campaign_id,campaign_name';
+    for await (const page of graphPages(
+      connection,
+      `/act_${accountId(connection)}/insights`,
+      {
+        fields: `${commonFields},${dimensions}`,
+        level: entityLevel,
+        time_increment: 1,
+        time_range: JSON.stringify({since: range.dateFrom, until: range.dateTo})
+      }
+    )) {
+      yield {
+        metrics: page.items.map(item => {
+          const currency = text(item.account_currency).toUpperCase() || account.currency;
+          const leads = sumAction(item.actions, [
+            'lead',
+            'onsite_conversion.lead_grouped',
+            'offsite_conversion.fb_pixel_lead'
+          ], ['lead']);
+          const purchases = sumAction(item.actions, [
+            'purchase',
+            'offsite_conversion.fb_pixel_purchase',
+            'omni_purchase'
+          ], ['purchase']);
+          const messages = sumAction(item.actions, [
+            'onsite_conversion.messaging_conversation_started_7d',
+            'onsite_conversion.total_messaging_connection'
+          ], ['messaging_conversation_started']);
+          const registrations = sumAction(item.actions, [
+            'complete_registration',
+            'offsite_conversion.fb_pixel_complete_registration'
+          ], ['complete_registration']);
+          const results = purchases || leads || messages || registrations;
+          const purchaseValue = sumAction(item.action_values, [
+            'purchase',
+            'offsite_conversion.fb_pixel_purchase',
+            'omni_purchase'
+          ], ['purchase']);
+          return {
+            date: text(item.date_start),
+            entityLevel,
+            externalEntityId: entityLevel === 'ad' ? text(item.ad_id) : text(item.campaign_id),
+            externalCampaignId: text(item.campaign_id),
+            externalAdGroupId: entityLevel === 'ad' ? text(item.adset_id) : undefined,
+            externalAdId: entityLevel === 'ad' ? text(item.ad_id) : undefined,
+            currency,
+            impressions: numberValue(item.impressions) || 0,
+            reach: numberValue(item.reach) || 0,
+            clicks: numberValue(item.clicks) || 0,
+            linkClicks: numberValue(item.inline_link_clicks) || 0,
+            spendMinor: moneyMinor(item.spend, currency),
+            platformLeads: leads,
+            platformConversions: results,
+            platformRevenueMinor: moneyMinor(purchaseValue, currency),
+            videoViews: sumAction(item.video_play_actions, [], ['video_view']),
+            raw: item
+          };
+        }).filter(item => item.externalEntityId),
+        cursor: {phase: `metrics_${entityLevel}`, page: page.page}
+      };
     }
-  )) {
-    yield {
-      metrics: page.items.map(item => {
-        const currency = text(item.account_currency).toUpperCase() || account.currency;
-        const leads = sumAction(item.actions, [
-          'lead',
-          'onsite_conversion.lead_grouped',
-          'offsite_conversion.fb_pixel_lead'
-        ], ['lead']);
-        const purchases = sumAction(item.actions, [
-          'purchase',
-          'offsite_conversion.fb_pixel_purchase',
-          'omni_purchase'
-        ], ['purchase']);
-        const purchaseValue = sumAction(item.action_values, [
-          'purchase',
-          'offsite_conversion.fb_pixel_purchase',
-          'omni_purchase'
-        ], ['purchase']);
-        return {
-          date: text(item.date_start),
-          entityLevel: 'campaign' as const,
-          externalEntityId: text(item.campaign_id),
-          externalCampaignId: text(item.campaign_id),
-          currency,
-          impressions: numberValue(item.impressions) || 0,
-          reach: numberValue(item.reach) || 0,
-          clicks: numberValue(item.clicks) || 0,
-          linkClicks: numberValue(item.inline_link_clicks) || 0,
-          spendMinor: moneyMinor(item.spend, currency),
-          platformLeads: leads,
-          platformConversions: purchases,
-          platformRevenueMinor: moneyMinor(purchaseValue, currency),
-          videoViews: sumAction(item.video_play_actions, [], ['video_view']),
-          raw: item
-        };
-      }),
-      cursor: {phase: 'metrics', page: page.page}
-    };
   }
 }
 

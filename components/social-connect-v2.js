@@ -6,6 +6,7 @@ import {useEffect,useState} from 'react';
 import {
   connectionNeedsReauthorization,runConnectionAction
 } from '../lib/social-connect-v2.mjs';
+import {socialReportHref} from '../lib/social-connect-report.mjs';
 
 const STATUS={
   connected:{label:'متصل',tone:'ready'},
@@ -54,7 +55,9 @@ function initialFeedback(outcome,reason){
   return null;
 }
 
-export default function SocialConnectV2({slug,initialData,canManage,outcome,reason}){
+export default function SocialConnectV2({
+  slug,initialData,initialReport,reportFilters,canManage,outcome,reason
+}){
   const router=useRouter();
   const data=initialData||{};
   const [checkedAt]=useState(()=>Date.now());
@@ -114,7 +117,7 @@ export default function SocialConnectV2({slug,initialData,canManage,outcome,reas
             message:'تم اختيار الحساب. اضغط «مزامنة الآن» لتحميل الحملات والنتائج.'
           });
         }else if(name==='sync'){
-          setFeedback({tone:'success',message:'اكتملت مزامنة أحدث الحملات والنتائج.'});
+          setFeedback({tone:'success',message:'اكتملت مزامنة الفترة المختارة والحملات والإعلانات الداخلية.'});
         }
         if(result?.ok)router.refresh();
       },
@@ -132,8 +135,16 @@ export default function SocialConnectV2({slug,initialData,canManage,outcome,reas
     action('disconnect');
   }
 
-  const summary=data.summary||{};
-  const campaigns=Array.isArray(data.campaigns)?data.campaigns:[];
+  const report=initialReport||{};
+  const filters=reportFilters||{};
+  const summary=report.summary||{};
+  const analysis=report.analysis||{};
+  const campaigns=Array.isArray(report.campaigns)?report.campaigns:[];
+  const ads=Array.isArray(report.ads)?report.ads:[];
+  const filterMeta=report.filters||{};
+  const range=report.range||{from:filters.dateFrom,to:filters.dateTo};
+  const currency=summary.currency||selected?.currency||'SAR';
+  const syncRange={dateFrom:range.from,dateTo:range.to};
   return <main className="scv2-page">
     <header className="scv2-topbar">
       <div>
@@ -176,8 +187,8 @@ export default function SocialConnectV2({slug,initialData,canManage,outcome,reas
           </button>
           {selected&&data.syncEnabled?<button className="scv2-secondary"
             disabled={!canManage||Boolean(busy)||needsReauthorization}
-            onClick={()=>action('sync')}>
-            {busy==='sync'?'جارٍ المزامنة…':'مزامنة الآن'}
+            onClick={()=>action('sync',syncRange)}>
+            {busy==='sync'?'جارٍ المزامنة…':'مزامنة الفترة'}
           </button>:null}
           {canDisconnect?<button className="scv2-danger" disabled={Boolean(busy)}
             onClick={disconnect}>
@@ -214,27 +225,106 @@ export default function SocialConnectV2({slug,initialData,canManage,outcome,reas
     </section>:null}
 
     {selected?<>
-      <section className="scv2-metrics" aria-label="ملخص آخر 30 يومًا">
-        <Metric label="الإنفاق" value={formatMoney(summary.spendMinor,summary.currency||selected.currency)}/>
+      <section className="scv2-panel scv2-report-panel">
+        <header><div><small>التقارير والتحليل</small><h2>حدد الفترة والإعلانات التي تريدها</h2></div>
+          <span>حتى 93 يومًا في المزامنة الواحدة</span></header>
+        <nav className="scv2-quick-ranges" aria-label="فترات سريعة">
+          <QuickRange slug={slug} filters={filters} days={1} label="اليوم"/>
+          <QuickRange slug={slug} filters={filters} days={7} label="آخر 7 أيام"/>
+          <QuickRange slug={slug} filters={filters} days={30} label="آخر 30 يومًا"/>
+          <QuickRange slug={slug} filters={filters} days={90} label="آخر 90 يومًا"/>
+        </nav>
+        <form className="scv2-filters" method="get">
+          <label><span>من تاريخ</span><input type="date" name="from" required
+            defaultValue={filters.dateFrom} max={filters.today}/></label>
+          <label><span>إلى تاريخ</span><input type="date" name="to" required
+            defaultValue={filters.dateTo} max={filters.today}/></label>
+          <label className="scv2-search"><span>إعلان بعينه</span><input name="q"
+            defaultValue={filters.search} placeholder="ابحث باسم الإعلان أو رقمه"/></label>
+          <label><span>الحملة</span><select name="campaign" defaultValue={filters.campaign}>
+            <option value="">كل الحملات</option>
+            {(filterMeta.campaigns||[]).map(campaign=><option key={campaign.id} value={campaign.id}>
+              {campaign.name}
+            </option>)}
+          </select></label>
+          <label><span>الحالة</span><select name="status" defaultValue={filters.status}>
+            <option value="all">كل الحالات</option><option value="active">نشط</option>
+            <option value="paused">متوقف</option><option value="other">أخرى</option>
+          </select></label>
+          <div className="scv2-filter-actions">
+            <button className="scv2-primary" type="submit">تطبيق الفلاتر</button>
+            <Link href={`/tenant/${encodeURIComponent(slug)}/addons/social-connect`}>مسح</Link>
+          </div>
+        </form>
+        <div className="scv2-range-actions">
+          <p>النتائج المعروضة من <b>{formatDay(range.from)}</b> إلى <b>{formatDay(range.to)}</b>.</p>
+          {canManage&&data.syncEnabled?<button className="scv2-secondary" disabled={Boolean(busy)||needsReauthorization}
+            onClick={()=>action('sync',syncRange)}>{busy==='sync'?'جارٍ تحميل الفترة…':'تحميل/تحديث هذه الفترة من Meta'}</button>:null}
+        </div>
+        {report.metricRows===0?<p className="scv2-empty scv2-empty-warning">
+          لا توجد نتائج مخزنة لهذه الفترة. اضغط «تحميل/تحديث هذه الفترة من Meta» لجلب بياناتها، أو اختر فترة شهدت إنفاقًا فعليًا.
+        </p>:null}
+      </section>
+
+      <section className="scv2-metrics" aria-label="ملخص الفترة المختارة">
+        <Metric label="الإنفاق" value={formatMoney(summary.spendMinor,currency)}/>
         <Metric label="مرات الظهور" value={formatNumber(summary.impressions)}/>
+        <Metric label="الوصول" value={formatNumber(summary.reach)}/>
         <Metric label="النقرات" value={formatNumber(summary.clicks)}/>
         <Metric label="CTR" value={summary.ctr==null?'—':`${formatNumber(summary.ctr)}%`}/>
         <Metric label="النتائج" value={formatNumber(summary.platformConversions)}/>
-        <Metric label="قيمة النتائج" value={formatMoney(summary.platformRevenueMinor,summary.currency||selected.currency)}/>
+        <Metric label="تكلفة النتيجة" value={summary.cpaMinor==null?'—':formatMoney(summary.cpaMinor,currency)}/>
+        <Metric label="قيمة النتائج" value={formatMoney(summary.platformRevenueMinor,currency)}/>
       </section>
+
       <section className="scv2-panel">
-        <header><div><small>آخر 30 يومًا</small><h2>أداء الحملات</h2></div><span>{campaigns.length} حملة</span></header>
-        {campaigns.length===0?<p className="scv2-empty">لا توجد بيانات بعد. اضغط «مزامنة الآن» لتحميل الحملات.</p>
+        <header><div><small>قراءة سريعة للفترة</small><h2>التحليل</h2></div>
+          <span>{formatNumber(analysis.adsWithData)} إعلانًا لديه بيانات</span></header>
+        <div className="scv2-analysis">
+          <Insight label="الأعلى إنفاقًا" item={analysis.topSpendAd}
+            value={analysis.topSpendAd?formatMoney(analysis.topSpendAd.spendMinor,currency):'—'}/>
+          <Insight label="أفضل CTR" item={analysis.bestCtrAd}
+            value={analysis.bestCtrAd?`${formatNumber(analysis.bestCtrAd.ctr)}%`:'—'}/>
+          <Insight label="الأكثر نتائج" item={analysis.topResultsAd}
+            value={analysis.topResultsAd?formatNumber(analysis.topResultsAd.results):'—'}/>
+          <Insight label="إنفاق بلا نتائج" item={{name:`${formatNumber(analysis.zeroResultAds)} إعلان`}}
+            value={formatMoney(analysis.zeroResultSpendMinor,currency)} tone="warning"/>
+        </div>
+        <p className="scv2-analysis-note">التحليل وصفي ومبني على أرقام الفترة والفلاتر المختارة؛ لا يغيّر أي إعلان أو ميزانية.</p>
+      </section>
+
+      <section className="scv2-panel">
+        <header><div><small>ملخص مجمّع</small><h2>أداء الحملات</h2></div><span>{campaigns.length} حملة مطابقة</span></header>
+        {campaigns.length===0?<p className="scv2-empty">لا توجد حملات مطابقة للفلاتر الحالية.</p>
           :<div className="scv2-table-wrap"><table><thead><tr>
-            <th>الحملة</th><th>الحالة</th><th>الإنفاق</th><th>الظهور</th><th>النقرات</th><th>النتائج</th>
+            <th>الحملة</th><th>الإعلانات</th><th>الحالة</th><th>الإنفاق</th><th>الظهور</th><th>النقرات</th><th>CTR</th><th>النتائج</th>
           </tr></thead><tbody>{campaigns.map(campaign=><tr key={campaign.id}>
             <td><b>{campaign.name}</b><small>{campaign.objective||'—'}</small></td>
-            <td>{campaign.effectiveStatus||campaign.status||'—'}</td>
+            <td>{formatNumber(campaign.adCount)}</td><td>{statusLabel(campaign.effectiveStatus||campaign.status)}</td>
             <td>{formatMoney(campaign.spendMinor,campaign.currency)}</td>
             <td>{formatNumber(campaign.impressions)}</td>
             <td>{formatNumber(campaign.clicks)}</td>
+            <td>{campaign.ctr==null?'—':`${formatNumber(campaign.ctr)}%`}</td>
             <td>{formatNumber(campaign.platformConversions)}</td>
           </tr>)}</tbody></table></div>}
+      </section>
+
+      <section className="scv2-panel">
+        <header><div><small>الإعلانات الداخلية</small><h2>أداء كل إعلان</h2></div>
+          <span>{formatNumber(filterMeta.totalAds)} إعلان مطابق</span></header>
+        {ads.length===0?<p className="scv2-empty">لا توجد إعلانات مطابقة. غيّر البحث أو الفلاتر، ثم حدّث الفترة عند الحاجة.</p>
+          :<div className="scv2-table-wrap"><table className="scv2-ads-table"><thead><tr>
+            <th>الإعلان</th><th>الحملة / المجموعة</th><th>الحالة</th><th>الإنفاق</th><th>الظهور</th><th>النقرات</th><th>CTR</th><th>النتائج</th><th>تكلفة النتيجة</th>
+          </tr></thead><tbody>{ads.map(ad=><tr key={ad.id}>
+            <td><b>{ad.name}</b><small>ID: {ad.externalAdId}</small></td>
+            <td><b>{ad.campaignName}</b><small>{ad.adGroupName||'بدون مجموعة إعلانية'}</small></td>
+            <td><span className={`scv2-status ${statusTone(ad.effectiveStatus||ad.status)}`}>{statusLabel(ad.effectiveStatus||ad.status)}</span></td>
+            <td>{formatMoney(ad.spendMinor,ad.currency)}</td><td>{formatNumber(ad.impressions)}</td>
+            <td>{formatNumber(ad.clicks)}</td><td>{ad.ctr==null?'—':`${formatNumber(ad.ctr)}%`}</td>
+            <td>{formatNumber(ad.platformConversions)}</td>
+            <td>{ad.cpaMinor==null?'—':formatMoney(ad.cpaMinor,ad.currency)}</td>
+          </tr>)}</tbody></table></div>}
+        <Pagination slug={slug} filters={filters} current={filterMeta.page} total={filterMeta.totalPages}/>
       </section>
     </>:null}
   </main>;
@@ -242,6 +332,53 @@ export default function SocialConnectV2({slug,initialData,canManage,outcome,reas
 
 function Metric({label,value}){
   return <article><small>{label}</small><b>{value}</b></article>;
+}
+
+function Insight({label,item,value,tone=''}){
+  return <article className={tone}><small>{label}</small><b>{value}</b><p>{item?.name||'لا توجد بيانات كافية'}</p></article>;
+}
+
+function QuickRange({slug,filters,days,label}){
+  const to=filters.today;
+  const date=new Date(`${to}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate()-(days-1));
+  const from=date.toISOString().slice(0,10);
+  const active=filters.dateFrom===from&&filters.dateTo===to;
+  return <Link className={active?'active':''}
+    href={socialReportHref(slug,filters,{dateFrom:from,dateTo:to,page:1})}>{label}</Link>;
+}
+
+function Pagination({slug,filters,current,total}){
+  const page=Number(current||1),pages=Number(total||0);
+  if(pages<=1)return null;
+  return <nav className="scv2-pagination" aria-label="صفحات الإعلانات">
+    {page>1?<Link href={socialReportHref(slug,filters,{page:page-1})}>السابق</Link>:<span/>}
+    <b>صفحة {formatNumber(page)} من {formatNumber(pages)}</b>
+    {page<pages?<Link href={socialReportHref(slug,filters,{page:page+1})}>التالي</Link>:<span/>}
+  </nav>;
+}
+
+function statusLabel(value){
+  const status=String(value||'').toLowerCase();
+  if(status==='active')return 'نشط';
+  if(['paused','campaign_paused','adset_paused'].includes(status))return 'متوقف';
+  if(status==='archived')return 'مؤرشف';
+  if(status==='deleted')return 'محذوف';
+  return status||'—';
+}
+
+function statusTone(value){
+  const status=String(value||'').toLowerCase();
+  if(status==='active')return 'ready';
+  if(['paused','campaign_paused','adset_paused'].includes(status))return 'warning';
+  return 'muted';
+}
+
+function formatDay(value){
+  if(!value)return '—';
+  const date=new Date(`${value}T00:00:00Z`);
+  if(Number.isNaN(date.getTime()))return '—';
+  return new Intl.DateTimeFormat('ar-SA-u-ca-gregory',{dateStyle:'medium',timeZone:'UTC'}).format(date);
 }
 
 function formatNumber(value){

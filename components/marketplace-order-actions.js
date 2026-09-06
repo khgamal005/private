@@ -49,15 +49,15 @@ export default function MarketplaceOrderActions({slug,order,methods,canManage}){
   }
   return <div className={styles.orderRecovery}>
     <div>
-      {choices.length>0&&<button type="button" disabled={busy} onClick={()=>{setMode('replace');setProvider(choices[0].key);setMessage('');}}>{order.status==='cancelled'?'إعادة الشراء':'تغيير وسيلة الدفع'}</button>}
+      {choices.length>0&&<button type="button" className={styles.payButton} disabled={busy} onClick={()=>{setMode('replace');setProvider(choices[0].key);setMessage('');}}>{order.status==='cancelled'?'إعادة الشراء':'تغيير وسيلة الدفع'}</button>}
       {order.status==='pending_payment'&&<button type="button" className={styles.cancel} disabled={busy} onClick={()=>{setMode('cancel');setMessage('');}}>إلغاء الطلب</button>}
-      <button type="button" disabled={busy} onClick={()=>router.refresh()}>تحديث الحالة</button>
+      <button type="button" className={styles.payButton} disabled={busy} onClick={()=>router.refresh()}>تحديث الحالة</button>
     </div>
     {mode&&<div>
       <p>{mode==='cancel'?'هل تريد إلغاء طلب الشراء؟ سنتحقق أولًا من عدم وجود دفعة أو محاولة دفع مفتوحة.':'اختر وسيلة الدفع. يمكن التغيير بعد انتهاء المحاولة السابقة دون دفع، مع الاحتفاظ بسجل الطلب.'}</p>
       {mode==='replace'&&<PaymentMethodPicker methods={choices} value={provider} onChange={setProvider}/>}
-      <button type="button" disabled={busy} onClick={submit}>{busy?'جارٍ التحقق…':mode==='cancel'?'تأكيد الإلغاء':'اعتماد وسيلة الدفع'}</button>
-      <button type="button" disabled={busy} onClick={()=>setMode('')}>رجوع</button>
+      <button type="button" className={styles.payButton} disabled={busy} onClick={submit}>{busy?'جارٍ التحقق…':mode==='cancel'?'تأكيد الإلغاء':'اعتماد وسيلة الدفع'}</button>
+      <button type="button" className={styles.payButton} disabled={busy} onClick={()=>setMode('')}>رجوع</button>
     </div>}
     {message&&<p role="status">{message}</p>}
   </div>;

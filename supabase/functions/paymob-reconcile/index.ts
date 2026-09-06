@@ -242,12 +242,17 @@ Deno.serve(async (request: Request) => {
         // documents special_reference as merchant_order_id, so the immutable
         // attempt UUID safely recovers the last transaction without creating
         // another Intention.
-        const providerResult = runtime.inquiryMode === "transaction_id"
-          ? await inquireByTransactionId(
-            runtime.providerTransactionId as string,
-            authToken,
-          )
-          : await inquireByMerchantOrderId(runtime.merchantOrderId, authToken);
+        // QuickLink returns a durable Paymob order id. Prefer the provider's
+          // documented order_id inquiry; keep merchant_order_id as the applicator
+          // binding mode because the response must still carry our attempt UUID.
+          const providerResult = runtime.inquiryMode === "transaction_id"
+            ? await inquireByTransactionId(
+              runtime.providerTransactionId as string,
+              authToken,
+            )
+            : job.providerOrderId
+            ? await inquireByOrderId(job.providerOrderId, authToken)
+            : await inquireByMerchantOrderId(runtime.merchantOrderId, authToken);
         const responseSha256 = await sha256Hex(providerResult.raw);
         let inquiry: NormalizedInquiry;
         try {
@@ -809,6 +814,64 @@ async function inquireByTransactionId(
     );
   }
   return { raw: result.text, mode: "transaction_id" };
+}
+
+async function inquireByOrderId(
+  orderId: string,
+  authToken: string,
+): Promise<{ raw: string; mode: "merchant_order_id" }> {
+  let result: Awaited<ReturnType<typeof fetchTextWithTimeout>>;
+  try {
+    result = await fetchTextWithTimeout(
+      `${PAYMOB_API_BASE_URL}/api/ecommerce/orders/transaction_inquiry`,
+      {
+        method: "POST",
+        redirect: "error",
+        headers: {
+          authorization: `Bearer ${authToken}`,
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify({ order_id: orderId }),
+      },
+      PAYMOB_TIMEOUT_MS,
+      MAX_PROVIDER_BYTES,
+    );
+  } catch (error) {
+    if (error instanceof UpstreamTimeoutError) {
+      throw new ProviderFailure("ambiguous", "provider_inquiry_timeout", true);
+    }
+    if (error instanceof BodyTooLargeError) {
+      throw new ProviderFailure(
+        "ambiguous",
+        "provider_inquiry_response_too_large",
+        true,
+      );
+    }
+    throw new ProviderFailure(
+      "ambiguous",
+      "provider_inquiry_network_error",
+      true,
+    );
+  }
+  if (!result.response.ok) {
+    if (result.response.status === 404) {
+      throw new ProviderFailure(
+        "retry",
+        "provider_order_reference_not_found",
+        false,
+      );
+    }
+    throw classifyProviderStatus(
+      result.response.status,
+      "provider_inquiry",
+      true,
+    );
+  }
+  // The immutable SQL applicator validates merchant_order_id from the
+  // returned transaction against the attempt UUID. The request lookup
+  // key does not weaken or replace that binding.
+  return { raw: result.text, mode: "merchant_order_id" };
 }
 
 async function inquireByMerchantOrderId(

@@ -1,132 +1,74 @@
 'use client';
 
-import {useCallback,useEffect,useMemo,useState} from 'react';
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import KnowledgeCover,{safeMediaUrl} from './knowledge-cover';
 import styles from './knowledge-feed.module.css';
-
-const FALLBACK=[{
-  id:'welcome',title:'مرحبًا بكم في مركز أخبار ومعارف ماركتون',excerpt:'تصل إليك الأخبار والفرص والتنبيهات التي تهم قطاع التدريب في مكان واحد.',smart_summary:'يعمل المركز كمصدر يومي موثوق لأصحاب ومديري مراكز التدريب.',content_type:'news',status:'published',is_featured:true,is_breaking:false,importance_level:'normal',trust_score:100,relevance_score:90,why_it_matters:'يساعدك المركز على متابعة التغيّرات والفرص دون البحث في عشرات المواقع.',recommended_action:'راجع القسم بانتظام واحفظ المواد المرتبطة بخطة منشأتك.',published_at:new Date().toISOString(),knowledge_categories:{name:'أخبار قطاع التدريب',slug:'training-news'},source_name:'ماركتون',cover_image_url:''
-}];
-
-const FILTERS=[['all','الكل'],['important','الأهم لمنشأتك'],['tender','المنافسات'],['regulation','التشريعات'],['event','الفعاليات'],['article','المقالات'],['saved','المحفوظات']];
-
+const FILTERS=[['all','كل المواد'],['important','الأهم لمنشأتك'],['tender','كل المنافسات'],['activeTender','المنافسات النشطة'],['expired','المنافسات المنتهية'],['archive','الأرشيف'],['regulation','التشريعات'],['event','الفعاليات'],['article','المقالات'],['saved','المحفوظات']];
 function safeDate(value){const date=new Date(value||'');return Number.isNaN(date.getTime())?null:date;}
-function dateLabel(value,long=false){const date=safeDate(value);if(!date)return 'تاريخ غير محدد';return new Intl.DateTimeFormat('ar-SA',long?{day:'numeric',month:'long',year:'numeric'}:{day:'numeric',month:'short'}).format(date);}
+function dateLabel(value,long=false){const date=safeDate(value);return date?new Intl.DateTimeFormat('ar-SA-u-ca-gregory',long?{day:'numeric',month:'long',year:'numeric'}:{day:'numeric',month:'short'}).format(date):'تاريخ غير محدد';}
 function typeLabel(post){return ({tender:'منافسة وفرصة',article:'مقال معرفي',regulation:'تشريع وتنبيه',event:'فعالية ومبادرة',market_pulse:'نبض السوق',success_story:'قصة وتجربة'})[post.content_type]||'خبر التدريب';}
-function typeIcon(type){return ({tender:'◎',regulation:'§',event:'◷',article:'✦',market_pulse:'↗',success_story:'★'})[type]||'●';}
-function daysUntil(value){const date=safeDate(value);if(!date)return null;return Math.ceil((date.getTime()-Date.now())/86400000);}
+function daysUntil(value){const d=safeDate(value);return d?Math.ceil((d.getTime()-Date.now())/86400000):null;}
 function relevance(post){return Math.max(0,Math.min(100,Number(post.relevance_score||0)));}
-
+const INITIAL={filter:'all',category:'',search:'',source:'',from:'',to:'',sort:'latest',offset:0,asOf:''};
 export default function KnowledgeFeed({tenant,embedded=false}){
-  const [data,setData]=useState({posts:[],categories:[],stats:{}});
-  const [filter,setFilter]=useState('all');
-  const [category,setCategory]=useState('');
-  const [search,setSearch]=useState('');
-  const [loading,setLoading]=useState(true);
-  const [error,setError]=useState('');
-  const [warning,setWarning]=useState('');
-  const [selected,setSelected]=useState(null);
-  const [saving,setSaving]=useState('');
-
-  const load=useCallback(async()=>{
-    setLoading(true);setError('');
-    try{
-      const response=await fetch(`/api/knowledge/feed?tenant=${encodeURIComponent(tenant)}`,{cache:'no-store'});
-      const payload=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(payload.error||'تعذر تحميل الأخبار والمعارف');
-      setData({posts:Array.isArray(payload.posts)?payload.posts:[],categories:Array.isArray(payload.categories)?payload.categories:[],stats:payload.stats||{}});
-      setWarning(payload.warning||'');
-    }catch(reason){setError(reason.message);setData(current=>({...current,posts:current.posts.length?current.posts:FALLBACK}));}
-    finally{setLoading(false);}
-  },[tenant]);
-
-  useEffect(()=>{load();},[load]);
-
-  const posts=data.posts.length?data.posts:FALLBACK;
-  const shown=useMemo(()=>{
-    const query=search.trim().toLocaleLowerCase('ar');
-    return posts.filter(post=>{
-      if(category&&post.category_id!==category)return false;
-      if(query&&![post.title,post.excerpt,post.smart_summary,post.why_it_matters,post.source_name,(post.tags||[]).join(' ')].join(' ').toLocaleLowerCase('ar').includes(query))return false;
-      if(filter==='important')return post.is_breaking||['high','urgent'].includes(post.importance_level)||relevance(post)>=80;
-      if(filter==='saved')return Boolean(post.is_saved);
-      if(filter!=='all')return post.content_type===filter;
-      return true;
-    });
-  },[posts,filter,category,search]);
-
-  const hero=shown.find(post=>post.is_featured)||shown[0]||null;
-  const rest=shown.filter(post=>post.id!==hero?.id);
-  const closingSoon=useMemo(()=>posts.filter(post=>post.content_type==='tender'&&daysUntil(post.tender_deadline)!==null).filter(post=>daysUntil(post.tender_deadline)>=0).sort((a,b)=>daysUntil(a.tender_deadline)-daysUntil(b.tender_deadline)).slice(0,4),[posts]);
-  const official=useMemo(()=>posts.filter(post=>Number(post.trust_score||0)>=90).slice(0,4),[posts]);
-
-  async function bookmark(post){
-    if(post.id==='welcome')return;
-    setSaving(post.id);
-    try{
-      const response=await fetch('/api/knowledge/bookmark',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({tenant,postId:post.id,saved:Boolean(post.is_saved)})});
-      const payload=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(payload.error||'تعذر حفظ المادة');
-      setData(current=>({...current,posts:current.posts.map(item=>item.id===post.id?{...item,is_saved:Boolean(payload.saved)}:item),stats:{...current.stats,saved:Math.max(0,Number(current.stats.saved||0)+(payload.saved?1:-1))}}));
-      setSelected(current=>current?.id===post.id?{...current,is_saved:Boolean(payload.saved)}:current);
-    }catch(reason){setError(reason.message);}finally{setSaving('');}
-  }
-
-  async function openPost(post){
-    setSelected(post);
-    if(post.id==='welcome')return;
-    fetch('/api/knowledge/read',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({tenant,postId:post.id})}).catch(()=>{});
-  }
-
-  const stats=[['إجمالي المواد',data.stats.total??posts.length,'●'],['منافسات نشطة',data.stats.activeTenders??posts.filter(p=>p.content_type==='tender').length,'◎'],['تغلق قريبًا',data.stats.closingSoon??closingSoon.filter(p=>daysUntil(p.tender_deadline)<=7).length,'◷'],['مواد مهمة',data.stats.important??posts.filter(p=>relevance(p)>=80).length,'!'],['محفوظاتي',data.stats.saved??posts.filter(p=>p.is_saved).length,'☆']];
-
-  return <section className={`${styles.feed} ${embedded?styles.embedded:''}`} dir="rtl">
-    <header className={styles.pageHeader}>
-      <div><small>MARKTONE KNOWLEDGE INTELLIGENCE</small><h2>أخبار ومعارف</h2><p>ماذا حدث، لماذا يهم منشأتك، وما الإجراء الذي ينبغي اتخاذه الآن؟</p></div>
-      <div className={styles.headerActions}>
-        <label className={styles.search}><span>⌕</span><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="ابحث في الأخبار والمنافسات والتشريعات…"/>{search&&<button type="button" onClick={()=>setSearch('')}>×</button>}</label>
-        <button className={styles.refresh} type="button" onClick={load} disabled={loading}>{loading?'جارٍ التحديث…':'تحديث المصادر'}</button>
-      </div>
-    </header>
-
-    <div className={styles.stats}>{stats.map(([label,value,icon])=><article key={label}><span>{icon}</span><div><b>{Number(value||0).toLocaleString('ar-SA')}</b><small>{label}</small></div></article>)}</div>
-    {warning&&<div className={styles.warning}><b>تنبيه تشغيلي</b><span>{warning}</span></div>}
-    {error&&<div className={styles.error}><div><b>تعذر تحديث بعض المواد</b><span>{error}</span></div><button type="button" onClick={load}>إعادة المحاولة</button></div>}
-
-    <div className={styles.filters}>
-      <div className={styles.filterRow}>{FILTERS.map(([key,label])=><button type="button" key={key} className={filter===key?styles.active:''} onClick={()=>setFilter(key)}>{label}</button>)}</div>
-      <div className={styles.categoryRow}><button type="button" className={!category?styles.activeCategory:''} onClick={()=>setCategory('')}>كل الأقسام</button>{data.categories.map(item=><button type="button" key={item.id} className={category===item.id?styles.activeCategory:''} onClick={()=>setCategory(item.id)}>{item.name}</button>)}</div>
-    </div>
-
-    {loading?<LoadingState/>:shown.length?<div className={styles.contentGrid}>
-      <main>
-        {hero&&<HeroCard post={hero} onOpen={()=>openPost(hero)} onBookmark={()=>bookmark(hero)} saving={saving===hero.id}/>} 
-        <div className={styles.sectionHead}><div><small>آخر التحديثات</small><h3>الأخبار والمعارف المختارة</h3></div><span>{shown.length.toLocaleString('ar-SA')} مادة</span></div>
-        <div className={styles.cards}>{rest.map(post=><KnowledgeCard post={post} key={post.id} onOpen={()=>openPost(post)} onBookmark={()=>bookmark(post)} saving={saving===post.id}/>)}</div>
-      </main>
-      <aside className={styles.sidebar}>
-        <SidePanel title="منافسات تغلق قريبًا" icon="◷" empty="لا توجد منافسات ذات موعد قريب.">{closingSoon.map(post=><button type="button" key={post.id} onClick={()=>openPost(post)}><span className={styles.deadlineBadge}>{daysUntil(post.tender_deadline)===0?'اليوم':`${daysUntil(post.tender_deadline)} يوم`}</span><b>{post.title}</b><small>{post.tender_authority||post.source_name||'مصدر رسمي'}</small></button>)}</SidePanel>
-        <SidePanel title="من المصادر الرسمية" icon="✓" empty="لا توجد تحديثات رسمية الآن.">{official.map(post=><button type="button" key={post.id} onClick={()=>openPost(post)}><span className={styles.officialMark}>موثوق {Number(post.trust_score||0)}%</span><b>{post.title}</b><small>{post.source_name||'ماركتون'} · {dateLabel(post.source_published_at||post.published_at)}</small></button>)}</SidePanel>
-        <div className={styles.smartPanel}><span>✦</span><div><b>كيف يعمل المركز الذكي؟</b><p>يجمع المصادر، يزيل التكرار، يصنّف المواد، ثم يرسلها للمراجعة قبل النشر.</p></div></div>
-      </aside>
-    </div>:<EmptyState onReset={()=>{setSearch('');setFilter('all');setCategory('');}}/>}
-    {selected&&<PostModal post={selected} saving={saving===selected.id} onClose={()=>setSelected(null)} onBookmark={()=>bookmark(selected)}/>} 
-  </section>;
+ const [data,setData]=useState({posts:[],categories:[],sources:[],stats:{},pagination:{}});
+ const [query,setQuery]=useState(INITIAL);const [refresh,setRefresh]=useState(0);
+ const [loading,setLoading]=useState(true),[error,setError]=useState('');
+ const [selected,setSelected]=useState(null),[saving,setSaving]=useState('');
+ const [detailLoading,setDetailLoading]=useState(false),[detailError,setDetailError]=useState('');
+ const detailVersion=useRef(0);
+ const change=(key,value)=>setQuery(q=>({...q,[key]:value,offset:0,asOf:''}));
+ const reload=()=>{setQuery(q=>({...q,offset:0,asOf:''}));setRefresh(x=>x+1);};
+ useEffect(()=>{
+  const controller=new AbortController();let active=true;
+  const timer=setTimeout(async()=>{setLoading(true);setError('');
+   const params=new URLSearchParams({tenant,search:query.search,category:query.category,source:query.source,from:query.from,to:query.to,sort:query.sort,offset:String(query.offset),limit:'24',asOf:query.asOf});
+   if(['important','expired','archive','saved'].includes(query.filter))params.set('view',query.filter);
+   else if(query.filter==='activeTender'){params.set('type','tender');params.set('view','active');}
+   else if(query.filter!=='all')params.set('type',query.filter);
+   try{const response=await fetch(`/api/knowledge/feed?${params}`,{cache:'no-store',signal:controller.signal});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'تعذر تحميل الأخبار والمعارف');if(active)setData({...payload,posts:payload.posts||[],sources:payload.sources||[],categories:payload.categories||[],stats:payload.stats||{},pagination:payload.pagination||{}});}
+   catch(reason){if(active&&reason.name!=='AbortError')setError(reason.message);}
+   finally{if(active)setLoading(false);}
+  },query.search?300:0);
+  return()=>{active=false;clearTimeout(timer);controller.abort();};
+ },[tenant,query,refresh]);
+ const shown=data.posts;const hero=query.offset===0?shown.find(p=>p.lifecycle==='active')||shown[0]:null;
+ const rest=shown.filter(post=>post.id!==hero?.id);
+ const closingSoon=useMemo(()=>shown.filter(p=>p.content_type==='tender'&&p.lifecycle==='active'&&daysUntil(p.tender_deadline)!==null&&daysUntil(p.tender_deadline)<=7).slice(0,4),[shown]);
+ const closePost=useCallback(()=>{detailVersion.current++;setSelected(null);},[]);
+ async function bookmark(post){setSaving(post.id);try{const response=await fetch('/api/knowledge/bookmark',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({tenant,postId:post.id,saved:Boolean(post.is_saved)})});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'تعذر الحفظ');setData(d=>({...d,posts:d.posts.map(p=>p.id===post.id?{...p,is_saved:payload.saved}:p),stats:{...d.stats,saved:Math.max(0,Number(d.stats.saved||0)+(payload.saved?1:-1))}}));setSelected(p=>p?.id===post.id?{...p,is_saved:payload.saved}:p);}catch(reason){setError(reason.message);}finally{setSaving('');}}
+ async function openPost(post){const version=++detailVersion.current;setSelected(post);setDetailLoading(true);setDetailError('');try{const response=await fetch(`/api/knowledge/post?tenant=${encodeURIComponent(tenant)}&id=${post.id}`,{cache:'no-store'});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'تعذر تحميل تفاصيل المادة');if(version===detailVersion.current)setSelected({...post,...payload.post});fetch('/api/knowledge/read',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({tenant,postId:post.id})}).catch(()=>{});}catch(reason){if(version===detailVersion.current)setDetailError(reason.message);}finally{if(version===detailVersion.current)setDetailLoading(false);}}
+ const stats=[['المكتبة كاملة',data.stats.total,'all','●'],['منافسات نشطة',data.stats.activeTenders,'activeTender','◎'],['منافسات منتهية',data.stats.expiredTenders,'expired','◷'],['أرشيف المعرفة',data.stats.archived,'archive','▤'],['محفوظاتي',data.stats.saved,'saved','☆']];
+ const page=1+Math.floor((data.pagination.offset||0)/24),pages=Math.max(1,Math.ceil((data.pagination.total||0)/24));
+ const pageTo=offset=>setQuery(q=>({...q,offset,asOf:data.pagination.asOf||''}));
+ return <section className={`${styles.feed} ${embedded?styles.embedded:''}`} dir="rtl">
+  <header className={styles.pageHeader}><div><small>MARKTONE KNOWLEDGE INTELLIGENCE</small><h2>أخبار ومعارف</h2><p>معرفة تتراكم. فرص تُكتشف. وقرارات تستند إلى مصدر.</p></div><div className={styles.headerActions}><label className={styles.search}><span aria-hidden="true">⌕</span><input aria-label="البحث في كامل الأرشيف" value={query.search} maxLength={200} onChange={e=>change('search',e.target.value)} placeholder="ابحث في كامل الأرشيف…"/></label><button className={styles.refresh} type="button" onClick={reload} disabled={loading}>تحديث المواد</button></div></header>
+  <div className={styles.stats}>{stats.map(([label,value,key,icon])=><button type="button" key={key} onClick={()=>change('filter',key)} className={query.filter===key?styles.statActive:''}><span>{icon}</span><div><b>{Number(value||0).toLocaleString('ar-SA')}</b><small>{label}</small></div></button>)}</div>
+  {error&&<div className={styles.error} role="alert"><span>{error}</span><button type="button" onClick={reload}>إعادة المحاولة</button></div>}
+  <div className={styles.filters}><div className={styles.filterRow}>{FILTERS.map(([key,label])=><button type="button" key={key} aria-pressed={query.filter===key} className={query.filter===key?styles.active:''} onClick={()=>change('filter',key)}>{label}</button>)}</div><div className={styles.advancedFilters}><label>المصدر<select value={query.source} onChange={e=>change('source',e.target.value)}><option value="">كل المصادر</option>{data.sources.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label>القسم<select value={query.category} onChange={e=>change('category',e.target.value)}><option value="">كل الأقسام</option>{data.categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>من<input type="date" value={query.from} onChange={e=>change('from',e.target.value)}/></label><label>إلى<input type="date" value={query.to} onChange={e=>change('to',e.target.value)}/></label><label>الترتيب<select value={query.sort} onChange={e=>change('sort',e.target.value)}><option value="latest">الأحدث</option><option value="oldest">الأقدم</option><option value="relevance">الأكثر ملاءمة</option></select></label></div></div>
+  {['archive','expired'].includes(query.filter)&&<div className={styles.archiveNotice}><b>{query.filter==='expired'?'المنافسات المنتهية':'أرشيف المعرفة'}</b><span>مرجع دائم لما سبق؛ راجع تاريخ كل مادة قبل الاعتماد عليها.</span></div>}
+  {loading?<LoadingState/>:error?null:shown.length?<div className={styles.contentGrid}><main>{hero&&<HeroCard post={hero} onOpen={()=>openPost(hero)} onBookmark={()=>bookmark(hero)} saving={saving===hero.id}/>}<div className={styles.sectionHead}><div><small>{query.filter==='all'?'المكتبة المتجددة':'نتائج البحث'}</small><h3>{FILTERS.find(f=>f[0]===query.filter)?.[1]}</h3></div><span>{Number(data.pagination.total||0).toLocaleString('ar-SA')} مادة</span></div><div className={styles.cards}>{rest.map(post=><KnowledgeCard key={post.id} post={post} onOpen={()=>openPost(post)} onBookmark={()=>bookmark(post)} saving={saving===post.id}/>)}</div><nav className={styles.pagination} aria-label="صفحات الأرشيف"><button disabled={query.offset===0||loading} onClick={()=>pageTo(Math.max(0,query.offset-24))}>السابق</button><span>صفحة {page.toLocaleString('ar-SA')} من {pages.toLocaleString('ar-SA')}</span><button disabled={!data.pagination.hasMore||loading} onClick={()=>pageTo(query.offset+24)}>التالي</button></nav></main><aside className={styles.sidebar}><button className={styles.archiveCard} onClick={()=>change('filter','expired')}><span>◷</span><small>ذاكرة الفرص</small><b>المنافسات المنتهية</b><strong>{Number(data.stats.expiredTenders||0).toLocaleString('ar-SA')}</strong><p>استكشف الجهات والشروط السابقة واستعد للمنافسة القادمة.</p><em>استعرض الأرشيف ←</em></button><SidePanel title="تغلق قريبًا في هذه الصفحة" icon="◷" empty="لا توجد منافسات قريبة الإغلاق في النتائج الحالية.">{closingSoon.map(post=><button key={post.id} onClick={()=>openPost(post)}><b>{post.title}</b><small>{dateLabel(post.tender_deadline,true)}</small></button>)}</SidePanel><div className={styles.smartPanel}><span>✦</span><div><b>مكتبتك تتراكم معك</b><p>المواد تبقى محفوظة مع مصدرها وتاريخها. احفظ ما يهمك وارجع إليه متى احتجت.</p></div></div></aside></div>:<EmptyState onReset={()=>setQuery(INITIAL)}/>}
+  {selected&&<PostModal post={selected} loading={detailLoading} error={detailError} onClose={closePost} onBookmark={()=>bookmark(selected)} saving={saving===selected.id}/>}
+ </section>;
 }
+function LifecycleBadge({post}){const label=post.lifecycle==='expired'?'انتهى التقديم':post.lifecycle==='archived'?'من الأرشيف':post.lifecycle==='unverified'?'الموعد يحتاج تحققًا':'';return label?<span className={styles.lifecycle}>{label}</span>:null;}
 
 function HeroCard({post,onOpen,onBookmark,saving}){
-  return <article className={styles.hero}><div className={styles.heroImage}>{post.cover_image_url?<img src={post.cover_image_url} alt=""/>:<div className={styles.generatedCover}><span>{typeIcon(post.content_type)}</span><small>MARKTONE INTELLIGENCE</small></div>}<div className={styles.heroShade}/><div className={styles.heroContent}><div className={styles.badges}><em>{typeLabel(post)}</em>{post.is_breaking&&<b>عاجل</b>}{relevance(post)>0&&<span>{relevance(post)}% مناسب لك</span>}</div><h3>{post.title}</h3><p>{post.smart_summary||post.excerpt}</p><footer><div><span>{post.source_name||'ماركتون'}</span><time>{dateLabel(post.source_published_at||post.published_at,true)}</time></div><div><button type="button" onClick={event=>{event.stopPropagation();onBookmark();}} disabled={saving}>{post.is_saved?'★ محفوظ':'☆ حفظ'}</button><button type="button" onClick={onOpen}>اقرأ التحليل</button></div></footer></div></div></article>;
+  return <article className={styles.hero}><div className={styles.heroImage}><KnowledgeCover post={post} priority/><div className={styles.heroShade}/><div className={styles.heroContent}><div className={styles.badges}><em>{typeLabel(post)}</em><LifecycleBadge post={post}/>{post.is_breaking&&<b>عاجل</b>}{relevance(post)>0&&<span>{relevance(post)}% مناسب لك</span>}</div><h3>{post.title}</h3><p>{post.smart_summary||post.excerpt}</p><footer><div><span>{post.source_name||'ماركتون'}</span><time>{dateLabel(post.source_published_at||post.published_at,true)}</time></div><div><button type="button" onClick={event=>{event.stopPropagation();onBookmark();}} disabled={saving}>{post.is_saved?'★ محفوظ':'☆ حفظ'}</button><button type="button" onClick={onOpen}>اقرأ التحليل</button></div></footer></div></div></article>;
 }
 
 function KnowledgeCard({post,onOpen,onBookmark,saving}){
   const deadline=daysUntil(post.tender_deadline);
-  return <article className={`${styles.card} ${post.content_type==='tender'?styles.tender:''}`}><button type="button" className={styles.cardClick} onClick={onOpen} aria-label={`فتح ${post.title}`}/><div className={styles.cardImage}>{post.cover_image_url?<img src={post.cover_image_url} alt=""/>:<div><span>{typeIcon(post.content_type)}</span><small>{typeLabel(post)}</small></div>}<em>{post.knowledge_categories?.name||typeLabel(post)}</em></div><div className={styles.cardBody}><div className={styles.cardMeta}><span>{post.source_name||'ماركتون'}</span><time>{dateLabel(post.source_published_at||post.published_at)}</time></div><h4>{post.title}</h4><p>{post.smart_summary||post.excerpt}</p>{deadline!==null&&deadline>=0&&<div className={styles.deadline}><span>آخر موعد</span><b>{deadline===0?'اليوم':`بعد ${deadline.toLocaleString('ar-SA')} يوم`}</b></div>}{post.why_it_matters&&<div className={styles.why}><b>لماذا يهمك؟</b><span>{post.why_it_matters}</span></div>}<footer><span className={styles.relevance}><i style={{width:`${relevance(post)}%`}}/><small>{relevance(post)}% ملاءمة</small></span><button type="button" className={styles.save} onClick={event=>{event.stopPropagation();onBookmark();}} disabled={saving}>{post.is_saved?'★':'☆'}</button></footer></div></article>;
+  return <article className={`${styles.card} ${post.content_type==='tender'?styles.tender:''}`}><button type="button" className={styles.cardClick} onClick={onOpen} aria-label={`فتح ${post.title}`}/><div className={styles.cardImage}><KnowledgeCover post={post}/><em>{post.knowledge_categories?.name||typeLabel(post)}</em></div><div className={styles.cardBody}><div className={styles.cardMeta}><span>{post.source_name||'ماركتون'}</span><time>{dateLabel(post.source_published_at||post.published_at)}</time></div><h4>{post.title}</h4><LifecycleBadge post={post}/><p>{post.smart_summary||post.excerpt}</p>{post.lifecycle==='active'&&deadline!==null&&deadline>=0&&<div className={styles.deadline}><span>آخر موعد</span><b>{deadline===0?'اليوم':`بعد ${deadline.toLocaleString('ar-SA')} يوم`}</b></div>}{post.why_it_matters&&<div className={styles.why}><b>لماذا يهمك؟</b><span>{post.why_it_matters}</span></div>}<footer><span className={styles.relevance}><i style={{width:`${relevance(post)}%`}}/><small>{relevance(post)}% ملاءمة</small></span><button type="button" className={styles.save} aria-label={post.is_saved?`إلغاء حفظ ${post.title}`:`حفظ ${post.title}`} onClick={event=>{event.stopPropagation();onBookmark();}} disabled={saving}>{post.is_saved?'★':'☆'}</button></footer></div></article>;
 }
 
 function SidePanel({title,icon,empty,children}){const list=Array.isArray(children)?children:[children];return <section className={styles.sidePanel}><header><span>{icon}</span><h4>{title}</h4></header><div>{list.some(Boolean)?children:<p className={styles.sideEmpty}>{empty}</p>}</div></section>;}
 
-function PostModal({post,onClose,onBookmark,saving}){
+function PostModal({post,onClose,onBookmark,saving,loading,error}){
+  const closeButton=useRef(null);
+  useEffect(()=>{const previous=document.activeElement;closeButton.current?.focus();const key=event=>{if(event.key==='Escape')onClose();if(event.key==='Tab'){const items=[...closeButton.current?.closest('[role=dialog]')?.querySelectorAll('button:not(:disabled),a[href]')||[]];const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}};document.addEventListener('keydown',key);return()=>{document.removeEventListener('keydown',key);previous?.focus?.();};},[onClose]);
   const deadline=daysUntil(post.tender_deadline);
-  return <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.backdrop} onClick={onClose} aria-label="إغلاق"/><article className={styles.modal} role="dialog" aria-modal="true"><header><div className={styles.badges}><em>{typeLabel(post)}</em>{post.is_breaking&&<b>عاجل</b>}{relevance(post)>0&&<span>{relevance(post)}% مناسب لمنشأتك</span>}</div><button type="button" onClick={onClose} aria-label="إغلاق">×</button></header>{post.cover_image_url&&<img className={styles.modalImage} src={post.cover_image_url} alt=""/>}<div className={styles.modalBody}><small>{post.source_name||'ماركتون'} · {dateLabel(post.source_published_at||post.published_at,true)}</small><h2>{post.title}</h2><p className={styles.lead}>{post.smart_summary||post.excerpt}</p>{post.why_it_matters&&<section className={styles.insight}><span>✦</span><div><b>لماذا يهم هذا منشأتك؟</b><p>{post.why_it_matters}</p></div></section>}{post.recommended_action&&<section className={styles.action}><span>→</span><div><b>الإجراء المقترح</b><p>{post.recommended_action}</p></div></section>}{post.content&&<div className={styles.articleText}>{post.content}</div>}{deadline!==null&&deadline>=0&&<div className={styles.tenderFacts}><div><small>الجهة</small><b>{post.tender_authority||post.source_name||'غير محدد'}</b></div><div><small>آخر موعد</small><b>{dateLabel(post.tender_deadline,true)}</b></div><div><small>المتبقي</small><b>{deadline===0?'اليوم':`${deadline} يوم`}</b></div><div><small>المنطقة</small><b>{post.tender_region||'غير محددة'}</b></div></div>}</div><footer><button type="button" className={styles.modalSave} onClick={onBookmark} disabled={saving}>{post.is_saved?'★ إزالة من المحفوظات':'☆ حفظ للرجوع إليه'}</button>{(post.application_url||post.source_url)&&<a href={post.application_url||post.source_url} target="_blank" rel="noreferrer">فتح المصدر الرسمي ↗</a>}</footer></article></div>;
+  return <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.backdrop} onClick={onClose} aria-label="إغلاق"/><article className={styles.modal} role="dialog" aria-modal="true" aria-label={post.title}><header><div className={styles.badges}><em>{typeLabel(post)}</em><LifecycleBadge post={post}/>{post.is_breaking&&<b>عاجل</b>}{relevance(post)>0&&<span>{relevance(post)}% مناسب لمنشأتك</span>}</div><button ref={closeButton} type="button" onClick={onClose} aria-label="إغلاق">×</button></header><div className={styles.modalCover}><KnowledgeCover post={post}/></div><div className={styles.modalBody}>{loading&&<p role="status">جارٍ تحميل المادة…</p>}{error&&<p role="alert">{error}</p>}<small>{post.source_name||'ماركتون'} · {dateLabel(post.source_published_at||post.published_at,true)}</small><h2>{post.title}</h2><LifecycleBadge post={post}/>{post.lifecycle==='expired'&&<p className={styles.archiveNotice}>هذه منافسة سابقة محفوظة للمرجعية. انتهى التقديم عليها.</p>}<p className={styles.lead}>{post.smart_summary||post.excerpt}</p>{post.why_it_matters&&<section className={styles.insight}><span>✦</span><div><b>لماذا يهم هذا منشأتك؟</b><p>{post.why_it_matters}</p></div></section>}{post.lifecycle!=='expired'&&post.recommended_action&&<section className={styles.action}><span>→</span><div><b>الإجراء المقترح</b><p>{post.recommended_action}</p></div></section>}{post.content&&<div className={styles.articleText}>{post.content}</div>}{post.content_type==='tender'&&<div className={styles.tenderFacts}><div><small>الجهة</small><b>{post.tender_authority||post.source_name||'غير محدد'}</b></div><div><small>آخر موعد</small><b>{dateLabel(post.tender_deadline,true)}</b></div><div><small>المتبقي</small><b>{post.lifecycle==='expired'?'انتهت':deadline===null?'غير مؤكد':deadline===0?'اليوم':`${deadline} يوم`}</b></div><div><small>المنطقة</small><b>{post.tender_region||'غير محددة'}</b></div></div>}</div><footer><button type="button" className={styles.modalSave} onClick={onBookmark} disabled={saving}>{post.is_saved?'★ إزالة من المحفوظات':'☆ حفظ للرجوع إليه'}</button>{(post.application_url||post.source_url)&&<a href={safeMediaUrl(post.lifecycle==='expired'?post.source_url:post.application_url||post.source_url)||undefined} target="_blank" rel="noreferrer">{post.lifecycle==='expired'?'المصدر والمرجع السابق ↗':'فتح المصدر الرسمي ↗'}</a>}</footer></article></div>;
 }
 
 function LoadingState(){return <div className={styles.skeleton}><div/><section><div/><div/><div/></section></div>;}

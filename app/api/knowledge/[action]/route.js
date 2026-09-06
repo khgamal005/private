@@ -1,6 +1,9 @@
 import {NextResponse} from 'next/server';
 import {lookup} from 'node:dns/promises';
 import {isIP} from 'node:net';
+import {parseKnowledgeQuery} from '../../../../lib/knowledge-query.mjs';
+import {KNOWLEDGE_SOURCES} from '../../../../lib/knowledge-sources.mjs';
+import {isTrustedSupportRequestOrigin as isTrustedRequestOrigin} from '../../../../lib/support-request-origin.mjs';
 import {
   ACCESS_COOKIE,
   SUPABASE_KEY,
@@ -263,9 +266,10 @@ function postPayload(body){
   return {
     title:String(body.title||'').trim(),slug:body.slug||slugify(body.title),excerpt:body.excerpt||null,content:body.content||null,
     cover_image_url:body.coverImageUrl||null,category_id:body.categoryId||null,content_type:body.contentType||'news',status,
-    source_id:body.sourceId||null,source_name:body.sourceName||null,source_url:body.sourceUrl||null,canonical_url:body.canonicalUrl||body.sourceUrl||null,external_id:body.externalId||null,
+    ...(Object.hasOwn(body,'sourceId')?{source_id:body.sourceId||null}:{}),source_name:body.sourceName||null,source_url:body.sourceUrl||null,canonical_url:body.canonicalUrl||body.sourceUrl||null,external_id:body.externalId||null,
     is_featured:Boolean(body.isFeatured),is_breaking:Boolean(body.isBreaking),importance_level:body.importanceLevel||'normal',trust_score:Number(body.trustScore??70),relevance_score:Number(body.relevanceScore??65),
     why_it_matters:body.whyItMatters||null,recommended_action:body.recommendedAction||null,smart_summary:body.smartSummary||body.excerpt||null,review_notes:body.reviewNotes||null,
+    ...(Object.hasOwn(body,'isArchived')?{is_archived:Boolean(body.isArchived)}:{}),
     published_at:status==='published'?body.publishedAt||now:body.publishedAt||null,source_published_at:body.sourcePublishedAt||body.publishedAt||null,last_verified_at:body.lastVerifiedAt||now,expires_at:body.expiresAt||null,
     tender_authority:body.tenderAuthority||null,tender_number:body.tenderNumber||null,tender_deadline:body.tenderDeadline||null,tender_region:body.tenderRegion||null,tender_value:body.tenderValue||null,tender_status:body.tenderStatus||null,
     event_starts_at:body.eventStartsAt||null,event_ends_at:body.eventEndsAt||null,event_location:body.eventLocation||null,application_url:body.applicationUrl||null,
@@ -280,35 +284,33 @@ export async function GET(request,{params}){
     if(action==='feed'){
       const tenant=searchParams.get('tenant')||'';
       if(!tenant)return json({error:'المنشأة غير محددة'},400);
-      try{
-        return json(await rpc(request,'v2_tenant_knowledge_snapshot',{
-          p_slug:tenant,p_search:searchParams.get('search')||null,p_category:searchParams.get('category')||null,p_content_type:searchParams.get('type')||null,p_only_saved:searchParams.get('saved')==='true',p_limit:Number(searchParams.get('limit')||60),p_offset:Number(searchParams.get('offset')||0)
-        })||{posts:[],categories:[],stats:{}});
-      }catch(error){
-        const posts=await safeRest(request,'knowledge_posts',{query:'select=*,knowledge_categories(id,name,slug)&status=eq.published&order=is_featured.desc,published_at.desc.nullslast,created_at.desc&limit=60'},[]);
-        const categories=await safeRest(request,'knowledge_categories',{query:'select=*&is_active=eq.true&order=sort_order.asc,name.asc'},[]);
-        return json({posts,categories,stats:{total:posts.length},warning:'يعمل القسم حاليًا بوضع القراءة الاحتياطي.',detail:process.env.NODE_ENV==='development'?error.message:undefined});
-      }
+      const query=parseKnowledgeQuery(searchParams);
+      if(!query)return json({error:'فلاتر البحث غير صالحة'},400);
+      return json(await rpc(request,'v3_tenant_knowledge_snapshot',query));
     }
+    if(action==='post')return json({post:await rpc(request,'v3_tenant_knowledge_post',{p_slug:searchParams.get('tenant')||'',p_post_id:searchParams.get('id')})});
+    if(action==='source-catalog'){await requirePlatformAccess(request);return json({sources:KNOWLEDGE_SOURCES});}
     if(action==='categories')return json(await safeRest(request,'knowledge_categories',{query:'select=*&is_active=eq.true&order=sort_order.asc,name.asc'},[]));
     if(action==='admin'){
       await requirePlatformAccess(request);
-      const [posts,categories,sources,runs,rawItems]=await Promise.all([
-        safeRest(request,'knowledge_posts',{query:'select=*,knowledge_categories(id,name,slug)&order=created_at.desc&limit=300',requireAuth:true},[]),
-        safeRest(request,'knowledge_categories',{query:'select=*&order=sort_order.asc,name.asc',requireAuth:true},[]),
-        safeRest(request,'knowledge_sources',{query:'select=*&order=is_active.desc,name.asc',requireAuth:true},[]),
-        safeRest(request,'knowledge_ingestion_runs',{query:'select=*,knowledge_sources(name,source_key)&order=created_at.desc&limit=60',requireAuth:true},[]),
-        safeRest(request,'knowledge_raw_items',{query:'select=*,knowledge_sources(name,source_key)&status=in.(new,review,error)&order=created_at.desc&limit=100',requireAuth:true},[])
-      ]);
-      return json({posts,categories,sources,runs,rawItems,stats:{published:posts.filter(item=>item.status==='published').length,review:posts.filter(item=>['review','imported'].includes(item.status)).length,activeSources:sources.filter(item=>item.is_active).length,sourceErrors:sources.filter(item=>item.last_status==='error').length,automated:posts.filter(item=>item.is_automated).length}});
+      return json(await rpc(request,'v3_knowledge_admin_snapshot',{p_filter:searchParams.get('filter')||'all',p_search:searchParams.get('search')||'',p_offset:Math.max(0,Number(searchParams.get('offset')||0)),p_review_offset:Math.max(0,Number(searchParams.get('reviewOffset')||0))}));
     }
+    if(action==='admin-post'){await requirePlatformAccess(request);return json({post:(await rest(request,'knowledge_posts',{query:queryString({id:`eq.${searchParams.get('id')}`,limit:1}),requireAuth:true}))?.[0]});}
     return json({error:'الإجراء غير موجود'},404);
   }catch(error){return json({error:error.message||'حدث خطأ'},error.status||500);}
+}
+
+async function verifySource(request,source){
+ const response=await fetch(`${SUPABASE_URL}/functions/v1/knowledge-ingest`,{method:'POST',headers:{apikey:SUPABASE_KEY,authorization:`Bearer ${accessToken(request)}`,'content-type':'application/json'},body:JSON.stringify({dryRun:true,source}),cache:'no-store'});
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok||!result.ok){const error=new Error(result.error||result.warning||'فشل اختبار المصدر؛ احفظه متوقفًا وراجع رابط الأخبار.');error.status=422;throw error;}
+ return result;
 }
 
 export async function POST(request,{params}){
   try{
     const {action}=await params;
+    if(!isTrustedRequestOrigin(request))return json({error:'مصدر الطلب غير مسموح'},403);
     const body=await request.json().catch(()=>({}));
     if(action==='bookmark')return json(await rpc(request,'v2_tenant_knowledge_action',{p_slug:String(body.tenant||''),p_action:body.saved?'unsave':'save',p_post_id:body.postId}));
     if(action==='read')return json(await rpc(request,'v2_tenant_knowledge_action',{p_slug:String(body.tenant||''),p_action:'read',p_post_id:body.postId}));
@@ -321,15 +323,29 @@ export async function POST(request,{params}){
       if(!response.ok){const error=new Error(result.error||'تعذر تشغيل جلب المصادر');error.status=response.status;throw error;}
       return json(result);
     }
+    if(action==='source-check'){
+      const source=body.source||{};
+      await validatePublicUrl(source.feed_url||source.base_url);
+      const response=await fetch(`${SUPABASE_URL}/functions/v1/knowledge-ingest`,{method:'POST',headers:{apikey:SUPABASE_KEY,authorization:`Bearer ${accessToken(request)}`,'content-type':'application/json'},body:JSON.stringify({dryRun:true,source}),cache:'no-store'});
+      const result=await response.json().catch(()=>({}));return json(result,response.status);
+    }
+    if(action==='backfill'){
+      const rows=await rest(request,'knowledge_sources',{query:queryString({id:`eq.${body.id}`,select:'id,is_active,source_type,backfill_cursor',limit:1}),requireAuth:true});
+      const source=rows?.[0];
+      if(!source?.is_active||source.source_type==='manual')return json({error:'فعّل مصدرًا آليًا تم فحصه أولًا.'},400);
+      const cursor=body.stop?{...source.backfill_cursor,enabled:false}:{...source.backfill_cursor,enabled:true,target:250,totalAdded:source.backfill_cursor?.totalAdded||0,startedAt:new Date().toISOString()};
+      await rest(request,'knowledge_sources',{method:'PATCH',query:queryString({id:`eq.${body.id}`}),body:{backfill_cursor:cursor,next_sync_at:new Date().toISOString()},requireAuth:true});
+      return json({ok:true,cursor});
+    }
     if(action==='save'){
       const payload=postPayload(body);
       if(!payload.title)return json({error:'عنوان المادة مطلوب'},400);
       const rows=body.id?await rest(request,'knowledge_posts',{method:'PATCH',query:queryString({id:`eq.${body.id}`}),body:payload,requireAuth:true}):await rest(request,'knowledge_posts',{method:'POST',body:payload,requireAuth:true});
       return json({post:Array.isArray(rows)?rows[0]:rows});
     }
-    if(action==='delete'){
+    if(action==='delete'||action==='archive'){
       if(!body.id)return json({error:'المادة غير محددة'},400);
-      await rest(request,'knowledge_posts',{method:'DELETE',query:queryString({id:`eq.${body.id}`}),prefer:'return=minimal',requireAuth:true});
+      await rest(request,'knowledge_posts',{method:'PATCH',query:queryString({id:`eq.${body.id}`}),body:{is_archived:body.archived!==false,updated_at:new Date().toISOString()},requireAuth:true});
       return json({ok:true});
     }
     if(action==='category'){
@@ -339,21 +355,28 @@ export async function POST(request,{params}){
       return json({category:rows?.[0]});
     }
     if(action==='source'){
+      await validatePublicUrl(body.baseUrl);
+      if(body.feedUrl)await validatePublicUrl(body.feedUrl);
+      if(body.logoUrl)await validatePublicUrl(body.logoUrl);
       const name=String(body.name||'').trim();
       if(!name)return json({error:'اسم المصدر مطلوب'},400);
-      const payload={source_key:body.sourceKey||slugify(name),name,base_url:body.baseUrl||null,feed_url:body.feedUrl||body.baseUrl||null,source_type:body.sourceType||'rss',trust_level:body.trustLevel||'official',is_active:Boolean(body.isActive),requires_review:body.requiresReview!==false,auto_publish:Boolean(body.autoPublish),sync_frequency:body.syncFrequency||'daily',next_sync_at:body.isActive&&body.syncFrequency!=='manual'?new Date().toISOString():null,parser_config:parseJsonObject(body.parserConfig),include_keywords:list(body.includeKeywords),exclude_keywords:list(body.excludeKeywords),default_category_id:body.defaultCategoryId||null,default_content_type:body.defaultContentType||'news',default_tags:list(body.defaultTags),last_status:body.isActive?'never':'paused',updated_at:new Date().toISOString()};
+      const payload={source_key:body.sourceKey||slugify(name),name,logo_url:body.logoUrl||null,base_url:body.baseUrl||null,feed_url:body.feedUrl||body.baseUrl||null,source_type:body.sourceType||'rss',trust_level:body.trustLevel||'official',is_active:Boolean(body.isActive),requires_review:body.requiresReview!==false,auto_publish:Boolean(body.autoPublish),sync_frequency:body.syncFrequency||'daily',next_sync_at:body.isActive&&body.syncFrequency!=='manual'?new Date().toISOString():null,parser_config:parseJsonObject(body.parserConfig),include_keywords:list(body.includeKeywords),exclude_keywords:list(body.excludeKeywords),default_category_id:body.defaultCategoryId||null,default_content_type:body.defaultContentType||'news',default_tags:list(body.defaultTags),...(!body.id?{last_status:body.isActive?'never':'paused'}:{}),updated_at:new Date().toISOString()};
+      if(payload.is_active&&payload.source_type!=='manual')await verifySource(request,payload);
       const rows=body.id?await rest(request,'knowledge_sources',{method:'PATCH',query:queryString({id:`eq.${body.id}`}),body:payload,requireAuth:true}):await rest(request,'knowledge_sources',{method:'POST',body:payload,requireAuth:true});
       return json({source:rows?.[0]});
     }
     if(action==='source-toggle'){
+      if(body.isActive){const source=(await rest(request,'knowledge_sources',{query:queryString({id:`eq.${body.id}`,limit:1}),requireAuth:true}))?.[0];if(!source)return json({error:'المصدر غير موجود'},404);if(source.source_type!=='manual')await verifySource(request,source);}
       const rows=await rest(request,'knowledge_sources',{method:'PATCH',query:queryString({id:`eq.${body.id}`}),body:{is_active:Boolean(body.isActive),last_status:body.isActive?'never':'paused',next_sync_at:body.isActive?new Date().toISOString():null,updated_at:new Date().toISOString()},requireAuth:true});
       return json({source:rows?.[0]});
     }
     if(action==='raw-action'){
+      if(!['publish','reject'].includes(body.decision))return json({error:'قرار المراجعة غير صالح'},400);
       const itemRows=await rest(request,'knowledge_raw_items',{query:queryString({select:'id,post_id',id:`eq.${body.id}`,limit:1}),requireAuth:true});
       const item=itemRows?.[0];
       if(!item)return json({error:'المادة الخام غير موجودة'},404);
       if(body.decision==='publish'){
+        if(!item.post_id)return json({error:'المادة غير مكتملة؛ أعد مزامنة المصدر أولًا.'},409);
         if(item.post_id)await rest(request,'knowledge_posts',{method:'PATCH',query:queryString({id:`eq.${item.post_id}`}),body:{status:'published',published_at:new Date().toISOString(),updated_at:new Date().toISOString()},requireAuth:true});
         await rest(request,'knowledge_raw_items',{method:'PATCH',query:queryString({id:`eq.${body.id}`}),body:{status:'published'},requireAuth:true});
       }else{

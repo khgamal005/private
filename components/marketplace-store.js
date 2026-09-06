@@ -7,6 +7,7 @@ import {useRouter} from 'next/navigation';
 import TamaraContactFields from './tamara-contact-fields';
 import styles from './marketplace-store.module.css';
 import MarketplacePromoCode from './marketplace-promo-code';
+import MarketplaceOrderActions,{usePendingOrderRefresh} from './marketplace-order-actions';
 import {
   defaultPaymobOption,
   PaymentMethodPicker,
@@ -139,6 +140,7 @@ export default function MarketplaceStore({slug,initialData}){
   const orders=useMemo(()=>
     (data.orders||EMPTY).filter(isServiceOrder),
   [data.orders]);
+  usePendingOrderRefresh(orders);
   const transfers=data.bankTransferSubmissions||EMPTY;
   const transferByOrder=useMemo(
     ()=>new Map(transfers.map(item=>[item.orderId,item])),
@@ -431,37 +433,6 @@ setError('');setNotice('');
     }finally{setBusy('');}
   }
 
-  async function cancelOrder(order){
-    if(busy)return;
-    if(order?.paymentProvider==='paymob'){
-      setError('لا يمكن إلغاء طلب Paymob قبل حسم حالة العملية. استكمل نفس الدفع أو تابع المطابقة، وتواصل مع الدعم برقم الطلب إذا استمر التعليق.');
-      return;
-    }
-    const orderId=order?.id;
-    if(!orderId)return;
-    setBusy('cancel-'+orderId);
-    setError('');
-    setNotice('');
-    try{
-      const response=await fetch('/api/tenant/service-marketplace',{
-        method:'POST',
-        headers:{'content-type':'application/json'},
-        body:JSON.stringify({
-          p_slug:slug,
-          p_action:'cancel_order',
-          p_payload:{orderId}
-        })
-      });
-      const result=await response.json();
-      if(!response.ok)throw new Error(result.error||'تعذر إلغاء الطلب');
-      setNotice('تم إلغاء طلب الخدمة المعلق.');
-      router.refresh();
-    }catch(err){
-      setError(err instanceof Error?err.message:'تعذر إلغاء الطلب');
-    }finally{
-      setBusy('');
-    }
-  }
 
   const categories=[{key:'all',name:'كل الخدمات'},...(data.categories||EMPTY)];
   const selectedPackage=checkout
@@ -559,12 +530,7 @@ setError('');setNotice('');
             onClick={()=>openPaymob(order)}
           >{busy==='paymob-'+order.id?'جارٍ فتح الدفع…':'استكمال الدفع'}</button>}
           {order.status==='pending_payment'&&order.paymentProvider==='tamara'&&<button type="button" disabled={Boolean(busy)} onClick={()=>setTamaraOrder(order)}>متابعة تمارا</button>}
-          {order.status==='pending_payment'&&order.paymentProvider!=='paymob'&&order.paymentProvider!=='tamara'&&<button
-            type="button"
-            className={styles.cancel}
-            disabled={Boolean(busy)}
-            onClick={()=>cancelOrder(order)}
-          >{busy==='cancel-'+order.id?'جارٍ الإلغاء…':'إلغاء'}</button>}
+          <MarketplaceOrderActions slug={slug} order={order} methods={paymentMethods} canManage={canPurchase}/>
           {promotionsEnabled&&order.status==='pending_payment'&&<MarketplacePromoCode
             order={order} busy={busy} canManage={canPurchase}
             onApply={applyPromotion} onRemove={removePromotion}/>}
@@ -790,3 +756,4 @@ function ServiceCard({item,canPurchase,pending,onBuy}){
 function Empty(){
   return <div className={styles.empty}><span>⌕</span><h2>لا توجد نتائج مطابقة</h2><p>جرّب قسمًا آخر أو غيّر عبارة البحث.</p></div>;
 }
+

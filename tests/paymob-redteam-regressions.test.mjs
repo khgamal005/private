@@ -163,8 +163,8 @@ test('a pending Paymob attempt cannot be cancelled through generic marketplace a
   for(const store of [addonStore,serviceStore]){
     assert.match(
       store,
-      /order\.paymentProvider\s*!==\s*['"]paymob['"]/i,
-      'Store must hide generic cancel after Paymob owns the payment attempt'
+      /<MarketplaceOrderActions[^>]*canManage=\{canPurchase\}/i,
+      'Store must route cancellation through the permission-gated recovery control'
     );
   }
 
@@ -181,3 +181,4 @@ test('platform operators cannot manually confirm a pending Paymob order',()=>{
   );
   assert.match(platformPayments,/p_action\s*:\s*['"]confirm_payment['"]/i);
 });
+

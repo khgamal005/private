@@ -89,3 +89,6 @@
   .paymobOption>span:not(.paymobOptionMark),.paymobOptionSelected>span:not(.paymobOptionMark){grid-column:1}
   .paymobOption>em,.paymobOptionSelected>em{grid-column:2;grid-row:2}
 }
+
+.orderRecovery{grid-column:1/-1;display:grid;gap:10px;min-width:0;padding-top:10px;border-top:1px solid #e0e8ee}.orderRecovery>div{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.orderRecovery fieldset,.orderRecovery p{flex-basis:100%;width:100%;margin:0}.orderRecovery p{font-size:12px;line-height:1.8;color:#516578}
+

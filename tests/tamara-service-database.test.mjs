@@ -12,6 +12,7 @@ async function database(){
  await db.exec(await readFile(new URL('./fixtures/tamara-service-schema.sql',import.meta.url),'utf8'));
  await db.exec(await readFile(new URL('../supabase/migrations/20260906153331_tamara_service_capture_v1.sql',import.meta.url),'utf8'));
  await db.exec(await readFile(new URL('./fixtures/paymob-order-guard.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../supabase/migrations/20260906163942_marketplace_unpaid_order_recovery.sql',import.meta.url),'utf8'));
  return db;
 }
 async function seed(db){
@@ -104,3 +105,4 @@ test('replacement keeps expired Paymob evidence, creates one Tamara order, and i
  assert.equal((await db.query("select count(*)::int n from marketplace.order_events where event_type='payment_order_replaced'")).rows[0].n,1);
  }finally{await db.close();}
 });
+

@@ -69,8 +69,8 @@ test('both stores create an order once, initialize Paymob, and preserve unknown 
     assert.match(text,/response\.status===202&&result\.attemptId[\s\S]*?payments\/paymob\/return/,`${name} must poll an ambiguous existing attempt`);
     assert.match(text,/paymentProvider===['"]paymob['"][\s\S]*?استكمال الدفع/,`${name} must expose pending Paymob orders`);
     assert.match(text,/disabled=\{Boolean\(busy\)\}/,`${name} must disable retry while busy`);
-    assert.match(text,/order\?\.paymentProvider===['"]paymob['"][\s\S]*?لا يمكن إلغاء طلب Paymob/,`${name} must guard its cancel handler`);
-    assert.match(text,/order\.status===['"]pending_payment['"]&&order\.paymentProvider!==['"]paymob['"](?:&&order\.paymentProvider!==['"]tamara['"])?&&<button/,`${name} must hide generic cancellation for Paymob`);
+    assert.match(text,/<MarketplaceOrderActions[^>]*canManage=\{canPurchase\}/,`${name} must use permission-gated recovery controls`);
+    assert.doesNotMatch(text,/async function cancelOrder\(/,`${name} must not bypass the shared recovery route`);
     assert.match(text,/لا تبدأ دفعة أخرى[\s\S]*?تواصل مع الدعم برقم الطلب/,`${name} must explain reconciliation and support`);
   }
 });
@@ -187,4 +187,5 @@ test('both storefronts synchronously lock Paymob navigation before the first awa
     assert.match(text,/catch\(error\)\{[\s\S]{0,120}?paymobNavigationLock\.current=false/);
   }
 });
+
 

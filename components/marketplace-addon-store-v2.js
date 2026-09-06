@@ -5,6 +5,7 @@ import {useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import styles from './marketplace-store.module.css';
 import MarketplacePromoCode from './marketplace-promo-code';
+import MarketplaceOrderActions,{usePendingOrderRefresh} from './marketplace-order-actions';
 import TamaraContactFields from './tamara-contact-fields';
 import {
   defaultPaymobOption,
@@ -97,6 +98,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   const addons=data.addons||EMPTY;
   const addonCategories=data.addonCategories||EMPTY;
   const orders=data.orders||EMPTY;
+  usePendingOrderRefresh(orders);
   const paymentMethods=data.paymentMethods||EMPTY;
   const transfers=data.bankTransferSubmissions||EMPTY;
   const canPurchase=Boolean(data.viewer?.canPurchase);
@@ -352,21 +354,6 @@ setError('');setNotice('');
     }finally{setBusy('');}
   }
 
-  async function cancelOrder(order){
-    if(busy)return;
-    if(order?.paymentProvider==='paymob'){
-      setError('لا يمكن إلغاء طلب Paymob قبل حسم حالة العملية. استكمل نفس الدفع أو تابع المطابقة، وتواصل مع الدعم برقم الطلب إذا استمر التعليق.');
-      return;
-    }
-    const orderId=order?.id;
-    if(!orderId)return;
-    setBusy('cancel-'+orderId);setError('');setNotice('');
-    try{
-      await action('cancel_order',{orderId});
-      setNotice('تم إلغاء طلب الشراء المعلق.');router.refresh();
-    }catch(err){setError(err instanceof Error?err.message:'تعذر إلغاء الطلب');}
-    finally{setBusy('');}
-  }
 
   const subtotal=Number(checkout?.item?.amountMinor||0);
   const tax=Math.round(subtotal*.15);
@@ -421,7 +408,7 @@ setError('');setNotice('');
             <div><small>الدفع</small><b>{paymentProviderName(order.paymentProvider,paymentMethods)}</b>{transfer&&<small>{TRANSFER_STATUS[transfer.status]||transfer.status}</small>}{order.status==='pending_payment'&&order.paymentProvider==='paymob'&&<small className={styles.paymobOrderGuard}>استكمل نفس العملية أو تابع المطابقة؛ لا تبدأ دفعة أخرى. تواصل مع الدعم برقم الطلب إذا استمر التعليق.</small>}</div>
             {order.status==='pending_payment'&&order.paymentProvider==='bank_transfer'&&(!transfer||transfer.status==='rejected')&&<button type="button" disabled={Boolean(busy)} onClick={()=>openTransfer(order)}>إرسال بيانات التحويل</button>}
             {order.status==='pending_payment'&&order.paymentProvider==='paymob'&&<button type="button" className={styles.payButton} disabled={Boolean(busy)} onClick={()=>openPaymob(order)}>{busy==='paymob-'+order.id?'جارٍ فتح الدفع…':'استكمال الدفع'}</button>}
-            {order.status==='pending_payment'&&order.paymentProvider!=='paymob'&&order.paymentProvider!=='tamara'&&<button type="button" className={styles.cancel} disabled={Boolean(busy)} onClick={()=>cancelOrder(order)}>{busy==='cancel-'+order.id?'جارٍ الإلغاء…':'إلغاء'}</button>}
+            <MarketplaceOrderActions slug={slug} order={order} methods={paymentMethods} canManage={canPurchase}/>
             {order.status==='pending_payment'&&order.paymentProvider==='tamara'&&<button type="button" className={styles.payButton} disabled={Boolean(busy)} onClick={()=>setTamaraOrder(order)}>متابعة تمارا</button>}
             {promotionsEnabled&&order.status==='pending_payment'&&order.paymentProvider!=='tamara'&&<MarketplacePromoCode
               order={order} busy={busy} canManage={canPurchase}
@@ -516,4 +503,5 @@ function AddonCard({slug,item,canPurchase,pending,busy,onActivateFree,onBuy}){
     </footer>
   </article>;
 }
+
 

@@ -78,6 +78,7 @@ function promotionRpc(body){
   const action=String(body.p_action||'');
   const payload=body.p_payload&&typeof body.p_payload==='object'
     &&!Array.isArray(body.p_payload)?body.p_payload:{};
+  if(action==='cancel_unpaid_order'){return {name:'v1_tenant_marketplace_cancel_unpaid_order',body:{p_slug:body.p_slug,p_payload:payload}};}
   if(action==='replace_payment'){return {name:'v1_tenant_marketplace_replace_payment',body:{p_slug:body.p_slug,p_payload:payload}};}
   if(action==='create_service_order'&&payload.paymentProvider==='tamara'){return {name:'v1_tenant_tamara_service_create',body:{p_slug:body.p_slug,p_payload:payload}};}
   if(action==='apply_promotion'||action==='remove_promotion'){
@@ -175,6 +176,9 @@ function safeUpstreamStatus(status){
 
 function translate(value){
   const messages={
+    payment_order_busy:'جارٍ تحديث حالة الدفع؛ انتظر قليلًا ثم حدّث الحالة وأعد المحاولة.',
+    tamara_order_payment_review_hold:'محاولة تمارا ما زالت مفتوحة أو قيد المطابقة. بعد تأكيد انتهائها دون دفع يمكنك الإلغاء أو اختيار وسيلة أخرى.',
+    payment_cancellation_requires_resolution:'محاولة الدفع لم تُحسم بعد؛ حدّث الحالة بعد انتهاء المحاولة لدى مزود الدفع.',
     payment_replacement_requires_resolution:'توجد محاولة دفع تحتاج حسمًا قبل تغيير الوسيلة. تابع المطابقة أو تواصل مع الدعم برقم الطلب.',
     payment_replacement_price_changed:'تغيّر سعر المنتج؛ راجع الطلب مع الدعم قبل تغيير وسيلة الدفع.',
     forbidden:'ليس لديك صلاحية لتنفيذ العملية',
@@ -232,3 +236,4 @@ function json(body,init={}){
     }
   });
 }
+

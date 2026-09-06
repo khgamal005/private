@@ -12,6 +12,11 @@ import {
   PaymentMethodPicker,
   PaymobOptionPicker
 } from './payment-method-picker';
+import {
+  closePaymobCheckoutWindow,
+  navigatePaymobCheckoutWindow,
+  openPaymobCheckoutWindow
+} from '../lib/paymob-checkout-window';
 
 const EMPTY=[];
 const STATUS={
@@ -182,7 +187,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
     }
   }
 
-  async function redirectToPaymob(order,paymentRequestKey){
+  async function redirectToPaymob(order,paymentRequestKey,paymentWindow=null){
     if(paymobNavigationLock.current)return true;
     paymobNavigationLock.current=true;
     try{
@@ -201,6 +206,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
         const returnUrl='/tenant/'+encodeURIComponent(slug)
           +'/payments/paymob/return?attempt='
           +encodeURIComponent(result.attemptId);
+        closePaymobCheckoutWindow(paymentWindow);
         router.push(returnUrl);
         return true;
       }
@@ -208,10 +214,23 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
         throw new Error(result.error||'تعذر فتح صفحة الدفع الآمنة');
       }
       const checkoutUrl=String(result.checkoutUrl||'');
-      if(!checkoutUrl)throw new Error('لم تُرجع بوابة الدفع رابطًا صالحًا');
+      if(!checkoutUrl||!result.attemptId){
+        throw new Error('لم تُرجع بوابة الدفع رابطًا صالحًا');
+      }
+      const returnUrl='/tenant/'+encodeURIComponent(slug)
+        +'/payments/paymob/return?attempt='
+        +encodeURIComponent(result.attemptId);
+      if(navigatePaymobCheckoutWindow(paymentWindow,checkoutUrl)){
+        router.push(returnUrl);
+        return true;
+      }
+      // Popup blockers are uncommon because the window is opened synchronously
+      // from the user's click. Keep the established same-tab route as a safe
+      // fallback rather than discarding the already-created Paymob link.
       window.location.assign(checkoutUrl);
       return true;
     }catch(error){
+      closePaymobCheckoutWindow(paymentWindow);
       paymobNavigationLock.current=false;
       throw error;
     }
@@ -244,6 +263,9 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   async function createOrder(event){
     event.preventDefault();
     if(!checkout||busy)return;
+    const paymentWindow=paymentProvider==='paymob'
+      ?openPaymobCheckoutWindow()
+      :null;
     setBusy('checkout');setError('');setNotice('');
     let order=null;
     let navigating=false;
@@ -254,6 +276,9 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
         promotionCode:checkoutPromotionCode.trim()||undefined
       });
       setCheckout(null);
+      if(order.paymentProvider!=='paymob'){
+        closePaymobCheckoutWindow(paymentWindow);
+      }
       if(order.paymentProvider==='bank_transfer'){
         setTransferOrder(order);
         setSenderName('');setTransferReference('');setTransferDate(today());
@@ -262,12 +287,13 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
       }else if(order.paymentProvider==='tamara'){
         navigating=await redirectToTamara(order);
       }else if(order.paymentProvider==='paymob'){
-        navigating=await redirectToPaymob(order,checkout.paymentRequestKey);
+        navigating=await redirectToPaymob(order,checkout.paymentRequestKey,paymentWindow);
       }else{
         setNotice('تم إنشاء طلب الشراء '+(order.orderNumber||'')+'.');
         router.refresh();
       }
     }catch(err){
+      closePaymobCheckoutWindow(paymentWindow);
       if(order?.id){
         setCheckout(null);
         setError('تم حفظ الطلب، لكن '+(err instanceof Error?err.message:'تعذر فتح صفحة الدفع')+'. يمكنك استكمال الدفع من سجل الطلبات.');
@@ -275,7 +301,12 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
       }else{
         setError(err instanceof Error?err.message:'تعذر إنشاء الطلب');
       }
-    }finally{if(!navigating)setBusy('');}
+    }finally{
+      if(!navigating){
+        closePaymobCheckoutWindow(paymentWindow);
+        setBusy('');
+      }
+    }
   }
 
   function openTransfer(order){
@@ -292,6 +323,9 @@ setError('');setNotice('');
   async function continuePaymob(event){
     event.preventDefault();
     if(!paymobOrder||busy)return;
+    const paymentWindow=paymentProvider==='paymob'
+      ?openPaymobCheckoutWindow()
+      :null;
     setBusy('paymob-'+paymobOrder.order.id);setError('');setNotice('');
     let navigating=false;
     try{
@@ -306,13 +340,20 @@ setError('');setNotice('');
       }
       navigating=await redirectToPaymob(
         paymobOrder.order,
-        paymobOrder.paymentRequestKey
+        paymobOrder.paymentRequestKey,
+        paymentWindow
       );
     }catch(err){
+      closePaymobCheckoutWindow(paymentWindow);
       setPaymobOrder(null);
       setError(err instanceof Error?err.message:'تعذر فتح صفحة الدفع الآمنة');
       router.refresh();
-    }finally{if(!navigating)setBusy('');}
+    }finally{
+      if(!navigating){
+        closePaymobCheckoutWindow(paymentWindow);
+        setBusy('');
+      }
+    }
   }
 
   async function submitTransfer(event){

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import {useEffect,useState} from 'react';
+import {closePaymobCheckoutWindow} from '../lib/paymob-checkout-window';
 import styles from './marketplace-store.module.css';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -19,6 +20,10 @@ export default function PaymobReturnStatus({slug,attemptId}){
     let timer=null;
     let checks=0;
     const controller=new AbortController();
+    const finish=nextPhase=>{
+      closePaymobCheckoutWindow();
+      setPhase(nextPhase);
+    };
 
     async function check(){
       checks+=1;
@@ -39,19 +44,21 @@ export default function PaymobReturnStatus({slug,attemptId}){
         setMessage('');
 
         if(result.paymentStatus==='paid'){
-          setPhase('paid');
+          finish('paid');
           return;
         }
         if(result.resultCode==='issuer_declined_retry_available'){
+          closePaymobCheckoutWindow();
           setPhase('declined');
           return;
         }
         if(result.attemptStatus==='quarantined'){
+          closePaymobCheckoutWindow();
           setPhase('review');
           return;
         }
         if(result.terminal===true){
-          setPhase('failed');
+          finish('failed');
           return;
         }
         if(checks>=MAX_AUTOMATIC_CHECKS){
@@ -89,6 +96,7 @@ export default function PaymobReturnStatus({slug,attemptId}){
   const content=paymentResultContent(phase,snapshot,message);
   const addonsHref='/tenant/'+encodeURIComponent(slug)+'/addons-store';
   const servicesHref='/tenant/'+encodeURIComponent(slug)+'/services-store';
+  const orderHref=snapshot?.orderKind==='service'?servicesHref:addonsHref;
 
   return <main className={styles.paymentResult} dir="rtl">
     <section className={[styles.paymentResultCard,styles['result_'+content.tone]].join(' ')} aria-live="polite">
@@ -98,11 +106,13 @@ export default function PaymobReturnStatus({slug,attemptId}){
       <p>{content.description}</p>
       {snapshot?.orderNumber&&<div className={styles.resultOrder}><span>رقم الطلب</span><b dir="ltr">{snapshot.orderNumber}</b></div>}
       {message&&phase!=='paid'&&<div className={styles.resultMessage}>{message}</div>}
-      {['checking','pending','unknown'].includes(phase)&&<div className={styles.resultProgress}><i/><span>قد يستغرق وصول تأكيد Paymob بضع لحظات. يمكنك إبقاء الصفحة مفتوحة.</span></div>}
+      {['checking','pending','unknown'].includes(phase)&&<div className={styles.resultProgress}><i/><span>صفحة Paymob مفتوحة في نافذة مستقلة، وأودير يتابع النتيجة الموثقة هنا تلقائيًا.</span></div>}
       <div className={styles.resultGuard}>صفحة العودة لا تعتمد الدفع ولا تفعّل إضافة أو خدمة. يعتمد أودير فقط الحالة الموثقة من الخادم.</div>
       <footer>
-        {['paused','declined'].includes(phase)&&<button type="button" onClick={()=>setRetryCycle(value=>value+1)}>{phase==='declined'?'تحقق بعد إعادة المحاولة':'تحقق مرة أخرى'}</button>}
-        {snapshot?.orderKind==='addon'?<Link href={addonsHref}>العودة إلى طلبات الإضافات</Link>
+        {phase==='paused'&&<button type="button" onClick={()=>setRetryCycle(value=>value+1)}>تحقق مرة أخرى</button>}
+        {phase==='declined'
+          ?<Link href={orderHref}>{snapshot?.retryAllowed?'المحاولة ببطاقة أخرى':'العودة إلى الطلب'}</Link>
+          :snapshot?.orderKind==='addon'?<Link href={addonsHref}>العودة إلى طلبات الإضافات</Link>
           :snapshot?.orderKind==='service'?<Link href={servicesHref}>العودة إلى طلبات الخدمات</Link>
             :<><Link href={addonsHref}>طلبات الإضافات</Link><Link href={servicesHref}>طلبات الخدمات</Link></>}
       </footer>
@@ -140,12 +150,12 @@ function paymentResultContent(phase,snapshot,message){
   if(phase==='declined')return {
     tone:'failed',icon:'×',title:'رفض البنك عملية الدفع',
     description:snapshot?.retryAllowed
-      ?'لم يعتمد أودير أي دفعة ناجحة. ارجع إلى الطلب واضغط «استكمال الدفع» لتجربة بطاقة أخرى داخل صفحة Paymob الآمنة؛ لا تحتاج إلى إنشاء طلب جديد.'
+      ?'لم يعتمد أودير أي دفعة ناجحة. أُغلقت نافذة Paymob تلقائيًا. ارجع إلى نفس الطلب واضغط «استكمال الدفع» لتجربة بطاقة أخرى؛ لا تحتاج إلى إنشاء طلب جديد.'
       :'لم يعتمد أودير أي دفعة ناجحة. انتهت صلاحية هذه المحاولة، ويمكنك العودة إلى الطلب وبدء محاولة آمنة جديدة.'
   };
   if(phase==='paid')return {
     tone:'success',icon:'✓',title:'تم تأكيد الدفع بنجاح',
-    description:'وصل التأكيد الموثق إلى أودير. ستظهر حالة الطلب والتفعيل أو بدء التنفيذ وفق نوعه داخل المتجر المختص.'
+    description:'وصل التأكيد الموثق إلى أودير وأُغلقت نافذة Paymob. ستظهر حالة الطلب والتفعيل أو بدء التنفيذ وفق نوعه داخل المتجر المختص.'
   };
   if(phase==='failed')return {
     tone:'failed',icon:'×',title:'لم يكتمل الدفع',
@@ -171,6 +181,6 @@ function paymentResultContent(phase,snapshot,message){
   };
   return {
     tone:'pending',icon:'…',title:'جارٍ التحقق من الدفع',
-    description:message||'عدت من صفحة Paymob، ونتحقق الآن من الحالة الموثقة. العودة وحدها لا تعني نجاح الدفع.'
+    description:message||'أبقِ هذه الصفحة مفتوحة أثناء الدفع. سيغلق أودير نافذة Paymob ويعرض النتيجة هنا بمجرد وصولها من الخادم؛ فالعودة وحدها لا تعني نجاح الدفع.'
   };
 }

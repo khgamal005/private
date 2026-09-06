@@ -5,6 +5,7 @@ import {useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import styles from './marketplace-store.module.css';
 import MarketplacePromoCode from './marketplace-promo-code';
+import TamaraContactFields from './tamara-contact-fields';
 import {
   defaultPaymobOption,
   PaymentMethodPicker,
@@ -88,6 +89,9 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   // `busy` renders asynchronously. This synchronous lock closes the tiny
   // double-tap window before the first checkout request leaves the browser.
   const paymobNavigationLock=useRef(false);
+  const tamaraNavigationLock=useRef(false);
+  const [tamaraContact,setTamaraContact]=useState({});
+  const [tamaraOrder,setTamaraOrder]=useState(null);
   const promotionsEnabled=slug!=='reef-skills';
   const data=initialData||{};
   const addons=data.addons||EMPTY;
@@ -211,6 +215,30 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
     }
   }
 
+  async function redirectToTamara(order){
+    if(tamaraNavigationLock.current)return true;
+    tamaraNavigationLock.current=true;
+    try{
+      const response=await fetch('/api/payments/tamara/checkout',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({slug,orderId:order.id,contact:tamaraContact})
+      });
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error||'تعذر فتح تمارا');
+      if(result.checkoutUrl){window.location.assign(result.checkoutUrl);return true;}
+      if(!result.attemptId)throw new Error('تعذر التحقق من محاولة الدفع');
+      router.push('/tenant/'+encodeURIComponent(slug)+'/payments/tamara/return?attempt='+encodeURIComponent(result.attemptId));
+      return true;
+    }catch(error){tamaraNavigationLock.current=false;throw error;}
+  }
+
+  async function continueTamara(event){
+    event.preventDefault();if(!tamaraOrder||busy)return;
+    setBusy('tamara');setError('');
+    try{await redirectToTamara(tamaraOrder);setTamaraOrder(null);}
+    catch(err){setError(err.message||'تعذر فتح تمارا');setBusy('');}
+  }
+
   async function createOrder(event){
     event.preventDefault();
     if(!checkout||busy)return;
@@ -229,6 +257,8 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
         setSenderName('');setTransferReference('');setTransferDate(today());
         setNotice('تم إنشاء الطلب '+(order.orderNumber||'')+'. أدخل بيانات التحويل لإرساله إلى المراجعة.');
         router.refresh();
+      }else if(order.paymentProvider==='tamara'){
+        navigating=await redirectToTamara(order);
       }else if(order.paymentProvider==='paymob'){
         navigating=await redirectToPaymob(order,checkout.paymentRequestKey);
       }else{
@@ -381,8 +411,9 @@ setError('');setNotice('');
             <div><small>الدفع</small><b>{paymentProviderName(order.paymentProvider,paymentMethods)}</b>{transfer&&<small>{TRANSFER_STATUS[transfer.status]||transfer.status}</small>}{order.status==='pending_payment'&&order.paymentProvider==='paymob'&&<small className={styles.paymobOrderGuard}>استكمل نفس العملية أو تابع المطابقة؛ لا تبدأ دفعة أخرى. تواصل مع الدعم برقم الطلب إذا استمر التعليق.</small>}</div>
             {order.status==='pending_payment'&&order.paymentProvider==='bank_transfer'&&(!transfer||transfer.status==='rejected')&&<button type="button" disabled={Boolean(busy)} onClick={()=>openTransfer(order)}>إرسال بيانات التحويل</button>}
             {order.status==='pending_payment'&&order.paymentProvider==='paymob'&&<button type="button" className={styles.payButton} disabled={Boolean(busy)} onClick={()=>openPaymob(order)}>{busy==='paymob-'+order.id?'جارٍ فتح الدفع…':'استكمال الدفع'}</button>}
-            {order.status==='pending_payment'&&order.paymentProvider!=='paymob'&&<button type="button" className={styles.cancel} disabled={Boolean(busy)} onClick={()=>cancelOrder(order)}>{busy==='cancel-'+order.id?'جارٍ الإلغاء…':'إلغاء'}</button>}
-            {promotionsEnabled&&order.status==='pending_payment'&&<MarketplacePromoCode
+            {order.status==='pending_payment'&&order.paymentProvider!=='paymob'&&order.paymentProvider!=='tamara'&&<button type="button" className={styles.cancel} disabled={Boolean(busy)} onClick={()=>cancelOrder(order)}>{busy==='cancel-'+order.id?'جارٍ الإلغاء…':'إلغاء'}</button>}
+            {order.status==='pending_payment'&&order.paymentProvider==='tamara'&&<button type="button" className={styles.payButton} disabled={Boolean(busy)} onClick={()=>setTamaraOrder(order)}>متابعة تمارا</button>}
+            {promotionsEnabled&&order.status==='pending_payment'&&order.paymentProvider!=='tamara'&&<MarketplacePromoCode
               order={order} busy={busy} canManage={canPurchase}
               onApply={applyPromotion} onRemove={removePromotion}/>}
           </article>;
@@ -401,6 +432,7 @@ setError('');setNotice('');
         {selectedMethod?.key==='paymob'&&<PaymobOptionPicker
           paymentMethods={paymentMethods} value={paymentOption}
           onChange={setPaymentOption}/>}
+        {selectedMethod?.key==='tamara'&&<TamaraContactFields value={tamaraContact} onChange={setTamaraContact}/>}
         {selectedMethod?.publicConfig?.instructionsAr&&<div className={styles.activationNote}><span>↔</span><p>{selectedMethod.publicConfig.instructionsAr}</p></div>}
         {selectedMethod?.key==='bank_transfer'&&(selectedMethod.publicConfig?.bankName||selectedMethod.publicConfig?.iban)&&<div className={styles.info}>
           {selectedMethod.publicConfig.bankName&&<div><b>البنك:</b> {selectedMethod.publicConfig.bankName}</div>}
@@ -410,7 +442,7 @@ setError('');setNotice('');
         {promotionsEnabled&&<label><span>برومو كود <small>(اختياري)</small></span><input dir="ltr" autoCapitalize="characters" autoComplete="off" spellCheck="false" minLength="3" maxLength="32" pattern="[A-Za-z0-9][A-Za-z0-9_-]{2,31}" placeholder="PROMO2026" value={checkoutPromotionCode} onChange={event=>setCheckoutPromotionCode(event.target.value.toUpperCase())}/><small className={styles.promoHint}>سيُتحقق منه خادميًا ويُحسب الخصم قبل فتح صفحة الدفع.</small></label>}
         <label><span>ملاحظات الطلب <small>(اختياري)</small></span><textarea rows="3" maxLength="1000" value={notes} onChange={event=>setNotes(event.target.value)}/></label>
         <dl><div><dt>سعر الإضافة السنوي</dt><dd>{money(subtotal,checkout.item.currency)}</dd></div><div><dt>ضريبة القيمة المضافة 15%</dt><dd>{money(tax,checkout.item.currency)}</dd></div><div><dt>الإجمالي قبل أي برومو</dt><dd>{money(subtotal+tax,checkout.item.currency)}</dd></div></dl>
-        <footer><button type="button" onClick={()=>setCheckout(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={busy==='checkout'||!paymentMethods.length}>{busy==='checkout'?'جارٍ إنشاء الطلب…':selectedMethod?.key==='paymob'?'المتابعة إلى الدفع الآمن':'إنشاء طلب الاشتراك'}</button></footer>
+        <footer><button type="button" onClick={()=>setCheckout(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={busy==='checkout'||!paymentMethods.length}>{busy==='checkout'?'جارٍ إنشاء الطلب…':selectedMethod?.key==='tamara'?'المتابعة إلى تمارا':selectedMethod?.key==='paymob'?'المتابعة إلى الدفع الآمن':'إنشاء طلب الاشتراك'}</button></footer>
       </form>
     </div>}
 
@@ -425,6 +457,16 @@ setError('');setNotice('');
         <label><span>تاريخ التحويل</span><input type="date" value={transferDate} onChange={event=>setTransferDate(event.target.value)} required/></label>
         <div className={styles.activationNote}><span>!</span><p>إرسال بيانات التحويل لا يعني قبول الدفع. تظل الإضافة غير مفعلة حتى تعتمد الإدارة التحويل.</p></div>
         <footer><button type="button" onClick={()=>setTransferOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={busy==='transfer'}>{busy==='transfer'?'جارٍ الإرسال…':'إرسال للمراجعة'}</button></footer>
+      </form>
+    </div>}
+
+    {tamaraOrder&&<div className={styles.modalLayer}>
+      <button className={styles.backdrop} type="button" aria-label="إغلاق" onClick={()=>setTamaraOrder(null)}/>
+      <form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="tamara-resume-title" onSubmit={continueTamara}>
+        <header><h2 id="tamara-resume-title">متابعة الدفع مع تمارا</h2><button type="button" aria-label="إغلاق" onClick={()=>setTamaraOrder(null)}>×</button></header>
+        <p>سنستكمل نفس طلب الشراء {tamaraOrder.orderNumber}.</p>
+        <TamaraContactFields value={tamaraContact} onChange={setTamaraContact}/>
+        <footer><button type="button" onClick={()=>setTamaraOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={Boolean(busy)}>{busy==='tamara'?'جارٍ المتابعة…':'المتابعة إلى تمارا'}</button></footer>
       </form>
     </div>}
 
@@ -461,3 +503,4 @@ function AddonCard({slug,item,canPurchase,pending,busy,onActivateFree,onBuy}){
     </footer>
   </article>;
 }
+

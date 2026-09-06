@@ -1,7 +1,8 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 
-import styles from './marketplace-store.module.css';
+import styles from './payment-method-picker.module.css';
+import {useId} from 'react';
 
 const OPTION_KEYS=new Set(['hosted','card','apple_pay']);
 const CARD_BRANDS=[
@@ -36,26 +37,30 @@ export function defaultPaymobOption(paymentMethods){
 }
 
 export function PaymentMethodPicker({methods,value,onChange}){
+  const group=useId();
+  const appleEnabled=paymobOptions(methods).some(option=>option.key==='apple_pay');
   return <fieldset className={styles.paymentMethodPicker}>
     <legend>وسيلة الدفع</legend>
     <div className={styles.paymentMethodGrid}>
       {(methods||[]).map(method=>{
         const selected=method.key===value;
         const description=method.key==='paymob'
-          ?'Visa وMastercard ومدى وAmerican Express وApple Pay'
+          ?'دفع آمن بالبطاقة أو المحفظة المتاحة'
+          :method.key==='tamara'
+            ?'قسّم دفعتك حسب الخيارات المتاحة لدى تمارا'
           :method.key==='bank_transfer'
             ?'إرسال بيانات التحويل ثم مراجعتها'
             :'إتمام الدفع بالطريقة المحددة';
         return <label key={method.key}
           className={selected?styles.paymentMethodSelected:styles.paymentMethodOption}>
-          <input type="radio" name="paymentProvider" value={method.key}
+          <input type="radio" name={group} value={method.key}
             checked={selected} onChange={()=>onChange(method.key)} required/>
-          <i className={method.key==='paymob'?styles.paymobProviderMark:''}
-            aria-hidden="true">{method.key==='paymob'?'paymob':method.key==='bank_transfer'?'↔':'•'}</i>
+          {method.key==='tamara'?<img className={styles.tamaraLogo} src="/payment-brands/tamara-ar.svg" alt="" width="100" height="44"/>:<i className={method.key==='paymob'?styles.paymobProviderMark:''}
+            aria-hidden="true">{method.key==='paymob'?'paymob':method.key==='bank_transfer'?'↔':'•'}</i>}
           <span>
             <b>{method.name}</b>
             <small>{description}</small>
-            {method.key==='paymob'&&<PaymentBrandStrip includeApple compact/>}
+            {method.key==='paymob'&&<PaymentBrandStrip includeApple={appleEnabled} compact/>}
           </span>
           <em aria-hidden="true">{selected?'✓':''}</em>
         </label>;
@@ -122,3 +127,4 @@ function PaymobBrandMark({optionKey}){
   return <span className={[styles.paymobOptionMark,styles.hostedPaymobBrand].join(' ')}
     role="img" aria-label="Paymob">paymob</span>;
 }
+

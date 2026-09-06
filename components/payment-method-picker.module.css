@@ -1,0 +1,32 @@
+.paymentMethodPicker,.paymobOptionPicker{border:0;padding:0;margin:0;min-width:0;display:grid;gap:12px;text-align:start}
+.paymentMethodPicker legend,.paymobOptionPicker legend{font-size:13px;font-weight:600;color:#233b4e;margin-bottom:10px}
+.paymentMethodGrid,.paymobOptionGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:12px}
+.paymentMethodOption,.paymentMethodSelected,.paymobOption,.paymobOptionSelected{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 22px;gap:12px;align-content:start;align-items:center;min-width:0;min-height:116px;padding:18px;border:1px solid #d4dfe7;border-radius:16px;background:#fff;cursor:pointer;transition:border-color .15s,background-color .15s,box-shadow .15s;box-sizing:border-box}
+.paymentMethodOption:hover,.paymobOption:hover{border-color:#799aaa;background:#fbfdfe}
+.paymentMethodSelected,.paymobOptionSelected{border-color:#176b95;background:#f5fafc;box-shadow:0 0 0 1px #176b95}
+.paymentMethodOption:focus-within,.paymentMethodSelected:focus-within,.paymobOption:focus-within,.paymobOptionSelected:focus-within{outline:3px solid #237fac;outline-offset:4px}
+.paymentMethodOption input,.paymentMethodSelected input,.paymobOption input,.paymobOptionSelected input{position:absolute;opacity:0;width:1px;height:1px;margin:0}
+.paymentMethodOption>span,.paymentMethodSelected>span,.paymobOption>span:not(.paymobOptionMark),.paymobOptionSelected>span:not(.paymobOptionMark){grid-column:1/-1;display:grid;gap:5px;min-width:0}
+.paymentMethodOption b,.paymentMethodSelected b,.paymobOption b,.paymobOptionSelected b{font-size:14px;font-weight:600;line-height:1.6;color:#173c56}
+.paymentMethodOption small,.paymentMethodSelected small,.paymobOption small,.paymobOptionSelected small{font-size:12px;line-height:1.8;color:#516578}
+.paymentMethodOption>em,.paymentMethodSelected>em,.paymobOption>em,.paymobOptionSelected>em{grid-column:2;grid-row:1;width:20px;height:20px;border:1.5px solid #96a8b5;border-radius:50%;display:grid;place-items:center;color:transparent;background:#fff;font:600 12px/1 sans-serif;box-sizing:border-box}
+.paymentMethodSelected>em,.paymobOptionSelected>em{border-color:#176b95;background:#176b95;color:#fff}
+.paymentMethodOption>i,.paymentMethodSelected>i{grid-column:1;grid-row:1;display:flex;align-items:center;justify-content:center;width:44px;height:36px;border-radius:9px;background:#eef4f8;color:#176b95;font-size:24px;font-style:normal}
+.paymentMethodOption>.paymobProviderMark,.paymentMethodSelected>.paymobProviderMark{width:100px;height:36px;justify-content:flex-start;background:transparent;color:#1767e8;font:italic 700 24px/1 Arial,sans-serif;letter-spacing:-1px}
+.tamaraLogo{grid-column:1;grid-row:1;display:block;width:100px;height:44px;object-fit:contain;object-position:right center}
+.paymentBrandStrip,.cardBrandStrip{display:flex!important;flex-wrap:wrap;align-items:center;gap:9px;direction:ltr;justify-content:flex-start;margin-top:9px}
+.paymentBrandStrip img,.cardBrandStrip img{display:block;object-fit:contain;width:40px;height:26px}
+.paymentBrandStrip img[src$="apple-pay.svg"]{width:45px;height:30px}
+.paymobOptionPicker{border:1px solid #e0e8ee;padding:16px;border-radius:16px;background:#f8fafc}
+.paymobOptionPickerCompact{margin-top:0}
+.paymobOptionMark{display:flex;align-items:center;gap:8px;min-height:34px;width:max-content;max-width:100%;grid-column:1;grid-row:1;padding:0;background:transparent}
+.paymobOptionMark img{object-fit:contain;width:38px;height:25px}
+.applePayBrand img{width:64px;height:42px}
+.hostedPaymobBrand{font:italic 700 23px/1 Arial,sans-serif;color:#1767e8;letter-spacing:-1px}
+.paymobOptionPicker>p{font-size:12px;color:#516578;line-height:1.9;margin:0;padding-top:12px;border-top:1px solid #e0e8ee}
+.contact{margin:0;padding:16px;border:1px solid #e0e8ee;border-radius:16px;min-width:0}
+.contact legend{font-size:13px;font-weight:600;color:#233b4e;padding-inline:5px}.contact>p{font-size:12px;line-height:1.8;color:#516578;margin:0 0 12px}
+.contact>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.contact label{display:grid;gap:6px;font-size:12px;color:#233b4e}.contact input{min-width:0;min-height:44px;border:1px solid #ccdbe5;border-radius:10px;padding:10px;font:inherit;background:#fff;box-sizing:border-box}.contact input:focus-visible{outline:2px solid #176b95;outline-offset:2px}
+.result{max-width:520px;margin:48px auto;padding:32px;display:grid;justify-items:center;gap:18px;text-align:center;border:1px solid #dce5ec;border-radius:24px;background:#fff;color:#233b4e}.result h1{font-size:24px;font-weight:600;margin:16px 0 10px}.result p{font-size:14px;line-height:1.9;color:#516578;margin:0}.result a,.result button{font:inherit;font-size:14px;border:1px solid #d4dfe7;border-radius:12px;padding:12px 18px;color:#176b95;text-decoration:none;background:#fff;cursor:pointer;min-height:44px}.result .continue{background:#176b95;color:#fff}.success,.pending{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;margin:24px auto 0;background:#e9f6ef;color:#167149;font-size:26px}.pending{background:#f1f5f9;color:#516578}
+@media(max-width:420px){.paymentMethodOption,.paymentMethodSelected,.paymobOption,.paymobOptionSelected{padding:16px}.contact>div{grid-template-columns:1fr}.result{margin:20px 12px;padding:24px 18px}}
+@media(prefers-reduced-motion:reduce){.paymentMethodOption,.paymentMethodSelected,.paymobOption,.paymobOptionSelected{transition:none}}

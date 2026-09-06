@@ -70,7 +70,7 @@ test('both stores create an order once, initialize Paymob, and preserve unknown 
     assert.match(text,/paymentProvider===['"]paymob['"][\s\S]*?استكمال الدفع/,`${name} must expose pending Paymob orders`);
     assert.match(text,/disabled=\{Boolean\(busy\)\}/,`${name} must disable retry while busy`);
     assert.match(text,/order\?\.paymentProvider===['"]paymob['"][\s\S]*?لا يمكن إلغاء طلب Paymob/,`${name} must guard its cancel handler`);
-    assert.match(text,/order\.status===['"]pending_payment['"]&&order\.paymentProvider!==['"]paymob['"]&&<button/,`${name} must hide generic cancellation for Paymob`);
+    assert.match(text,/order\.status===['"]pending_payment['"]&&order\.paymentProvider!==['"]paymob['"](?:&&order\.paymentProvider!==['"]tamara['"])?&&<button/,`${name} must hide generic cancellation for Paymob`);
     assert.match(text,/لا تبدأ دفعة أخرى[\s\S]*?تواصل مع الدعم برقم الطلب/,`${name} must explain reconciliation and support`);
   }
 });
@@ -103,7 +103,8 @@ test('configured Paymob rails display local payment-brand marks',()=>{
     assert.match(source.paymentPicker,new RegExp(`/payment-brands/${path.replace('.', '\\.')}`));
   }
   assert.match(source.paymentPicker,/CARD_BRANDS/);
-  assert.match(source.paymentPicker,/Visa وMastercard ومدى وAmerican Express وApple Pay/);
+  assert.match(source.paymentPicker,/includeApple=\{appleEnabled\}/);
+  assert.match(source.paymentPicker,/option\.key==='apple_pay'/);
   assert.match(source.paymentPicker,/role="img"/);
   assert.match(source.paymentStyles,/PAYMOB_SINGLE_ENTRY_BRANDS_V2/);
   assert.match(source.paymentStyles,/cardBrandStrip/);
@@ -186,3 +187,4 @@ test('both storefronts synchronously lock Paymob navigation before the first awa
     assert.match(text,/catch\(error\)\{[\s\S]{0,120}?paymobNavigationLock\.current=false/);
   }
 });
+

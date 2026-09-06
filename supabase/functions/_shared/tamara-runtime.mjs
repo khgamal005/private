@@ -18,6 +18,8 @@ export function selectPaymentType(body,total) {
   for (const type of list) {
     if (type?.name !== 'PAY_BY_INSTALMENTS') continue;
     // Limits are verified with provider data, never inferred from a logo or plan.
+    if ((type.min_limit?.currency && type.min_limit.currency !== 'SAR')
+        || (type.max_limit?.currency && type.max_limit.currency !== 'SAR')) continue;
     const min = type.min_limit?.amount ?? type.min_limit;
     const max = type.max_limit?.amount ?? type.max_limit;
     if (min === undefined || max === undefined || total < minorUnits(min) || total > minorUnits(max)) continue;

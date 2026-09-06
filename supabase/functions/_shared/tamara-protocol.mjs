@@ -43,6 +43,10 @@ export function verifiedOrder(body, snapshot) {
       || (snapshot.provider_order_id && body.order_id !== snapshot.provider_order_id)
       || amount(body.total_amount) !== snapshot.amount_minor
       || !STATES.has(body.status)) return fail();
+  if (!Array.isArray(body.items) || body.items.length !== 1 || !Array.isArray(snapshot.items)
+      || snapshot.items.length !== 1 || body.items[0].reference_id !== snapshot.items[0].id
+      || body.items[0].sku !== snapshot.items[0].product_key || body.items[0].quantity !== 1
+      || amount(body.items[0].total_amount) !== snapshot.amount_minor) return fail();
   const captured = amount(body.captured_amount);
   const refunded = amount(body.refunded_amount);
   const canceled = amount(body.canceled_amount);

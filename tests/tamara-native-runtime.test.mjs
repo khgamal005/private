@@ -6,13 +6,13 @@ import {tamaraGateway} from '../lib/tamara-gateway.mjs';
 const id='10000000-0000-4000-8000-000000000001',orderId='20000000-0000-4000-8000-000000000001';
 const snapshot={id,amount_minor:11500,subtotal_minor:10000,tax_minor:1500,discount_minor:0,currency:'SAR',slug:'fixture',order_number:'TEST-1',items:[{id:orderId,quantity:1,line_total_minor:10000,product_name_ar:'إضافة',product_key:'fixture'}]};
 const contact={firstName:'Test',lastName:'Buyer',phone:'+966500000000',email:'test@example.test',city:'Riyadh',address:'Fixture address'};
-const body=status=>({order_id:orderId,order_reference_id:id,status,total_amount:money(11500),captured_amount:money(status==='fully_captured'?11500:0),refunded_amount:money(0),canceled_amount:money(0)});
+const body=status=>({order_id:orderId,order_reference_id:id,status,items:[{reference_id:orderId,sku:'fixture',quantity:1,total_amount:money(11500)}],total_amount:money(11500),captured_amount:money(status==='fully_captured'?11500:0),refunded_amount:money(0),canceled_amount:money(0)});
 const baseClaim={id,claim_token:orderId,environment:'sandbox',apiToken:'fixture-token',status:'prepared',snapshot};
 
 test('money parser refuses rounding, exponent, negative and invalid currencies',()=>{
  assert.equal(minorUnits('115.00'),11500);assert.deepEqual(money(11500),{amount:'115.00',currency:'SAR'});
  for(const value of ['1.001','1e2',NaN,-1,{},null,' 1','01'])assert.throws(()=>minorUnits(value));
- for(const bad of [{...body('approved'),total_amount:money(11499)},{...body('approved'),order_reference_id:orderId},{...body('approved'),captured_amount:{amount:0,currency:'USD'}},{...body('fully_captured'),captured_amount:money(0)}])assert.throws(()=>verifiedOrder(bad,snapshot));
+ for(const bad of [{...body('approved'),total_amount:money(11499)},{...body('approved'),order_reference_id:orderId},{...body('approved'),items:[]},{...body('approved'),captured_amount:{amount:0,currency:'USD'}},{...body('fully_captured'),captured_amount:money(0)}])assert.throws(()=>verifiedOrder(bad,snapshot));
  assert.equal(verifiedOrder(body('authorised'),snapshot).capturedMinor,0);
 });
 test('checkout redirect pins environment and rejects credentials, ports and lookalikes',()=>{

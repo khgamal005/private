@@ -115,6 +115,7 @@ begin
    or coalesce(p_payload->>'idempotencyKey','') !~ '^[A-Za-z0-9_-]{16,120}$' then raise exception 'marketplace_product_invalid'; end if;
  result:=private_app.v1_tenant_marketplace_action_paymob_legacy_v1(p_slug,'create_order',p_payload-'paymentProvider'-'promotionCode');
  oid:=coalesce(result->>'id',result->>'orderId')::uuid;
+ perform pg_advisory_xact_lock(hashtextextended('promotion:order:'||oid::text,0));
  select * into o from marketplace.orders where id=oid and tenant_id=t.id for update;
  if o.id is null or o.order_kind<>'addon' or o.status<>'pending_payment' or o.payment_status<>'pending'
    or (o.payment_provider is not null and o.payment_provider<>'tamara')

@@ -13,6 +13,7 @@ async function database(){
  await db.exec(await readFile(new URL('../supabase/migrations/20260906153331_tamara_service_capture_v1.sql',import.meta.url),'utf8'));
  await db.exec(await readFile(new URL('./fixtures/paymob-order-guard.sql',import.meta.url),'utf8'));
  await db.exec(await readFile(new URL('../supabase/migrations/20260906163942_marketplace_unpaid_order_recovery.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../supabase/migrations/20260906172757_marketplace_resolved_payment_cancellation.sql',import.meta.url),'utf8'));
  return db;
 }
 async function seed(db){
@@ -59,9 +60,9 @@ test('started and ambiguous attempts cannot be cancelled using a browser return'
  await assert.rejects(cancel(db,f.order),/tamara_order_payment_review_hold/);
  assert.equal((await db.query('select status from marketplace.orders where id=$1',[f.order])).rows[0].status,'pending_payment');
 }));
-test('pending Paymob attempts remain uncancellable through the new recovery RPC',()=>withFixture(async(db,f)=>{
+for(const kind of ['addon','service']) test(`Paymob ${kind}: unresolved attempts block cancellation; verified expiry cancels idempotently`,()=>withFixture(async(db,f)=>{
  const old=(await db.query(`insert into marketplace.orders(tenant_id,order_kind,payment_provider,subtotal_minor,tax_minor,total_minor,idempotency_key)
- values($1,'addon','paymob',10000,1500,11500,'paymob-cancel-fixture') returning id`,[TENANT])).rows[0].id;
+ values($1,'${kind}','paymob',10000,1500,11500,'paymob-cancel-fixture') returning id`,[TENANT])).rows[0].id;
  const aid=crypto.randomUUID();
  await db.query(`insert into marketplace.payment_attempts(id,tenant_id,order_id,environment,credential_version_id,idempotency_key,special_reference,status,order_number_snapshot,order_kind_snapshot,subtotal_minor,tax_minor,tax_rate_bps,amount_minor,currency,billing_contact_sha256,items_snapshot_sha256,expires_at)
  values($1,$2,$3,'sandbox',$1,'pending-key','pending-ref','pending','fixture','addon',10000,1500,1500,11500,'SAR','fixture','fixture',now()+interval '1 day')`,[aid,TENANT,old]);
@@ -69,6 +70,15 @@ test('pending Paymob attempts remain uncancellable through the new recovery RPC'
  await db.query("update marketplace.payment_attempts set status='failed' where id=$1",[aid]);
  await assert.rejects(cancel(db,old),/payment_cancellation_requires_resolution/);
  assert.equal((await db.query('select status from marketplace.orders where id=$1',[old])).rows[0].status,'pending_payment');
+ // Provider-confirmed expiry is different from a generic failed attempt.
+ await db.query("update marketplace.payment_attempts set last_error_code='provider_intention_expired_no_payment',expires_at=now()-interval '1 hour' where id=$1",[aid]);
+ await db.query("update marketplace.orders set payment_status='failed' where id=$1",[old]);
+ await cancel(db,old);
+ const closed=(await db.query('select status,payment_status,activation_state from marketplace.orders where id=$1',[old])).rows[0];
+ assert.deepEqual(closed,{status:'cancelled',payment_status:'failed',activation_state:'cancelled'});
+ assert.equal((await cancel(db,old)).duplicate,true);
+ assert.equal((await db.query("select count(*)::int n from marketplace.order_events where order_id=$1 and event_type='order_cancelled'",[old])).rows[0].n,1);
+
 }));
 test('other tenants and unprivileged database roles cannot cancel',()=>withFixture(async(db,f)=>{
  await db.query("select set_config('fixture.tenant',$1,false)",[OTHER]);

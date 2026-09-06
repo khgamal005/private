@@ -113,9 +113,13 @@ create table audit_log.events(
   id uuid primary key default gen_random_uuid(),tenant_id uuid,actor_subject_id uuid,
   action text,resource_type text,resource_id text,context jsonb
 );
-create function private_app.write_audit(text,text,text,uuid,jsonb) returns void language sql as $$
-  insert into audit_log.events(action,resource_type,resource_id,tenant_id,context)
-  values($1,$2,$3,$4,$5);
+create function private_app.write_audit(text,text,text,uuid,jsonb) returns void language plpgsql as $$
+begin
+  if auth.uid() is null then raise exception 'authentication_required'; end if;
+  insert into audit_log.events(
+    actor_subject_id,action,resource_type,resource_id,tenant_id,context
+  ) values(private_app.current_subject_id(),$1,$2,$3,$4,$5);
+end;
 $$;
 create table vault.secrets(id uuid primary key default gen_random_uuid(),secret text,name text);
 create view vault.decrypted_secrets as

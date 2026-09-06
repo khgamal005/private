@@ -47,6 +47,7 @@ before(async()=>{
   await db.exec(await readFile(new URL('./fixtures/meta-connect-v2-database.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260825190000_meta_connect_v2_oauth_control_plane.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260906162436_meta_connect_v2_ads_reporting.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20260906165421_meta_connect_v2_account_selection_audit_context_fix.sql',import.meta.url),'utf8'));
   legacyBaseline=(await db.query('select * from marketing_hub.connections order by id')).rows;
 });
 after(async()=>{
@@ -219,6 +220,9 @@ test('SQL account selection creates an isolated read-only reporting bridge',asyn
   assert.equal(await scalar("select configuration->>'authSource' from marketing_hub.connections where tenant_id=$1",[tenant]),'meta_connect_v2');
   assert.equal(await scalar("select configuration->>'accountId' from marketing_hub.connections where tenant_id=$1",[tenant]),'123456789');
   assert.match(await scalar("select decrypted_secret from vault.decrypted_secrets limit 1"),/^fake-token/);
+  assert.equal(await scalar("select actor_subject_id from audit_log.events where action='meta_connect_v2.ad_account_selected'"),authorized.actorSubjectId);
+  assert.equal(await scalar("select current_setting('request.jwt.claim.sub')"),'');
+  assert.deepEqual(JSON.parse(await scalar("select current_setting('request.jwt.claims')")),{role:'service_role'});
 
   await identity();
   const snapshot=await scalar('select public.v1_tenant_meta_connect_v2_snapshot($1)',['demo']);

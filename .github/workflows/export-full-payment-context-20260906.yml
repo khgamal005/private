@@ -1,0 +1,48 @@
+name: Export payment integration context for final hardening
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/export-full-payment-context-20260906.yml
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: full-payment-context-20260906
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            app/api/platform/tamara-preflight/route.js
+            components/tamara-setup-form.js
+            components/tamara-setup-form.module.css
+            components/platform-addon-console.js
+            docs/payments/tamara-onboarding.md
+            lib/tamara-preflight.mjs
+            supabase/migrations/20260905205608_tamara_onboarding_credentials_v1.sql
+            supabase/migrations/20260905213000_paymob_decline_reconciliation_v1.sql
+            supabase/functions/paymob-checkout/**
+            supabase/functions/paymob-webhook/**
+            supabase/functions/paymob-reconcile/**
+            supabase/functions/_shared/paymob.ts
+            supabase/config.toml
+            app/api/payments/paymob/**
+            components/payment-method-picker.js
+            components/paymob-return-status.js
+            components/marketplace-addon-store-v2.js
+            components/marketplace-store.js
+            components/marketplace-store.module.css
+            lib/api.js
+            lib/config.js
+            tests/paymob*.mjs
+            tests/tamara*.mjs
+            supabase/migrations/*marketplace*.sql
+            supabase/migrations/*payment*.sql
+            supabase/migrations/*paymob*.sql
+            package.json
+            package-lock.json

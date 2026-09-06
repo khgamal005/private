@@ -11,7 +11,7 @@ const CARD_BRANDS=[
   {src:'/payment-brands/mada.svg',label:'مدى'},
   {src:'/payment-brands/amex.svg',label:'American Express'}
 ];
-const APPLE_PAY={src:'/payment-brands/apple-pay.svg',label:'Apple Pay'};
+const APPLE_PAY={src:'/payment-brands/apple-pay-v2.svg',label:'Apple Pay'};
 
 export function paymobOptions(paymentMethods){
   const paymob=(paymentMethods||[]).find(method=>method?.key==='paymob');

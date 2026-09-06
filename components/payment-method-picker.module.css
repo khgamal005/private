@@ -16,7 +16,7 @@
 .tamaraLogo{grid-column:1;grid-row:1;display:block;width:100px;height:44px;object-fit:contain;object-position:right center}
 .paymentBrandStrip,.cardBrandStrip{display:flex!important;flex-wrap:wrap;align-items:center;gap:9px;direction:ltr;justify-content:flex-start;margin-top:9px}
 .paymentBrandStrip img,.cardBrandStrip img{display:block;object-fit:contain;width:40px;height:26px}
-.paymentBrandStrip img[src$="apple-pay.svg"]{width:45px;height:30px}
+.paymentBrandStrip img[src$="apple-pay-v2.svg"]{width:45px;height:30px}
 .paymobOptionPicker{border:1px solid #e0e8ee;padding:16px;border-radius:16px;background:#f8fafc}
 .paymobOptionPickerCompact{margin-top:0}
 .paymobOptionMark{display:flex;align-items:center;gap:8px;min-height:34px;width:max-content;max-width:100%;grid-column:1;grid-row:1;padding:0;background:transparent}

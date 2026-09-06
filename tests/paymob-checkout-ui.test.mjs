@@ -15,7 +15,7 @@ const paths={
   visaLogo:'public/payment-brands/visa.svg',
   mastercardLogo:'public/payment-brands/mastercard.svg',
   madaLogo:'public/payment-brands/mada.svg',
-  applePayLogo:'public/payment-brands/apple-pay.svg',
+  applePayLogo:'public/payment-brands/apple-pay-v2.svg',
   amexLogo:'public/payment-brands/amex.svg',
   tenantRoute:'app/api/tenant/[action]/route.js',
   marketplaceV2Route:'app/api/tenant/marketplace-v2/route.js',
@@ -98,7 +98,7 @@ test('configured Paymob rails display local payment-brand marks',()=>{
     assert.doesNotMatch(asset,/<(?:script|foreignObject|iframe)\b/i);
   }
   for(const path of [
-    'visa.svg','mastercard.svg','mada.svg','apple-pay.svg','amex.svg'
+    'visa.svg','mastercard.svg','mada.svg','apple-pay-v2.svg','amex.svg'
   ]){
     assert.match(source.paymentPicker,new RegExp(`/payment-brands/${path.replace('.', '\\.')}`));
   }

@@ -5,7 +5,7 @@ import KnowledgeCover,{safeMediaUrl} from './knowledge-cover';
 import styles from './knowledge-feed.module.css';
 const FILTERS=[['all','كل المواد'],['important','الأهم لمنشأتك'],['tender','كل المنافسات'],['activeTender','المنافسات النشطة'],['expired','المنافسات المنتهية'],['archive','الأرشيف'],['regulation','التشريعات'],['event','الفعاليات'],['article','المقالات'],['saved','المحفوظات']];
 function safeDate(value){const date=new Date(value||'');return Number.isNaN(date.getTime())?null:date;}
-function dateLabel(value,long=false){const date=safeDate(value);return date?new Intl.DateTimeFormat('ar-SA-u-ca-gregory',long?{day:'numeric',month:'long',year:'numeric'}:{day:'numeric',month:'short'}).format(date):'تاريخ غير محدد';}
+function dateLabel(value,long=false){const date=safeDate(value);return date?new Intl.DateTimeFormat('ar-SA-u-ca-gregory',{day:'numeric',month:long?'long':'short',year:'numeric',timeZone:'Asia/Riyadh'}).format(date):'تاريخ غير محدد';}
 function typeLabel(post){return ({tender:'منافسة وفرصة',article:'مقال معرفي',regulation:'تشريع وتنبيه',event:'فعالية ومبادرة',market_pulse:'نبض السوق',success_story:'قصة وتجربة'})[post.content_type]||'خبر التدريب';}
 function daysUntil(value){const d=safeDate(value);return d?Math.ceil((d.getTime()-Date.now())/86400000):null;}
 function relevance(post){return Math.max(0,Math.min(100,Number(post.relevance_score||0)));}

@@ -108,7 +108,7 @@ export function OdeirSiteHeader({
   const source = Array.isArray(menu) && menu.length ? menu : DEFAULT_PRIMARY_MENU;
   const tree = useMemo(() => {
     const items = buildMenuTree(source) as OdeirMenuItem[];
-    return items.some(item => item.href === "/pricing") ? items : [...items, {id:"odeir-pricing",label:"الأسعار",href:"/pricing"}];
+    return items.some(item => item.href === "/pricing") ? items : [...items, {id:"odeir-pricing",label:"الباقات والإضافات",href:"/pricing"}];
   }, [source]);
   const primaryLabel = hero.primaryLabel || settings.contactCtaLabel || settings.freeTrialLabel || "سجّل منشأتك مجانًا";
   const primaryHref = hero.primaryHref || settings.contactCtaUrl || settings.freeTrialUrl || "/free-trial/apply";

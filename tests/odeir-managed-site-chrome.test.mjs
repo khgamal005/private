@@ -21,7 +21,7 @@ test('ODEIR homepage reads header and footer menus from the CMS snapshot',async(
   assert.match(chrome,/data-managed-chrome="header"/);
   assert.match(chrome,/data-managed-chrome="footer"/);
   assert.doesNotMatch(chrome,/MANAGER_PRIMARY_MENU/);
-  for(const label of ['أول فنجان','التكاملات','جولة داخل أودير','رحلة العميل','متاجر أودير','الحماية']){
+  for(const label of ['أول فنجان','التكاملات','جولة داخل أودير','رحلة العميل','متاجر أودير','الحماية','الباقات والإضافات']){
     assert.match(chrome,new RegExp(label));
   }
 });

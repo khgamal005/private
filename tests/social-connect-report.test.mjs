@@ -35,7 +35,7 @@ test('report links preserve filters and change only requested pagination',()=>{
     campaign:'61000000-0000-4000-8000-000000000001',status:'active',page:1
   },{page:2});
   const url=new URL(href,'https://odeir.com');
-  assert.equal(url.pathname,'/tenant/demo-center/addons/social-connect');
+  assert.equal(url.pathname,'/tenant/demo-center/reports/campaigns');
   assert.equal(url.searchParams.get('q'),'needle');
   assert.equal(url.searchParams.get('page'),'2');
   assert.equal(url.searchParams.get('status'),'active');

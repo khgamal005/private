@@ -136,6 +136,10 @@ const ALIASES={
     'campaign','campaignname','utm_campaign',
     'الحمله','اسمالحمله'
   ],
+  campaignId:['campaignid','معرفالحمله','رقمالحمله'],
+  adId:['adid','معرفالاعلان','رقمالاعلان'],
+  receivedAt:['receivedat','leaddate','تاريخوصولالعميل','تاريخالتواصل'],
+  moderator:['moderator','المودريتور','مسؤولتجميعالبيانات'],
   adSetName:[
     'adset','adsetname','adgroup','مجموعهالاعلان','مجموعهالاعلانات'
   ],
@@ -188,6 +192,10 @@ function normalizeSheetRow(row){
     program:normalized.program||'',
     source:normalized.source||'',
     campaignName:normalized.campaignName||'',
+    campaignId:normalized.campaignId||'',
+    adId:normalized.adId||'',
+    receivedAt:normalized.receivedAt||'',
+    moderator:normalized.moderator||'',
     adSetName:normalized.adSetName||'',
     adName:normalized.adName||'',
     notes:normalized.notes||''
@@ -350,7 +358,7 @@ async function readWorkbook(file){
   const imported=await import('xlsx');
   const XLSX=imported.default||imported;
   const buffer=await file.arrayBuffer();
-  const workbook=XLSX.read(buffer,{type:'array',cellDates:true});
+  const workbook=XLSX.read(buffer,{type:'array',cellDates:true,dateNF:'yyyy-mm-dd'});
   const firstSheet=workbook.SheetNames[0];
   if(!firstSheet)throw new Error('ملف الشيت لا يحتوي على صفحة بيانات');
   const records=XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet],{
@@ -1580,7 +1588,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
             <div>
               <b>ابدأ من ملف مثال جاهز</b>
               <small>
-                يحتوي على اسم الدورة والإعلان والحملة وبيانات الطالب بالأعمدة التي يقرأها النظام تلقائيًا.
+                يقرأ النظام المصدر واسم الحملة والإعلان. اختياريًا: campaignId وadId وreceivedAt بصيغة YYYY-MM-DD وmoderator. احتفظ بمعرّفات Meta كنص في Excel. عند غياب تاريخ الوصول يُستخدم تاريخ الرفع مع توضيح ذلك في التقرير.
               </small>
             </div>
             <a

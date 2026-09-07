@@ -150,15 +150,18 @@ test('public compliance pages and callback configuration are present',async()=>{
 });
 
 test('private add-on UI uses its own server gateway and never calls legacy save',async()=>{
-  const [page,component,route,layout]=await Promise.all([
+  const [page,component,route,layout,reports]=await Promise.all([
     readFile(new URL('app/tenant/[slug]/addons/social-connect/page.js',root),'utf8'),
     readFile(new URL('components/social-connect-v2.js',root),'utf8'),
     readFile(new URL('app/api/tenant/social-connect/[action]/route.js',root),'utf8'),
-    readFile(new URL('app/layout.js',root),'utf8')
+    readFile(new URL('app/layout.js',root),'utf8'),
+    readFile(new URL('app/tenant/[slug]/reports/campaigns/page.js',root),'utf8')
   ]);
   assert.match(page,/requireTenantPermission\(slug,'tenant\.meta_connect\.read'\)/);
-  assert.match(page,/v1_tenant_meta_connect_v2_snapshot/);
-  assert.match(page,/v2_tenant_meta_connect_v2_report/);
+  assert.match(page,/redirect\(path/);
+  assert.match(reports,/v1_tenant_meta_connect_v2_snapshot/);
+  assert.match(reports,/v3_tenant_campaign_meta_report/);
+  assert.match(reports,/snapshot\?\.addonEnabled/);
   assert.match(component,/legacyProtected/);
   assert.match(route,/functionName=action==='sync'\?'ads-sync':'meta-oauth-v2'/);
   assert.match(route,/new Set\(\['start','disconnect','assets','select','sync'\]\)/);

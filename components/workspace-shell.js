@@ -120,7 +120,7 @@ function tenantItems(
       {key:'overview',label:'لوحة التقارير',href:`${base}/reports`,permission:'tenant.workspace.read'},
       {key:'people',label:policy.personalReportsOnly?'أدائي':'أداء الموظفين',href:`${base}/reports/employees`,permission:'tenant.workspace.read'},
       {key:'sales',label:'تقارير المبيعات',href:`${base}/reports/sales`,permission:'tenant.crm.read'},
-      {key:'campaignReports',label:'تقارير الحملات',href:`${base}/reports/campaigns`,permission:['tenant.crm.read','tenant.leads.read','tenant.leads.analytics'],visible:policy.showCampaignReports}
+      {key:'campaignReports',label:hasAddon('social_connect')?'تحليل الإعلانات والمبيعات':'تقارير الحملات',href:`${base}/reports/campaigns`,permission:['tenant.reports.campaigns','tenant.meta_connect.read','tenant.meta_connect.manage'],visible:policy.showCampaignReports||hasAddon('social_connect')}
     ]},
     {key:'website',label:'الموقع الإلكتروني',href:`${base}/website`,permission:'tenant.website.read',visible:hasAddon('cms_pro')},
     {key:'settings',label:'الإعدادات والصلاحيات',href:`${base}/settings`,permission:'tenant.users.manage'},

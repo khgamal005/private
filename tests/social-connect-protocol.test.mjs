@@ -34,7 +34,7 @@ test('authorization cannot send code or browser state to another callback',()=>{
   assert.throws(()=>trustedAuthorizeUrl(url.toString(),'https://odeir.com'));
   assert.equal(safeCompletionPath('//attacker.example/path'),'/');
   assert.equal(safeCompletionPath('/tenant/demo/addons/social-connect?social_connect=connected'),
-    '/tenant/demo/addons/social-connect?social_connect=connected');
+    '/tenant/demo/reports/campaigns?social_connect=connected');
 });
 
 test('Hostinger forwarding resolves only an approved HTTPS public origin',()=>{

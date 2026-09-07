@@ -56,7 +56,7 @@ function initialFeedback(outcome,reason){
 }
 
 export default function SocialConnectV2({
-  slug,initialData,initialReport,reportFilters,canManage,outcome,reason
+  slug,initialData,initialReport,reportFilters,canManage,outcome,reason,display='all',hideFilters=false
 }){
   const router=useRouter();
   const data=initialData||{};
@@ -76,7 +76,7 @@ export default function SocialConnectV2({
     &&['connected','reauth_required','error'].includes(data.status)
   );
   const canLoadAssets=Boolean(
-    canManage&&data.status==='connected'&&!needsReauthorization&&!selected
+    display!=='performance'&&canManage&&data.status==='connected'&&!needsReauthorization&&!selected
     &&data.assetDiscoveryEnabled&&!data.legacyProtected
   );
 
@@ -145,8 +145,8 @@ export default function SocialConnectV2({
   const range=report.range||{from:filters.dateFrom,to:filters.dateTo};
   const currency=summary.currency||selected?.currency||'SAR';
   const syncRange={dateFrom:range.from,dateTo:range.to};
-  return <main className="scv2-page">
-    <header className="scv2-topbar">
+  return <section className="scv2-page">
+    {display==='all'?<header className="scv2-topbar">
       <div>
         <small>إعلانات Meta</small>
         <h1>الحملات والنتائج</h1>
@@ -155,7 +155,7 @@ export default function SocialConnectV2({
       <Link href={`/tenant/${encodeURIComponent(slug)}/marketing`}>
         العودة إلى مركز التسويق
       </Link>
-    </header>
+    </header>:null}
 
     {data.legacyProtected?<div className="scv2-legacy-guard">
       <span aria-hidden="true">✓</span>
@@ -164,7 +164,7 @@ export default function SocialConnectV2({
     {feedback?<div className={`scv2-alert ${feedback.tone}`}
       role={feedback.tone==='error'?'alert':'status'}>{feedback.message}</div>:null}
 
-    <section className="scv2-grid">
+    {display!=='performance'?<section className="scv2-grid">
       <article className="scv2-connection-card" aria-busy={Boolean(busy)}>
         <header>
           <span className="scv2-provider-mark" aria-hidden="true">Meta</span>
@@ -209,7 +209,7 @@ export default function SocialConnectV2({
           <li><span>03</span><div><b>شاهد النتائج</b><p>مزامنة يومية مع زر تحديث فوري عند الحاجة.</p></div></li>
         </ul>
       </aside>
-    </section>
+    </section>:null}
 
     {canLoadAssets?<section className="scv2-panel">
       <header><div><small>الخطوة الثانية</small><h2>اختر الحساب الإعلاني</h2></div></header>
@@ -224,8 +224,14 @@ export default function SocialConnectV2({
           </article>)}</div>}
     </section>:null}
 
-    {selected?<>
-      <section className="scv2-panel scv2-report-panel">
+    {selected&&display!=='connection'?<>
+      {hideFilters?<form className="scv2-filters" method="get">
+        {Object.entries({from:filters.dateFrom,to:filters.dateTo,asOf:filters.asOf,mode:filters.mode,campaign:filters.campaign,staff:filters.staff,course:filters.course,q:filters.search}).map(([name,value])=><input type="hidden" key={name} name={name} value={value||''}/>)}
+        <label>بحث داخل إعلانات Meta<input name="metaQ" defaultValue={filters.metaSearch}/></label>
+        <label>حالة إعلان Meta<select name="status" defaultValue={filters.status}><option value="all">الكل</option><option value="active">نشط</option><option value="paused">متوقف</option><option value="other">أخرى</option></select></label>
+        <button className="scv2-primary">تصفية تفاصيل Meta</button>
+      </form>:null}
+      {!hideFilters?<section className="scv2-panel scv2-report-panel">
         <header><div><small>التقارير والتحليل</small><h2>حدد الفترة والإعلانات التي تريدها</h2></div>
           <span>حتى 93 يومًا في المزامنة الواحدة</span></header>
         <nav className="scv2-quick-ranges" aria-label="فترات سريعة">
@@ -239,8 +245,8 @@ export default function SocialConnectV2({
             defaultValue={filters.dateFrom} max={filters.today}/></label>
           <label><span>إلى تاريخ</span><input type="date" name="to" required
             defaultValue={filters.dateTo} max={filters.today}/></label>
-          <label className="scv2-search"><span>إعلان بعينه</span><input name="q"
-            defaultValue={filters.search} placeholder="ابحث باسم الإعلان أو رقمه"/></label>
+          <label className="scv2-search"><span>إعلان بعينه</span><input name="metaQ"
+            defaultValue={filters.metaSearch} placeholder="ابحث باسم الإعلان أو رقمه"/></label>
           <label><span>الحملة</span><select name="campaign" defaultValue={filters.campaign}>
             <option value="">كل الحملات</option>
             {(filterMeta.campaigns||[]).map(campaign=><option key={campaign.id} value={campaign.id}>
@@ -253,7 +259,7 @@ export default function SocialConnectV2({
           </select></label>
           <div className="scv2-filter-actions">
             <button className="scv2-primary" type="submit">تطبيق الفلاتر</button>
-            <Link href={`/tenant/${encodeURIComponent(slug)}/addons/social-connect`}>مسح</Link>
+            <Link href={`/tenant/${encodeURIComponent(slug)}/reports/campaigns`}>مسح</Link>
           </div>
         </form>
         <div className="scv2-range-actions">
@@ -264,17 +270,17 @@ export default function SocialConnectV2({
         {report.metricRows===0?<p className="scv2-empty scv2-empty-warning">
           لا توجد نتائج مخزنة لهذه الفترة. اضغط «تحميل/تحديث هذه الفترة من Meta» لجلب بياناتها، أو اختر فترة شهدت إنفاقًا فعليًا.
         </p>:null}
-      </section>
+      </section>:null}
 
       <section className="scv2-metrics" aria-label="ملخص الفترة المختارة">
         <Metric label="الإنفاق" value={formatMoney(summary.spendMinor,currency)}/>
         <Metric label="مرات الظهور" value={formatNumber(summary.impressions)}/>
-        <Metric label="الوصول" value={formatNumber(summary.reach)}/>
+        <Metric label="الوصول الفريد للفترة" value="غير قابل للجمع اليومي"/>
         <Metric label="النقرات" value={formatNumber(summary.clicks)}/>
         <Metric label="CTR" value={summary.ctr==null?'—':`${formatNumber(summary.ctr)}%`}/>
-        <Metric label="النتائج" value={formatNumber(summary.platformConversions)}/>
+        <Metric label="نتائج Meta" value={formatNumber(summary.platformConversions)}/>
         <Metric label="تكلفة النتيجة" value={summary.cpaMinor==null?'—':formatMoney(summary.cpaMinor,currency)}/>
-        <Metric label="قيمة النتائج" value={formatMoney(summary.platformRevenueMinor,currency)}/>
+        <Metric label="قيمة النتائج وفق Meta" value={formatMoney(summary.platformRevenueMinor,currency)}/>
       </section>
 
       <section className="scv2-panel">
@@ -327,7 +333,7 @@ export default function SocialConnectV2({
         <Pagination slug={slug} filters={filters} current={filterMeta.page} total={filterMeta.totalPages}/>
       </section>
     </>:null}
-  </main>;
+  </section>;
 }
 
 function Metric({label,value}){
@@ -382,6 +388,7 @@ function formatDay(value){
 }
 
 function formatNumber(value){
+  if(value==null)return '—';
   const number=Number(value||0);
   return new Intl.NumberFormat('ar-SA',{maximumFractionDigits:2}).format(
     Number.isFinite(number)?number:0
@@ -389,6 +396,7 @@ function formatNumber(value){
 }
 
 function formatMoney(value,currency='SAR'){
+  if(value==null)return '—';
   const safeCurrency=/^[A-Z]{3}$/.test(String(currency||''))?currency:'SAR';
   const digits=new Intl.NumberFormat('en',{style:'currency',currency:safeCurrency})
     .resolvedOptions().maximumFractionDigits??2;

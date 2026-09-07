@@ -176,6 +176,14 @@ function safeUpstreamStatus(status){
 
 function translate(value){
   const messages={
+    tamara_existing_license_requires_resolution:'يوجد ترخيص سابق يحتاج تسوية قبل الشراء عبر تمارا. لم يتم تحصيل أي مبلغ جديد.',
+    addon_component_not_sold_separately:'هذه وظيفة مساعدة ضمن الإضافة وليست منتجًا مستقلاً للبيع.',
+    invalid_billing_interval:'اختر اشتراكًا شهريًا أو سنويًا.',
+    marketplace_idempotency_conflict:'هذا الطلب محفوظ باختيار مختلف؛ راجع الطلب السابق قبل إنشاء طلب جديد.',
+    existing_addon_order_requires_resolution:'لديك طلب لهذه الإضافة باختيار آخر؛ ألغِ الطلب غير المدفوع أو استكمله أولًا.',
+    addon_already_enabled:'الإضافة مفعلة بالفعل لهذه المنشأة؛ افتحها من إضافاتك.',
+    addon_promotions_not_available:'لكل إضافة سعر مستقل ثابت دون عروض مرتبطة أو رموز خصم.',
+    marketplace_quantity_invalid:'يُشترى ترخيص واحد للإضافة داخل المنشأة.',
     payment_order_busy:'جارٍ تحديث حالة الدفع؛ انتظر قليلًا ثم حدّث الحالة وأعد المحاولة.',
     tamara_order_payment_review_hold:'محاولة تمارا ما زالت مفتوحة أو قيد المطابقة. بعد تأكيد انتهائها دون دفع يمكنك الإلغاء أو اختيار وسيلة أخرى.',
     payment_cancellation_requires_resolution:'محاولة الدفع لم تُحسم بعد؛ حدّث الحالة بعد انتهاء المحاولة لدى مزود الدفع.',
@@ -230,5 +238,4 @@ function json(body,init={}){
     }
   });
 }
-
 

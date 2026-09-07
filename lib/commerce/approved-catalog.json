@@ -1,0 +1,194 @@
+{
+  "version": "independent-v1",
+  "approvedOn": "2026-09-07",
+  "currency": "SAR",
+  "annualMultiplier": 10,
+  "addons": [
+    {
+      "key": "whatsapp",
+      "name": "واتساب التشغيلي",
+      "monthlyMinor": 3900,
+      "annualMinor": 39000,
+      "category": "communications",
+      "description": "أرسل تأكيدات التسجيل وتذكيرات المواعيد من داخل أودير. رسوم مزود الرسائل منفصلة."
+    },
+    {
+      "key": "email",
+      "name": "بريد المنشأة",
+      "monthlyMinor": 1900,
+      "annualMinor": 19000,
+      "category": "communications",
+      "description": "أرسل رسائل منشأتك بقوالب واضحة وتابع نتائج التسليم. رسوم مزود البريد منفصلة."
+    },
+    {
+      "key": "zoom",
+      "name": "ربط الجلسات بـZoom",
+      "monthlyMinor": 1900,
+      "annualMinor": 19000,
+      "category": "training",
+      "description": "أنشئ اجتماعات الجلسات واربطها بالدفعات. ترخيص Zoom الخارجي منفصل."
+    },
+    {
+      "key": "salla",
+      "name": "ربط متجر سلة",
+      "monthlyMinor": 2900,
+      "annualMinor": 29000,
+      "category": "commerce",
+      "description": "اربط طلبات متجرك برحلة العميل والمتابعة دون إعادة إدخال."
+    },
+    {
+      "key": "zid",
+      "name": "ربط متجر زد",
+      "monthlyMinor": 2900,
+      "annualMinor": 29000,
+      "category": "commerce",
+      "description": "اربط طلبات متجرك برحلة العميل والمتابعة دون إعادة إدخال."
+    },
+    {
+      "key": "shopify",
+      "name": "ربط متجر Shopify",
+      "monthlyMinor": 2900,
+      "annualMinor": 29000,
+      "category": "commerce",
+      "description": "اربط طلبات متجرك برحلة العميل والمتابعة دون إعادة إدخال."
+    },
+    {
+      "key": "woocommerce",
+      "name": "ربط متجر WooCommerce",
+      "monthlyMinor": 2900,
+      "annualMinor": 29000,
+      "category": "commerce",
+      "description": "اربط طلبات متجرك برحلة العميل والمتابعة دون إعادة إدخال."
+    },
+    {
+      "key": "automation",
+      "name": "أتمتة رحلة العميل",
+      "monthlyMinor": 2900,
+      "annualMinor": 29000,
+      "category": "automation",
+      "description": "أنشئ قواعد الحدث والشرط والإجراء للتشغيل المتكرر دون مستويات داخل الإضافة."
+    },
+    {
+      "key": "yeastar",
+      "name": "متابعة المكالمات مع Yeastar",
+      "monthlyMinor": 4900,
+      "annualMinor": 49000,
+      "category": "telephony",
+      "description": "اربط مكالمات الفريق بملف العميل وتقارير المتابعة. ترخيص السنترال والمكالمات منفصلان."
+    },
+    {
+      "key": "marketing_attribution",
+      "name": "ربط الإعلانات وقياس العائد",
+      "monthlyMinor": 4900,
+      "annualMinor": 49000,
+      "category": "marketing",
+      "description": "اجمع بيانات الإعلانات واربطها بالمصادر والتسجيلات والمدفوعات المؤكدة مع توضيح جودة المطابقة."
+    },
+    {
+      "key": "cms_pro",
+      "name": "موقع المركز وصفحات التسجيل",
+      "monthlyMinor": 7900,
+      "annualMinor": 79000,
+      "category": "website",
+      "description": "أدر صفحات المركز ونماذج التسجيل ومحتواه من داخل أودير. التصميم الخاص والنطاق الخارجي منفصلان."
+    },
+    {
+      "key": "lms",
+      "name": "تشغيل التدريب التفاعلي",
+      "monthlyMinor": 9900,
+      "annualMinor": 99000,
+      "category": "training",
+      "description": "شغّل الحضور والتقييم والشهادات ووظائف التدريب المتاحة دون مستويات تجارية داخل الإضافة."
+    },
+    {
+      "key": "zatca",
+      "name": "ربط الفوترة الإلكترونية — زاتكا",
+      "monthlyMinor": 3900,
+      "annualMinor": 39000,
+      "category": "integrations",
+      "description": "هيّئ الربط وتابع معالجة الفواتير وفق المتطلبات المطبقة. لا يغني اسم الإضافة عن تحقق جاهزية المنشأة."
+    },
+    {
+      "key": "api",
+      "name": "واجهة الربط للمطورين — API",
+      "monthlyMinor": 4900,
+      "annualMinor": 49000,
+      "category": "integrations",
+      "description": "اربط أدوات منشأتك عبر واجهات الربط المدعومة. الموصلات الجاهزة لا تتطلب شراء هذه الإضافة معها."
+    },
+    {
+      "key": "custom_store",
+      "name": "موصل المتجر المخصص",
+      "monthlyMinor": 9900,
+      "annualMinor": 99000,
+      "category": "integrations",
+      "description": "شغّل موصل متجرك المتفق عليه. بناء موصل جديد لأول مرة خدمة منفصلة محددة النطاق."
+    },
+    {
+      "key": "templates",
+      "name": "القوالب المتقدمة",
+      "monthlyMinor": 0,
+      "annualMinor": 0,
+      "category": "communications",
+      "description": "خصّص القوالب والمتغيرات الآمنة. مجانية للجميع بصرف النظر عن نسخة أودير."
+    }
+  ],
+  "plans": [
+    {
+      "key": "core_free",
+      "name": "المجانية",
+      "monthlyMinor": 0,
+      "annualMinor": 0,
+      "description": "ابدأ بتنظيم مركزك مع 3 مستخدمين.",
+      "limits": {
+        "staff": 3
+      },
+      "routing": "current",
+      "reports": "current",
+      "addonsIncluded": false,
+      "capacityPolicy": "staff_only_v1"
+    },
+    {
+      "key": "core_basic",
+      "name": "الأساسية",
+      "monthlyMinor": 7900,
+      "annualMinor": 79000,
+      "description": "شغّل مركزك مع فريق حتى 5 مستخدمين.",
+      "limits": {
+        "staff": 5
+      },
+      "routing": "current",
+      "reports": "current",
+      "addonsIncluded": false,
+      "capacityPolicy": "staff_only_v1"
+    },
+    {
+      "key": "core_professional",
+      "name": "الاحترافية",
+      "monthlyMinor": 19900,
+      "annualMinor": 199000,
+      "description": "وسّع فريق التشغيل حتى 10 مستخدمين.",
+      "limits": {
+        "staff": 10
+      },
+      "routing": "current",
+      "reports": "current",
+      "addonsIncluded": false,
+      "capacityPolicy": "staff_only_v1"
+    },
+    {
+      "key": "core_diamond",
+      "name": "الماسية",
+      "monthlyMinor": 49900,
+      "annualMinor": 499000,
+      "description": "أدر فريقًا أكبر حتى 20 مستخدمًا.",
+      "limits": {
+        "staff": 20
+      },
+      "routing": "current",
+      "reports": "current",
+      "addonsIncluded": false,
+      "capacityPolicy": "staff_only_v1"
+    }
+  ]
+}

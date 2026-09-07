@@ -106,7 +106,10 @@ export function OdeirSiteHeader({
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState("");
   const source = Array.isArray(menu) && menu.length ? menu : DEFAULT_PRIMARY_MENU;
-  const tree = useMemo(() => buildMenuTree(source) as OdeirMenuItem[], [source]);
+  const tree = useMemo(() => {
+    const items = buildMenuTree(source) as OdeirMenuItem[];
+    return items.some(item => item.href === "/pricing") ? items : [...items, {id:"odeir-pricing",label:"الأسعار",href:"/pricing"}];
+  }, [source]);
   const primaryLabel = hero.primaryLabel || settings.contactCtaLabel || settings.freeTrialLabel || "سجّل منشأتك مجانًا";
   const primaryHref = hero.primaryHref || settings.contactCtaUrl || settings.freeTrialUrl || "/free-trial/apply";
   const loginLabel = settings.customerLoginLabel || "دخول المنشآت";

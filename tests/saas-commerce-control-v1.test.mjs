@@ -44,7 +44,7 @@ test('commerce RPCs are permission checked and exposed only through authenticate
   assert.match(migration,/revoke all on function public\.v4_platform_commerce_snapshot\(\) from public,anon,authenticated/);
   assert.match(migration,/revoke all on function private_app\.enforce_tenant_plan_limit\(uuid,text\) from public,anon,authenticated/);
   assert.match(migration,/grant execute on function public\.v4_platform_commerce_action\(text,jsonb\) to authenticated/);
-  assert.match(route,/'commerce':'v4_platform_commerce_action'/);
+  assert.match(route,/'commerce':'v5_platform_commerce_action'/);
   assert.match(api,/export async function getPlatformCommerce/);
 });
 
@@ -55,8 +55,13 @@ test('platform navigation separates catalogs, subscriptions and collection',()=>
 });
 
 test('each SaaS control surface is operational rather than a static card',()=>{
-  assert.match(plans,/save_plan_limits/);
-  assert.match(plans,/حدود الباقة/);
+  assert.match(plans,/monthlyAmountMinor/);
+  assert.match(plans,/annualAmountMinor/);
+  assert.match(plans,/commercialProfile/);
+  assert.match(plans,/legacyPlans/);
+  assert.match(plans,/النسخة الكاملة — للإدارة فقط/);
+  assert.match(plans,/href="\/control\/subscriptions"/);
+  assert.doesNotMatch(plans,/save_plan_limits/);
   assert.match(subscriptions,/set_subscription/);
   assert.match(services,/save_service_category/);
   assert.match(services,/save_service_product/);

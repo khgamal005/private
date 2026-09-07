@@ -21,7 +21,7 @@ const RPC={
   'configure-odeiry-manager':'v1_platform_odeiry_manager_configure',
   'addon-decision':ADDON_CENTER_RPC.current,
   'marketplace':'v1_platform_marketplace_action',
-  'commerce':'v4_platform_commerce_action',
+  'commerce':'v5_platform_commerce_action',
   'service-marketplace':'v1_platform_service_marketplace_action'
 };
 
@@ -44,6 +44,11 @@ export async function POST(req,{params}){
 }
 function translate(x){const m={
   forbidden:'ليس لديك صلاحية لتنفيذ العملية',
+  reef_contract_protected:'ريف على النسخة الكاملة المحفوظة، ولا يمكن تغييرها من هذا المسار.',
+  legacy_plan_contract_protected:'هذا عقد سابق محفوظ ولا يُعدل من كتالوج البيع الجديد.',
+  commercial_plan_not_available:'النسخة المختارة غير متاحة للإسناد الجديد.',
+  commercial_catalog_versioned_update_required:'الأسعار المعتمدة تُعدل بإصدار تجاري موحد للشهري والسنوي.',
+  invalid_billing_interval:'اختر مدة اشتراك شهرية أو سنوية.',
   display_name_required:'اسم المنشأة مطلوب',
   invalid_slug:'الرابط المختصر غير صالح',
   slug_exists:'هذا الرابط مستخدم بالفعل',

@@ -3,7 +3,10 @@
 import Link from 'next/link';
 import {useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
-import styles from './marketplace-store.module.css';
+import baseStyles from './marketplace-store.module.css';
+import editionStyles from './independent-addon-billing.module.css';
+const styles={...baseStyles,...editionStyles};
+import {pricedAddon,quotedTotals} from '../lib/commerce/independent-pricing.mjs';
 import MarketplacePromoCode from './marketplace-promo-code';
 import MarketplaceOrderActions,{usePendingOrderRefresh} from './marketplace-order-actions';
 import TamaraContactFields from './tamara-contact-fields';
@@ -98,7 +101,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   const tamaraNavigationLock=useRef(false);
   const [tamaraContact,setTamaraContact]=useState({});
   const [tamaraOrder,setTamaraOrder]=useState(null);
-  const promotionsEnabled=slug!=='reef-skills';
+  const promotionsEnabled=false; // Add-ons never depend on core editions or promotions.
   const data=initialData||{};
   const addons=data.addons||EMPTY;
   const addonCategories=data.addonCategories||EMPTY;
@@ -108,6 +111,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   const transfers=data.bankTransferSubmissions||EMPTY;
   const canPurchase=Boolean(data.viewer?.canPurchase);
   const [query,setQuery]=useState('');
+  const [billingInterval,setBillingInterval]=useState('month');
   const [category,setCategory]=useState('all');
   const [checkout,setCheckout]=useState(null);
   const [paymentProvider,setPaymentProvider]=useState(paymentMethods[0]?.key||'bank_transfer');
@@ -169,8 +173,10 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
   }
 
   function openCheckout(item){
+    const quoted=pricedAddon(item,billingInterval);
+    if(!quoted.quoteAvailable){setError('هذا السعر غير متاح حاليًا؛ حدّث الصفحة قبل الدفع.');return;}
     setCheckout({
-      item,
+      item:quoted,
       requestKey:requestKey(),
       paymentRequestKey:requestKey()
     });
@@ -273,7 +279,7 @@ export default function MarketplaceAddonStoreV2({slug,initialData}){
       order=await action('create_order',{
         itemType:'addon',productKey:checkout.item.key,quantity:1,notes,
         idempotencyKey:checkout.requestKey,paymentProvider,
-        promotionCode:checkoutPromotionCode.trim()||undefined
+        billingInterval:checkout.item.selectedCycle
       });
       setCheckout(null);
       if(order.paymentProvider!=='paymob'){
@@ -396,8 +402,7 @@ setError('');setNotice('');
   }
 
 
-  const subtotal=Number(checkout?.item?.amountMinor||0);
-  const tax=Math.round(subtotal*.15);
+  const {subtotal,tax,total}=checkout?quotedTotals(checkout.item):{subtotal:0,tax:0,total:0};
   const selectedMethod=paymentMethods.find(item=>item.key===paymentProvider);
   const bankConfig=paymentMethods.find(item=>item.key==='bank_transfer')?.publicConfig||{};
 
@@ -406,7 +411,7 @@ setError('');setNotice('');
       <div>
         <span>أودير من ماركتون</span>
         <h1>متجر الإضافات</h1>
-        <p>النسخة الأساسية تعمل مستقلة. فعّل الإضافات المجانية فورًا، أو اشترك سنويًا في الإضافات المدفوعة التي تحتاجها فقط.</p>
+        <p>كل إضافة مستقلة عن نسخة أودير: سعر ثابت شهريًا أو سنويًا، دون مستويات أو حزم. رسوم مزود الخدمة الخارجية منفصلة.</p>
       </div>
       <aside>
         <b>اشتراكات واضحة ومستقلة</b>
@@ -414,6 +419,11 @@ setError('');setNotice('');
       </aside>
     </header>
 
+    <div className={styles.billingControl} role="group" aria-label="مدة اشتراك الإضافات">
+      <button type="button" aria-pressed={billingInterval==='month'} onClick={()=>setBillingInterval('month')}>شهري</button>
+      <button type="button" aria-pressed={billingInterval==='year'} onClick={()=>setBillingInterval('year')}>سنوي — 12 شهرًا بسعر 10</button>
+      <span>نفس المزايا في المدتين · الأسعار قبل الضريبة</span>
+    </div>
     <section className={styles.kpis}>
       <article><span>إضافات متاحة</span><b>{data.summary?.addonProducts||addons.length}</b><small>مجانية ومدفوعة</small></article>
       <article><span>إضافات مجانية</span><b>{data.summary?.freeAddonProducts||0}</b><small>تفعيل فوري</small></article>
@@ -431,7 +441,7 @@ setError('');setNotice('');
     </section>
 
     <section className={styles.grid}>
-      {filtered.map(item=><AddonCard key={item.id} slug={slug} item={item} canPurchase={canPurchase}
+      {filtered.map(item=><AddonCard key={item.id} slug={slug} item={pricedAddon(item,billingInterval)} canPurchase={canPurchase}
         pending={orders.some(order=>order.status==='pending_payment'&&itemProductKey(order)===item.key)}
         busy={busy} onActivateFree={()=>activateFree(item)} onBuy={()=>openCheckout(item)}/>)}
       {!filtered.length&&<div className={styles.empty}><span>⌕</span><h2>لا توجد نتائج مطابقة</h2><p>جرّب قسمًا آخر أو غيّر عبارة البحث.</p></div>}
@@ -463,7 +473,7 @@ setError('');setNotice('');
     {checkout&&<div className={styles.modalLayer}>
       <button className={styles.backdrop} aria-label="إغلاق" onClick={()=>setCheckout(null)}/>
       <form className={styles.modal} role="dialog" aria-modal="true" onSubmit={createOrder}>
-        <header><div><small>اشتراك إضافة سنوي</small><h2>{checkout.item.name}</h2></div><button type="button" onClick={()=>setCheckout(null)} aria-label="إغلاق">×</button></header>
+        <header><div><small>{checkout.item.selectedCycle==='month'?'اشتراك إضافة شهري':'اشتراك إضافة سنوي'}</small><h2>{checkout.item.name}</h2></div><button type="button" onClick={()=>setCheckout(null)} aria-label="إغلاق">×</button></header>
         <p>{checkout.item.description}</p>
         <PaymentMethodPicker methods={paymentMethods} value={paymentProvider}
           onChange={choosePaymentProvider}/>
@@ -479,7 +489,7 @@ setError('');setNotice('');
         </div>}
         {promotionsEnabled&&<label><span>برومو كود <small>(اختياري)</small></span><input dir="ltr" autoCapitalize="characters" autoComplete="off" spellCheck="false" minLength="3" maxLength="32" pattern="[A-Za-z0-9][A-Za-z0-9_-]{2,31}" placeholder="PROMO2026" value={checkoutPromotionCode} onChange={event=>setCheckoutPromotionCode(event.target.value.toUpperCase())}/><small className={styles.promoHint}>سيُتحقق منه خادميًا ويُحسب الخصم قبل فتح صفحة الدفع.</small></label>}
         <label><span>ملاحظات الطلب <small>(اختياري)</small></span><textarea rows="3" maxLength="1000" value={notes} onChange={event=>setNotes(event.target.value)}/></label>
-        <dl><div><dt>سعر الإضافة السنوي</dt><dd>{money(subtotal,checkout.item.currency)}</dd></div><div><dt>ضريبة القيمة المضافة 15%</dt><dd>{money(tax,checkout.item.currency)}</dd></div><div><dt>الإجمالي قبل أي برومو</dt><dd>{money(subtotal+tax,checkout.item.currency)}</dd></div></dl>
+        <dl><div><dt>{checkout.item.selectedCycle==='month'?'سعر شهر واحد':'سعر 12 شهرًا — سداد مقدم'}</dt><dd>{money(subtotal,checkout.item.currency)}</dd></div><div><dt>الضريبة ({(checkout.item.taxRateBps??1500)/100}%)</dt><dd>{money(tax,checkout.item.currency)}</dd></div><div><dt>الإجمالي المطلوب</dt><dd>{money(total,checkout.item.currency)}</dd></div></dl>
         <footer><button type="button" onClick={()=>setCheckout(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={busy==='checkout'||!paymentMethods.length}>{busy==='checkout'?'جارٍ إنشاء الطلب…':selectedMethod?.key==='tamara'?'المتابعة إلى تمارا':selectedMethod?.key==='paymob'?'المتابعة إلى الدفع الآمن':'إنشاء طلب الاشتراك'}</button></footer>
       </form>
     </div>}
@@ -526,7 +536,7 @@ setError('');setNotice('');
 
 function AddonCard({slug,item,canPurchase,pending,busy,onActivateFree,onBuy}){
   const enabled=Boolean(item.entitlement?.enabled);
-  const free=item.pricingMode==='free'||Number(item.amountMinor||0)===0;
+  const free=item.pricingMode==='free'&&item.amountMinor===0;
   const target=ADDON_LINKS[item.key]||'settings?tab=addons';
   return <article className={[styles.card,styles.addon,enabled?styles.installed:''].join(' ')}>
     <header><span>{item.categoryName||ADDON_CATEGORIES[item.categoryKey]||'إضافة أودير'}</span>{item.badge&&<b>{item.badge}</b>}</header>
@@ -537,12 +547,11 @@ function AddonCard({slug,item,canPurchase,pending,busy,onActivateFree,onBuy}){
       <span><small>التفعيل</small><b>{free?'فوري':'بعد اعتماد الدفع'}</b></span>
     </div>
     <footer>
-      <div><small>{free?'السعر':'الاشتراك السنوي'}</small><strong>{free?'مجاني':money(item.amountMinor,item.currency)}</strong>{!free&&<em>+ الضريبة</em>}</div>
+      <div><small>{free?'السعر':item.selectedCycle==='month'?'الاشتراك الشهري':'الاشتراك السنوي'}</small><strong>{free?'مجاني':item.quoteAvailable?money(item.amountMinor,item.currency):'غير متاح'}</strong>{!free&&<em>+ الضريبة</em>}</div>
       {enabled?<Link href={'/tenant/'+encodeURIComponent(slug)+'/'+target}>فتح الإضافة</Link>
         :free?<button type="button" disabled={!canPurchase||Boolean(busy)} onClick={onActivateFree}>{busy==='free-'+item.key?'جارٍ التفعيل…':'تفعيل مجانًا'}</button>
-        :<button type="button" disabled={!canPurchase||pending||Boolean(busy)} onClick={onBuy}>{pending?'بانتظار الدفع':'اشترك سنويًا'}</button>}
+        :<button type="button" disabled={!canPurchase||pending||Boolean(busy)||!item.quoteAvailable} onClick={onBuy}>{pending?'بانتظار الدفع':item.selectedCycle==='month'?'اشترك شهريًا':'اشترك سنويًا'}</button>}
     </footer>
   </article>;
 }
-
 

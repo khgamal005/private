@@ -411,7 +411,7 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
 
 function Catalog({rows,onEdit,onPrice,onCategory}){
   return <div className={styles.table}>
-    <header><span>الإضافة</span><span>القسم</span><span>السعر السنوي</span><span>الإصدار والمتجر</span><span>حالة التشغيل</span><span/></header>
+    <header><span>الإضافة</span><span>القسم</span><span>السعر الشهري والسنوي</span><span>الإصدار والمتجر</span><span>حالة التشغيل</span><span/></header>
     {rows.map(item=>{
       const price=item.price||{};
       const activeMedia=(item.media||EMPTY).filter(media=>media.status==='active').length;
@@ -419,7 +419,7 @@ function Catalog({rows,onEdit,onPrice,onCategory}){
       return <article key={item.id||item.key}>
         <div><b>{item.name}</b><small>{item.key}</small></div>
         <div><b>{item.categoryName||'غير مصنفة'}</b><small>{item.surfaces?.length||0} موضع ظهور</small></div>
-        <div><b>{money(price.amountMinor,price.currency)}</b><small>من {formatDate(price.validFrom)}</small></div>
+        <div>{item.independent?<><b>{money(item.monthlyAmountMinor,price.currency)} / شهر</b><small>{money(item.annualAmountMinor,price.currency)} / سنة</small></>:<><b>{money(price.amountMinor,price.currency)}</b><small>من {formatDate(price.validFrom)}</small></>}</div>
         <div><b>{item.manifest?.version||'—'}</b><span className={`${styles.storeState} ${marketplaceVisible?styles.storeVisible:styles.storeHidden}`}>{marketplaceVisible?'ظاهرة في المتجر':'مخفية من المتجر'}</span><small>{activeMedia} صور معتمدة · {item.media?.length||0} خانات</small></div>
         <Status value={item.manifest?.status||item.status}/>
         <div className={styles.actions}><button type="button" className={styles.manage} onClick={()=>onEdit(item)}>إدارة</button><button type="button" onClick={()=>onCategory(item)}>تصنيف</button><button type="button" onClick={()=>onPrice(item)}>تسعير</button></div>
@@ -724,6 +724,8 @@ function PaymobControlModal({action,busy,onClose,onSubmit}){
 }
 
 function PriceModal({item,busy,onClose,onSubmit}){
+  if(item.componentOnly)return <Modal title={item.name} onClose={onClose}><p>مكون تشغيلي داخل الإضافة التي تحتاجه، وليس اشتراكًا منفصلًا للبيع.</p><button type="button" onClick={onClose}>إغلاق</button></Modal>;
+  if(item.independent)return <Modal title={`أسعار ${item.name}`} onClose={onClose}><div className={styles.form}><p>ترخيص مستقل، بلا مستويات أو حزم. السعر ثابت لجميع نسخ أودير.</p><p><b>{money(item.monthlyAmountMinor,item.currency)} شهريًا</b></p><p><b>{money(item.annualAmountMinor,item.currency)} سنويًا</b> — 12 شهرًا بسعر 10، قبل الضريبة.</p><p>هذه أسعار النسخة التجارية المعتمدة. لا يعدّل محرر السعر السنوي القديم هذه النسخة، ولا يعيد تسعير أي طلب سابق.</p><button type="button" onClick={onClose}>إغلاق</button></div></Modal>;
   return <Modal title={`تسعير ${item.name}`} onClose={onClose}><form onSubmit={onSubmit} className={styles.form}>
     <label>السعر السنوي بالريال<input name="amount" type="number" min="1" step="1" defaultValue={(Number(item.price?.amountMinor)||0)/100} required/></label>
     <label>العملة<select name="currency" defaultValue={item.price?.currency||'SAR'}><option>SAR</option><option>USD</option></select></label>

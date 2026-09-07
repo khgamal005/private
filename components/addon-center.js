@@ -9,7 +9,7 @@ import styles from './addon-center.module.css';
 
 const EMPTY=[];
 const STATUS={
-  included:'مشمولة في الباقة',
+  included:'ترخيص سابق محفوظ',
   active:'نشطة',
   trialing:'فترة تجريبية',
   pending:'بانتظار الموافقة',
@@ -23,11 +23,13 @@ const STATUS={
   disabled:'غير مفعلة'
 };
 const SOURCE={
-  plan:'ضمن الباقة',
+  plan:'ترخيص سابق محفوظ',
   subscription:'اشتراك مستقل',
   override:'تخصيص إداري',
   default:'افتراضي',
   billing:'شراء موثّق',
+  free:'مجانية للجميع',
+  component:'جزء من ترخيص الإضافة',
   platform:'تفعيل من المنصة',
   migration:'ترحيل آمن',
   none:'غير مفعّل'
@@ -115,9 +117,9 @@ export default function AddonCenter({slug,initialData}){
   const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
   const openerRef=useRef(null);
-  const activeAnnualValue=summary.activeAnnualValueMinor??products.reduce(
+  const activeAnnualValue=products.reduce(
     (total,product)=>product.entitlement?.enabled
-      ?total+(Number(productPrice(product).amountMinor)||0)
+      ?total+(Number(product.annualAmountMinor??productPrice(product).amountMinor)||0)
       :total,
     0
   );
@@ -188,7 +190,7 @@ export default function AddonCenter({slug,initialData}){
       <div>
         <span>ODEIR ADD-ON MANAGER</span>
         <h2>إضافات منشأتك وتراخيصها</h2>
-        <p>كل إضافة لها سعر سنوي، مدة ترخيص، أماكن ظهور محددة، وسجل مستقل. إيقاف الإضافة يمنع الوصول فقط ولا يحذف بياناتها.</p>
+        <p>كل إضافة لها سعر شهري أو سنوي، ومدة ترخيص، وأماكن ظهور محددة، وسجل مستقل. إيقاف الإضافة يمنع الوصول فقط ولا يحذف بياناتها.</p>
       </div>
       <Link href={`/tenant/${encodeURIComponent(slug)}/addons-store`}>فتح متجر الإضافات</Link>
     </header>
@@ -273,7 +275,7 @@ function AddonCard({slug,product,timezone,busy,onAction,onDetails}){
     </header>
     <p>{product.description||manifest.shortDescription||'إضافة مستقلة ضمن منظومة أودير.'}</p>
     <section className={styles.priceLine}>
-      <div><small>السعر</small><strong>{money(price.amountMinor,price.currency)}</strong><span>{INTERVAL[price.interval]||'دورية غير محددة'}</span></div>
+      <div><small>الترخيص المستقل</small>{product.componentOnly?<span>جزء من الإضافة التي تستخدمه، دون رسم منفصل.</span>:product.independent?<><strong>{money(product.monthlyAmountMinor,price.currency)} شهريًا</strong><span>{money(product.annualAmountMinor,price.currency)} سنويًا · قبل الضريبة</span></>:<><strong>{money(price.amountMinor,price.currency)}</strong><span>{INTERVAL[price.interval]||'دورية غير محددة'}</span></>}</div>
       <div><small>الإصدار</small><b>{product.version||manifest.version||'1.0.0'}</b><span>{formatDate(product.publishedAt||manifest.releasedAt,timezone)}</span></div>
     </section>
     <dl className={styles.license}>

@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import {requirePlatform} from '../../lib/server-auth';
-import {getControl} from '../../lib/api';
+import {getPlatformCommerce} from '../../lib/api';
 import OnboardingForm from '../../components/onboarding-form';
 
 export const dynamic='force-dynamic';
 
 export default async function Onboarding(){
   await requirePlatform();
-  const data=await getControl();
+  const data=await getPlatformCommerce();
   return <main className="onboarding">
     <section className="onboarding-head">
       <span>MARKTONE PROVISIONING</span>

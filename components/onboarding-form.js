@@ -23,7 +23,7 @@ export default function OnboardingForm({plans=[]}){
         p_slug:values.slug,
         p_country_code:values.country_code,
         p_timezone:values.timezone,
-        p_plan_key:values.plan_key||'free',
+        p_plan_key:values.plan_key||'core_free',
         p_owner_name:values.owner_name,
         p_owner_email:values.owner_email,
         p_hostname:normalizeHostname(values.hostname)
@@ -63,7 +63,7 @@ export default function OnboardingForm({plans=[]}){
     <label>بريد مالك المنشأة<input name="owner_email" type="email" required/></label>
     <label>الدولة<select name="country_code"><option value="SA">السعودية</option><option value="AE">الإمارات</option><option value="EG">مصر</option></select></label>
     <label>المنطقة الزمنية<select name="timezone"><option value="Asia/Riyadh">الرياض</option><option value="Asia/Dubai">دبي</option><option value="Africa/Cairo">القاهرة</option></select></label>
-    <label>الباقة<select name="plan_key" defaultValue="free">{plans.map(plan=><option key={plan.key} value={plan.key}>{plan.nameAr}</option>)}</select></label>
+    <label>الباقة<select name="plan_key" defaultValue="core_free">{plans.map(plan=><option key={plan.key} value={plan.key}>{plan.nameAr}</option>)}</select></label>
     {error&&<div className="form-error">{error}</div>}
     <button disabled={busy}>{busy?'جارٍ إنشاء وربط المنصة…':'إنشاء المنشأة وتشغيلها'}</button>
   </form>;

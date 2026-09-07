@@ -166,8 +166,11 @@ test('tenant API routes select only the additive promotion RPCs',()=>{
   assert.match(serviceRoute,/submit_bank_transfer/);
 });
 
-test('tenant checkout surfaces optional promo codes without accepting client money',()=>{
-  for(const source of [addonStore,serviceStore]){
+test('service checkout keeps promotions while independent add-ons reject them',()=>{
+  assert.match(addonStore,/promotionsEnabled=false/);
+  assert.match(addonStore,/billingInterval:checkout.item.selectedCycle/);
+  assert.doesNotMatch(addonStore,/promotionCode:checkoutPromotionCode/);
+  for(const source of [serviceStore]){
     assert.match(source,/promotionCode:checkoutPromotionCode\.trim\(\)\|\|undefined/);
     assert.match(source,/MarketplacePromoCode/);
     assert.match(source,/apply_promotion/);

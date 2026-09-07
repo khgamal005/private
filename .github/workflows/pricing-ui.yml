@@ -1,0 +1,39 @@
+name: ODEIR pricing UI
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pricing-ui.yml'
+      - 'components/*pricing*'
+      - 'components/*edition*'
+      - 'components/platform-plans.js'
+      - 'components/platform-subscriptions.js'
+      - 'components/marketplace-addon-store-v2.js'
+      - 'lib/commerce/**'
+      - 'scripts/releases/verify-pricing-ui.mjs'
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Arabic layout, hidden FULL and checkout totals
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/pricing-browser --no-save playwright@1.55.0
+          /tmp/pricing-browser/node_modules/.bin/playwright install --with-deps chromium
+          PLAYWRIGHT_MODULE=/tmp/pricing-browser/node_modules/playwright/index.mjs node scripts/releases/verify-pricing-ui.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pricing-ui-synthetic-evidence
+          path: /tmp/pricing-evidence/*
+          retention-days: 3

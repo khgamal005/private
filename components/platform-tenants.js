@@ -95,7 +95,7 @@ export default function PlatformTenants({initialData}){
   async function updatePlan(tenantId,planKey){
     setBusy(true);setError('');
     try{
-      await call('set-subscription',{p_tenant_id:tenantId,p_plan_key:planKey||'free'});
+      await call('set-subscription',{p_tenant_id:tenantId,p_plan_key:planKey||'core_free'});
       setMessage('تم تحديث اشتراك المنشأة');
       router.refresh();
     }catch(err){setError(err.message)}finally{setBusy(false)}
@@ -201,7 +201,7 @@ export default function PlatformTenants({initialData}){
             <td><select value={tenant.status} disabled={busy} onChange={event=>updateStatus(tenant.id,event.target.value)}>
               <option value="active">نشطة</option><option value="trial">تجريبية</option><option value="suspended">موقوفة</option><option value="migrating">قيد النقل</option><option value="closed">مغلقة</option>
             </select></td>
-            <td><select value={tenant.planKey||''} disabled={busy} onChange={event=>updatePlan(tenant.id,event.target.value)}>
+            <td><select aria-label={`باقة ${tenant.name}`} value={tenant.planKey||''} disabled={busy||tenant.slug==='reef-skills'} onChange={event=>updatePlan(tenant.id,event.target.value)}>
               <option value="">بدون باقة</option>{plans.map(plan=><option value={plan.key} key={plan.key}>{plan.nameAr}</option>)}
             </select></td>
             <td><button

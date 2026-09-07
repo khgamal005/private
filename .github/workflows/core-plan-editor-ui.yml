@@ -1,0 +1,46 @@
+name: ODEIR core plan editor UI
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/core-plan-editor-ui.yml'
+      - 'app/control/plans/page.js'
+      - 'app/api/platform/plan-editor/**'
+      - 'components/core-plan-editor*'
+      - 'components/platform-plans.js'
+      - 'lib/core-plan-editor.mjs'
+      - 'scripts/releases/verify-plan-editor-ui.mjs'
+      - 'supabase/migrations/*core_plan_editor*'
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Security audit and isolated browser tools
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/plan-editor-evidence
+          npm audit --json > /tmp/plan-editor-evidence/dependency-audit.json
+          npm install --prefix /tmp/editor-browser --no-save playwright@1.55.0 agent-browser@0.36.0
+          /tmp/editor-browser/node_modules/.bin/agent-browser --help > /tmp/plan-editor-evidence/browser-help.txt
+          /tmp/editor-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Arabic editor and confirmed synthetic updates
+        env:
+          PLAYWRIGHT_MODULE: /tmp/editor-browser/node_modules/playwright/index.mjs
+          AGENT_BROWSER_BIN: /tmp/editor-browser/node_modules/.bin/agent-browser
+        run: node scripts/releases/verify-plan-editor-ui.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: core-plan-editor-ui-evidence
+          path: /tmp/plan-editor-evidence/*
+          retention-days: 3

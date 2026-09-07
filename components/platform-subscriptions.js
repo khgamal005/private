@@ -60,7 +60,7 @@ export default function PlatformSubscriptions({initialData}){
       <label className={styles.field}>الباقة<select name="plan_id" required>{plans.map(plan=><option key={plan.id} value={plan.id}>{plan.nameAr}</option>)}</select></label>
       <label className={styles.field}>الحالة<select name="status"><option value="active">نشط</option><option value="trialing">تجريبي</option><option value="paused">موقوف</option><option value="past_due">متأخر السداد</option></select></label>
       <label className={styles.field}>بداية الفترة<input name="period_start" type="date" defaultValue={today()} required/></label>
-      <label className={styles.field}>مدة الاشتراك<select name="billing_interval" defaultValue="month"><option value="month">شهري</option><option value="year">سنوي — 12 شهرًا بسعر 10</option></select></label>
+      <label className={styles.field}>مدة الاشتراك<select name="billing_interval" defaultValue="month"><option value="month">شهري</option><option value="year">سنوي — 12 شهرًا</option></select></label>
       <aside className={styles.hint}>ينتهي الاشتراك المدفوع بعد المدة المختارة، والمجانية والكاملة دون انتهاء. الإضافات مستقلة ولا تتغير. ريف مستثناة ومحفوظة على النسخة الكاملة؛ هذا الإجراء ليس إثبات تحصيل مالي.</aside>
       <footer className={styles.formFooter}><button type="button" className={styles.ghost} onClick={()=>setModal(false)}>إلغاء</button><button className={styles.secondary} disabled={busy||!tenants.length||!plans.length}>{busy?'جارٍ الحفظ…':'تعيين الاشتراك'}</button></footer>
     </div></form></div>}

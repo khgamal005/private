@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {useState} from 'react';
 import {OdeirSiteHeader,OdeirSiteFooter} from './odeir-site-chrome';
 import styles from './public-pricing.module.css';
-const money=value=>new Intl.NumberFormat('ar-SA',{maximumFractionDigits:0}).format(value/100);
+const money=value=>new Intl.NumberFormat('ar-SA',{maximumFractionDigits:2}).format(value/100);
 
 export default function PublicPricing({catalog}){
  const [cycle,setCycle]=useState('month');
@@ -11,8 +11,8 @@ export default function PublicPricing({catalog}){
  return <div className="odeir-experience"><div className="odeir-managed-header-shell"><OdeirSiteHeader/></div>
   <main className={styles.page} data-commerce-release={catalog.releaseKey||'independent-v1'}>
    <header className={styles.hero}><span>أودير · أسعار واضحة</span><h1>اختر نسخة مركزك.<br/>وأضف ما تحتاجه بصورة مستقلة.</h1><p>ابدأ بالمجانية، ثم اختر سعة البرنامج المناسبة لفريقك. لكل إضافة اشتراكها الخاص، بالسعر والمزايا نفسيهما في جميع نسخ أودير.</p></header>
-   <div className={styles.cycle} role="group" aria-label="عرض الأسعار حسب مدة الاشتراك"><button type="button" aria-pressed={cycle==='month'} onClick={()=>setCycle('month')}>شهري</button><button type="button" aria-pressed={cycle==='year'} onClick={()=>setCycle('year')}>سنوي · شهران دون مقابل</button></div>
-   <p className={styles.note}>الأسعار بالريال السعودي قبل الضريبة. السنوي: سداد مقدم لـ12 شهرًا بسعر 10 أشهر.</p>
+   <div className={styles.cycle} role="group" aria-label="عرض الأسعار حسب مدة الاشتراك"><button type="button" aria-pressed={cycle==='month'} onClick={()=>setCycle('month')}>شهري</button><button type="button" aria-pressed={cycle==='year'} onClick={()=>setCycle('year')}>سنوي</button></div>
+   <p className={styles.note}>الأسعار بالريال السعودي قبل الضريبة. السنوي: السعر المعروض مقابل 12 شهرًا، مدفوعًا مقدمًا.</p>
    <section aria-labelledby="core-editions-title"><div className={styles.heading}><h2 id="core-editions-title">نسخ أودير</h2><p>تختلف النسخ حاليًا في سعة الفريق، مع وظائف التشغيل الحالية نفسها. لا نفرض حصصًا للعملاء والدفعات أو قيود تقارير غير مطبقة. الإضافات مستقلة.</p></div><div className={styles.plans}>{catalog.plans.map(plan=>{
     const limits=plan.profile?.limits||{};
     return <article className={plan.key==='core_professional'?styles.recommended:styles.plan} key={plan.key}><div>{plan.key==='core_professional'&&<span className={styles.badge}>للفرق المتنامية</span>}<h3>{plan.name}</h3><p>{plan.profile?.description||plan.description}</p></div><div className={styles.price}><b>{amount(plan)===0?'مجانية':money(amount(plan))}</b>{amount(plan)>0&&<span>ريال / {cycle==='month'?'شهر':'سنة'}</span>}</div><dl><div><dt>مستخدمو الفريق</dt><dd>{limits.staff}</dd></div><div><dt>وظائف التشغيل الأساسية</dt><dd>متاحة</dd></div><div><dt>العملاء والدفعات</dt><dd>دون حصة تجارية</dd></div><div><dt>الإضافات</dt><dd>اشتراك مستقل</dd></div></dl><Link className={styles.cta} href={amount(plan)===0?'/free-trial/apply':'/login'}>{amount(plan)===0?'ابدأ مجانًا':'دخول المنشأة'}</Link></article>;

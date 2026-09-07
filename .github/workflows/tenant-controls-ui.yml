@@ -1,0 +1,44 @@
+name: ODEIR tenant controls UI
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/tenant-controls-ui.yml'
+      - 'components/platform-tenants.js'
+      - 'components/platform-tenant-controls*'
+      - 'components/tenant-deletion-dialog*'
+      - 'app/api/platform/tenant-controls/**'
+      - 'app/control/tenants/page.js'
+      - 'lib/tenant-controls-http.mjs'
+      - 'supabase/migrations/*tenant_manual_controls*'
+      - 'scripts/releases/verify-tenant-controls-ui.mjs'
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install isolated browser verification tools
+        run: |
+          npm install --prefix /tmp/tenant-browser --no-save playwright@1.55.0 agent-browser
+          /tmp/tenant-browser/node_modules/.bin/agent-browser --help > /tmp/tenant-browser/help.txt
+          /tmp/tenant-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify actual Arabic controls using synthetic tenants only
+        env:
+          PLAYWRIGHT_MODULE: /tmp/tenant-browser/node_modules/playwright/index.mjs
+          AGENT_BROWSER_BIN: /tmp/tenant-browser/node_modules/.bin/agent-browser
+        run: node scripts/releases/verify-tenant-controls-ui.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tenant-controls-ui-evidence
+          path: /tmp/tenant-controls-evidence/*
+          retention-days: 3

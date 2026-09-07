@@ -26,7 +26,7 @@ try{
  assert((await page.locator('.site-header').boundingBox()).height<120,'header_geometry');
  assert(!(await page.locator('main').innerText()).includes('النسخة الكاملة'));
  await page.screenshot({path:'/tmp/pricing-evidence/public-monthly.png',fullPage:true});
- await page.getByRole('button',{name:'سنوي · شهران دون مقابل'}).click();
+ await page.getByRole('button',{name:'سنوي',exact:true}).click();
  assert(digits(await page.locator('main').innerText()).includes('790'));
  await page.screenshot({path:'/tmp/pricing-evidence/public-annual.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});

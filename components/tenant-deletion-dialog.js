@@ -11,7 +11,8 @@ const COUNT_LABELS={
   marketplaceOrders:'طلبات المتجر',bankTransfers:'التحويلات البنكية',
   addonEvents:'أحداث الإضافات',protectedAddons:'الإضافات المحمية',
   integrations:'التكاملات الفعلية',defaultIntegrationRows:'إعدادات التكامل الافتراضية',
-  storageObjects:'ملفات الموقع'
+  storageObjects:'ملفات الموقع',coreTransitionRecords:'سجل انتقال الباقة',
+  coreSubscriptionTerms:'شروط اشتراك الباقة'
 };
 
 export default function TenantDeletionDialog({tenant,onClose,onDeleted}){

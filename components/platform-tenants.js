@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import TenantDeletionDialog from './tenant-deletion-dialog';
+import PlatformTenantControls from './platform-tenant-controls';
 
 export default function PlatformTenants({initialData}){
   const router=useRouter();
@@ -15,13 +16,15 @@ export default function PlatformTenants({initialData}){
   const [error,setError]=useState('');
   const [provisioned,setProvisioned]=useState(null);
   const [deletionTenant,setDeletionTenant]=useState(null);
+  const [controlTenant,setControlTenant]=useState(null);
+  const [tenantUpdates,setTenantUpdates]=useState({});
   const [deletedIds,setDeletedIds]=useState(()=>new Set());
   const [odeiryStates,setOdeiryStates]=useState({});
   const [odeiryBusySlug,setOdeiryBusySlug]=useState('');
   const [odeiryConfirmation,setOdeiryConfirmation]=useState(null);
   const tenants=useMemo(()=>(initialData.tenants||[]).filter(
     tenant=>!deletedIds.has(tenant.id)
-  ),[initialData.tenants,deletedIds]);
+  ).map(tenant=>({...tenant,...tenantUpdates[tenant.id]})),[initialData.tenants,deletedIds,tenantUpdates]);
   const plans=initialData.plans||[];
   const odeiryControl=initialData.odeiryManager||{};
   const shown=useMemo(()=>tenants.filter(tenant=>
@@ -83,22 +86,12 @@ export default function PlatformTenants({initialData}){
     }
   }
 
-  async function updateStatus(tenantId,value){
-    setBusy(true);setError('');
-    try{
-      await call('set-tenant-status',{p_tenant_id:tenantId,p_status:value});
-      setMessage('تم تحديث حالة المنشأة');
-      router.refresh();
-    }catch(err){setError(err.message)}finally{setBusy(false)}
-  }
-
-  async function updatePlan(tenantId,planKey){
-    setBusy(true);setError('');
-    try{
-      await call('set-subscription',{p_tenant_id:tenantId,p_plan_key:planKey||'core_free'});
-      setMessage('تم تحديث اشتراك المنشأة');
-      router.refresh();
-    }catch(err){setError(err.message)}finally{setBusy(false)}
+  function controlsChanged(data){
+    setTenantUpdates(current=>({...current,[data.tenant.id]:{
+      status:data.tenant.status,planKey:data.subscription?.planKey||'',
+      planName:data.subscription?.planName||'بدون باقة'
+    }}));
+    router.refresh();
   }
 
   async function createTenant(event){
@@ -186,10 +179,12 @@ export default function PlatformTenants({initialData}){
           <button className={status==='all'?'active':''} onClick={()=>setStatus('all')}>الكل</button>
           <button className={status==='active'?'active':''} onClick={()=>setStatus('active')}>نشطة</button>
           <button className={status==='trial'?'active':''} onClick={()=>setStatus('trial')}>تجريبية</button>
+          <button className={status==='suspended'?'active':''} onClick={()=>setStatus('suspended')}>موقوفة</button>
+          <button className={status==='closed'?'active':''} onClick={()=>setStatus('closed')}>مغلقة</button>
         </div>
       </div>
       <div className="mt-table-wrap"><table className="mt-table">
-        <thead><tr><th>المنشأة</th><th>المالك</th><th>الدومين</th><th>المستخدمون</th><th>الحالة</th><th>الباقة</th><th>أوديري المدير</th><th></th></tr></thead>
+        <thead><tr><th>المنشأة</th><th>المالك</th><th>الدومين</th><th>المستخدمون</th><th>الحالة</th><th>الباقة</th><th>أوديري المدير</th><th>الإجراءات</th></tr></thead>
         <tbody>{shown.map(tenant=>{
           const manager=odeiryState(tenant);
           const managerBusy=odeiryBusySlug===tenant.slug;
@@ -198,12 +193,10 @@ export default function PlatformTenants({initialData}){
             <td><b>{tenant.ownerName||'لم يحدد'}</b><small>{tenant.ownerEmail||'—'} · {tenant.ownerStatus==='linked'?'مرتبط':'بانتظار التفعيل'}</small></td>
             <td><b>{tenant.domain||'بدون دومين'}</b><small>{domainStatus(tenant.domainStatus)}</small></td>
             <td><b>{tenant.employees||0} مستخدم</b><small>بحسابات وصلاحيات معزولة</small></td>
-            <td><select value={tenant.status} disabled={busy} onChange={event=>updateStatus(tenant.id,event.target.value)}>
-              <option value="active">نشطة</option><option value="trial">تجريبية</option><option value="suspended">موقوفة</option><option value="migrating">قيد النقل</option><option value="closed">مغلقة</option>
-            </select></td>
-            <td><select aria-label={`باقة ${tenant.name}`} value={tenant.planKey||''} disabled={busy||tenant.slug==='reef-skills'} onChange={event=>updatePlan(tenant.id,event.target.value)}>
-              <option value="">بدون باقة</option>{plans.map(plan=><option value={plan.key} key={plan.key}>{plan.nameAr}</option>)}
-            </select></td>
+            <td><span className={`mt-status ${tenant.status}`}>{tenantStatus(tenant.status)}</span></td>
+            <td><b>{tenant.planName||plans.find(plan=>plan.key===tenant.planKey)?.nameAr||'بدون باقة'}</b>
+              {tenant.slug==='reef-skills'&&<small>عقد محفوظ ومحمي</small>}
+            </td>
             <td><button
               type="button"
               className={`mt-button ${manager.enabled?'primary':'soft'}`}
@@ -214,13 +207,21 @@ export default function PlatformTenants({initialData}){
             >{managerBusy?'جارٍ الحفظ…':manager.enabled?'مفعّل':'متوقف'}</button>
             <small>{manager.effectiveEnabled?'متاح داخل المنشأة':manager.enabled?'بانتظار البوابة العامة':'لا يظهر للمديرين'}</small></td>
             <td><div className="mt-tenant-row-actions">
+              <button type="button" className="mt-button primary" disabled={busy} onClick={()=>setControlTenant(tenant)} aria-label={`إدارة ${tenant.name}`}>إدارة المنشأة</button>
               <Link prefetch={false} className="mt-button soft" href={`/tenant/${tenant.slug}`}>فتح</Link>
-              <button type="button" className="mt-button danger-outline" disabled={busy} onClick={()=>setDeletionTenant({id:tenant.id,name:tenant.name,slug:tenant.slug})}>حذف نهائي</button>
+              <button type="button" className="mt-button danger-outline" disabled={busy||tenant.slug==='reef-skills'||!initialData.adminPermissions?.canDelete} onClick={()=>setDeletionTenant({id:tenant.id,name:tenant.name,slug:tenant.slug})}>حذف نهائي</button>
             </div></td>
           </tr>;
         })}</tbody>
       </table>{!shown.length&&<div className="mt-empty">لا توجد منشآت مطابقة.</div>}</div>
     </section>
+
+    {controlTenant&&<PlatformTenantControls
+      tenant={controlTenant}
+      onClose={()=>setControlTenant(null)}
+      onChanged={controlsChanged}
+      onDelete={tenant=>{setControlTenant(null);setDeletionTenant(tenant);}}
+    />}
 
     {odeiryConfirmation&&<div className="mt-modal-layer">
       <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={()=>!odeiryBusySlug&&setOdeiryConfirmation(null)}/>
@@ -272,4 +273,8 @@ function normalizeHostname(value){
 
 function domainStatus(value){
   return ({pending:'بانتظار التحقق',verifying:'جارٍ التحقق',active:'نشط',failed:'فشل التحقق',disabled:'معطل'})[value]||'غير مضاف';
+}
+
+function tenantStatus(value){
+  return {active:'نشطة',trial:'تجريبية',suspended:'موقوفة',closed:'مغلقة',migrating:'قيد النقل'}[value]||value;
 }

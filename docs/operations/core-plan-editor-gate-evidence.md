@@ -1,0 +1,9 @@
+# Core plan editor gate — 7 September 2026
+
+Exact functional candidate f10f0fc747615d0c3072fc8a627c89b8c01631d5 passed workflow 34145984975: 965 tests, zero failures, complete lint/typecheck, 238 forward migration checks, optimized build and zero reported dependency vulnerabilities. Three actual Arabic component browser suites passed with fully synthetic intercepted requests: plan editor, tenant management and independent pricing checkout. Artifact 10027774947 contains logs, reviewed-source.tar, browser JSON, agent-browser snapshots and inspected screenshots.
+
+Final review added a shared catalog advisory lock before tenant/subscription row locks and before tenant quote-version validation, matching canonical assignment lock order. This closes a concurrent price-edit/assignment race. Strict HTTP identifiers now reject array-coerced IDs/versions. The two extra tests plus isolated SQL/HTTP suites pass locally (30 tests). The final PR workflows revalidate the final candidate after these small changes.
+
+No production business mutation has occurred during this review. Production function signatures and exact patch targets were read successfully; neither deletion nor deletion-preview functions were invoked. The existing denial of a production deletion-preview invocation is not bypassed. The two pending migrations add capabilities and separate metadata, not an instruction to change a customer's plan, state, payments or delete data.
+
+Before release, apply the exact reviewed migrations in a guarded transaction, assert unchanged pre-existing tenant-scoped rows and Reef contract metadata, check RLS/permissions and source drift, then merge and verify actual Hostinger endpoints. Record final application SHA, live checks and database evidence in PR226. Synthetic browser/SQL tests do not represent real-customer deletion or real-money settlement tests.

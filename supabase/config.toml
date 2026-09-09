@@ -110,3 +110,8 @@ verify_jwt = false
 [functions.meta-oauth-v2]
 # User routes authorize through caller-scoped RPCs; compliance callbacks verify HMAC.
 verify_jwt = false
+
+[functions.google-ads-connect]
+# Each action validates the caller through Google-only tenant RPCs before reading
+# Vault credentials. Google OAuth returns through the authenticated Next.js route.
+verify_jwt = false

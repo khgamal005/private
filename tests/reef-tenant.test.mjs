@@ -260,8 +260,9 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(tasks,/المتابعة فقط/);
   assert.match(tasks,/اضغط متابعة العميل/);
   assert.match(followupModal,/نتيجة المتابعة/);
-  assert.match(followupModal,/الدورة المهتم بها/);
-  assert.match(followupModal,/p_course_id:values\.course_id\|\|null/);
+  const followupDetails=await read('../components/sales-followup-details.js');
+  assert.match(followupDetails,/الدورة المهتم بها/);
+  assert.match(followupModal,/p_course_interests:serialized\.courseInterests/);
   assert.doesNotMatch(followupModal,/p_course_id:paymentSubmitted/);
   assert.match(followupModal,/موعد الإجراء التالي/);
   assert.match(followupModal,/بلاغ دفع بانتظار التحقق/);

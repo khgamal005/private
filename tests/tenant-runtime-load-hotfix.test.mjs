@@ -45,7 +45,7 @@ test('task calendar and sales use lean scoped snapshots',async()=>{
     salesStart
   );
   const salesRead=api.slice(salesStart,salesEnd);
-  assert.match(salesRead,/v1_tenant_sales_workspace_snapshot/);
+  assert.match(salesRead,/v2_tenant_sales_workspace_snapshot/);
   assert.doesNotMatch(salesRead,/retryTransient:true/);
   assert.match(salesRead,/timeoutMs:4500/);
   assert.doesNotMatch(

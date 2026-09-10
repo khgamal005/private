@@ -1,7 +1,9 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import {useMemo,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
+import SalesFollowupDetails,{useFollowupDetails} from './sales-followup-details';
+import {serializeFollowupDetails} from '../lib/sales-followup-details.mjs';
 
 const CustomerHistoryDrawer=dynamic(
   ()=>import('./customer-history-drawer'),
@@ -125,7 +127,6 @@ export default function SalesFollowupModal({
   contact,
   task=null,
   courses=EMPTY,
-  courseRuns=EMPTY,
   onClose,
   onSaved
 }){
@@ -136,15 +137,26 @@ export default function SalesFollowupModal({
       :OPEN_STATUSES.has(contact?.leadStatus)?contact.leadStatus:'follow_up'
   );
   const [followupQuality,setFollowupQuality]=useState(initialQuality);
-  const [selectedCourseId,setSelectedCourseId]=useState(contact?.interestCourseId||'');
+  const {details,setDetails,loadError,retry}=useFollowupDetails(slug,contact.id);
+  const [paymentCourseId,setPaymentCourseId]=useState('');
+  const command=useRef(null);
   const [contactName,setContactName]=useState(contact?.name||'');
   const [historyOpen,setHistoryOpen]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
+  const baseContact=details?.baseContact;
+  useEffect(()=>{
+    if(!baseContact)return;
+    setContactName(baseContact.name||'');
+    const quality=baseContact.leadQuality||'unrated';
+    setFollowupQuality(quality);
+    setFollowupStatus(quality==='unqualified'?'unqualified':OPEN_STATUSES.has(baseContact.leadStatus)?baseContact.leadStatus:'follow_up');
+  },[baseContact]);
+  const underAdmissions=['paid','payment_submitted'].includes(baseContact?.leadStatus);
 
-  const availableRuns=useMemo(()=>courseRuns.filter(run=>
-    !selectedCourseId||run.courseId===selectedCourseId
-  ),[courseRuns,selectedCourseId]);
+  const selectedInterests=details?.rows.filter(row=>row.courseId)||EMPTY;
+  const resolvedPaymentCourseId=selectedInterests.some(row=>row.courseId===paymentCourseId)
+    ?paymentCourseId:selectedInterests.length===1?selectedInterests[0].courseId:'';
 
   function changeStatus(nextStatus){
     setFollowupStatus(nextStatus);
@@ -169,6 +181,7 @@ export default function SalesFollowupModal({
 
   async function submit(event){
     event.preventDefault();
+    if(busy||underAdmissions)return;
     setBusy(true);
     setError('');
     const values=Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -176,31 +189,26 @@ export default function SalesFollowupModal({
     const paymentSubmitted=values.lead_status==='payment_submitted';
 
     try{
+      const serialized=serializeFollowupDetails(details);
+      if(paymentSubmitted&&!resolvedPaymentCourseId)throw new Error('حدد الدورة التي يخصها بلاغ الدفع.');
+      const body={
+        p_tenant_slug:slug,p_contact_id:contact.id,p_task_id:task?.id||null,
+        p_contact_name:values.contact_name,p_activity_type:values.activity_type,p_summary:values.summary,
+        p_lead_status:values.lead_status,p_lead_quality:values.lead_quality,
+        p_next_action_type:open?values.next_action_type:null,
+        p_next_action_at:open?new Date(values.next_action_at).toISOString():null,
+        p_course_interests:serialized.courseInterests,p_additional_phones:serialized.additionalPhones,
+        p_expected_revision:details.revision,p_payment_course_id:paymentSubmitted?resolvedPaymentCourseId:null,
+        p_payment_amount_minor:paymentSubmitted&&values.payment_amount?Math.round(Number(values.payment_amount)*100):null,
+        p_payment_reference:paymentSubmitted?(values.payment_reference||null):null,
+        p_closure_reason:!open&&!paymentSubmitted?(values.closure_reason||null):null
+      };
+      const signature=JSON.stringify(body);
+      if(command.current?.signature!==signature)command.current={signature,id:crypto.randomUUID()};
       const response=await fetch('/api/tenant/record-sales-followup',{
         method:'POST',
         headers:{'content-type':'application/json'},
-        body:JSON.stringify({
-          p_tenant_slug:slug,
-          p_contact_id:contact.id,
-          p_task_id:task?.id||null,
-          p_contact_name:values.contact_name,
-          p_activity_type:values.activity_type,
-          p_summary:values.summary,
-          p_lead_status:values.lead_status,
-          p_lead_quality:values.lead_quality,
-          p_next_action_type:open?values.next_action_type:null,
-          p_next_action_at:open?new Date(values.next_action_at).toISOString():null,
-          p_course_id:values.course_id||null,
-          p_course_run_id:paymentSubmitted?(values.course_run_id||null):null,
-          p_payment_amount_minor:paymentSubmitted&&values.payment_amount
-            ?Math.round(Number(values.payment_amount)*100)
-            :null,
-          p_payment_reference:paymentSubmitted?(values.payment_reference||null):null,
-          p_preferred_start_date:paymentSubmitted?(values.preferred_start_date||null):null,
-          p_closure_reason:!open&&!paymentSubmitted
-            ?(values.closure_reason||null)
-            :null
-        })
+        body:JSON.stringify({...body,p_command_id:command.current.id})
       });
       const payload=await response.json();
       if(!response.ok)throw new Error(payload.error||'تعذر حفظ نتيجة المتابعة');
@@ -224,9 +232,9 @@ export default function SalesFollowupModal({
     dir="rtl"
   >
     <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={close}/>
-    <form className="mt-modal mt-followup-modal" onSubmit={submit}>
+    <form className="mt-modal mt-followup-modal" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="sales-followup-title" aria-busy={busy}>
       <header>
-        <h3>نتيجة المتابعة · {contactName||contact.name}</h3>
+        <h3 id="sales-followup-title">نتيجة المتابعة · {contactName||contact.name}</h3>
         <div className="mt-followup-head-actions">
           <button
             type="button"
@@ -257,7 +265,7 @@ export default function SalesFollowupModal({
           {contact.latestNoteAt&&<small>{dateTime(contact.latestNoteAt)}</small>}
         </div>}
       </div>
-      <div className="mt-form">
+      <fieldset className="mt-form" disabled={busy} style={{border:0,margin:0,minWidth:0}}>
         <label className="mt-field wide">اسم العميل<input
           name="contact_name"
           value={contactName}
@@ -273,20 +281,13 @@ export default function SalesFollowupModal({
           value={followupStatus}
           onChange={event=>changeStatus(event.target.value)}
         /></label>
-        <label className="mt-field">الدورة المهتم بها<select
-          name="course_id"
-          value={selectedCourseId}
-          onChange={event=>setSelectedCourseId(event.target.value)}
-          required={followupStatus==='payment_submitted'}
-        >
-          <option value="">لم تحدد الدورة بعد</option>
-          {courses.map(item=><option value={item.id} key={item.id}>{item.nameAr}</option>)}
-        </select></label>
         <label className="mt-field">جودة الليد<QualitySelect
           name="lead_quality"
           value={followupQuality}
           onChange={event=>changeQuality(event.target.value)}
         /></label>
+        <SalesFollowupDetails slug={slug} contactId={contact.id} courses={courses}
+          details={details} setDetails={setDetails} loadError={loadError} retry={retry} busy={busy}/>
         <label className="mt-field wide">ما الذي حدث؟<textarea name="summary" rows="4" required placeholder="اكتب ملخصًا واضحًا لنتيجة التواصل"/></label>
 
         {OPEN_STATUSES.has(followupStatus)&&<>
@@ -296,10 +297,11 @@ export default function SalesFollowupModal({
 
         {followupStatus==='payment_submitted'&&<>
           <div className="mt-form-section wide review"><b>بلاغ دفع بانتظار التحقق</b><small>هذا لا يؤكد الدفع. سيُرسل الطلب إلى التسجيل والقبول لمراجعة الإيصال أو بوابة الدفع.</small></div>
-          <label className="mt-field">الدفعة<select name="course_run_id"><option value="">لم تحدد الدفعة بعد</option>{availableRuns.map(item=><option value={item.id} key={item.id}>{item.title} · {dateOnly(item.startsAt)}</option>)}</select></label>
+          <label className="mt-field">الدورة التي يخصها بلاغ الدفع<select required value={resolvedPaymentCourseId} onChange={event=>setPaymentCourseId(event.target.value)}>
+            <option value="">حدد دورة البلاغ</option>{selectedInterests.map(item=><option key={item.courseId} value={item.courseId}>{courses.find(course=>course.id===item.courseId)?.nameAr||item.courseName}</option>)}
+          </select><small>تُستخدم الدفعة وموعد الحضور المختاران لهذه الدورة. باقي الدورات تظل اهتمامات محفوظة.</small></label>
           <label className="mt-field">المبلغ المبلّغ عنه<input name="payment_amount" type="number" min="0" step=".01"/></label>
           <label className="mt-field">مرجع / رقم العملية<input name="payment_reference"/></label>
-          <label className="mt-field">بداية مفضلة<input name="preferred_start_date" type="date"/></label>
         </>}
 
         {!OPEN_STATUSES.has(followupStatus)&&followupStatus!=='payment_submitted'&&<>
@@ -310,11 +312,12 @@ export default function SalesFollowupModal({
           <label className="mt-field wide">سبب الإغلاق<textarea name="closure_reason" rows="3" required placeholder="اكتب سببًا واضحًا يمكن تحليله لاحقًا"/></label>
         </>}
 
-        {error&&<div className="mt-alert error mt-field wide">{error}</div>}
-      </div>
+        {underAdmissions&&<div className="mt-alert mt-field wide">انتقل العميل إلى التسجيل والقبول. حدّث الشاشة لمتابعة حالة تسجيله.</div>}
+        {error&&<div className="mt-alert error mt-field wide" role="alert">{error}</div>}
+      </fieldset>
       <footer>
         <button type="button" className="mt-button" onClick={close}>إلغاء</button>
-        <button className="mt-button primary" disabled={busy}>
+        <button className="mt-button primary" disabled={busy||!details||underAdmissions}>
           {busy?'جارٍ الحفظ…':followupStatus==='payment_submitted'?'إرسال للتحقق من الدفع':'حفظ النتيجة'}
         </button>
       </footer>

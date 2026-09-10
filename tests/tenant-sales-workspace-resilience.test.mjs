@@ -75,7 +75,7 @@ test('interactive sales route validates input and returns private JSON errors',a
   assert.match(route,/day>days\[month-1\]/);
   assert.match(route,/year<1/);
   assert.match(route,/Cache-Control':'private, no-store, max-age=0/);
-  assert.match(route,/v1_tenant_sales_workspace_snapshot/);
+  assert.match(route,/v2_tenant_sales_workspace_snapshot/);
   assert.match(route,/status===401/);
   assert.doesNotMatch(route,/detail\s*:/);
   assert.doesNotMatch(route,/validInstant[\s\S]{0,300}toISOString/);

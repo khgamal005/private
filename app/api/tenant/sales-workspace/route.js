@@ -274,7 +274,7 @@ export async function GET(request){
   const startedAt=Date.now();
   try{
     const response=await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/v1_tenant_sales_workspace_snapshot`,
+      `${SUPABASE_URL}/rest/v1/rpc/v2_tenant_sales_workspace_snapshot`,
       {
         method:'POST',
         headers:{

@@ -83,7 +83,7 @@ test('old dates stay in customer history and not as a second calendar card',asyn
   assert.match(migration,/'previousDueAt', history\.previous_due_at/);
   assert.match(migration,/'nextDueAt', history\.next_due_at/);
   assert.match(api,/authRpc\('v4_tenant_operations_snapshot'/);
-  assert.match(historyRoute,/v4_tenant_customer_history_snapshot/);
+  assert.match(historyRoute,/v5_tenant_customer_history_snapshot/);
   assert.match(calendar,/تم نقل المهمة نفسها إلى الموعد الجديد/);
   assert.match(css,/\.calendar-task-transition/);
 });

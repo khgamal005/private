@@ -136,5 +136,5 @@ test('calendar, sales, dashboards, history and RPCs use the day policy',async()=
   assert.match(calendarApi,/v3_tenant_update_task_status/);
   assert.match(calendarApi,/v4_tenant_transition_task/);
   assert.match(calendarApi,/v6_tenant_calendar_day_snapshot/);
-  assert.match(historyRoute,/v4_tenant_customer_history_snapshot/);
+  assert.match(historyRoute,/v5_tenant_customer_history_snapshot/);
 });

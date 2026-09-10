@@ -46,7 +46,7 @@ test('customer history combines actions and measures planned versus actual timin
   assert.match(workspace,/CustomerHistoryDrawer/);
   assert.match(workspace,/سجل العميل/);
   assert.match(workspace,/setHistoryContact/);
-  assert.match(route,/v4_tenant_customer_history_snapshot/);
+  assert.match(route,/v5_tenant_customer_history_snapshot/);
   assert.match(route,/UUID_PATTERN/);
   assert.match(route,/Cache-Control/);
   assert.match(css,/\.mt-customer-history-drawer/);

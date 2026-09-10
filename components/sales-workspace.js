@@ -9,6 +9,7 @@ import {
   toWhatsAppNumber
 } from '../lib/customer-phone.mjs';
 import CustomerHistoryDrawer from './customer-history-drawer';
+import {interestCourseNames} from '../lib/sales-followup-details.mjs';
 import CustomerEditModal from './customer-edit-modal';
 import SalesFollowupModal,{
   ACTIONS,
@@ -631,7 +632,7 @@ export default function SalesWorkspace({
         <tbody>{shownContacts.map(contact=><tr key={contact.id}>
           <td><b>{contact.name}</b><small>{contact.phone||'لا يوجد جوال'}</small></td>
           <td><LeadBadges contact={contact}/></td>
-          <td><b>{contact.interestCourseName||'لم تحدد'}</b><small>{contact.organizationName||'عميل فردي'}</small></td>
+          <td><b>{interestCourseNames(contact)||'لم تحدد'}</b><small>{contact.organizationName||'عميل فردي'}</small></td>
           <td><b>{contact.source||'غير محدد'}</b><small>{contact.campaignName||contact.adName||'لا توجد حملة'}</small></td>
           <td>{contact.ownerName||'غير مسند'}</td>
           <td><b>{contact.nextActionType?ACTIONS[contact.nextActionType]||contact.nextActionType:'لا توجد متابعة'}</b><small>{when(contact.nextActionAt)}</small></td>
@@ -828,7 +829,7 @@ function LeadCard({
 }){
   return <article className="mt-lead-card">
     <header>
-      <div><h3>{contact.name}</h3><small>{contact.interestCourseName||'الدورة غير محددة'}</small></div>
+      <div><h3>{contact.name}</h3><small>{interestCourseNames(contact)||'الدورة غير محددة'}</small></div>
       {contact.demo&&<em>تجريبي</em>}
     </header>
     <div className="mt-lead-contact">

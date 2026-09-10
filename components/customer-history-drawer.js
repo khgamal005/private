@@ -1,6 +1,7 @@
 'use client';
 
 import {useEffect,useMemo,useState} from 'react';
+import {FollowupDetailsSummary} from './sales-followup-details';
 import {
   ACTIONS,
   SalesQualityBadge,
@@ -202,6 +203,7 @@ export default function CustomerHistoryDrawer({
           </div>}
         </section>
 
+        <FollowupDetailsSummary contact={resolvedContact} timezone={data?.timezone}/>
         {resolvedContact.notes&&<section className="mt-customer-history-context">
           <div className="wide">
             <span>ملاحظات العميل</span>
@@ -285,4 +287,3 @@ function HistoryEvent({event}){
     </div>
   </article>;
 }
-

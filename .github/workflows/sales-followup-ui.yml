@@ -1,0 +1,38 @@
+name: ODEIR multiple course follow-up UI
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/sales-followup-ui.yml'
+      - 'scripts/releases/verify-followup-ui.mjs'
+      - 'components/sales-followup*'
+      - 'lib/sales-followup-details.mjs'
+      - 'app/*css'
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install isolated browser test tools
+        run: |
+          npm install --prefix /tmp/followup-browser --no-save playwright@1.55.0
+          /tmp/followup-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify course rows, attendance, phones and responsive dialog
+        env:
+          PLAYWRIGHT_MODULE: /tmp/followup-browser/node_modules/playwright/index.mjs
+        run: node scripts/releases/verify-followup-ui.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sales-followup-ui-evidence
+          path: /tmp/followup-ui-evidence/*
+          retention-days: 3

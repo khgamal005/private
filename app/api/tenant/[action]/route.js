@@ -24,6 +24,8 @@ const RPC={
   'lead-reassignment':'v1_tenant_lead_reassignment_action',
   'woocommerce-order-routing':'v3_tenant_commerce_order_action',
   'record-sales-followup':'v2_tenant_record_sales_followup_v5',
+  'sales-followup-context':'v1_tenant_sales_followup_context',
+  'sales-followup-options':'v1_tenant_sales_followup_options',
   'update-admission':'v2_tenant_update_admission',
   'update-admission-document':'v2_tenant_update_admission_document',
   'save-course-run':'v2_tenant_save_course_run',
@@ -96,6 +98,10 @@ export async function POST(request,{params}){
     }
 
     const body=await request.json();
+    // Old open tabs keep the V5 contract; structured details always use V6 atomically.
+    if(action==='record-sales-followup'&&Object.hasOwn(body,'p_course_interests')){
+      rpc='v2_tenant_record_sales_followup_v6';
+    }
     // Service orders share the canonical payment ledger. Route bank-transfer
     // evidence through the payment-aware V2 contract without exposing add-on
     // catalog actions in the services storefront.
@@ -164,6 +170,14 @@ function translate(value){
     contact_name_required:'اسم العميل مطلوب ويجب ألا يقل عن حرفين',
     contact_name_too_long:'اسم العميل طويل جدًا؛ الحد الأقصى 150 حرفًا',
     invalid_phone:'رقم الجوال غير صالح',
+    duplicate_additional_phone:'هذا الرقم موجود بالفعل ضمن أرقام العميل',
+    duplicate_or_missing_course:'اختر دورة صحيحة دون تكرار الدورة نفسها',
+    invalid_attendance_session:'موعد الحضور غير متاح أو لا يتبع الدفعة المختارة؛ راجع الاختيار',
+    invalid_followup_details:'راجع الدورات والأرقام؛ الحد الأقصى ٢٠ دورة و١٠ أرقام إضافية',
+    payment_course_required:'حدد الدورة التي يخصها بلاغ الدفع من الدورات المختارة',
+    followup_changed_reload:'تغيرت بيانات العميل في جلسة أخرى. أعد فتح المتابعة لمراجعة أحدث البيانات قبل الحفظ',
+    followup_reload_required:'أعد فتح شاشة المتابعة لتحميل بيانات العميل',
+    followup_command_conflict:'تعذر تكرار طلب الحفظ ببيانات مختلفة؛ أعد فتح المتابعة',
     invalid_whatsapp:'رقم واتساب غير صالح',
     contact_identity_required:'يجب إدخال رقم جوال أو واتساب أو بريد إلكتروني',
     duplicate_contact_identity:'يوجد عميل آخر مسجل بنفس الجوال أو واتساب أو البريد الإلكتروني',

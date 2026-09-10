@@ -21,7 +21,7 @@ export async function GET(request){
     }
 
     const response=await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/v4_tenant_customer_history_snapshot`,
+      `${SUPABASE_URL}/rest/v1/rpc/v5_tenant_customer_history_snapshot`,
       {
         method:'POST',
         headers:{
@@ -69,4 +69,3 @@ function translate(value){
     contact_not_found:'العميل غير موجود'
   })[raw]||'تعذر تحميل سجل العميل';
 }
-

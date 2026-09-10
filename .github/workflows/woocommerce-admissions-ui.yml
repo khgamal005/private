@@ -1,0 +1,38 @@
+name: ODEIR WooCommerce admissions UI
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/woocommerce-admissions-ui.yml'
+      - 'scripts/releases/verify-woocommerce-admissions-ui.mjs'
+      - 'components/woocommerce-admission*'
+      - 'lib/woocommerce-admissions.mjs'
+      - 'app/*css'
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install isolated browser test tools
+        run: |
+          npm install --prefix /tmp/woocommerce-browser --no-save playwright@1.55.0
+          /tmp/woocommerce-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify review, retry, completion and responsive dialog
+        env:
+          PLAYWRIGHT_MODULE: /tmp/woocommerce-browser/node_modules/playwright/index.mjs
+        run: node scripts/releases/verify-woocommerce-admissions-ui.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: woocommerce-admissions-ui-evidence
+          path: /tmp/woocommerce-ui-evidence/*
+          retention-days: 3

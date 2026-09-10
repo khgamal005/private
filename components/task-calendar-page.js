@@ -13,6 +13,7 @@ import {
   isTaskOverdue
 } from '../lib/task-timing.mjs';
 import SalesFollowupModal,{SalesQualityBadge} from './sales-followup-modal';
+import WooCommerceAdmissionModal from './woocommerce-admission-modal';
 import dayStyles from './task-calendar-day.module.css';
 
 const DAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
@@ -176,6 +177,7 @@ export default function TaskCalendarPage({
   const [showForm,setShowForm]=useState(false);
   const [selected,setSelected]=useState(null);
   const [followupTarget,setFollowupTarget]=useState(null);
+  const [wooTarget,setWooTarget]=useState(null);
   const [dayPanel,setDayPanel]=useState(null);
   const [completeLoading,setCompleteLoading]=useState(false);
   const dataRef=useRef(initialData);
@@ -445,6 +447,9 @@ export default function TaskCalendarPage({
   }
 
   async function updateStatus(task,status){
+    if(status==='completed'&&task.taskSource==='woocommerce_order'&&!task.wooAdmissionLegacy){
+      setSelected(null);setWooTarget(task);return;
+    }
     setSaving(true);
     setError('');
     try{
@@ -488,6 +493,9 @@ export default function TaskCalendarPage({
   }
 
   function openTask(task){
+    if(task.taskSource==='woocommerce_order'){
+      setWooTarget(task);return;
+    }
     const contact=task.contactId
       ?contacts.find(item=>item.id===task.contactId)
       :null;
@@ -828,6 +836,11 @@ export default function TaskCalendarPage({
       }}
     />}
 
+    {wooTarget&&<WooCommerceAdmissionModal key={wooTarget.id} slug={slug} task={wooTarget}
+      onClose={()=>setWooTarget(null)}
+      onLegacy={task=>{setWooTarget(null);setSelected({...task,wooAdmissionLegacy:true});}}
+      onSaved={()=>{setWooTarget(null);setNotice('تم إتمام طلب WooCommerce وإرساله للتسجيل والقبول بدفع مؤكد');void refreshCalendar();}}
+    />}
     {followupTarget&&<SalesFollowupModal
       slug={slug}
       contact={followupTarget.contact}

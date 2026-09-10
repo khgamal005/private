@@ -83,7 +83,7 @@ test('queue snapshot and actions match the tenant workspace contract',()=>{
 
 test('application exposes the order queue without weakening existing lead intake',()=>{
   assert.match(api,/v3_tenant_commerce_order_queue_snapshot/);
-  assert.match(route,/'woocommerce-order-routing':'v3_tenant_commerce_order_action'/);
+  assert.match(route,/'woocommerce-order-routing':'v4_tenant_commerce_order_action'/);
   assert.match(workspace,/طلبات WooCommerce/);
   assert.match(workspace,/كل طلب جديد يُنشئ مهمة واحدة مهما كانت حالته/);
   assert.match(workspace,/auto_distribute/);

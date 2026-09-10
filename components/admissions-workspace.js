@@ -312,6 +312,11 @@ export default function AdmissionsWorkspace({slug,initialData}){
         </div>
 
         <div className="mt-admission-modal-body">
+          {selected.paymentSource==='woocommerce'&&<div className="mt-alert">
+            WooCommerce #{selected.orderNumber} · تاريخ الدفع: {when(selected.sourcePaidAt)}
+            <br/>تاريخ الإرسال للتسجيل: {when(selected.submittedAt)}
+            {selected.paymentOnHold&&<p>تغيرت بيانات الدفع في المتجر؛ يلزم مراجعتها قبل التسجيل.</p>}
+          </div>}
           <section className="mt-admission-form">
             <h4>بيانات الدورة والدفعة</h4>
             <div className="mt-form">
@@ -321,7 +326,7 @@ export default function AdmissionsWorkspace({slug,initialData}){
                   setCourseId(event.target.value);
                   setCourseRunId('');
                 }}
-                disabled={!canManage}
+                disabled={!canManage||selected.paymentSource==='woocommerce'}
               >
                 <option value="">اختر الدورة</option>
                 {courses.map(course=><option value={course.id} key={course.id}>{course.nameAr}</option>)}
@@ -415,7 +420,7 @@ function AdmissionCard({item,canManage,onOpen}){
       <div><dt>الدورة</dt><dd>{item.courseName}</dd></div>
       <div><dt>الدفعة</dt><dd>{item.courseRunName||'لم تحدد'}</dd></div>
       <div><dt>المبلغ</dt><dd>{money(item.paymentAmountMinor)}</dd></div>
-      <div><dt>البلاغ</dt><dd>{when(item.paymentReportedAt)}</dd></div>
+      <div><dt>البلاغ</dt><dd>{when(item.sourcePaidAt||item.paymentReportedAt)}{item.paymentSource==='woocommerce'&&<small>WooCommerce #{item.orderNumber}</small>}</dd></div>
     </dl>
     <div className="mt-admission-progress">
       <div><b>المستندات الاختيارية</b><span>{reviewed}/{documents.length}</span></div>

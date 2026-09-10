@@ -10,6 +10,7 @@ import {
 import ReportExcelButton from './report-excel-button';
 import useLeadIntakePage from './use-lead-intake-page';
 import LeadIntakePagination from './lead-intake-pagination';
+import WooCommerceAdmissionModal from './woocommerce-admission-modal';
 
 const EMPTY=[];
 
@@ -382,6 +383,7 @@ export default function LeadIntakeWorkspace({slug,initialData}){
   const [rowSelection,setRowSelection]=useState(null);
   const [chosenBatch,setChosenBatch]=useState(null);
   const [selectedOrders,setSelectedOrders]=useState([]);
+  const [wooReviewTask,setWooReviewTask]=useState(null);
   const [assignmentSelection,setAssignmentSelection]=useState(null);
   const [orderAssignee,setOrderAssignee]=useState('');
   const [routingDraft,setRoutingDraft]=useState({
@@ -1145,13 +1147,18 @@ export default function LeadIntakeWorkspace({slug,initialData}){
             <td>{moneyMinor(item.amountMinor,item.currency,item.minorDigits)}</td>
             <td><b>{item.routingState==='awaiting_distribution'?'في الكيو':item.routingState==='assigned'?'تم التوزيع':'تحتاج مراجعة'}</b><small>{ORDER_ROUTING_MODE[item.routingStrategy]||item.routingStrategy}</small></td>
             <td>{item.assigneeName||'غير مسند'}</td>
-            <td><b>{item.taskStatus==='completed'?'مكتملة':item.taskStatus==='in_progress'?'قيد التنفيذ':'مطلوبة'}</b><small>{formatDate(item.taskDueAt)}</small></td>
+            <td><b>{item.taskStatus==='completed'?'مكتملة':item.taskStatus==='in_progress'?'قيد التنفيذ':'مطلوبة'}</b><small>{formatDate(item.taskDueAt)}</small>
+              {commerceOrders.admissionsEnabled&&item.taskId&&<button className="mt-button soft" onClick={()=>setWooReviewTask({id:item.taskId})}>مراجعة التسجيل</button>}
+            </td>
           </tr>)}</tbody>
         </table>
         {!orderItems.length&&<div className="mt-empty">لا توجد طلبات جديدة بعد تفعيل مسار المهام. الطلبات التاريخية لم تُحوّل تلقائيًا حمايةً للفريق من آلاف المهام القديمة.</div>}
       </div>
     </section>}
 
+    {wooReviewTask&&<WooCommerceAdmissionModal key={wooReviewTask.id} slug={slug} task={wooReviewTask}
+      onClose={()=>setWooReviewTask(null)} onSaved={()=>{setWooReviewTask(null);router.refresh();}}
+      onLegacy={()=>{setWooReviewTask(null);setError('مسار التسجيل الجديد غير مفعل لهذه المنشأة');}}/>}
     {page.enabled&&<>
       <LeadIntakePagination page={page} section={tab}/>
       {page.error&&<div className="mt-alert error" role="alert">

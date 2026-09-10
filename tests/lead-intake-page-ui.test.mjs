@@ -18,6 +18,7 @@ function component(relative){
   const localRequire=createRequire(filename);
   compiledModule.require=specifier=>{
     if(specifier==='next/navigation')return {useRouter:()=>({refresh(){}})};
+    if(specifier.endsWith('.module.css'))return new Proxy({},{get:(_,key)=>key==='__esModule'?false:String(key)});
     if(specifier.startsWith('.')&&path.resolve(path.dirname(filename),specifier).includes('/components/')){
       return component(new URL(`${specifier}.js`,new URL(relative,import.meta.url)).href);
     }

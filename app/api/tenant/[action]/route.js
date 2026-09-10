@@ -1,5 +1,6 @@
 import {cookies} from 'next/headers';
 import {NextResponse} from 'next/server';
+import {WOO_ADMISSION_ERRORS} from '../../../../lib/woocommerce-admissions.mjs';
 import {
   ACCESS_COOKIE,
   SUPABASE_KEY,
@@ -22,7 +23,10 @@ const RPC={
   'lead-intake':'v2_tenant_lead_intake_action',
   'lead-assignment-search':'v1_tenant_lead_assignment_search',
   'lead-reassignment':'v1_tenant_lead_reassignment_action',
-  'woocommerce-order-routing':'v3_tenant_commerce_order_action',
+  'woocommerce-order-routing':'v4_tenant_commerce_order_action',
+  'woocommerce-admission-context':'v1_tenant_woocommerce_admission_context',
+  'woocommerce-admission-action':'v1_tenant_woocommerce_admission_action',
+  'woocommerce-admission-preview':'v1_tenant_woocommerce_admission_preview',
   'record-sales-followup':'v2_tenant_record_sales_followup_v5',
   'sales-followup-context':'v1_tenant_sales_followup_context',
   'sales-followup-options':'v1_tenant_sales_followup_options',
@@ -164,6 +168,7 @@ export async function POST(request,{params}){
 
 function translate(value){
   const messages={
+    ...WOO_ADMISSION_ERRORS,
     forbidden:'ليس لديك صلاحية لتنفيذ العملية',
     tenant_not_found:'المنشأة غير موجودة',
     full_name_required:'اسم الموظف مطلوب',

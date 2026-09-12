@@ -2,6 +2,7 @@
 
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {initialWooSelections,WOO_ADMISSION_ERRORS} from '../lib/woocommerce-admissions.mjs';
+import WooCommerceBeneficiaryEditor from './woocommerce-beneficiary-editor';
 import styles from './woocommerce-admission-modal.module.css';
 
 const amount=value=>new Intl.NumberFormat('ar-SA',{style:'currency',currency:'SAR'}).format(Number(value||0)/100);
@@ -9,7 +10,9 @@ const when=(value,timeZone)=>value?new Intl.DateTimeFormat('ar-SA',{dateStyle:'m
 
 export default function WooCommerceAdmissionModal({slug,task,onClose,onSaved,onLegacy}){
   const [context,setContext]=useState(null),[lines,setLines]=useState([]),[reason,setReason]=useState('');
-  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const [loading,setLoading]=useState(true),[actionBusy,setActionBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const [beneficiaryBusy,setBeneficiaryBusy]=useState(false),[beneficiaryDirty,setBeneficiaryDirty]=useState(false);
+  const busy=actionBusy||beneficiaryBusy;
   const command=useRef(null),dialog=useRef(null),callbacks=useRef({onLegacy,onSaved,onClose});
   useEffect(()=>{callbacks.current={onLegacy,onSaved,onClose};},[onLegacy,onSaved,onClose]);
   const request=useCallback(async(action,body,signal)=>{
@@ -19,14 +22,25 @@ export default function WooCommerceAdmissionModal({slug,task,onClose,onSaved,onL
     if(!response.ok)throw new Error(WOO_ADMISSION_ERRORS[payload.error]||payload.error||'تعذر تحميل الطلب');
     return payload.data;
   },[]);
-  const load=useCallback(async signal=>{
-    setLoading(true);setError('');
+  const load=useCallback(async(signal,preserveSelections=false)=>{
+    if(!preserveSelections)setLoading(true);setError('');
     try{
       const data=await request('woocommerce-admission-context',{p_tenant_slug:slug,p_task_id:task.id},signal);
       if(signal?.aborted)return;
       if(!data.enabled&&callbacks.current.onLegacy){callbacks.current.onLegacy(task);return;}
-      setContext(data);setLines(initialWooSelections(data));setReason(data.reviewReason||'');command.current=null;
-    }catch(err){if(!signal?.aborted)setError(err.message);}
+      setContext(data);
+      setLines(current=>{
+        const initial=initialWooSelections(data);
+        if(!preserveSelections||data.reviewValid)return initial;
+        return initial.map(line=>{
+          const previous=current.find(value=>value.lineId===line.lineId);
+          if(!previous||!data.courses.some(course=>course.id===previous.courseId))return line;
+          return {...line,courseId:previous.courseId,handoffId:data.candidates.some(h=>h.id===previous.handoffId&&!h.linked)?previous.handoffId:null};
+        });
+      });
+      if(!preserveSelections)setReason(data.reviewReason||'');
+      setBeneficiaryDirty(false);command.current=null;
+    }catch(err){if(!signal?.aborted){setError(err.message);if(preserveSelections)throw err;}}
     finally{if(!signal?.aborted)setLoading(false);}
   },[request,slug,task]);
   useEffect(()=>{const controller=new AbortController();void load(controller.signal);return()=>controller.abort();},[load]);
@@ -41,7 +55,7 @@ export default function WooCommerceAdmissionModal({slug,task,onClose,onSaved,onL
   const incomplete=lines.length===0||lines.some(line=>!line.courseId);
   const needsReview=context?.reviewRequired&&(!context.reviewValid||changed);
   async function save(action){
-    setBusy(true);setError('');setNotice('');
+    setActionBusy(true);setError('');setNotice('');
     const payload={p_tenant_slug:slug,p_task_id:task.id,p_action:action,p_expected_revision:context.revision,p_lines:lines,
       p_reason:action==='review'?reason:''};
     const signature=JSON.stringify(payload);
@@ -52,12 +66,13 @@ export default function WooCommerceAdmissionModal({slug,task,onClose,onSaved,onL
       setNotice('تم اعتماد الربط والدورات. يستطيع الموظف الآن إتمام المهمة وإرسالها للتسجيل.');
       await load();
     }catch(err){setError(err.message);}
-    finally{setBusy(false);}
+    finally{setActionBusy(false);}
   }
   function keyboard(event){
     if(event.key==='Escape'&&!busy){event.stopPropagation();onClose();}
     if(event.key!=='Tab')return;
-    const nodes=[...dialog.current.querySelectorAll('button:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href]')];
+    const nodes=[...dialog.current.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href]')]
+      .filter(node=>!node.closest('fieldset:disabled'));
     if(!nodes.length){event.preventDefault();return;}
     if(event.shiftKey&&(document.activeElement===nodes[0]||document.activeElement===dialog.current)){
       event.preventDefault();nodes.at(-1).focus();
@@ -82,6 +97,9 @@ export default function WooCommerceAdmissionModal({slug,task,onClose,onSaved,onL
           {context.receipt?<p className={styles.success}>تم إرسال الطلب للتسجيل بتاريخ {when(context.receipt.submittedAt,context.timeZone)}. لا يلزم إرساله مرة أخرى.</p>:<>
             {blockers.length>0&&<div className={styles.warning} role="status">{blockers.map(key=><p key={key}>{WOO_ADMISSION_ERRORS[key]||key}</p>)}</div>}
             <p className={styles.hint}>اختر الدورة لكل بند. يحدد موظف التسجيل والقبول الدفعة وموعد الحضور بعدها.</p>
+            {context.beneficiaryEditorEnabled&&<WooCommerceBeneficiaryEditor context={context} slug={slug} taskId={task.id}
+              disabled={actionBusy||(!context.canReview&&context.reviewValid)} onBusyChange={setBeneficiaryBusy} onDirtyChange={setBeneficiaryDirty}
+              onSaved={async()=>{await load(undefined,true);setNotice('تم حفظ المستفيدين. راجع ربط التسجيل السابق ثم أرسل الطلب.');}}/>}
             {(context.items||[]).map((item,index)=><article className={styles.item} key={item.lineId}>
               <div className={styles.itemTitle}><b>{item.title}</b><span>{amount(item.amountMinor)}{item.quantity!==1?` · الكمية: ${item.quantity}`:''}</span></div>
               <label>الدورة للبند {index+1}<select value={lines[index]?.courseId||''}
@@ -111,11 +129,11 @@ export default function WooCommerceAdmissionModal({slug,task,onClose,onSaved,onL
       <footer><button onClick={onClose} disabled={busy}>إغلاق</button>
         {context&&!loading&&!context.receipt&&<>
           {context.canReview&&(context.reviewRequired||changed)&&<button className={styles.secondary}
-            onClick={()=>save('review')} disabled={busy||incomplete||reviewBlockers.length>0||reason.trim().length<3}>
-            {busy?'جارٍ الحفظ…':'اعتماد المراجعة والربط'}</button>}
+            onClick={()=>save('review')} disabled={busy||beneficiaryDirty||incomplete||reviewBlockers.length>0||reason.trim().length<3}>
+            {actionBusy?'جارٍ الحفظ…':'اعتماد المراجعة والربط'}</button>}
           <button className={styles.primary} onClick={()=>save('complete')}
-            disabled={busy||incomplete||blockers.length>0||needsReview||!context.canComplete}>
-            {busy?'جارٍ الحفظ…':'إتمام وإرسال للتسجيل'}</button>
+            disabled={busy||beneficiaryDirty||incomplete||blockers.length>0||needsReview||!context.canComplete}>
+            {actionBusy?'جارٍ الحفظ…':'إتمام وإرسال للتسجيل'}</button>
         </>}
       </footer>
     </section>

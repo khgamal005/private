@@ -1,0 +1,39 @@
+name: ODEIR WooCommerce beneficiaries UI
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/woocommerce-beneficiaries-ui.yml'
+      - 'scripts/releases/verify-woocommerce-beneficiaries-ui.mjs'
+      - 'components/woocommerce-*'
+      - 'components/admissions-workspace.js'
+      - 'lib/woocommerce-*'
+      - 'app/api/tenant/woocommerce-beneficiaries/**'
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install isolated browser test tools
+        run: |
+          npm install --prefix /tmp/woocommerce-beneficiary-browser --no-save playwright@1.55.0
+          /tmp/woocommerce-beneficiary-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify beneficiaries, previous payment, retry and responsive registration
+        env:
+          PLAYWRIGHT_MODULE: /tmp/woocommerce-beneficiary-browser/node_modules/playwright/index.mjs
+        run: node scripts/releases/verify-woocommerce-beneficiaries-ui.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: woocommerce-beneficiaries-ui-evidence
+          path: /tmp/woocommerce-beneficiaries-evidence/*
+          retention-days: 3

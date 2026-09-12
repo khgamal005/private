@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {JSDOM} from 'jsdom';
 import * as contract from '../lib/woocommerce-admissions.mjs';
+import * as beneficiaryContract from '../lib/woocommerce-beneficiaries.mjs';
 
 test('Woo dialog reviews existing payments, preserves retry ID and submits only approved lines',async t=>{
   const dom=new JSDOM('<button id="opener">فتح</button><div id="root"></div>',{url:'https://fixture.invalid'});
@@ -15,12 +16,17 @@ test('Woo dialog reviews existing payments, preserves retry ID and submits only 
   }
   const require=createRequire(import.meta.url),React=await import('react'),{createRoot}=await import('react-dom/client');
   const swc=require('next/dist/build/swc');await swc.loadBindings();
-  const source=await readFile(new URL('../components/woocommerce-admission-modal.js',import.meta.url),'utf8');
-  const {code}=await swc.transform(source,{filename:'woocommerce-admission-modal.js',jsc:{parser:{syntax:'ecmascript',jsx:true},transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}});
-  const compiled={exports:{}};
-  new Function('module','exports','require',code)(compiled,compiled.exports,name=>name.endsWith('.module.css')
-    ?new Proxy({},{get:(_,key)=>key==='__esModule'?false:String(key)}):name.endsWith('woocommerce-admissions.mjs')?contract:require(name));
-  const Modal=compiled.exports.default,root=createRoot(document.getElementById('root'));
+  const modules=new Map();
+  for(const name of ['woocommerce-beneficiary-editor','woocommerce-admission-modal']){
+    const source=await readFile(new URL(`../components/${name}.js`,import.meta.url),'utf8');
+    const {code}=await swc.transform(source,{filename:`${name}.js`,jsc:{parser:{syntax:'ecmascript',jsx:true},transform:{react:{runtime:'automatic'}}},module:{type:'commonjs'}});
+    const compiled={exports:{}};
+    new Function('module','exports','require',code)(compiled,compiled.exports,path=>path.endsWith('.module.css')
+      ?new Proxy({},{get:(_,key)=>key==='__esModule'?false:String(key)}):path.endsWith('woocommerce-admissions.mjs')?contract
+      :path.endsWith('woocommerce-beneficiaries.mjs')?beneficiaryContract:modules.get(path)||require(path));
+    modules.set(`./${name}`,compiled.exports);
+  }
+  const Modal=modules.get('./woocommerce-admission-modal').default,root=createRoot(document.getElementById('root'));
   const originalFetch=globalThis.fetch,writes=[];let resolveLoad,reviewed=false,failSave=true,saved=0;
   const base={enabled:true,revision:'r1',orderNumber:'9001',contactName:'عميل تجريبي',amountMinor:15000,paidAt:'2026-09-01T21:30Z',
     timeZone:'Asia/Riyadh',canReview:true,canComplete:true,reviewRequired:true,reviewValid:false,blockers:[],receipt:null,

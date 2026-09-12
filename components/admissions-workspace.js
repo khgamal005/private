@@ -4,6 +4,7 @@ import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import CourseRunsWorkspace from './course-runs-workspace';
 import LearnerOperationsWorkspace from './learner-operations-workspace';
+import WooCommerceBeneficiaryAdmissions from './woocommerce-beneficiary-admissions';
 
 const EMPTY=[];
 
@@ -105,7 +106,7 @@ export default function AdmissionsWorkspace({slug,initialData}){
   ),[cases]);
 
   const shownCases=useMemo(()=>cases.filter(item=>{
-    const haystack=`${item.contactName||''} ${item.phone||''} ${item.courseName||''} ${item.paymentReference||''}`.toLowerCase();
+    const haystack=`${item.contactName||''} ${item.phone||''} ${item.courseName||''} ${item.paymentReference||''} ${(item.beneficiaries||EMPTY).map(person=>`${person.name} ${person.phone||''}`).join(' ')}`.toLowerCase();
     if(!haystack.includes(query.trim().toLowerCase()))return false;
     if(filter==='all')return true;
     if(filter==='pending_verification'){
@@ -317,6 +318,9 @@ export default function AdmissionsWorkspace({slug,initialData}){
             <br/>تاريخ الإرسال للتسجيل: {when(selected.submittedAt)}
             {selected.paymentOnHold&&<p>تغيرت بيانات الدفع في المتجر؛ يلزم مراجعتها قبل التسجيل.</p>}
           </div>}
+          {selected.beneficiaries?.length>0&&<WooCommerceBeneficiaryAdmissions key={selected.id} slug={slug} item={selected}
+            courseRuns={courseRuns} canManage={canManage} busy={busy} onBusyChange={setBusy}
+            onSaved={result=>{setNotice(`تم تسجيل ${result.enrolled} مستفيد · المتبقي ${result.remaining}`);setSelected(null);router.refresh();}}/>}
           <section className="mt-admission-form">
             <h4>بيانات الدورة والدفعة</h4>
             <div className="mt-form">
@@ -334,9 +338,9 @@ export default function AdmissionsWorkspace({slug,initialData}){
               <label className="mt-field">الدفعة<select
                 value={courseRunId}
                 onChange={event=>setCourseRunId(event.target.value)}
-                disabled={!canManage}
+                disabled={!canManage||Boolean(selected.beneficiaries?.length)}
               >
-                <option value="">لم تحدد بعد</option>
+                <option value="">{selected.beneficiaries?.length?'تُحدد لكل مستفيد بالأعلى':'لم تحدد بعد'}</option>
                 {availableRuns.map(run=><option value={run.id} key={run.id}>
                   {run.title} · {dateOnly(run.startsAt)} · {run.enrolledCount}/{run.capacity||'∞'} · {run.availableSeats??'∞'} متاح
                 </option>)}
@@ -373,7 +377,7 @@ export default function AdmissionsWorkspace({slug,initialData}){
             </article>)}
           </section>
 
-          {selected.enrollment&&<section className="mt-enrollment-success">
+          {selected.enrollment&&!selected.beneficiaries?.length&&<section className="mt-enrollment-success">
             <span>✓</span>
             <div>
               <b>تم إنشاء ملف المتدرب</b>
@@ -391,8 +395,8 @@ export default function AdmissionsWorkspace({slug,initialData}){
             <button className="primary" disabled={busy} onClick={()=>updateCase('verify_payment')}>تأكيد الدفع</button>
             <button className="danger" disabled={busy} onClick={()=>updateCase('reject_payment')}>رفض وإعادة للمبيعات</button>
           </>}
-          {selected.paymentStatus==='verified'&&!['accepted','completed'].includes(selected.status)&&<button className="primary" disabled={busy} onClick={()=>updateCase('accept')}>اعتماد القبول</button>}
-          {selected.paymentStatus==='verified'&&selected.status!=='completed'&&<button className="success" disabled={busy||!courseRunId} onClick={()=>updateCase('complete')}>إنشاء المتدرب وإتمام التسجيل</button>}
+          {selected.paymentStatus==='verified'&&!['accepted','completed'].includes(selected.originalStatus||selected.status)&&<button className="primary" disabled={busy} onClick={()=>updateCase('accept')}>اعتماد القبول</button>}
+          {selected.paymentStatus==='verified'&&selected.status!=='completed'&&!selected.beneficiaries?.length&&<button className="success" disabled={busy||!courseRunId} onClick={()=>updateCase('complete')}>إنشاء المتدرب وإتمام التسجيل</button>}
         </footer>}
       </section>
     </div>}
@@ -422,12 +426,13 @@ function AdmissionCard({item,canManage,onOpen}){
       <div><dt>المبلغ</dt><dd>{money(item.paymentAmountMinor)}</dd></div>
       <div><dt>البلاغ</dt><dd>{when(item.sourcePaidAt||item.paymentReportedAt)}{item.paymentSource==='woocommerce'&&<small>WooCommerce #{item.orderNumber}</small>}</dd></div>
     </dl>
+    {item.beneficiaries?.length>0&&<div className="mt-student-number">المستفيدون: {item.beneficiaries.filter(person=>person.enrollmentId).length} / {item.beneficiaries.length} مسجل</div>}
     <div className="mt-admission-progress">
       <div><b>المستندات الاختيارية</b><span>{reviewed}/{documents.length}</span></div>
       <progress value={reviewed} max={Math.max(documents.length,1)}/>
       <small>{reviewed} مستند تمت مراجعته · لا تمنع التسجيل · {CASE_STATUS[item.status]||item.status}</small>
     </div>
-    {item.enrollment&&<div className="mt-student-number">رقم المتدرب: {item.enrollment.studentNumber}</div>}
+    {item.enrollment&&!item.beneficiaries?.length&&<div className="mt-student-number">رقم المتدرب: {item.enrollment.studentNumber}</div>}
     <button className="mt-button primary" onClick={onOpen}>
       {canManage?'مراجعة الطلب':'عرض الطلب'}
     </button>

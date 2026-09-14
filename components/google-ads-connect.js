@@ -117,8 +117,9 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
   const data=initialData||{};
   const report=initialReport||{};
   const selected=data.selectedAccount;
-  const enabled=Boolean(data.addonEnabled&&data.enabled!==false&&!['reef-skills','reefskills'].includes(slug.toLowerCase()));
+  const enabled=Boolean(data.addonEnabled&&data.enabled!==false&&!['reefskills'].includes(slug.toLowerCase()));
   const canManage=Boolean(enabled&&data.canManage);
+  const reportingOnly=slug==='reef-skills';
   const [accounts,setAccounts]=useState(()=>data.accounts||null);
   const [busy,setBusy]=useState('');
   const [feedback,setFeedback]=useState(()=>outcome==='connected'
@@ -188,6 +189,7 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
       <Link className={styles.heroLink} href={`/tenant/${encodeURIComponent(slug)}/reports`}>كل التقارير <span aria-hidden="true">←</span></Link>
     </header>
     <Feedback feedback={feedback}/>
+    {enabled&&reportingOnly?<p className={styles.note}>تجربة ريف: قراءة تقارير جوجل فقط، دون تعديل الحملات أو العملاء أو التسجيلات أو المدفوعات. مطابقة مصادر العملاء متوقفة في هذه المرحلة.</p>:null}
     {unavailable?<p className={`${styles.feedback} ${styles.error}`} role="alert">تعذر تحميل التقرير حاليًا. حاول تحديث الصفحة بعد قليل.</p>:null}
     {!enabled?unavailable?null:<section className={styles.panel}><h2>الربط غير متاح حاليًا</h2><p>تواصل مع إدارة المنصة لتفعيل إضافة إعلانات جوجل لهذه المنشأة.</p></section>:<>
       <section className={styles.connection} aria-busy={Boolean(busy)}>
@@ -286,7 +288,7 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
           <div className={styles.customerList}>{(report.details||[]).filter(row=>row.campaignId===detailsCampaign.campaignId).map(row=><div key={row.originKey}><b>{row.name||'عميل بدون اسم'}</b><span className={`${styles.badge} ${row.paid?styles.connected:styles.pending}`}>{row.paid?'دفع مؤكد':'لم يتأكد الدفع'}</span></div>)}</div>
           {!(report.details||[]).some(row=>row.campaignId===detailsCampaign.campaignId)?<p className={styles.empty}>لا تتوافر تفاصيل عملاء لهذه الحملة ضمن العينة الحالية.</p>:null}
         </section>:null}
-        <SourceReview slug={slug} canManage={canManage} initialCampaigns={campaigns} onSaved={()=>router.refresh()}/>
+        {!reportingOnly?<SourceReview slug={slug} canManage={canManage} initialCampaigns={campaigns} onSaved={()=>router.refresh()}/>:null}
       </>:<section className={styles.empty}><b>يبدأ التقرير بعد اختيار حساب الإعلانات</b><p>اربط جوجل، ثم اختر الحساب لعرض الحملات المتاحة.</p></section>}
     </>}
   </section>;

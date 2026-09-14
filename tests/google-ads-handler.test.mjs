@@ -46,7 +46,7 @@ const syncBody={tenantSlug:'demo-training',dateFrom:'2026-09-01',dateTo:'2026-09
 
 test('protected tenant and missing auth never reach RPC or Google',async()=>{
   const h=harness();
-  assert.equal((await h.request('sync',{...syncBody,tenantSlug:'reef-skills'})).status,403);
+  assert.equal((await h.request('sync',{...syncBody,tenantSlug:'reefskills'})).status,403);
   assert.equal((await h.request('sync',syncBody,{})).status,401);
   assert.equal((await h.request('sync',syncBody,{authorization:'Bearer user-fixture',origin:'https://evil.invalid'})).status,403);
   assert.equal(h.calls.length,0);
@@ -71,7 +71,7 @@ test('OAuth claim precedes code exchange and service finalization never exposes 
 });
 test('invalid, replayed, cancelled or protected OAuth cannot exchange a code',async()=>{
   const tx=newBrowserTransaction();
-  for(const rpc of [new Error('google_ads_oauth_invalid'),{transactionId:TX,tenantSlug:'reef-skills',returnPath:'/tenant/reef-skills/reports/google-ads'}]){
+  for(const rpc of [new Error('google_ads_oauth_invalid'),{transactionId:TX,tenantSlug:'reefskills',returnPath:'/tenant/reefskills/reports/google-ads'}]){
     const h=harness({rpc:{claim_oauth:rpc}});
     assert.notEqual((await h.request('complete',{state:tx.state,codeVerifier:tx.verifier,code:'fixture'})).status,200);
     assert.equal(h.calls.filter(c=>c.kind==='google').length,0);
@@ -135,7 +135,7 @@ test('browser transaction and redirect protocol reject substitution and unsafe o
   assert.equal(trustedAuthorizeUrl(url.href,'https://odeir.com',tx),url.href);
   assert.throws(()=>trustedAuthorizeUrl(url.href,'https://odeir.com',other));
   assert.equal(safeCompletionPath('//evil.invalid/tenant/demo-training/reports/google-ads'),'/');
-  assert.equal(safeCompletionPath('/tenant/reef-skills/reports/google-ads'),'/');
+  assert.equal(safeCompletionPath('/tenant/reefskills/reports/google-ads'),'/');
   assert.equal(safeCompletionPath('/tenant/demo-training/reports/google-ads?google_ads=connected&token=secret'),'/tenant/demo-training/reports/google-ads?google_ads=connected');
   assert.equal(sameOriginMutation(new Request('https://odeir.com/api/tenant/google-ads/start',{headers:{origin:'https://evil.invalid','content-type':'application/json'}})),false);
 });

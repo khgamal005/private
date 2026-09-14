@@ -155,3 +155,49 @@ test('Google Ads isolated reader database lifecycle and reconciliation',async t=
   assert.equal((await db.query('select count(*)::int n from marketing_hub.campaign_source_reviews')).rows[0].n,1);
  });
 });
+
+
+test('explicit Reef pilot is reporting-only, tenant isolated and revocable without CRM mutation',async t=>{
+ const db=await setup();t.after(()=>db.close());
+ await db.exec(await readFile(new URL('../supabase/migrations/20260914203345_google_ads_reef_controlled_pilot.sql',import.meta.url),'utf8'));
+ await db.query("select set_config('fixture.tenant',$1,false)",[REEF]);
+ const contactsBefore=(await db.query('select count(*)::int n from sales_core.contacts')).rows[0].n;
+ await assert.rejects(rpc(db,'v1_tenant_google_ads_snapshot',['reef-skills']),/google_ads_protected_tenant/);
+ await db.query('insert into google_ads.rollouts(tenant_id,enabled) values($1,true)',[REEF]);
+ await assert.rejects(rpc(db,'v1_tenant_google_ads_snapshot',['reef-skills']),/google_ads_protected_tenant/);
+ await db.query('update google_ads.rollouts set protected_tenant_approved=true where tenant_id=$1',[REEF]);
+ await assert.rejects(rpc(db,'v1_tenant_google_ads_snapshot',['reef-skills']),/google_ads_protected_tenant/);
+ await db.query('update google_ads.rollouts set reporting_only=true where tenant_id=$1',[REEF]);
+ assert.equal((await rpc(db,'v1_tenant_google_ads_snapshot',['reef-skills'])).enabled,true);
+ await assert.rejects(rpc(db,'v1_tenant_google_ads_snapshot',['other']),/google_ads_forbidden/);
+ await db.query("select set_config('fixture.deny','tenant.reports.campaigns',false)");
+ await assert.rejects(rpc(db,'v1_tenant_google_ads_snapshot',['reef-skills']),/google_ads_forbidden/);
+ await db.query("select set_config('fixture.deny','tenant.marketing.manage,tenant.settings.manage',false)");
+ const args=['reef-skills','d'.repeat(64),'/tenant/reef-skills/reports/google-ads','E'.repeat(43)];
+ await assert.rejects(rpc(db,'v1_tenant_google_ads_begin_oauth',args),/google_ads_forbidden/);
+ await db.query("select set_config('fixture.deny','',false)");
+ await rpc(db,'v1_tenant_google_ads_begin_oauth',args);
+ const x=await rpc(db,'v1_tenant_google_ads_claim_oauth',['d'.repeat(64),'E'.repeat(43)]);
+ await finalize(db,x);
+ await rpc(db,'v1_tenant_google_ads_select_account',['reef-skills',account.customerId]);
+ const r=await rpc(db,'v1_tenant_google_ads_begin_sync',['reef-skills','2026-08-01','2026-08-02',uuid(501)]);
+ await finish(db,r);
+ assert.equal((await rpc(db,'v1_tenant_google_ads_begin_sync',['reef-skills','2026-08-01','2026-08-02',uuid(501)])).duplicate,true);
+ assert.equal((await db.query('select count(*)::int n from google_ads.daily_metrics where tenant_id=$1',[REEF])).rows[0].n,1);
+ await assert.rejects(db.query("insert into google_ads.review_commands(tenant_id,command_id,command_hash,row_count) values($1,$2,'fixture',1)",[REEF,uuid(502)]),/google_ads_reporting_only/);
+ await assert.rejects(db.query('insert into google_ads.source_reviews(tenant_id) values($1)',[REEF]),/google_ads_reporting_only/);
+ const pending=await rpc(db,'v1_tenant_google_ads_begin_sync',['reef-skills','2026-08-01','2026-08-02',uuid(503)]);
+ await db.query('update google_ads.rollouts set enabled=false where tenant_id=$1',[REEF]);
+ assert.equal((await rpc(db,'v1_tenant_google_ads_snapshot',['reef-skills'])).enabled,false);
+ await assert.rejects(rpc(db,'v1_tenant_google_ads_begin_sync',['reef-skills','2026-08-01','2026-08-02',uuid(504)]),/google_ads_not_enabled/);
+ await service(db);
+ await assert.rejects(rpc(db,'v1_service_google_ads_sync_credentials',[pending.runId,pending.leaseToken]),/google_ads_not_enabled/);
+ await tenant(db);
+ await rpc(db,'v1_tenant_google_ads_disconnect',['reef-skills']);
+ assert.equal((await db.query('select count(*)::int n from google_ads.daily_metrics where tenant_id=$1',[REEF])).rows[0].n,1);
+ assert.equal((await db.query('select count(*)::int n from sales_core.contacts')).rows[0].n,contactsBefore);
+ assert.equal((await db.query('select count(*)::int n from google_ads.source_reviews where tenant_id=$1',[REEF])).rows[0].n,0);
+ for(const role of ['anon','authenticated','service_role']){
+  assert.equal((await db.query("select has_table_privilege($1,'google_ads.rollouts','UPDATE') allowed",[role])).rows[0].allowed,false);
+ }
+});

@@ -96,7 +96,7 @@ test('actions preserve tenant boundary, reject Reef before fetch and use same-or
     return new Response(JSON.stringify({ok:true}));
   };
   await requestGoogleAction({name:'select',slug:'demo',payload:{tenantSlug:'other',accountId:'123'},fetcher});
-  await assert.rejects(requestGoogleAction({name:'select',slug:'reef-skills',fetcher}),/protected_tenant/);
+  await assert.rejects(requestGoogleAction({name:'select',slug:'reefskills',fetcher}),/protected_tenant/);
   await assert.rejects(requestGoogleAction({name:'select',slug:'reefskills',fetcher}),/protected_tenant/);
   assert.equal(called,1);
 });
@@ -109,6 +109,6 @@ test('provider errors propagate safe codes and invalid authorization URLs fail c
 test('the separate Google page protects Reef before Google reads and has no Meta dependencies',()=>{
   const page=readFileSync(new URL('../app/tenant/[slug]/reports/google-ads/page.js',import.meta.url),'utf8');
   const component=readFileSync(new URL('../components/google-ads-connect.js',import.meta.url),'utf8');
-  assert.ok(page.indexOf("['reef-skills','reefskills'].includes(slug.toLowerCase())")<page.indexOf("authRpc('v1_tenant_google_ads_snapshot'"));
+  assert.ok(page.indexOf("['reefskills','reefskills'].includes(slug.toLowerCase())")<page.indexOf("authRpc('v1_tenant_google_ads_snapshot'"));
   assert.doesNotMatch(page+component,/lib\/social|components\/social|api\/tenant\/social/);
 });

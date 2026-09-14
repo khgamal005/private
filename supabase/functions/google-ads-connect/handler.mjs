@@ -6,7 +6,7 @@ const SCOPE='https://www.googleapis.com/auth/adwords';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ROUTES=new Set(['start','complete','assets','select','sync','disconnect','sources','review']);
 const ERROR_ALIASES={
-  google_ads_forbidden:'forbidden',google_ads_protected_tenant:'protected_tenant',google_ads_tenant_not_found:'forbidden',
+  google_ads_reporting_only:'reporting_only',google_ads_forbidden:'forbidden',google_ads_protected_tenant:'protected_tenant',google_ads_tenant_not_found:'forbidden',
   google_ads_not_enabled:'addon_not_enabled',google_ads_oauth_invalid:'oauth_state_invalid_or_used',google_ads_oauth_stale:'oauth_state_invalid_or_used',
   google_ads_invalid_oauth:'oauth_state_invalid',google_ads_no_eligible_accounts:'account_not_available',
   google_ads_account_not_discovered:'account_not_available',google_ads_connection_required:'reauth_required',
@@ -20,7 +20,7 @@ const ERROR_ALIASES={
   google_account_mismatch:'account_not_available',google_advertiser_account_required:'account_not_available',
   google_request_aborted:'service_unavailable',google_request_timeout:'service_unavailable',google_network_error:'service_unavailable'
 };
-const SAFE_ERRORS=new Set(['authentication_required','forbidden','protected_tenant','addon_not_enabled','configuration_missing',
+const SAFE_ERRORS=new Set(['reporting_only','authentication_required','forbidden','protected_tenant','addon_not_enabled','configuration_missing',
   'reauth_required','oauth_state_invalid','oauth_state_invalid_or_used','required_scopes_missing','account_not_available',
   'preview_stale','invalid_date_range','rate_limited','service_unavailable','sync_in_progress','sync_failed',
   'request_rejected','invalid_request','payload_too_large','not_found']);
@@ -60,7 +60,7 @@ async function hash(value,encoding='hex'){
     :btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
 }
 function slug(value){
-  if(value==='reef-skills'||value==='reefskills')fail('protected_tenant');
+  if(value==='reefskills')fail('protected_tenant');
   if(typeof value!=='string'||!/^[a-z0-9][a-z0-9-]{1,79}$/.test(value))fail('invalid_request');
   return value;
 }
@@ -85,7 +85,7 @@ export function createGoogleAdsHandler({env,createClient,fetchImpl=fetch}){
     const config={clientId:value('GOOGLE_ADS_CLIENT_ID'),clientSecret:value('GOOGLE_ADS_CLIENT_SECRET'),
       developerToken:value('GOOGLE_ADS_DEVELOPER_TOKEN'),redirectUri:value('GOOGLE_ADS_REDIRECT_URI'),
       apiVersion:value('GOOGLE_ADS_API_VERSION')||'v25'};
-    if(!config.clientId||!config.clientSecret||!config.developerToken||!config.redirectUri)fail('configuration_missing');
+    if(!config.clientId||!config.clientSecret||!config.redirectUri)fail('configuration_missing');
     if(!['https://odeir.com/api/tenant/google-ads/callback','https://staging.odeir.com/api/tenant/google-ads/callback'].includes(config.redirectUri))fail('configuration_missing');
     return createClient(config,{fetchImpl,signal,timeoutMs:15000,maxRetries:2,maxPages:10,maxAccounts:100});
   }
@@ -140,6 +140,8 @@ export function createGoogleAdsHandler({env,createClient,fetchImpl=fetch}){
         return json({ok:true,returnPath:returnPath+'?google_ads=connected'});
       }
       const tenantSlug=slug(body.tenantSlug);
+      // The user-approved Reef pilot never performs CRM source matching.
+      if(tenantSlug==='reef-skills'&&['sources','review'].includes(route))fail('reporting_only');
       if(route==='start'){
         if(!/^[a-f0-9]{64}$/.test(body.state||'')||!/^[A-Za-z0-9_-]{43}$/.test(body.codeChallenge||'')
           ||body.returnPath!==`/tenant/${tenantSlug}/reports/google-ads`)fail('invalid_request');

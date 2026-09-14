@@ -87,7 +87,7 @@ test('cross-origin, cross-site, missing-origin and unsupported content types nev
 
 test('both Reef aliases, malformed tenants and unknown actions are blocked before any Edge request', async () => {
   const fixture = harness();
-  for (const tenantSlug of ['reef-skills', 'reefskills', '../demo-a', 'Demo-A', 'a', '']) {
+  for (const tenantSlug of ['reefskills', 'reefskills', '../demo-a', 'Demo-A', 'a', '']) {
     const response = await fixture.route.POST(postRequest('start', {tenantSlug}), params('start'));
     assert.equal(response.status, 403, tenantSlug);
   }
@@ -163,7 +163,7 @@ test('successful callback uses only server verifier, clears that transaction and
   const fixture = harness({upstream: () => json({ok: true, returnPath: '/tenant/demo-a/reports/google-ads?google_ads=connected&code=must-not-leak#secret'})});
   fixture.jar.set(protocol.stateCookieName(transaction.state), transaction.verifier);
   fixture.jar.set(protocol.stateCookieName(other.state), other.verifier);
-  const request = () => new Request(`${CALLBACK}?state=${transaction.state}&code=secret-code&codeVerifier=attacker-verifier&tenantSlug=reef-skills&returnPath=https://evil.invalid`);
+  const request = () => new Request(`${CALLBACK}?state=${transaction.state}&code=secret-code&codeVerifier=attacker-verifier&tenantSlug=reefskills&returnPath=https://evil.invalid`);
   const response = await fixture.route.GET(request(), params('callback'));
   assert.equal(response.status, 303);
   assert.equal(response.headers.get('location'), `${BASE}/tenant/demo-a/reports/google-ads?google_ads=connected`);
@@ -183,7 +183,7 @@ test('successful callback uses only server verifier, clears that transaction and
 });
 
 test('callback cannot redirect to external hosts or protected tenant paths even if Edge returns them', async () => {
-  for (const returnPath of ['https://evil.invalid/path', '//evil.invalid/path', '/tenant/reef-skills/reports/google-ads', '/tenant/demo-a/settings']) {
+  for (const returnPath of ['https://evil.invalid/path', '//evil.invalid/path', '/tenant/reefskills/reports/google-ads', '/tenant/demo-a/settings']) {
     const transaction = protocol.newBrowserTransaction();
     const fixture = harness({upstream: () => json({ok: true, returnPath})});
     fixture.jar.set(protocol.stateCookieName(transaction.state), transaction.verifier);
@@ -208,7 +208,7 @@ test('provider cancellation and upstream failure consume browser transaction wit
 test('mutation forwards only action-approved fields and sanitizes upstream failures', async () => {
   const fixture = harness();
   const extras = {tenantSlug: 'demo-a', accountId: '1234567890', loginCustomerId: '9999999999',
-    refreshToken: 'attacker-refresh', serviceRoleKey: 'attacker-key', p_slug: 'reef-skills', accessToken: 'attacker-access',
+    refreshToken: 'attacker-refresh', serviceRoleKey: 'attacker-key', p_slug: 'reefskills', accessToken: 'attacker-access',
     dateFrom: '2026-09-01', dateTo: '2026-09-09', commandId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', offset: 50,
     rows: [{originKey: 'fixture-lead', previewToken: 'fixture-version'}], campaignId: '321', reason: 'مراجعة مصدر العميل'};
   const expectedKeys = {

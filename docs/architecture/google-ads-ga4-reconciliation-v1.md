@@ -1,6 +1,14 @@
-# Google Ads + GA4 + order/payment reconciliation
+# Google Kit — Google Ads + GA4 + order/payment reconciliation
 
 This extends `google_ads_connect` on the existing Google report page. GA4 is included under `addon.integrations.google_ads_connect`; no second paid Analytics product or Meta entitlement is introduced.
+
+## Controlled publication gate — 15 September 2026
+
+The owner explicitly authorized publication and the display name **Google Kit**. The naming migration changes only catalog labels/descriptions; immutable product/feature IDs, pricing, licenses, rollout state, routes and OAuth callback remain unchanged. Historic invoices are not rewritten. Two regression tests verify this contract and repeatability, bringing the focused local suite to 82 passing tests.
+
+The current production source contracts and the newer main-branch service-hub changes were rechecked; they do not conflict with this extension. The GA4 migration and Edge function were successfully deployed to the isolated staging project. All five new tables have forced RLS and no anonymous/authenticated direct reads; no GA4 configuration was created. Hosted Edge probes reject both absent and invalid authentication with HTTP 401, including the existing Ads route. The catalog rename also applied successfully in staging.
+
+Publication is a **disabled-by-default capability release**, not certification of a live Google connection. No tenant property selection, credential consent expansion, synchronization, historical backfill or operational data change is authorized by this deployment. Real Google consent/API and live reconciliation acceptance remain required before treating any tenant connection as validated. Keep previous Edge/UI revisions available; schema rollback preserves history. Desktop/mobile visual acceptance and final CI/deployment outcomes must be recorded in the PR release log, without claiming unperformed checks.
 
 ## Engineering gate
 

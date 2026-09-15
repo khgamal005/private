@@ -83,6 +83,11 @@ test('GA4 database: tenant isolation, atomic sync, exact order/payment reconcili
   t.diagnostic('Synthetic 1,000-transaction report execution: '+plan.rows[0]['QUERY PLAN'][0]['Execution Time']+' ms; '+JSON.stringify(r).length+' bytes.');
   await finish(db,await begin(db),payload());
  });
+ await t.test('a store URL change fences an in-flight job before reading secrets',async()=>{
+  const run=await begin(db);await db.query("update commerce_sync.connections set store_url='https://changed.example' where id=$1",[uid(1)]);await service(db);
+  await assert.rejects(call(db,'service_google_ads_ga4_credentials',[run.runId,run.leaseToken]),/google_ads_stale_lease/);await user(db);
+  await db.query("update commerce_sync.connections set store_url='https://store.example' where id=$1",[uid(1)]);await finish(db,run,{},false);
+ });
  await t.test('money and detail permissions enforced separately, revoked actor and stale leases rejected',async()=>{
   await db.query("select set_config('fixture.finance','no',false),set_config('fixture.deny','tenant.leads.read,tenant.crm.read',false)");let r=await report(db);assert.deepEqual(r.rows,[]);assert.deepEqual(r.finances,[]);assert.equal(r.summary.valueDifferences,null);
   await db.query("select set_config('fixture.finance','yes',false),set_config('fixture.deny','',false)");

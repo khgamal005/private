@@ -27,7 +27,7 @@ create table google_ads.ga4_runs(
  id uuid primary key default gen_random_uuid(),tenant_id uuid not null references core.tenants(id),command_id uuid not null,
  kind text not null check(kind in('discover','configure','sync')),config_id uuid not null,credential_version bigint not null,
  actor_subject_id uuid not null references access_control.subjects(id),actor_auth_user_id uuid not null,
- property_id text,store_id uuid,date_from date,date_to date,
+ property_id text,store_id uuid,store_url text,date_from date,date_to date,
  lease_token uuid not null default gen_random_uuid(),lease_expires_at timestamptz not null default now()+interval '5 minutes',
  status text not null default 'running' check(status in('running','success','failed','superseded')),
  error_code text,quality jsonb,created_at timestamptz not null default now(),finished_at timestamptz,
@@ -100,8 +100,8 @@ begin
  end if;
  if exists(select 1 from google_ads.ga4_runs where tenant_id=t and status='running' and lease_expires_at>now() and credential_version=c.credential_version and config_id=s.config_id) then raise exception 'google_ads_sync_in_progress';end if;
  update google_ads.ga4_runs set status='superseded',finished_at=now() where tenant_id=t and status='running';
- insert into google_ads.ga4_runs(tenant_id,command_id,kind,config_id,credential_version,actor_subject_id,actor_auth_user_id,property_id,store_id,date_from,date_to)
- values(t,p_command,p_kind,s.config_id,c.credential_version,private_app.current_subject_id(),auth.uid(),p_property,p_connection,p_from,p_to) returning * into r;
+ insert into google_ads.ga4_runs(tenant_id,command_id,kind,config_id,credential_version,actor_subject_id,actor_auth_user_id,property_id,store_id,store_url,date_from,date_to)
+ values(t,p_command,p_kind,s.config_id,c.credential_version,private_app.current_subject_id(),auth.uid(),p_property,p_connection,(select store_url from commerce_sync.connections where tenant_id=t and id=p_connection),p_from,p_to) returning * into r;
  return jsonb_build_object('runId',r.id,'leaseToken',r.lease_token,'duplicate',false);
 end $$;
 create function google_ads.ga4_run(p_run uuid,p_lease uuid) returns google_ads.ga4_runs language plpgsql set search_path='' as $$
@@ -113,7 +113,7 @@ begin
  select * into c from google_ads.connections where tenant_id=r.tenant_id for update;
  select * into s from google_ads.ga4_settings where tenant_id=r.tenant_id for update;
  select * into r from google_ads.ga4_runs where id=p_run for update;
- if r.lease_token is distinct from p_lease or r.status<>'running' or r.lease_expires_at<=now() or c.status<>'connected'
+ if c.tenant_id is null or s.tenant_id is null or (r.store_id is not null and r.store_url is distinct from (select store_url from commerce_sync.connections where tenant_id=r.tenant_id and id=r.store_id)) or r.lease_token is distinct from p_lease or r.status<>'running' or r.lease_expires_at<=now() or c.status<>'connected'
   or c.credential_version<>r.credential_version or s.config_id<>r.config_id or (r.kind='sync' and not s.enabled)
   or not c.scopes @> array['https://www.googleapis.com/auth/analytics.readonly'] then raise exception 'google_ads_stale_lease';end if;
  return r;
@@ -124,7 +124,7 @@ begin
  select v.decrypted_secret into token from google_ads.connections c join vault.decrypted_secrets v on v.id=c.vault_secret_id where c.tenant_id=r.tenant_id;
  if token is null then raise exception 'google_ads_credential_missing';end if;
  select * into s from google_ads.ga4_settings where tenant_id=r.tenant_id;
- return jsonb_build_object('refreshToken',token,'propertyId',r.property_id,'storeUrl',(select store_url from commerce_sync.connections where tenant_id=r.tenant_id and id=r.store_id),
+ return jsonb_build_object('refreshToken',token,'propertyId',r.property_id,'storeUrl',r.store_url,
  'dateFrom',r.date_from,'dateTo',r.date_to,'property',jsonb_build_object('id',s.property_id,'currency',s.currency,'timezone',s.timezone,'hostname',s.hostname));
 end $$;
 create function public.v1_service_google_ads_ga4_finish(p_run uuid,p_lease uuid,p_payload jsonb,p_success boolean,p_error text default null)

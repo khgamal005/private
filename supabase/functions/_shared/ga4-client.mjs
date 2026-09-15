@@ -74,6 +74,7 @@ export function createGA4Client({fetchImpl=fetch,signal,maxRows=20000,pageSize=1
     const rows=[];let expected=null;let quality={thresholded:false,otherRow:false,sampled:false,restricted:false};const keys=new Set();
     for(let p=0;p<maxPages;p++) {
       const b=await request(DATA+'/properties/'+id(property.id)+':runReport',token,{...base,offset:String(rows.length)});
+      if(b.rowCount===undefined&&(!b.rows||b.rows.length===0))b.rowCount=0;
       if(!Number.isSafeInteger(b.rowCount)||b.rowCount<0||b.rowCount>maxRows)fail('ga4_result_limit');
       if(expected!==null&&expected!==b.rowCount)fail('ga4_report_changed');expected=b.rowCount;
       if(JSON.stringify((b.dimensionHeaders||[]).map(x=>x.name))!==JSON.stringify(dimensions)||JSON.stringify((b.metricHeaders||[]).map(x=>x.name))!==JSON.stringify(metrics))fail('ga4_invalid_response');

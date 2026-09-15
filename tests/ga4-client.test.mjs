@@ -49,3 +49,8 @@ test('CSV is formula-safe, and recommendations expose missing data without inven
  const csv=ga4Csv([{transactionId:'=HYPERLINK("bad")',status:'verified'}]);assert.ok(csv.includes("'=HYPERLINK"));
  assert.match(ga4Insights({summary:{pendingPayments:3},coverage:{complete:false}}).join(' '),/3/);
 });
+
+test('empty successful GA4 reports may omit proto zero rowCount and remain valid',async()=>{
+ const c=createGA4Client({fetchImpl:async(_url,o)=>{const b=JSON.parse(o.body);return Response.json({dimensionHeaders:b.dimensions,metricHeaders:b.metrics,metadata:{currencyCode:'SAR',timeZone:'Asia/Riyadh'}});}});
+ const r=await c.reports('x',property,'2026-08-01','2026-08-02');assert.deepEqual(r.transactions,[]);assert.deepEqual(r.traffic,[]);
+});

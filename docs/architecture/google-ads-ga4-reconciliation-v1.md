@@ -40,14 +40,14 @@ Thresholding, `(other)` loss, sampling and metric restrictions are retained with
 - Private GA4 tables in `google_ads`; forced RLS, no direct table grants, checked authenticated/service RPCs and empty search paths.
 - Same Google entitlement, existing report/manage/financial/detail permissions and approved protected-tenant guard. The Reef reporting-only restriction on manual CRM writes is preserved.
 - All identifiers are tenant/store scoped; composite foreign keys tie stores and jobs to the same tenant. Refresh tokens remain in the existing Vault credential.
-- Service jobs revalidate the saved actor, entitlement, selected configuration, credential version and expiring lease before secrets and before commit.
+- Service jobs revalidate the saved actor, entitlement, selected configuration, credential version, store URL and expiring lease before secrets and before commit.
 - Configuration replacement, disconnect/reconnect and disable fence stale work. Command UUIDs prevent duplicate jobs. No network request is made while holding database locks.
 - Explicit fixed API endpoints/queries, bounded response bytes, bounded retries/pages and operation deadlines. No provider error bodies, tokens, user emails or phone numbers are returned to the report.
 - Disable retains GA4 observations and audit history; it does not alter original business records or the Ads connector. Configuration changes preserve previous observations under their original config ID.
 
 ## Validation and release
 
-78 focused and existing Google tests passed locally, including three DOM component tests for permission redaction, status filters, mobile cell labels and safe error states. Local tests execute PostgreSQL through PGlite with synthetic tenants and mocked Vault primitives. They cover exact matching, cross-tenant attempts, optional consent, service authorization ordering, revoked scope, stale leases, partial failure, malformed data, duplicate transactions, alias collisions, currency diagnostics, registration/accounting deduplication, refunds, permission redaction and report pagination. Existing Google Ads client/handler/route/UI/database tests are run alongside them.
+80 focused and existing Google tests passed locally, including three DOM component tests for permission redaction, status filters, mobile cell labels and safe error states. Local tests execute PostgreSQL through PGlite with synthetic tenants and mocked Vault primitives. They cover exact matching, cross-tenant attempts, optional consent, service authorization ordering, revoked scope, stale leases, partial failure, malformed data, duplicate transactions, alias collisions, currency diagnostics, registration/accounting deduplication, refunds, permission redaction and report pagination. Existing Google Ads client/handler/route/UI/database tests are run alongside them.
 
 A 1,000-transaction synthetic report returned 50 detail rows and a 20,326-byte response; local EXPLAIN ANALYZE measured about 23 ms. This is a fixture measurement, not a production SLA. The new React component compiles and changed files pass ESLint. The available browser blocked the localhost preview (`ERR_BLOCKED_BY_CLIENT`), so real desktop/mobile visual acceptance remains a release check.
 

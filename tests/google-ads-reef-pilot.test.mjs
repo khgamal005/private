@@ -18,9 +18,9 @@ test('canonical Reef reaches authorization; defensive alias and unsafe redirects
  assert.equal(called,1);
 });
 
-test('unapproved Reef fails before provider authorization; tokenless Cloud configuration is accepted',async()=>{
+test('unapproved Reef fails before provider authorization; central Ads credentials stay server-side',async()=>{
  const tx=newBrowserTransaction();let providerCalls=0;
- const env={GOOGLE_ADS_CLIENT_ID:'fixture',GOOGLE_ADS_CLIENT_SECRET:'fixture-secret',GOOGLE_ADS_REDIRECT_URI:'https://odeir.com/api/tenant/google-ads/callback',SUPABASE_URL:'https://fixture.invalid',SUPABASE_ANON_KEY:'fixture-anon'};
+ const env={GOOGLE_ADS_CLIENT_ID:'fixture',GOOGLE_ADS_CLIENT_SECRET:'fixture-secret',GOOGLE_ADS_DEVELOPER_TOKEN:'fixture-developer',GOOGLE_ADS_REDIRECT_URI:'https://odeir.com/api/tenant/google-ads/callback',SUPABASE_URL:'https://fixture.invalid',SUPABASE_ANON_KEY:'fixture-anon'};
  const handle=createGoogleAdsHandler({env,createClient:()=>({authorizationUrl(){providerCalls++;return 'https://accounts.google.com/o/oauth2/v2/auth';}}),fetchImpl:async()=>new Response(JSON.stringify({message:'google_ads_protected_tenant'}),{status:400})});
  const response=await handle(new Request('https://fixture.invalid/start',{method:'POST',headers:{authorization:'Bearer fixture','content-type':'application/json'},body:JSON.stringify({tenantSlug:'reef-skills',state:tx.state,codeChallenge:tx.codeChallenge,returnPath:'/tenant/reef-skills/reports/google-ads'})}));
  assert.equal(response.status,403);assert.equal((await response.json()).error,'protected_tenant');assert.equal(providerCalls,0);
@@ -28,12 +28,13 @@ test('unapproved Reef fails before provider authorization; tokenless Cloud confi
  assert.equal((await review.json()).error,'reporting_only');assert.equal(providerCalls,0);
 });
 
-test('Google API calls no longer require or send a developer-token header',async()=>{
+test('Google API calls require and send the server-held developer-token header',async()=>{
  let calls=0;
- const client=createGoogleAdsClient({clientId:'fixture',clientSecret:'fixture-secret',redirectUri:'https://odeir.com/api/tenant/google-ads/callback'}, {fetchImpl:async(url,init)=>{
-  calls++;assert.equal(Object.hasOwn(init.headers,'developer-token'),false);
+ const client=createGoogleAdsClient({clientId:'fixture',clientSecret:'fixture-secret',developerToken:'fixture-developer',redirectUri:'https://odeir.com/api/tenant/google-ads/callback'}, {fetchImpl:async(url,init)=>{
+  calls++;assert.equal(init.headers['developer-token'],'fixture-developer');
   return new Response(JSON.stringify({resourceNames:[]}),{headers:{'content-type':'application/json'}});
  }});
  const found=await client.discoverAccounts({accessToken:'fixture-access'});
  assert.equal(calls,1);assert.deepEqual(found.accounts,[]);
+ assert.throws(()=>createGoogleAdsClient({clientId:'fixture',clientSecret:'fixture-secret',redirectUri:'https://odeir.com/api/tenant/google-ads/callback'}),error=>error.code==='google_developer_token_missing');
 });

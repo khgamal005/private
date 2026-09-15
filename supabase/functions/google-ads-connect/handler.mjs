@@ -1,10 +1,11 @@
+import {handleGA4} from './ga4-handler.mjs';
 // Injectable orchestration: every Google request follows a tenant-authorized RPC.
 // Provider credentials exist only in this server and the Vault-backed service RPCs.
 const USER='v1_tenant_google_ads_';
 const SERVICE='v1_service_google_ads_';
 const SCOPE='https://www.googleapis.com/auth/adwords';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ROUTES=new Set(['start','complete','assets','select','sync','disconnect','sources','review']);
+const ROUTES=new Set(['start','complete','assets','select','sync','disconnect','sources','review','ga4-status','ga4-assets','ga4-select','ga4-sync','ga4-report','ga4-disable']);
 const ERROR_ALIASES={
   google_ads_reporting_only:'reporting_only',google_ads_forbidden:'forbidden',google_ads_protected_tenant:'protected_tenant',google_ads_tenant_not_found:'forbidden',
   google_ads_not_enabled:'addon_not_enabled',google_ads_oauth_invalid:'oauth_state_invalid_or_used',google_ads_oauth_stale:'oauth_state_invalid_or_used',
@@ -20,7 +21,7 @@ const ERROR_ALIASES={
   google_account_mismatch:'account_not_available',google_advertiser_account_required:'account_not_available',
   google_request_aborted:'service_unavailable',google_request_timeout:'service_unavailable',google_network_error:'service_unavailable'
 };
-const SAFE_ERRORS=new Set(['reporting_only','authentication_required','forbidden','protected_tenant','addon_not_enabled','configuration_missing',
+const SAFE_ERRORS=new Set(['ga4_consent_required','ga4_access_denied','ga4_request_failed','ga4_invalid_response','ga4_invalid_property','ga4_invalid_store','ga4_store_mismatch','ga4_property_changed','ga4_result_limit','ga4_report_changed','ga4_incomplete_report','ga4_not_configured','reporting_only','authentication_required','forbidden','protected_tenant','addon_not_enabled','configuration_missing',
   'reauth_required','oauth_state_invalid','oauth_state_invalid_or_used','required_scopes_missing','account_not_available',
   'preview_stale','invalid_date_range','rate_limited','service_unavailable','sync_in_progress','sync_failed',
   'request_rejected','invalid_request','payload_too_large','not_found']);
@@ -113,7 +114,7 @@ export function createGoogleAdsHandler({env,createClient,fetchImpl=fetch}){
     if(!/^Bearer [^\s]+$/.test(authorization))return json({ok:false,error:'authentication_required'},401);
     const origin=request.headers.get('origin');
     if(origin&&!['https://odeir.com','https://staging.odeir.com'].includes(origin))return json({ok:false,error:'forbidden'},403);
-    const signal=AbortSignal.any([request.signal,AbortSignal.timeout(route==='sync'?130000:55000)]);
+    const signal=AbortSignal.any([request.signal,AbortSignal.timeout((route==='sync'||route==='ga4-sync')?130000:55000)]);
     const user=(suffix,args)=>rpc(USER+suffix,args,authorization,signal);
     const service=(suffix,args)=>rpc(SERVICE+suffix,args,authorization,signal,true);
     try{
@@ -147,8 +148,9 @@ export function createGoogleAdsHandler({env,createClient,fetchImpl=fetch}){
           ||body.returnPath!==`/tenant/${tenantSlug}/reports/google-ads`)fail('invalid_request');
         const google=client(signal);
         await user('begin_oauth',{p_slug:tenantSlug,p_state_sha256:await hash(body.state),p_pkce_challenge:body.codeChallenge,p_return_path:body.returnPath});
-        return json({ok:true,authorizeUrl:google.authorizationUrl({state:body.state,codeChallenge:body.codeChallenge})});
+        return json({ok:true,authorizeUrl:google.authorizationUrl({state:body.state,codeChallenge:body.codeChallenge,includeAnalytics:body.includeAnalytics===true})});
       }
+      if(route.startsWith('ga4-'))return json(await handleGA4({route,body,tenantSlug,user,service,google:()=>client(signal),fetchImpl,signal,publicError}));
       if(route==='assets'){
         const snapshot=await user('snapshot',{p_slug:tenantSlug});
         return json({ok:true,accounts:snapshot.accounts||[],selectedAccountId:snapshot.selectedAccountId||null});
@@ -201,3 +203,4 @@ export function createGoogleAdsHandler({env,createClient,fetchImpl=fetch}){
     }
   };
 }
+

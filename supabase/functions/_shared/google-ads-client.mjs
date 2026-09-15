@@ -222,12 +222,12 @@ export function createGoogleAdsClient(config, options = {}) {
     };
   }
   return Object.freeze({
-    authorizationUrl({state, codeChallenge}) {
+    authorizationUrl({state, codeChallenge, includeAnalytics=false}) {
       if (typeof state !== 'string' || !/^[A-Za-z0-9_-]{32,256}$/.test(state)) fail('google_state_invalid');
       if (typeof codeChallenge !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(codeChallenge)) fail('google_pkce_invalid');
       const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       url.search = new URLSearchParams({client_id: clientId, redirect_uri: redirectUri, response_type: 'code',
-        scope: GOOGLE_ADS_SCOPE, state, code_challenge: codeChallenge, code_challenge_method: 'S256',
+        scope: GOOGLE_ADS_SCOPE+(includeAnalytics ? ' https://www.googleapis.com/auth/analytics.readonly' : ''), state, code_challenge: codeChallenge, code_challenge_method: 'S256',
         access_type: 'offline', prompt: 'consent', include_granted_scopes: 'false'}).toString();
       return url.toString();
     },
@@ -323,3 +323,4 @@ export function createGoogleAdsClient(config, options = {}) {
     }
   });
 }
+

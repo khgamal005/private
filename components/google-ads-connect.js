@@ -9,6 +9,7 @@ import {
   googleReportHref,googleSourcePreview,groupGoogleSources,requestGoogleAction
 } from '../lib/google-ads/ui.mjs';
 import styles from './google-ads-connect.module.css';
+import GoogleGA4Report from './google-ga4-report';
 
 const formatDate=(value,timezone)=>{
   if(!value)return 'لم تتم المزامنة بعد';
@@ -150,6 +151,10 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
     setBusy(name);setFeedback(null);
     let savedSelection=false;
     try{
+      if(name==='start'){
+        const analytics=await requestGoogleAction({name:'ga4-status',slug});
+        payload={...payload,includeAnalytics:analytics.consentGranted===true};
+      }
       const result=await requestGoogleAction({name,slug,payload});
       if(name==='start'){window.location.assign(result.authorizeUrl);return;}
       if(name==='assets'){setAccounts(result.accounts||[]);return;}
@@ -288,8 +293,10 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
           <div className={styles.customerList}>{(report.details||[]).filter(row=>row.campaignId===detailsCampaign.campaignId).map(row=><div key={row.originKey}><b>{row.name||'عميل بدون اسم'}</b><span className={`${styles.badge} ${row.paid?styles.connected:styles.pending}`}>{row.paid?'دفع مؤكد':'لم يتأكد الدفع'}</span></div>)}</div>
           {!(report.details||[]).some(row=>row.campaignId===detailsCampaign.campaignId)?<p className={styles.empty}>لا تتوافر تفاصيل عملاء لهذه الحملة ضمن العينة الحالية.</p>:null}
         </section>:null}
+        <GoogleGA4Report key={`${slug}:${filters.dateFrom}:${filters.dateTo}:${filters.asOf}`} slug={slug} filters={filters} canManage={canManage} connected={connected}/>
         {!reportingOnly?<SourceReview slug={slug} canManage={canManage} initialCampaigns={campaigns} onSaved={()=>router.refresh()}/>:null}
       </>:<section className={styles.empty}><b>يبدأ التقرير بعد اختيار حساب الإعلانات</b><p>اربط جوجل، ثم اختر الحساب لعرض الحملات المتاحة.</p></section>}
     </>}
   </section>;
 }
+

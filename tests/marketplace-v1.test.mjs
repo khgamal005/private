@@ -108,7 +108,7 @@ test('tenant and platform stores are wired through permission-checked APIs',()=>
   assert.match(workspaceShell,/href:`\$\{base\}\/services-store`/);
   assert.match(workspaceShell,/href:`\$\{base\}\/addons-store`/);
   assert.match(workspaceShell,/\/control\/marketplace/);
-  assert.match(tenantStore,/تُثبت الإضافة آليًا في هذه المنشأة فقط/);
+  assert.match(tenantStore,/الانتقال إلى متجر الإضافات/);
   assert.match(platformStore,/تفعيل تلقائي/);
   assert.match(platformStore,/rotate_webhook_secret/);
 });

@@ -1,0 +1,1912 @@
+[
+  {
+    "schema": "audit_log",
+    "name": "events",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "notnull": true
+      },
+      {
+        "name": "tenant_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "actor_subject_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "action",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "resource_type",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "resource_id",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "context",
+        "type": "jsonb",
+        "default": "'{}'::jsonb",
+        "notnull": true
+      },
+      {
+        "name": "occurred_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      }
+    ],
+    "constraints": [
+      "PRIMARY KEY (id)"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "service_categories",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "notnull": true
+      },
+      {
+        "name": "category_key",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "name_ar",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "description_ar",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "icon_key",
+        "type": "text",
+        "default": "'services'::text",
+        "notnull": true
+      },
+      {
+        "name": "sort_order",
+        "type": "integer",
+        "default": "100",
+        "notnull": true
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'active'::text",
+        "notnull": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      }
+    ],
+    "constraints": [
+      "CHECK ((category_key ~ '^[a-z][a-z0-9_]{2,60}$'::text))",
+      "UNIQUE (category_key)",
+      "PRIMARY KEY (id)",
+      "CHECK ((status = ANY (ARRAY['active'::text, 'hidden'::text])))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "orders",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "notnull": true
+      },
+      {
+        "name": "order_number",
+        "type": "text",
+        "default": "((('ODR-'::text || to_char((CURRENT_DATE)::timestamp with time zone, 'YYMM'::text)) || '-'::text) || lpad((nextval('marketplace.order_number_seq'::regclass))::text, 6, '0'::text))",
+        "notnull": true
+      },
+      {
+        "name": "tenant_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "requested_by_subject_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "order_kind",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'pending_payment'::text",
+        "notnull": true
+      },
+      {
+        "name": "payment_status",
+        "type": "text",
+        "default": "'pending'::text",
+        "notnull": true
+      },
+      {
+        "name": "activation_state",
+        "type": "text",
+        "default": "'not_applicable'::text",
+        "notnull": true
+      },
+      {
+        "name": "currency",
+        "type": "text",
+        "default": "'SAR'::text",
+        "notnull": true
+      },
+      {
+        "name": "subtotal_minor",
+        "type": "bigint",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "tax_minor",
+        "type": "bigint",
+        "default": "0",
+        "notnull": true
+      },
+      {
+        "name": "total_minor",
+        "type": "bigint",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "tax_rate_bps",
+        "type": "integer",
+        "default": "1500",
+        "notnull": true
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "payment_provider",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "payment_reference",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "paid_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "idempotency_key",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "list_subtotal_minor",
+        "type": "bigint",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "discount_minor",
+        "type": "bigint",
+        "default": "0",
+        "notnull": true
+      },
+      {
+        "name": "promotion_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "promotion_code",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      }
+    ],
+    "constraints": [
+      "CHECK ((activation_state = ANY (ARRAY['not_applicable'::text, 'pending'::text, 'active'::text, 'failed'::text, 'cancelled'::text])))",
+      "CHECK ((total_minor = (subtotal_minor + tax_minor)))",
+      "CHECK ((currency ~ '^[A-Z]{3}$'::text))",
+      "CHECK ((order_kind = ANY (ARRAY['service'::text, 'addon'::text])))",
+      "UNIQUE (order_number)",
+      "CHECK ((payment_status = ANY (ARRAY['pending'::text, 'paid'::text, 'failed'::text, 'refunded'::text, 'waived'::text])))",
+      "PRIMARY KEY (id)",
+      "CHECK (((list_subtotal_minor >= subtotal_minor) AND (discount_minor = (list_subtotal_minor - subtotal_minor)) AND (((promotion_id IS NULL) AND (promotion_code IS NULL) AND (discount_minor = 0)) OR ((promotion_id IS NOT NULL) AND (promotion_code IS NOT NULL) AND (discount_minor > 0)))))",
+      "CHECK ((status = ANY (ARRAY['pending_payment'::text, 'paid'::text, 'in_progress'::text, 'completed'::text, 'cancelled'::text, 'refunded'::text])))",
+      "CHECK ((subtotal_minor >= 0))",
+      "CHECK ((tax_minor >= 0))",
+      "CHECK (((tax_rate_bps >= 0) AND (tax_rate_bps <= 10000)))",
+      "UNIQUE (tenant_id, idempotency_key)",
+      "CHECK ((total_minor >= 0))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "order_items",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "notnull": true
+      },
+      {
+        "name": "order_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "item_type",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "service_product_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "addon_product_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "product_key",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "product_name_ar",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "quantity",
+        "type": "integer",
+        "default": "1",
+        "notnull": true
+      },
+      {
+        "name": "unit_amount_minor",
+        "type": "bigint",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "line_total_minor",
+        "type": "bigint",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "metadata",
+        "type": "jsonb",
+        "default": "'{}'::jsonb",
+        "notnull": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "service_package_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      }
+    ],
+    "constraints": [
+      "CHECK ((((item_type = 'service'::text) AND (service_product_id IS NOT NULL) AND (addon_product_id IS NULL)) OR ((item_type = 'addon'::text) AND (addon_product_id IS NOT NULL) AND (service_product_id IS NULL))))",
+      "CHECK ((line_total_minor = (unit_amount_minor * quantity)))",
+      "CHECK ((item_type = ANY (ARRAY['service'::text, 'addon'::text])))",
+      "CHECK ((line_total_minor >= 0))",
+      "PRIMARY KEY (id)",
+      "CHECK (((quantity >= 1) AND (quantity <= 1000)))",
+      "CHECK ((unit_amount_minor >= 0))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "order_events",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "notnull": true
+      },
+      {
+        "name": "order_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "tenant_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "actor_subject_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "from_status",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "to_status",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "metadata",
+        "type": "jsonb",
+        "default": "'{}'::jsonb",
+        "notnull": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      }
+    ],
+    "constraints": [
+      "PRIMARY KEY (id)"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "paymob_credential_versions",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "notnull": true
+      },
+      {
+        "name": "provider_key",
+        "type": "text",
+        "default": "'paymob'::text",
+        "notnull": true
+      },
+      {
+        "name": "environment",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "hmac_vault_secret_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "api_key_vault_secret_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "secret_key_vault_secret_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "public_key_vault_secret_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "billing_digest_vault_secret_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "integration_id",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "owner_id",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'active'::text",
+        "notnull": true
+      },
+      {
+        "name": "valid_from",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "retiring_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "valid_until",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "created_by_subject_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "retired_by_subject_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "revoked_by_subject_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "revocation_reason_code",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "checkout_flow",
+        "type": "text",
+        "default": "'intention'::text",
+        "notnull": true
+      },
+      {
+        "name": "apple_pay_integration_id",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "transaction_owner_id",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      }
+    ],
+    "constraints": [
+      "CHECK (((apple_pay_integration_id IS NULL) OR (apple_pay_integration_id <> integration_id)))",
+      "CHECK (((apple_pay_integration_id IS NULL) OR (apple_pay_integration_id ~ '^[1-9][0-9]{0,29}$'::text)))",
+      "CHECK ((((status = 'active'::text) AND (retiring_at IS NULL) AND (valid_until IS NULL)) OR ((status = 'retiring'::text) AND (retiring_at IS NOT NULL) AND (valid_until IS NOT NULL) AND (valid_until > retiring_at)) OR ((status = 'expired'::text) AND (valid_until IS NOT NULL)) OR ((status = 'revoked'::text) AND (revoked_at IS NOT NULL) AND (revocation_reason_code IS NOT NULL))))",
+      "CHECK ((checkout_flow = ANY (ARRAY['intention'::text, 'quicklink'::text])))",
+      "CHECK ((environment = ANY (ARRAY['sandbox'::text, 'live'::text])))",
+      "CHECK ((integration_id ~ '^[1-9][0-9]{0,29}$'::text))",
+      "CHECK ((owner_id ~ '^[1-9][0-9]{0,29}$'::text))",
+      "PRIMARY KEY (id)",
+      "CHECK ((provider_key = 'paymob'::text))",
+      "CHECK (((revocation_reason_code IS NULL) OR (revocation_reason_code ~ '^[a-z][a-z0-9_]{1,80}$'::text)))",
+      "CHECK ((status = ANY (ARRAY['active'::text, 'retiring'::text, 'expired'::text, 'revoked'::text])))",
+      "CHECK (((transaction_owner_id IS NULL) OR (transaction_owner_id ~ '^[1-9][0-9]{0,29}$'::text)))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "payment_attempts",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "tenant_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "order_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "requested_by_subject_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "provider_key",
+        "type": "text",
+        "default": "'paymob'::text",
+        "notnull": true
+      },
+      {
+        "name": "environment",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "credential_version_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "idempotency_key",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "special_reference",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'prepared'::text",
+        "notnull": true
+      },
+      {
+        "name": "order_number_snapshot",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "order_kind_snapshot",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "subtotal_minor",
+        "type": "bigint",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "tax_minor",
+        "type": "bigint",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "tax_rate_bps",
+        "type": "integer",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "amount_minor",
+        "type": "bigint",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "currency",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "billing_contact_sha256",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "items_snapshot_sha256",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "provider_intention_id",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "provider_order_id",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "provider_transaction_id",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "provider_request_id",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "checkout_secret_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "checkout_secret_expires_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "claim_token",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "claim_expires_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "last_error_code",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "response_sha256",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "provider_expires_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "prepared_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "intention_recorded_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "terminal_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "checkout_flow",
+        "type": "text",
+        "default": "'intention'::text",
+        "notnull": true
+      },
+      {
+        "name": "payment_option",
+        "type": "text",
+        "default": "'hosted'::text",
+        "notnull": true
+      },
+      {
+        "name": "selected_integration_id",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      }
+    ],
+    "constraints": [
+      "CHECK ((((checkout_flow = 'intention'::text) AND (payment_option = 'hosted'::text) AND (selected_integration_id IS NULL)) OR ((checkout_flow = 'quicklink'::text) AND (payment_option = ANY (ARRAY['card'::text, 'apple_pay'::text])) AND (selected_integration_id IS NOT NULL))))",
+      "CHECK ((amount_minor > 0))",
+      "CHECK ((billing_contact_sha256 ~ '^[a-f0-9]{64}$'::text))",
+      "CHECK ((special_reference = (id)::text))",
+      "CHECK ((amount_minor = (subtotal_minor + tax_minor)))",
+      "CHECK (((expires_at > prepared_at) AND (expires_at <= (prepared_at + '01:00:00'::interval))))",
+      "CHECK (((provider_expires_at IS NULL) OR ((provider_expires_at > prepared_at) AND (provider_expires_at <= (expires_at - '00:00:30'::interval)))))",
+      "CHECK ((((status = 'creating_intention'::text) AND (claim_token IS NOT NULL) AND (claim_expires_at IS NOT NULL)) OR (status <> 'creating_intention'::text)))",
+      "CHECK ((((checkout_secret_id IS NULL) AND (checkout_secret_expires_at IS NULL)) OR ((checkout_secret_id IS NOT NULL) AND (checkout_secret_expires_at IS NOT NULL) AND (provider_expires_at IS NOT NULL) AND (checkout_secret_expires_at = provider_expires_at) AND (checkout_secret_expires_at <= expires_at))))",
+      "CHECK ((checkout_flow = ANY (ARRAY['intention'::text, 'quicklink'::text])))",
+      "CHECK ((currency ~ '^[A-Z]{3}$'::text))",
+      "CHECK ((environment = ANY (ARRAY['sandbox'::text, 'live'::text])))",
+      "CHECK (((length(idempotency_key) >= 8) AND (length(idempotency_key) <= 120)))",
+      "CHECK ((items_snapshot_sha256 ~ '^[a-f0-9]{64}$'::text))",
+      "CHECK (((last_error_code IS NULL) OR (last_error_code ~ '^[a-z][a-z0-9_]{1,80}$'::text)))",
+      "CHECK ((order_kind_snapshot = ANY (ARRAY['service'::text, 'addon'::text])))",
+      "CHECK ((payment_option = ANY (ARRAY['hosted'::text, 'card'::text, 'apple_pay'::text])))",
+      "PRIMARY KEY (id)",
+      "CHECK ((provider_key = 'paymob'::text))",
+      "UNIQUE (provider_key, environment, tenant_id, idempotency_key)",
+      "CHECK (((response_sha256 IS NULL) OR (response_sha256 ~ '^[a-f0-9]{64}$'::text)))",
+      "CHECK (((selected_integration_id IS NULL) OR (selected_integration_id ~ '^[1-9][0-9]{0,29}$'::text)))",
+      "CHECK ((status = ANY (ARRAY['prepared'::text, 'creating_intention'::text, 'intention_created'::text, 'pending'::text, 'paid'::text, 'failed'::text, 'unknown'::text, 'quarantined'::text, 'refunded'::text, 'cancelled'::text])))",
+      "CHECK ((subtotal_minor >= 0))",
+      "CHECK ((tax_minor >= 0))",
+      "CHECK (((tax_rate_bps >= 0) AND (tax_rate_bps <= 10000)))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "service_products",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "notnull": true
+      },
+      {
+        "name": "category_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "product_key",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "name_ar",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "description_ar",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "pricing_mode",
+        "type": "text",
+        "default": "'fixed'::text",
+        "notnull": true
+      },
+      {
+        "name": "amount_minor",
+        "type": "bigint",
+        "default": "0",
+        "notnull": true
+      },
+      {
+        "name": "currency",
+        "type": "text",
+        "default": "'SAR'::text",
+        "notnull": true
+      },
+      {
+        "name": "unit_label_ar",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "turnaround_days",
+        "type": "integer",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "badge_ar",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "metadata",
+        "type": "jsonb",
+        "default": "'{}'::jsonb",
+        "notnull": true
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'active'::text",
+        "notnull": true
+      },
+      {
+        "name": "sort_order",
+        "type": "integer",
+        "default": "100",
+        "notnull": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "provider_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "course_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "short_description_ar",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "card_image_url",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "marketplace_visible",
+        "type": "boolean",
+        "default": "true",
+        "notnull": true
+      },
+      {
+        "name": "is_featured",
+        "type": "boolean",
+        "default": "false",
+        "notnull": true
+      }
+    ],
+    "constraints": [
+      "CHECK ((amount_minor >= 0))",
+      "CHECK (((pricing_mode = 'quote'::text) OR (amount_minor > 0)))",
+      "CHECK ((currency ~ '^[A-Z]{3}$'::text))",
+      "PRIMARY KEY (id)",
+      "CHECK ((pricing_mode = ANY (ARRAY['fixed'::text, 'from'::text, 'quote'::text])))",
+      "CHECK ((product_key ~ '^[a-z][a-z0-9_]{2,80}$'::text))",
+      "UNIQUE (product_key)",
+      "CHECK ((status = ANY (ARRAY['draft'::text, 'beta'::text, 'active'::text, 'archived'::text])))",
+      "CHECK (((turnaround_days IS NULL) OR ((turnaround_days >= 0) AND (turnaround_days <= 365))))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "service_providers",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "notnull": true
+      },
+      {
+        "name": "provider_key",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "provider_type",
+        "type": "text",
+        "default": "'freelancer'::text",
+        "notnull": true
+      },
+      {
+        "name": "display_name_ar",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "display_name_en",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "professional_title_ar",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "short_bio_ar",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "bio_ar",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "avatar_url",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "cover_url",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "city_ar",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "country_code",
+        "type": "text",
+        "default": "'SA'::text",
+        "notnull": true
+      },
+      {
+        "name": "nationality_ar",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "years_experience",
+        "type": "smallint",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "languages",
+        "type": "text[]",
+        "default": "ARRAY['العربية'::text]",
+        "notnull": true
+      },
+      {
+        "name": "expertise_tags",
+        "type": "text[]",
+        "default": "'{}'::text[]",
+        "notnull": true
+      },
+      {
+        "name": "verification_status",
+        "type": "text",
+        "default": "'unverified'::text",
+        "notnull": true
+      },
+      {
+        "name": "availability_status",
+        "type": "text",
+        "default": "'available'::text",
+        "notnull": true
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "notnull": true
+      },
+      {
+        "name": "is_featured",
+        "type": "boolean",
+        "default": "false",
+        "notnull": true
+      },
+      {
+        "name": "display_order",
+        "type": "integer",
+        "default": "100",
+        "notnull": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      }
+    ],
+    "constraints": [
+      "CHECK ((availability_status = ANY (ARRAY['available'::text, 'limited'::text, 'unavailable'::text])))",
+      "CHECK (((bio_ar IS NULL) OR (length(bio_ar) <= 4000)))",
+      "CHECK ((country_code ~ '^[A-Z]{2}$'::text))",
+      "CHECK (((length(display_name_ar) >= 2) AND (length(display_name_ar) <= 150)))",
+      "CHECK (((display_name_en IS NULL) OR (length(display_name_en) <= 150)))",
+      "CHECK (((display_order >= 0) AND (display_order <= 10000)))",
+      "CHECK ((cardinality(expertise_tags) <= 30))",
+      "CHECK (((cardinality(languages) >= 1) AND (cardinality(languages) <= 20)))",
+      "PRIMARY KEY (id)",
+      "CHECK (((professional_title_ar IS NULL) OR (length(professional_title_ar) <= 180)))",
+      "CHECK ((provider_key ~ '^[a-z][a-z0-9_]{2,80}$'::text))",
+      "UNIQUE (provider_key)",
+      "CHECK ((provider_type = ANY (ARRAY['lecturer'::text, 'trainer'::text, 'consultant'::text, 'freelancer'::text, 'agency'::text, 'company'::text])))",
+      "CHECK (((short_bio_ar IS NULL) OR (length(short_bio_ar) <= 500)))",
+      "CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'paused'::text, 'archived'::text])))",
+      "CHECK ((verification_status = ANY (ARRAY['unverified'::text, 'pending'::text, 'verified'::text, 'rejected'::text])))",
+      "CHECK (((years_experience IS NULL) OR ((years_experience >= 0) AND (years_experience <= 80))))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "service_provider_contacts",
+    "columns": [
+      {
+        "name": "provider_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "phone",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "whatsapp",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "website_url",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "linkedin_url",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "internal_notes",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      }
+    ],
+    "constraints": [
+      "CHECK (((email IS NULL) OR (length(email) <= 254)))",
+      "CHECK (((internal_notes IS NULL) OR (length(internal_notes) <= 4000)))",
+      "CHECK (((phone IS NULL) OR (length(phone) <= 40)))",
+      "PRIMARY KEY (provider_id)",
+      "CHECK (((whatsapp IS NULL) OR (length(whatsapp) <= 40)))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "service_provider_courses",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "notnull": true
+      },
+      {
+        "name": "provider_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "course_key",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "title_ar",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "title_en",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "summary_ar",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "target_audience_ar",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "objectives_ar",
+        "type": "text[]",
+        "default": "'{}'::text[]",
+        "notnull": true
+      },
+      {
+        "name": "duration_hours",
+        "type": "numeric(8,2)",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "delivery_modes",
+        "type": "text[]",
+        "default": "ARRAY['online'::text]",
+        "notnull": true
+      },
+      {
+        "name": "language_ar",
+        "type": "text",
+        "default": "'العربية'::text",
+        "notnull": true
+      },
+      {
+        "name": "accreditation_ar",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "image_url",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "notnull": true
+      },
+      {
+        "name": "display_order",
+        "type": "integer",
+        "default": "100",
+        "notnull": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      }
+    ],
+    "constraints": [
+      "CHECK ((course_key ~ '^[a-z][a-z0-9_]{2,80}$'::text))",
+      "CHECK ((((cardinality(delivery_modes) >= 1) AND (cardinality(delivery_modes) <= 4)) AND (delivery_modes <@ ARRAY['online'::text, 'onsite'::text, 'hybrid'::text, 'recorded'::text])))",
+      "CHECK (((display_order >= 0) AND (display_order <= 10000)))",
+      "CHECK (((duration_hours IS NULL) OR (duration_hours > (0)::numeric)))",
+      "CHECK ((cardinality(objectives_ar) <= 30))",
+      "PRIMARY KEY (id)",
+      "UNIQUE (provider_id, course_key)",
+      "CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'paused'::text, 'archived'::text])))",
+      "CHECK (((length(summary_ar) >= 10) AND (length(summary_ar) <= 2000)))",
+      "CHECK (((length(title_ar) >= 2) AND (length(title_ar) <= 180)))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "service_packages",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "notnull": true
+      },
+      {
+        "name": "service_product_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "provider_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "package_key",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "name_ar",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "description_ar",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "amount_minor",
+        "type": "bigint",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "currency",
+        "type": "text",
+        "default": "'SAR'::text",
+        "notnull": true
+      },
+      {
+        "name": "turnaround_days",
+        "type": "integer",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "included_items_ar",
+        "type": "text[]",
+        "default": "'{}'::text[]",
+        "notnull": true
+      },
+      {
+        "name": "revisions_included",
+        "type": "smallint",
+        "default": "0",
+        "notnull": true
+      },
+      {
+        "name": "is_recommended",
+        "type": "boolean",
+        "default": "false",
+        "notnull": true
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "notnull": true
+      },
+      {
+        "name": "display_order",
+        "type": "integer",
+        "default": "100",
+        "notnull": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      }
+    ],
+    "constraints": [
+      "CHECK ((amount_minor > 0))",
+      "CHECK ((currency ~ '^[A-Z]{3}$'::text))",
+      "CHECK (((description_ar IS NULL) OR (length(description_ar) <= 1500)))",
+      "CHECK (((display_order >= 0) AND (display_order <= 10000)))",
+      "CHECK ((cardinality(included_items_ar) <= 40))",
+      "CHECK (((length(name_ar) >= 2) AND (length(name_ar) <= 120)))",
+      "CHECK ((package_key ~ '^[a-z][a-z0-9_]{1,60}$'::text))",
+      "PRIMARY KEY (id)",
+      "CHECK (((revisions_included >= 0) AND (revisions_included <= 100)))",
+      "UNIQUE (service_product_id, package_key)",
+      "CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'paused'::text, 'archived'::text])))",
+      "CHECK (((turnaround_days IS NULL) OR ((turnaround_days >= 0) AND (turnaround_days <= 365))))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "service_order_briefs",
+    "columns": [
+      {
+        "name": "order_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "tenant_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "provider_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "package_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "preferred_start_date",
+        "type": "date",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "delivery_mode",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "brief",
+        "type": "jsonb",
+        "default": "'{}'::jsonb",
+        "notnull": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      }
+    ],
+    "constraints": [
+      "CHECK ((jsonb_typeof(brief) = 'object'::text))",
+      "CHECK ((octet_length((brief)::text) <= 20000))",
+      "CHECK (((delivery_mode IS NULL) OR (delivery_mode = ANY (ARRAY['online'::text, 'onsite'::text, 'hybrid'::text, 'recorded'::text]))))",
+      "PRIMARY KEY (order_id)"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "service_order_assignments",
+    "columns": [
+      {
+        "name": "order_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "tenant_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "provider_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "package_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'pending'::text",
+        "notnull": true
+      },
+      {
+        "name": "due_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "assigned_by_subject_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "assigned_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "started_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "delivered_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "completed_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      }
+    ],
+    "constraints": [
+      "PRIMARY KEY (order_id)",
+      "CHECK ((status = ANY (ARRAY['pending'::text, 'assigned'::text, 'accepted'::text, 'declined'::text, 'in_progress'::text, 'delivered'::text, 'completed'::text, 'cancelled'::text])))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "service_reviews",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "notnull": true
+      },
+      {
+        "name": "order_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "tenant_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "provider_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "rating",
+        "type": "smallint",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "review_text",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "moderation_status",
+        "type": "text",
+        "default": "'pending'::text",
+        "notnull": true
+      },
+      {
+        "name": "provider_response",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "created_by_subject_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      }
+    ],
+    "constraints": [
+      "CHECK ((moderation_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'hidden'::text])))",
+      "UNIQUE (order_id)",
+      "PRIMARY KEY (id)",
+      "CHECK (((provider_response IS NULL) OR (length(provider_response) <= 2000)))",
+      "CHECK (((rating >= 1) AND (rating <= 5)))",
+      "CHECK (((review_text IS NULL) OR (length(review_text) <= 2000)))"
+    ]
+  },
+  {
+    "schema": "marketplace",
+    "name": "payment_provider_configs",
+    "columns": [
+      {
+        "name": "provider_key",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "name_ar",
+        "type": "text",
+        "default": null,
+        "notnull": true
+      },
+      {
+        "name": "name_en",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "notnull": true
+      },
+      {
+        "name": "environment",
+        "type": "text",
+        "default": "'sandbox'::text",
+        "notnull": true
+      },
+      {
+        "name": "checkout_mode",
+        "type": "text",
+        "default": "'redirect'::text",
+        "notnull": true
+      },
+      {
+        "name": "supported_currencies",
+        "type": "text[]",
+        "default": "ARRAY['SAR'::text]",
+        "notnull": true
+      },
+      {
+        "name": "required_secret_keys",
+        "type": "text[]",
+        "default": "'{}'::text[]",
+        "notnull": true
+      },
+      {
+        "name": "optional_secret_keys",
+        "type": "text[]",
+        "default": "'{}'::text[]",
+        "notnull": true
+      },
+      {
+        "name": "public_config",
+        "type": "jsonb",
+        "default": "'{}'::jsonb",
+        "notnull": true
+      },
+      {
+        "name": "last_verified_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "last_error_code",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "sort_order",
+        "type": "integer",
+        "default": "100",
+        "notnull": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "notnull": true
+      },
+      {
+        "name": "credentials_environment",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "required_public_config_keys",
+        "type": "text[]",
+        "default": "'{}'::text[]",
+        "notnull": true
+      },
+      {
+        "name": "rollout_mode",
+        "type": "text",
+        "default": "'observe_only'::text",
+        "notnull": true
+      },
+      {
+        "name": "readiness_evidence",
+        "type": "jsonb",
+        "default": "'{}'::jsonb",
+        "notnull": true
+      },
+      {
+        "name": "readiness_updated_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "activated_by_subject_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "activated_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "activation_requested_by_subject_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "activation_requested_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "activation_requested_mode",
+        "type": "text",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "sandbox_canary_version_id",
+        "type": "uuid",
+        "default": null,
+        "notnull": false
+      },
+      {
+        "name": "sandbox_canary_started_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "notnull": false
+      }
+    ],
+    "constraints": [
+      "CHECK (((activation_requested_mode IS NULL) OR (activation_requested_mode = ANY (ARRAY['sandbox'::text, 'live'::text])))) NOT VALID",
+      "CHECK ((checkout_mode = ANY (ARRAY['redirect'::text, 'embedded'::text, 'api'::text])))",
+      "CHECK ((environment = ANY (ARRAY['sandbox'::text, 'live'::text])))",
+      "PRIMARY KEY (provider_key)",
+      "CHECK ((provider_key ~ '^[a-z][a-z0-9_]{2,60}$'::text))",
+      "CHECK ((jsonb_typeof(public_config) = 'object'::text))",
+      "CHECK ((NOT private_app.jsonb_has_sensitive_key(public_config)))",
+      "CHECK ((status = ANY (ARRAY['draft'::text, 'configured'::text, 'active'::text, 'disabled'::text, 'error'::text])))",
+      "CHECK (((cardinality(supported_currencies) >= 1) AND (cardinality(supported_currencies) <= 20)))",
+      "CHECK (((credentials_environment IS NULL) OR (credentials_environment = ANY (ARRAY['sandbox'::text, 'live'::text]))))",
+      "CHECK (((last_error_code IS NULL) OR (last_error_code = ANY (ARRAY['adapter_not_deployed'::text, 'adapter_runtime_error'::text, 'configuration_incomplete'::text, 'credentials_invalid'::text, 'credentials_rotation_required'::text, 'environment_mismatch'::text, 'health_check_failed'::text, 'merchant_binding_failed'::text, 'provider_unavailable'::text, 'webhook_verification_failed'::text]))))",
+      "CHECK (((jsonb_typeof(readiness_evidence) = 'object'::text) AND\nCASE\n    WHEN (provider_key = 'paymob'::text) THEN private_app.paymob_readiness_evidence_safe_v1(readiness_evidence)\n    ELSE (NOT private_app.jsonb_has_sensitive_key(readiness_evidence))\nEND))",
+      "CHECK (((cardinality(required_public_config_keys) >= 0) AND (cardinality(required_public_config_keys) <= 20)))",
+      "CHECK ((rollout_mode = ANY (ARRAY['observe_only'::text, 'sandbox'::text, 'live'::text]))) NOT VALID"
+    ]
+  }
+]

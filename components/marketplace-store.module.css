@@ -92,3 +92,6 @@
 
 .orderRecovery{grid-column:1/-1;display:grid;gap:10px;min-width:0;padding-top:10px;border-top:1px solid #e0e8ee}.orderRecovery>div{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.orderRecovery fieldset,.orderRecovery p{flex-basis:100%;width:100%;margin:0}.orderRecovery p{font-size:12px;line-height:1.8;color:#516578}
 
+
+
+.compactCard{gap:12px;align-content:stretch;grid-template-rows:auto auto auto 1fr auto auto auto}.compactCard .compactDescription{min-height:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.cardTitle{border:0;padding:0;background:transparent;color:inherit;text-align:start;font:inherit;font-weight:inherit;cursor:pointer}.cardTitle:hover{text-decoration:underline}.detailsLink{padding:7px;background:transparent;border:0;color:#175d83;font:700 11px Tahoma;cursor:pointer;text-align:start}.detailsLink:focus-visible,.cardTitle:focus-visible{outline:3px solid #45afb8;outline-offset:3px}

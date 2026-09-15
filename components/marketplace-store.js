@@ -6,6 +6,9 @@ import {useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import TamaraContactFields from './tamara-contact-fields';
 import styles from './marketplace-store.module.css';
+import hubStyles from './service-hub.module.css';
+import {ExpertsPanel,RequestsPanel,QuoteRequest,ServiceDetails,OrderThread} from './service-hub-ui';
+import {canOrderDirectly} from '../lib/service-hub.mjs';
 import MarketplacePromoCode from './marketplace-promo-code';
 import MarketplaceOrderActions,{usePendingOrderRefresh} from './marketplace-order-actions';
 import {
@@ -94,6 +97,7 @@ function isServiceOrder(order){
   const itemType=order?.items?.[0]?.itemType;
   return !itemType||itemType==='service';
 }
+function isQuotedOrder(order){return Boolean(order?.quoteId||order?.items?.some(item=>item.metadata?.quoteId));}
 function providerInitials(provider){
   const words=String(provider?.name||'مقدم خدمة').trim().split(/\s+/).slice(0,2);
   return words.map(word=>word[0]).join('')||'خ';
@@ -113,6 +117,11 @@ export default function MarketplaceStore({slug,initialData}){
   const [tamaraOrder,setTamaraOrder]=useState(null);
   const promotionsEnabled=slug!=='reef-skills';
   const data=initialData||{};
+  const hub=data.hub||{};
+  const [storeTab,setStoreTab]=useState('services');
+  const [quoteTarget,setQuoteTarget]=useState(null);
+  const [detail,setDetail]=useState(null);
+  const [threadOrder,setThreadOrder]=useState(null);
   const paymentMethods=data.paymentMethods||EMPTY;
   const [query,setQuery]=useState('');
   const [category,setCategory]=useState('all');
@@ -493,15 +502,16 @@ setError('');setNotice('');
         <p>اختر المحاضر أو الخبير المناسب، راجع خبرته والدورة والباقات، ثم أرسل متطلبات منشأتك في طلب واحد واضح وقابل للتتبع.</p>
       </div>
       <aside>
-        <b>الخدمات والإضافات منفصلتان</b>
-        <small>هذه الصفحة للخدمات البشرية والتنفيذية فقط. وفي متجر الإضافات المستقل تُثبت الإضافة آليًا في هذه المنشأة فقط.</small>
+        <b>خدمة تناسب احتياج منشأتك</b>
+        <small>اطلب باقة جاهزة، أو اشرح احتياجك وراجع عرضًا واضحًا بالسعر والمخرجات والموعد.</small>
+        {hub.enabled&&canPurchase&&<button type="button" className={styles.addonsLink} onClick={()=>setQuoteTarget({})}>اطلب خدمة مخصصة</button>}
         <Link className={styles.addonsLink} href={'/tenant/'+encodeURIComponent(slug)+'/addons-store'}>الانتقال إلى متجر الإضافات</Link>
       </aside>
     </header>
 
     <section className={styles.kpis}>
       <article><span>خدمات متاحة</span><b>{data.summary?.serviceProducts??services.length}</b><small>ضمن {data.categories?.length||0} أقسام</small></article>
-      <article><span>مقدمو خدمات</span><b>{data.summary?.serviceProviders??data.providers?.length??0}</b><small>خبراء ومحاضرون وشركات</small></article>
+      <article><span>مقدمو خدمات</span><b>{hub.expertCount??data.summary?.serviceProviders??data.providers?.length??0}</b><small>خبراء ومحاضرون وشركات</small></article>
       <article><span>طلبات مفتوحة</span><b>{openOrders}</b><small>بانتظار الدفع أو التنفيذ</small></article>
       <article><span>طلبات مكتملة</span><b>{orders.filter(order=>order.status==='completed').length}</b><small>محفوظة في سجل منشأتك</small></article>
     </section>
@@ -509,8 +519,12 @@ setError('');setNotice('');
     {notice&&<div className={styles.notice} role="status">{notice}</div>}
     {error&&<div className={styles.error} role="alert">{error}</div>}
     {!canPurchase&&<div className={styles.info}>يمكنك استعراض الخدمات ومقدميها، والطلب متاح لمالك المنشأة أو من لديه صلاحية إدارة الاشتراك.</div>}
+    {hub.unavailable&&<div className={styles.info}>تعذر تحميل دليل الخبراء وعروض الأسعار مؤقتًا. يمكنك متابعة الخدمات وطلبات الشراء الحالية.</div>}
+    {hub.enabled&&<nav className={`${hubStyles.hub} ${hubStyles.tabs}`} aria-label="أقسام متجر الخدمات">{[['services','الخدمات'],['experts','المحاضرون والخبراء'],['requests','طلباتي']].map(([key,label])=><button key={key} type="button" aria-pressed={storeTab===key} onClick={()=>setStoreTab(key)}>{label}</button>)}</nav>}
+    {hub.enabled&&storeTab==='experts'&&<ExpertsPanel hub={hub} slug={slug} onRequest={canPurchase?expert=>setQuoteTarget({providerId:expert.id,name:expert.name}):null}/>}
+    {hub.enabled&&storeTab==='requests'&&<RequestsPanel hub={hub} slug={slug} paymentMethods={paymentMethods} onAccepted={()=>{setStoreTab('requests');setNotice('تم اعتماد العرض. استكمل الدفع من سجل الطلبات أسفل الصفحة.');router.refresh();}}/>}
 
-    <section className={styles.filters}>
+    {(!hub.enabled||storeTab==='services')&&<><section className={styles.filters}>
       <label>
         <span aria-hidden="true">⌕</span>
         <input aria-label="البحث في الخدمات" value={query} onChange={event=>setQuery(event.target.value)} placeholder="ابحث باسم الخدمة أو المحاضر أو التخصص…"/>
@@ -532,11 +546,13 @@ setError('');setNotice('');
         canPurchase={canPurchase}
         pending={orders.some(order=>order.status==='pending_payment'&&itemProductKey(order)===item.key)}
         onBuy={()=>openCheckout(item)}
+        onDetails={()=>setDetail(item)}
+        onQuote={hub.enabled?()=>setQuoteTarget({productId:item.id,providerId:item.provider?.id,name:item.name}):null}
       />)}
       {!filteredServices.length&&<Empty/>}
-    </section>
+    </section></>}
 
-    <section className={styles.orders}>
+    {(!hub.enabled||storeTab==='requests')&&<section className={styles.orders}>
       <header><div><small>سجل منشأتك</small><h2>طلبات الخدمات الأخيرة</h2></div><span>{orders.length} طلب</span></header>
       <div className={styles.orderList}>
         {orders.map(order=>{
@@ -557,24 +573,29 @@ setError('');setNotice('');
           {order.status==='pending_payment'&&order.paymentProvider==='bank_transfer'&&(!transfer||transfer.status==='rejected')&&<button
             type="button"
             className={styles.payButton}
-            disabled={Boolean(busy)}
+            data-busy={Boolean(busy)} disabled={Boolean(busy)}
             onClick={()=>openTransfer(order)}
           >إرسال بيانات التحويل</button>}
           {order.status==='pending_payment'&&order.paymentProvider==='paymob'&&<button
             type="button"
             className={styles.payButton}
-            disabled={Boolean(busy)}
+            data-busy={Boolean(busy)} disabled={Boolean(busy)}
             onClick={()=>openPaymob(order)}
           >{busy==='paymob-'+order.id?'جارٍ فتح الدفع…':'استكمال الدفع'}</button>}
-          {order.status==='pending_payment'&&order.paymentProvider==='tamara'&&<button type="button" disabled={Boolean(busy)} onClick={()=>setTamaraOrder(order)}>متابعة تمارا</button>}
-          <MarketplaceOrderActions slug={slug} order={order} methods={paymentMethods} canManage={canPurchase}/>
-          {promotionsEnabled&&order.status==='pending_payment'&&<MarketplacePromoCode
+          {order.status==='pending_payment'&&order.paymentProvider==='tamara'&&<button type="button" data-busy={Boolean(busy)} disabled={Boolean(busy)} onClick={()=>setTamaraOrder(order)}>متابعة تمارا</button>}
+          <MarketplaceOrderActions slug={slug} order={order} methods={paymentMethods} canManage={canPurchase} allowReplace={!isQuotedOrder(order)}/>
+          {hub.enabled&&<button className={styles.payButton} type="button" onClick={()=>setThreadOrder(order)}>التنفيذ والتحديثات</button>}
+          {promotionsEnabled&&!isQuotedOrder(order)&&order.status==='pending_payment'&&<MarketplacePromoCode
             order={order} busy={busy} canManage={canPurchase}
             onApply={applyPromotion} onRemove={removePromotion}/>}
         </article>})}
         {!orders.length&&<div className={styles.emptyOrders}>لم تُنشئ منشأتك طلبات خدمات حتى الآن.</div>}
       </div>
-    </section>
+    </section>}
+
+    {quoteTarget&&<QuoteRequest slug={slug} target={quoteTarget} onClose={()=>setQuoteTarget(null)} onSent={()=>{setQuoteTarget(null);setStoreTab('requests');setNotice('تم إرسال طلبك. سيظهر العرض هنا بعد مراجعته من الإدارة.');router.refresh();}}/>}
+    {detail&&<ServiceDetails item={detail} onClose={()=>setDetail(null)} canPurchase={canPurchase} pending={orders.some(order=>order.status==='pending_payment'&&itemProductKey(order)===detail.key)} onBuy={item=>{setDetail(null);openCheckout(item);}} onQuote={hub.enabled?item=>{setDetail(null);setQuoteTarget({productId:item.id,providerId:item.provider?.id,name:item.name});}:null}/>}
+    {threadOrder&&<OrderThread order={threadOrder} slug={slug} onClose={()=>setThreadOrder(null)}/>}
 
     {checkout&&<div className={styles.modalLayer}>
       <button className={styles.backdrop} type="button" aria-label="إغلاق" onClick={()=>setCheckout(null)}/>
@@ -704,7 +725,7 @@ setError('');setNotice('');
         <header><h2 id="tamara-resume-title">متابعة الدفع مع تمارا</h2><button type="button" aria-label="إغلاق" onClick={()=>setTamaraOrder(null)}>×</button></header>
         <p>سنستكمل نفس طلب الشراء {tamaraOrder.orderNumber}.</p>
         <TamaraContactFields value={tamaraContact} onChange={setTamaraContact}/>
-        <footer><button type="button" onClick={()=>setTamaraOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={Boolean(busy)}>{busy==='tamara'?'جارٍ المتابعة…':'المتابعة إلى تمارا'}</button></footer>
+        <footer><button type="button" onClick={()=>setTamaraOrder(null)}>رجوع</button><button type="submit" className={styles.primary} data-busy={Boolean(busy)} disabled={Boolean(busy)}>{busy==='tamara'?'جارٍ المتابعة…':'المتابعة إلى تمارا'}</button></footer>
       </form>
     </div>}
 
@@ -713,80 +734,29 @@ setError('');setNotice('');
       <form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="service-paymob-title" onSubmit={continuePaymob}>
         <header><div><small>وسائل دفع الخدمة</small><h2 id="service-paymob-title">{paymobOrder.order.orderNumber||'طلب الخدمة'}</h2></div><button type="button" onClick={()=>setPaymobOrder(null)} aria-label="إغلاق">×</button></header>
         <p>اختر وسيلة الدفع المناسبة. عند اختيار Paymob ستدخل بيانات الاتصال والبطاقة مرة واحدة فقط داخل صفحة Paymob الآمنة.</p>
-        <PaymentMethodPicker methods={paymentMethods} value={paymentProvider} onChange={choosePaymentProvider}/>
+        <PaymentMethodPicker methods={isQuotedOrder(paymobOrder.order)?paymentMethods.filter(item=>item.key==='paymob'):paymentMethods} value={paymentProvider} onChange={choosePaymentProvider}/>
         {paymentProvider!=='paymob'&&<p>سيتحقق أودير من انتهاء محاولة Paymob دون دفع، ثم ينشئ طلبًا مرتبطًا بالوسيلة المختارة مع حفظ سجل الطلب السابق.</p>}
         {paymentProvider==='paymob'&&<PaymobOptionPicker paymentMethods={paymentMethods}
           value={paymentOption} onChange={setPaymentOption} compact/>}
-        <footer><button type="button" onClick={()=>setPaymobOrder(null)}>رجوع</button><button type="submit" className={styles.primary} disabled={Boolean(busy)}>{busy==='paymob-'+paymobOrder.order.id?'جارٍ فتح الدفع…':paymentProvider==='paymob'?'المتابعة إلى Paymob':'اعتماد وسيلة الدفع المختارة'}</button></footer>
+        <footer><button type="button" onClick={()=>setPaymobOrder(null)}>رجوع</button><button type="submit" className={styles.primary} data-busy={Boolean(busy)} disabled={Boolean(busy)}>{busy==='paymob-'+paymobOrder.order.id?'جارٍ فتح الدفع…':paymentProvider==='paymob'?'المتابعة إلى Paymob':'اعتماد وسيلة الدفع المختارة'}</button></footer>
       </form>
     </div>}
   </section>;
 }
 
-function ServiceCard({item,canPurchase,pending,onBuy}){
-  const provider=item.provider;
-  const course=item.course;
-  const packages=item.packages||EMPTY;
-  const featuredPackage=preferredPackage(item);
-  const isQuote=item.pricingMode==='quote';
-  const needsQuote=isQuote||(item.pricingMode==='from'&&!featuredPackage);
-  const displayedAmount=featuredPackage?.amountMinor??item.amountMinor;
-  const displayedCurrency=featuredPackage?.currency||item.currency;
-  return <article className={styles.card}>
+function ServiceCard({item,canPurchase,pending,onBuy,onDetails,onQuote}){
+  const provider=item.provider,featuredPackage=preferredPackage(item);
+  const needsQuote=!canOrderDirectly(item);
+  const amount=featuredPackage?.amountMinor??item.amountMinor;
+  return <article className={`${styles.card} ${styles.compactCard}`}>
     <header><span>{item.categoryName}</span>{item.badge&&<b>{item.badge}</b>}</header>
-    {item.imageUrl&&<img className={styles.serviceImage} src={item.imageUrl} alt="" loading="lazy"/>}
-    <h2>{item.name}</h2>
-    <p>{item.shortDescription||item.description}</p>
-
-    {provider&&<section className={styles.providerStrip} aria-label="مقدم الخدمة">
-      <div className={styles.avatar}>
-        {provider.avatarUrl?<img src={provider.avatarUrl} alt={'صورة '+provider.name} loading="lazy"/>:<span>{providerInitials(provider)}</span>}
-      </div>
-      <div className={styles.providerIdentity}>
-        <div><b>{provider.name}</b>{provider.verified&&<span className={styles.verified} title="موثق">✓ موثق</span>}</div>
-        <small>{provider.title||provider.shortBio||'مقدم خدمة متخصص'}</small>
-        <p>
-          {provider.yearsExperience?provider.yearsExperience+' سنوات خبرة':''}
-          {provider.yearsExperience&&provider.rating>0?' • ':''}
-          {provider.rating>0?'★ '+provider.rating+' ('+(provider.reviewCount||0)+')':''}
-        </p>
-      </div>
-    </section>}
-
-    {provider?.expertise?.length>0&&<div className={styles.expertise} aria-label="التخصصات">
-      {provider.expertise.slice(0,4).map(skill=><span key={skill}>{skill}</span>)}
-    </div>}
-
-    {course&&<section className={styles.courseBox}>
-      <div><small>الدورة أو البرنامج</small><b>{course.title}</b></div>
-      {course.summary&&<p>{course.summary}</p>}
-      <div className={styles.courseMeta}>
-        {course.durationHours&&<span>{course.durationHours} ساعة</span>}
-        {course.language&&<span>{course.language}</span>}
-        {course.accreditation&&<span>{course.accreditation}</span>}
-      </div>
-    </section>}
-
-    {packages.length>0&&<div className={styles.packagesPreview}>
-      <small>الباقات المتاحة</small>
-      <div>{packages.slice(0,3).map(pkg=><span key={pkg.id} className={pkg.recommended?styles.recommendedPackage:''}>{pkg.name}{pkg.recommended?' • موصى بها':''}</span>)}</div>
-    </div>}
-
-    <div className={styles.details}>
-      <span><small>التسليم المتوقع</small><b>{featuredPackage?.turnaroundDays||item.turnaroundDays?(featuredPackage?.turnaroundDays||item.turnaroundDays)+' أيام':'حسب الاتفاق'}</b></span>
-      <span><small>وحدة الخدمة</small><b>{item.unitLabel||'حسب الاتفاق'}</b></span>
-    </div>
-    <footer>
-      <div>
-        <small>{isQuote?'التسعير':featuredPackage?'الباقة المقترحة':item.pricingMode==='from'?'يبدأ من':'السعر'}</small>
-        <strong>{isQuote?'حسب المتطلبات':money(displayedAmount,displayedCurrency)}</strong>
-        {!isQuote&&<em>+ الضريبة</em>}
-      </div>
-      <button type="button" disabled={!canPurchase||pending||needsQuote} onClick={onBuy}>
-        {pending?'طلب دفع قائم':needsQuote?'طلب عرض سعر':item.pricingMode==='from'?'اختيار باقة وطلب الخدمة':'اختيار وطلب الخدمة'}
-      </button>
-    </footer>
-    {needsQuote&&<p className={styles.quoteHint}>هذه الخدمة تحتاج عرض سعر أو باقة ثابتة أولًا؛ لن يُنشأ طلب دفع إلكتروني قبل تثبيت السعر والمخرجات.</p>}
+    <h2><button type="button" className={styles.cardTitle} onClick={onDetails}>{item.name}</button></h2>
+    <p className={styles.compactDescription}>{item.shortDescription||item.description}</p>
+    {provider&&<section className={styles.providerStrip} aria-label="مقدم الخدمة"><div className={styles.avatar}>{provider.avatarUrl?<img src={provider.avatarUrl} alt="" loading="lazy"/>:<span>{providerInitials(provider)}</span>}</div><div className={styles.providerIdentity}><div><b>{provider.name}</b>{provider.verified&&<span className={styles.verified}>✓ موثق</span>}</div><small>{provider.title}</small>{provider.reviewCount>0&&<p>★ {provider.rating} ({provider.reviewCount} تقييم)</p>}</div></section>}
+    <div className={styles.details}><span><small>مدة البرنامج / الخدمة</small><b>{item.course?.durationHours?item.course.durationHours+' ساعة':item.unitLabel||'حسب النطاق'}</b></span><span><small>التجهيز والتسليم</small><b>{item.turnaroundDays?item.turnaroundDays+' أيام':'حسب الاتفاق'}</b></span></div>
+    <footer><div><small>{needsQuote?'التسعير':featuredPackage?'الباقة المقترحة':'السعر'}</small><strong>{needsQuote?'حسب المتطلبات':money(amount,featuredPackage?.currency||item.currency)}</strong>{!needsQuote&&<em>+ الضريبة</em>}</div><button type="button" data-block-reason={!canPurchase?'تحتاج صلاحية إدارة اشتراك المنشأة لطلب الخدمات.':needsQuote&&!onQuote?'استقبال عروض الأسعار غير مفعل حاليًا.':'يوجد طلب دفع قائم لهذه الخدمة؛ تابعه من طلباتي.'} disabled={!canPurchase||(!needsQuote&&pending)||(needsQuote&&!onQuote)} onClick={needsQuote?onQuote:onBuy}>{needsQuote?'طلب عرض سعر':pending?'طلب دفع قائم':'طلب الخدمة'}</button></footer>
+    <button type="button" className={styles.detailsLink} onClick={onDetails}>تفاصيل الخدمة{item.packages?.length?' ومقارنة الباقات':''}</button>
+    {needsQuote&&!onQuote&&<p className={styles.quoteHint}>استقبال عروض الأسعار غير متاح حاليًا. يمكنك مراجعة تفاصيل الخدمة.</p>}
   </article>;
 }
 

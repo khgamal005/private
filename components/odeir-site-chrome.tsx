@@ -108,7 +108,9 @@ export function OdeirSiteHeader({
   const source = Array.isArray(menu) && menu.length ? menu : DEFAULT_PRIMARY_MENU;
   const tree = useMemo(() => {
     const items = buildMenuTree(source) as OdeirMenuItem[];
-    return items.some(item => item.href === "/pricing") ? items : [...items, {id:"odeir-pricing",label:"الباقات والإضافات",href:"/pricing"}];
+    const result = items.some(item => item.href === "/pricing") ? items : [...items, {id:"odeir-pricing",label:"الباقات والإضافات",href:"/pricing"}];
+    const hasExpertLink = (entries: OdeirMenuItem[]): boolean => entries.some(item => item.href === "/experts/join" || hasExpertLink(item.children || []));
+    return hasExpertLink(result) ? result : [...result, {id:"odeir-experts",label:"انضم إلى الخبراء والمحاضرين",href:"/experts/join"}];
   }, [source]);
   const primaryLabel = hero.primaryLabel || settings.contactCtaLabel || settings.freeTrialLabel || "سجّل منشأتك مجانًا";
   const primaryHref = hero.primaryHref || settings.contactCtaUrl || settings.freeTrialUrl || "/free-trial/apply";

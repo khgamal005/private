@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import test from 'node:test';
+import {canOrderDirectly} from '../lib/service-hub.mjs';
 
 const root=new URL('../',import.meta.url);
 const paths={
@@ -149,8 +150,11 @@ test('service orders expose their payment method and complete bank-transfer evid
   assert.match(source.tenantRoute,/paymob_order_cancel_requires_payment_resolution/);
   assert.match(source.marketplaceV2Route,/paymob_order_cancel_requires_payment_resolution/);
   assert.match(source.services,/pricingMode===['"]from['"]&&!packageId/);
-  assert.match(source.services,/needsQuote=isQuote\|\|\(item\.pricingMode===['"]from['"]&&!featuredPackage\)/);
-  assert.match(source.services,/لن يُنشأ طلب دفع إلكتروني قبل تثبيت السعر/);
+  assert.equal(canOrderDirectly({pricingMode:'quote',packages:[]}),false);
+  assert.equal(canOrderDirectly({pricingMode:'from',packages:[]}),false);
+  assert.equal(canOrderDirectly({pricingMode:'from',packages:[{id:'fixed-package'}]}),true);
+  assert.equal(canOrderDirectly({pricingMode:'fixed'}),true);
+  assert.match(source.services,/onClick=\{needsQuote\?onQuote:onBuy\}/);
 });
 
 test('store, checkout status, and return access share the canonical purchase permission',()=>{

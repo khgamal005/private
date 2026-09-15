@@ -19,7 +19,7 @@ export function usePendingOrderRefresh(orders){
   },[pending,router]);
 }
 
-export default function MarketplaceOrderActions({slug,order,methods,canManage}){
+export default function MarketplaceOrderActions({slug,order,methods,canManage,allowReplace=true}){
   const router=useRouter();
   const [mode,setMode]=useState('');
   const [provider,setProvider]=useState('');
@@ -28,7 +28,7 @@ export default function MarketplaceOrderActions({slug,order,methods,canManage}){
   const lock=useRef(false);
   const eligible=order.status==='pending_payment'||(order.status==='cancelled'&&order.paymentProvider==='tamara');
   if(!canManage||!eligible)return null;
-  const choices=methods.filter(method=>['paymob','tamara','bank_transfer'].includes(method.key)
+  const choices=methods.filter(method=>allowReplace&&['paymob','tamara','bank_transfer'].includes(method.key)
     &&(order.status==='cancelled'||method.key!==order.paymentProvider));
   async function submit(){
     if(lock.current||(mode==='replace'&&!provider))return;

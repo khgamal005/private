@@ -9,6 +9,7 @@ import {
   googleReportHref,googleSourcePreview,groupGoogleSources,requestGoogleAction
 } from '../lib/google-ads/ui.mjs';
 import styles from './google-ads-connect.module.css';
+import GoogleGA4Report from './google-ga4-report';
 
 const formatDate=(value,timezone)=>{
   if(!value)return 'لم تتم المزامنة بعد';
@@ -150,6 +151,10 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
     setBusy(name);setFeedback(null);
     let savedSelection=false;
     try{
+      if(name==='start'){
+        const analytics=await requestGoogleAction({name:'ga4-status',slug});
+        payload={...payload,includeAnalytics:analytics.consentGranted===true};
+      }
       const result=await requestGoogleAction({name,slug,payload});
       if(name==='start'){window.location.assign(result.authorizeUrl);return;}
       if(name==='assets'){setAccounts(result.accounts||[]);return;}
@@ -184,14 +189,14 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
   return <section className={styles.page} dir="rtl">
     <header className={styles.hero}>
       <div className={styles.heroTitle}><span className={styles.provider}><Image src="/integrations/google-ads-color.svg" alt="" width={36} height={36}/></span>
-        <div><span className={styles.eyebrow}>تقارير التسويق</span><h1>إعلانات جوجل ونتائج العملاء</h1><p>الإنفاق من جوجل، ونتائج التسجيل والتحصيل من أودير.</p></div>
+        <div><span className={styles.eyebrow}>تقارير التسويق</span><h1 dir="ltr">Google Kit</h1><p>إعلانات جوجل وGA4 ومطابقة الطلبات بالتحصيل الفعلي داخل أودير.</p></div>
       </div>
       <Link className={styles.heroLink} href={`/tenant/${encodeURIComponent(slug)}/reports`}>كل التقارير <span aria-hidden="true">←</span></Link>
     </header>
     <Feedback feedback={feedback}/>
     {enabled&&reportingOnly?<p className={styles.note}>تجربة ريف: قراءة تقارير جوجل فقط، دون تعديل الحملات أو العملاء أو التسجيلات أو المدفوعات. مطابقة مصادر العملاء متوقفة في هذه المرحلة.</p>:null}
     {unavailable?<p className={`${styles.feedback} ${styles.error}`} role="alert">تعذر تحميل التقرير حاليًا. حاول تحديث الصفحة بعد قليل.</p>:null}
-    {!enabled?unavailable?null:<section className={styles.panel}><h2>الربط غير متاح حاليًا</h2><p>تواصل مع إدارة المنصة لتفعيل إضافة إعلانات جوجل لهذه المنشأة.</p></section>:<>
+    {!enabled?unavailable?null:<section className={styles.panel}><h2>الربط غير متاح حاليًا</h2><p>تواصل مع إدارة المنصة لتفعيل إضافة Google Kit لهذه المنشأة.</p></section>:<>
       <section className={styles.connection} aria-busy={Boolean(busy)}>
         <div className={styles.connectionMain}>
           <header className={styles.sectionHead}><div><span className={styles.eyebrow}>حساب الإعلانات</span><h2>{selected?.name||'اربط جوجل وابدأ التحليل'}</h2></div>
@@ -288,8 +293,10 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
           <div className={styles.customerList}>{(report.details||[]).filter(row=>row.campaignId===detailsCampaign.campaignId).map(row=><div key={row.originKey}><b>{row.name||'عميل بدون اسم'}</b><span className={`${styles.badge} ${row.paid?styles.connected:styles.pending}`}>{row.paid?'دفع مؤكد':'لم يتأكد الدفع'}</span></div>)}</div>
           {!(report.details||[]).some(row=>row.campaignId===detailsCampaign.campaignId)?<p className={styles.empty}>لا تتوافر تفاصيل عملاء لهذه الحملة ضمن العينة الحالية.</p>:null}
         </section>:null}
+        <GoogleGA4Report key={`${slug}:${filters.dateFrom}:${filters.dateTo}:${filters.asOf}`} slug={slug} filters={filters} canManage={canManage} connected={connected}/>
         {!reportingOnly?<SourceReview slug={slug} canManage={canManage} initialCampaigns={campaigns} onSaved={()=>router.refresh()}/>:null}
       </>:<section className={styles.empty}><b>يبدأ التقرير بعد اختيار حساب الإعلانات</b><p>اربط جوجل، ثم اختر الحساب لعرض الحملات المتاحة.</p></section>}
     </>}
   </section>;
 }
+

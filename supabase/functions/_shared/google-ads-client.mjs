@@ -122,8 +122,7 @@ export function createGoogleAdsClient(config, options = {}) {
   if (apiVersion !== GOOGLE_ADS_API_VERSION) fail('google_api_version_unsupported');
   const clientId = requiredSecret(config.clientId, 'google_client_id_missing');
   const clientSecret = requiredSecret(config.clientSecret, 'google_client_secret_missing');
-  // Google Ads requires this server-held token on every Ads API request.
-  const developerToken = requiredSecret(config.developerToken, 'google_developer_token_missing');
+  // Google Ads access now belongs to the OAuth client's Cloud project.
   let redirectUri;
   try {
     const url = new URL(config.redirectUri);
@@ -179,7 +178,6 @@ export function createGoogleAdsClient(config, options = {}) {
   function adsHeaders(accessToken, loginCustomerId = '') {
     return {
       authorization: `Bearer ${requiredSecret(accessToken, 'google_access_token_missing')}`,
-      'developer-token': developerToken,
       'content-type': 'application/json',
       ...(loginCustomerId ? {'login-customer-id': normalizeGoogleCustomerId(loginCustomerId)} : {})
     };

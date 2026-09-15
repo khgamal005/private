@@ -15,7 +15,6 @@ const ERROR_ALIASES={
   google_ads_stale_lease:'request_rejected',google_ads_command_reused:'request_rejected',
   google_reconnect_required:'reauth_required',google_access_denied:'account_not_available',
   google_rate_limited:'rate_limited',google_oauth_configuration_invalid:'configuration_missing',
-  google_developer_token_missing:'configuration_missing',
   google_scope_missing:'required_scopes_missing',google_date_range_invalid:'invalid_date_range',
   google_date_invalid:'invalid_date_range',google_date_future:'invalid_date_range',
   google_account_mismatch:'account_not_available',google_advertiser_account_required:'account_not_available',
@@ -86,7 +85,7 @@ export function createGoogleAdsHandler({env,createClient,fetchImpl=fetch}){
     const config={clientId:value('GOOGLE_ADS_CLIENT_ID'),clientSecret:value('GOOGLE_ADS_CLIENT_SECRET'),
       developerToken:value('GOOGLE_ADS_DEVELOPER_TOKEN'),redirectUri:value('GOOGLE_ADS_REDIRECT_URI'),
       apiVersion:value('GOOGLE_ADS_API_VERSION')||'v25'};
-    if(!config.clientId||!config.clientSecret||!config.developerToken||!config.redirectUri)fail('configuration_missing');
+    if(!config.clientId||!config.clientSecret||!config.redirectUri)fail('configuration_missing');
     if(!['https://odeir.com/api/tenant/google-ads/callback','https://staging.odeir.com/api/tenant/google-ads/callback'].includes(config.redirectUri))fail('configuration_missing');
     return createClient(config,{fetchImpl,signal,timeoutMs:15000,maxRetries:2,maxPages:10,maxAccounts:100});
   }

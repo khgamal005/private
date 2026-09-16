@@ -8,6 +8,7 @@ import {optionalServerRead} from '../../../lib/server-resilience';
 import {getTenantSupport} from '../../../lib/support-api';
 import {navigationPolicyRoleKey} from '../../../lib/tenant-role-policy';
 import {getTenantOdeirySnapshot} from '../../../lib/odeiry-api';
+import {interactiveTrainingAccess} from '../../../lib/interactive-training-access.mjs';
 import WorkspaceShell from '../../../components/workspace-shell';
 import MyRoleGuide from '../../../components/my-role-guide';
 
@@ -83,6 +84,7 @@ export default async function TenantLayout({children,params}){
   const permissions=membership?.permissions||[];
   const guideRoleKey=roleKey==='admissions_officer'?'customer_service':roleKey;
   const navigationRoleKey=navigationPolicyRoleKey(permissions,{platformAccess:Boolean(context.platformAccess)});
+  const interactiveTraining=interactiveTrainingAccess({slug,context,addonAccess});
 
   return <WorkspaceShell
     kind="tenant"
@@ -98,6 +100,7 @@ export default async function TenantLayout({children,params}){
     supportSummary={tenantSupport?.summary||null}
     yeastarAccess={yeastarAccess}
     addonAccess={addonAccess}
+    interactiveTraining={interactiveTraining}
     odeiryEnabled={odeiryEnabled}
     odeiryAccessMode={odeiryAccessMode}
     odeiryManagerEnabled={odeiryManagerEnabled}

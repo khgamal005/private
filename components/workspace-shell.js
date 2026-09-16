@@ -9,6 +9,7 @@ import MarktoneLogo from './marktone-logo';
 import NotificationCenter from './notification-center';
 import {WORKSPACE_KINDS} from '../lib/workspaces';
 import {tenantRolePolicy} from '../lib/tenant-role-policy';
+import {INTERACTIVE_TRAINING_VIEWS,interactiveTrainingHref} from '../lib/interactive-training-access.mjs';
 
 const OdeiryAssistant=dynamic(()=>import('./odeiry-assistant'),{ssr:false});
 
@@ -69,7 +70,8 @@ function tenantItems(
   roleKey,
   yeastarAccess,
   addonAccess,
-  supportSummary
+  supportSummary,
+  interactiveTraining
 ){
   const base=`/tenant/${encodeURIComponent(slug)}`;
   const policy=tenantRolePolicy(roleKey,{platformAccess});
@@ -81,7 +83,15 @@ function tenantItems(
     {key:'news',label:'الأخبار والمعارف',href:`${base}/news`,permission:'tenant.content.read',visible:policy.showNews},
     {key:'tasks',label:'تقويم المهام',href:`${base}/tasks`,permission:'tenant.work.read'},
     {key:'courses',label:'الدبلومات والدورات',href:`${base}/courses`,permission:'tenant.academy.read'},
-    {key:'interactive',label:'منصة التدريب التفاعلي',href:`${base}/lms`,permission:'tenant.academy.read',visible:policy.showInteractiveTraining&&hasAddon('lms')},
+    interactiveTraining?.enabled===true
+      ?{key:'interactive',label:'منصة التدريب التفاعلي',visible:hasAddon('lms'),children:
+        INTERACTIVE_TRAINING_VIEWS.map(view=>({
+          key:view.icon,
+          label:view.label,
+          href:interactiveTrainingHref(slug,view.key),
+          permission:'tenant.academy.read'
+        }))}
+      :{key:'interactive',label:'منصة التدريب التفاعلي',href:`${base}/lms`,permission:'tenant.academy.read',visible:policy.showInteractiveTraining&&hasAddon('lms')},
     {key:'sales',label:'المبيعات والعملاء',children:[
       {key:'search',label:'البحث عن عميل',href:`${base}/customer-search`,always:true},
       {key:'sales',label:'إدارة المبيعات والعملاء',href:`${base}/sales`,permission:'tenant.crm.read'},
@@ -184,6 +194,7 @@ function isActive(pathname,href){
   if(/^\/tenant\/[^/]+$/.test(href))return pathname===href;
   if(/\/yeastar$/.test(href))return pathname===href;
   if(/\/accounting$/.test(href))return pathname===href;
+  if(/\/lms$/.test(href))return pathname===href;
   return pathname===href||pathname.startsWith(`${href}/`);
 }
 function count(value){return Math.max(0,Number(value)||0);}
@@ -278,11 +289,14 @@ function odeiryContext(pathname){
   return {module:'other',pathClass:'workspace.other'};
 }
 
-export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,supportSummary=null,yeastarAccess=null,addonAccess=null,odeiryEnabled=false,odeiryAccessMode=null,odeiryManagerEnabled=false,odeiryManagerReviewEnabled=false}){
+export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,supportSummary=null,yeastarAccess=null,addonAccess=null,interactiveTraining=null,odeiryEnabled=false,odeiryAccessMode=null,odeiryManagerEnabled=false,odeiryManagerReviewEnabled=false}){
   const pathname=usePathname();
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
     marketplace:pathname.includes('/addons'),
+    // An untouched pilot group follows the active route across persistent layouts.
+    // Explicit user expansion/collapse remains an override.
+    interactive:undefined,
     sales:['/customer-search','/sales','/lead-queue'].some(path=>pathname.includes(path)),
     accounting:pathname.includes('/accounting')||pathname.includes('/incentives'),
     yeastar:pathname.includes('/yeastar')||pathname.includes('/call-reports'),
@@ -299,7 +313,8 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       roleKey,
       yeastarAccess,
       addonAccess,
-      supportSummary
+      supportSummary,
+      interactiveTraining
     )
     :platformItems(permissions,platformRegistrationSummary,supportSummary),[
       kind,
@@ -309,6 +324,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       roleKey,
       yeastarAccess,
       addonAccess,
+      interactiveTraining,
       platformRegistrationSummary,
       supportSummary
     ]);
@@ -358,9 +374,12 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
         {items.map(item=>{
           if(!item.children)return <Link key={item.href||item.key} href={item.href||'#'} aria-disabled={item.disabled||undefined} tabIndex={item.disabled?-1:undefined} className={item.disabled?'disabled':isActive(pathname,item.href)?'active':''} style={item.disabled?{cursor:'default',opacity:.55}:undefined} onClick={event=>{if(item.disabled){event.preventDefault();return;}setMobileOpen(false);}}><span><ShellIcon name={item.key}/></span><b>{item.label}</b>{item.badge>0&&<em className="mt-navigation-badge" aria-label={`${item.badge} ${item.badgeLabel||'عناصر تحتاج متابعة'}`}>{item.badge>99?'99+':item.badge}</em>}</Link>;
           const childActive=item.children.some(child=>!child.disabled&&child.href&&isActive(pathname,child.href));
-          const isOpen=Boolean(openGroups[item.key]);
+          const isPilotTrainingGroup=item.key==='interactive'&&interactiveTraining?.enabled===true;
+          const isOpen=isPilotTrainingGroup
+            ?Boolean(openGroups[item.key]??childActive)
+            :Boolean(openGroups[item.key]);
           return <div className={`mt-navigation-group ${childActive?'active':''}`} key={item.key}>
-            <button type="button" className="mt-navigation-parent" aria-expanded={isOpen} onClick={()=>setOpenGroups(current=>({...current,[item.key]:!current[item.key]}))}><span><ShellIcon name={item.key}/></span><b>{item.label}</b><i><ShellIcon name="chevron"/></i></button>
+            <button type="button" className="mt-navigation-parent" aria-expanded={isOpen} onClick={()=>setOpenGroups(current=>({...current,[item.key]:isPilotTrainingGroup?!isOpen:!current[item.key]}))}><span><ShellIcon name={item.key}/></span><b>{item.label}</b><i><ShellIcon name="chevron"/></i></button>
             {isOpen&&<div className="mt-navigation-children">{item.children.map(child=><Link key={child.href||`${item.key}-${child.key}`} href={child.href||'#'} aria-disabled={child.disabled||undefined} tabIndex={child.disabled?-1:undefined} className={child.disabled?'disabled':isActive(pathname,child.href)?'active':''} style={child.disabled?{cursor:'default',opacity:.55}:undefined} onClick={event=>{if(child.disabled){event.preventDefault();return;}setMobileOpen(false);}}><span><ShellIcon name={child.key}/></span><b>{child.label}</b></Link>)}</div>}
           </div>;
         })}
@@ -407,4 +426,3 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
     />}
   </div>;
 }
-

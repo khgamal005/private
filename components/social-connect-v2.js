@@ -159,12 +159,12 @@ export default function SocialConnectV2({
 
     {data.legacyProtected?<div className="scv2-legacy-guard">
       <span aria-hidden="true">✓</span>
-      <div><b>منشأتك لديها ربط قائم</b><p>تابع اتصالك الحالي من مركز التسويق. هذه الصفحة لا تستبدله.</p></div>
+      <div><b>منشأتك لديها ربط قائم</b><p>إعدادات اتصال Meta الحالي وبياناته متاحة من مركز التسويق.</p><Link href={`/tenant/${encodeURIComponent(slug)}/marketing`}>فتح ربط Meta القائم ←</Link></div>
     </div>:null}
     {feedback?<div className={`scv2-alert ${feedback.tone}`}
       role={feedback.tone==='error'?'alert':'status'}>{feedback.message}</div>:null}
 
-    {display!=='performance'?<section className="scv2-grid">
+    {display!=='performance'&&!data.legacyProtected?<section className="scv2-grid">
       <article className="scv2-connection-card" aria-busy={Boolean(busy)}>
         <header>
           <span className="scv2-provider-mark" aria-hidden="true">Meta</span>
@@ -224,7 +224,7 @@ export default function SocialConnectV2({
           </article>)}</div>}
     </section>:null}
 
-    {!selected&&display==='performance'?<div className="scv2-panel"><h2>ابدأ باختيار الحساب الإعلاني</h2><p>يظهر التقرير بعد ربط الحساب ومزامنة بياناته.</p><Link href={`/tenant/${encodeURIComponent(slug)}/addons/social-connect`}>إعدادات Meta</Link></div>:null}
+    {!selected&&!data.legacyProtected&&display==='performance'?<div className="scv2-panel"><h2>ابدأ باختيار الحساب الإعلاني</h2><p>يظهر التقرير بعد ربط الحساب ومزامنة بياناته.</p><Link href={`/tenant/${encodeURIComponent(slug)}/addons/social-connect`}>إعدادات Meta</Link></div>:null}
     {selected&&display!=='connection'?<>
       {hideFilters?<form className="scv2-filters" method="get"><input type="hidden" name="platform" value="meta"/>
         {Object.entries({from:filters.dateFrom,to:filters.dateTo,asOf:filters.asOf,mode:filters.mode,campaign:filters.campaign,staff:filters.staff,course:filters.course,q:filters.search}).map(([name,value])=><input type="hidden" key={name} name={name} value={value||''}/>)}

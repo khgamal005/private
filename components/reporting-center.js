@@ -327,9 +327,9 @@ export default function ReportingCenter({data,slug,view='overview',range,analyti
     </section>
     {view!=='campaigns'?<ReportTabs slug={slug} view={view==='employee'?'employees':view} range={range} availability={availability} personalOnly={personalOnly}/>:null}
     {view==='campaigns'?campaignNavigation:null}
-    {view==='campaigns'?campaignSpendOverview:null}
     {view==='employee'&&<EmployeeHero employee={selectedEmployee} summary={summary}/>}
     <MetricGrid items={metricsFor(view,summary)} canExport={canExport} exportPayload={exportPayload}/>
+    {view==='campaigns'?campaignSpendOverview:null}
     {view==='campaigns'?campaignRecommendations:null}
 
     {view==='overview'&&<>

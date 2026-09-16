@@ -40,7 +40,6 @@ export default function CampaignRevenueReport({slug,data,filters,meta,navigation
       <button className="cr-button" type="submit">عرض التحليل</button><Link href={`/tenant/${encodeURIComponent(slug)}/reports/campaigns`}>مسح الفلاتر</Link>
     </form>
     <p className="cr-note">{filters.mode==='cohort'?`نحتسب العملاء الفريدين الذين وصلوا من ${filters.dateFrom} إلى ${filters.dateTo}، ونتابع دفعهم حتى ${filters.asOf}.`:'يعرض هذا الاختيار التحصيل والاسترداد خلال الفترة. نسبة تحويل العملاء غير محسوبة في هذا العرض.'} التوقيت: {data.range.timezone}. حالات الاهتمام والتأهيل تعكس آخر حالة مسجلة.</p>
-    {spendOverview}
     <section className="cr-metrics" aria-label="نتائج أودير">
       <Card title={filters.mode==='cohort'?'العملاء الفريدون':'عملاء لديهم حركة تحصيل'} value={n(total.leads)}/>
       <Card title="عملاء بدفع مؤكد من التسجيل" value={n(total.payers)}/>
@@ -48,6 +47,7 @@ export default function CampaignRevenueReport({slug,data,filters,meta,navigation
       <Card title="بانتظار التوزيع" value={n(total.waiting)}/>
 
     </section>
+    {spendOverview}
     <div className="cr-priority"><b>{total.waiting?'أولوية المتابعة: توزيع العملاء':total.unreviewed?'أولوية القياس: مراجعة المصادر':'قراءة النتائج'}</b><p>{total.waiting?`${n(total.waiting)} عميلًا ينتظر التوزيع؛ وزّعهم قبل تقييم جودة الحملات.`:total.unreviewed?`${n(total.unreviewed)} مصدرًا يحتاج مراجعة قبل مقارنة تكلفة الحملة بالتحصيل.`:'قارن الحملات بعد اكتمال الإنفاق والمطابقة. العائد على الإنفاق يقيس التحصيل، ولا يمثل صافي الربح.'}</p></div>
     <CampaignRecommendations slug={slug} platform="overview" filters={filters} available={aiAvailable}/>
     {!data.canReadMoney?<p className="cr-note">تفاصيل التحصيل تحتاج صلاحية تقارير الحسابات.</p>:null}

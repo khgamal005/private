@@ -172,17 +172,40 @@ export default function PlatformAddonConsole({initialData,section='addons'}){
     event.preventDefault();
     setBusy('price');setError('');setNotice('');
     const values=Object.fromEntries(new FormData(event.currentTarget).entries());
+    const item=modal.item;
     try{
-      await platformAction('set_annual_price',{
-        productKey:modal.item.key,
-        amountMinor:Math.round(Number(values.amount||0)*100),
-        currency:values.currency,
-        validFrom:values.valid_from,
-        taxRateBps:1500,
-        reason:values.reason
-      });
+      if(item.independent){
+        const pricingMode=values.pricing_mode==='free'?'free':'fixed';
+        const monthlyAmountMinor=pricingMode==='free'
+          ?0
+          :Math.round(Number(values.monthly_amount||0)*100);
+        await platformAction('set_independent_price',{
+          productId:item.id,
+          expectedOfferId:item.price?.offerId||null,
+          expectedMonthlyAmountMinor:Number.isSafeInteger(item.monthlyAmountMinor)
+            ?item.monthlyAmountMinor:null,
+          expectedAnnualAmountMinor:Number.isSafeInteger(item.annualAmountMinor)
+            ?item.annualAmountMinor:null,
+          pricingMode,
+          monthlyAmountMinor,
+          confirmed:true,
+          reason:values.reason
+        });
+        setNotice(pricingMode==='free'
+          ?'أصبحت الإضافة مجانية وتُفعّل مباشرة دون إنشاء طلب دفع.'
+          :'تم حفظ السعر الشهري والسنوي الجديد دون إعادة تسعير أي طلب سابق.');
+      }else{
+        await platformAction('set_annual_price',{
+          productKey:item.key,
+          amountMinor:Math.round(Number(values.amount||0)*100),
+          currency:values.currency,
+          validFrom:values.valid_from,
+          taxRateBps:1500,
+          reason:values.reason
+        });
+        setNotice('تمت إضافة نسخة سعر سنوية جديدة دون تغيير الأسعار التاريخية.');
+      }
       setModal(null);
-      setNotice('تمت إضافة نسخة سعر سنوية جديدة دون تغيير الأسعار التاريخية.');
       router.refresh();
     }catch(err){setError(err.message)}finally{setBusy('')}
   }
@@ -419,7 +442,13 @@ function Catalog({rows,onEdit,onPrice,onCategory}){
       return <article key={item.id||item.key}>
         <div><b>{item.name}</b><small>{item.key}</small></div>
         <div><b>{item.categoryName||'غير مصنفة'}</b><small>{item.surfaces?.length||0} موضع ظهور</small></div>
-        <div>{item.independent?<><b>{money(item.monthlyAmountMinor,price.currency)} / شهر</b><small>{money(item.annualAmountMinor,price.currency)} / سنة</small></>:<><b>{money(price.amountMinor,price.currency)}</b><small>من {formatDate(price.validFrom)}</small></>}</div>
+        <div>{item.independent
+          ?item.pricingConfigured===false
+            ?<><b>غير مسعّرة</b><small>اختر مجانية أو حدّد السعر</small></>
+            :item.pricingMode==='free'&&item.monthlyAmountMinor===0
+              ?<><b>مجانية</b><small>تفعيل فوري دون دفع</small></>
+              :<><b>{money(item.monthlyAmountMinor,price.currency)} / شهر</b><small>{money(item.annualAmountMinor,price.currency)} / سنة</small></>
+          :<><b>{money(price.amountMinor,price.currency)}</b><small>من {formatDate(price.validFrom)}</small></>}</div>
         <div><b>{item.manifest?.version||'—'}</b><span className={`${styles.storeState} ${marketplaceVisible?styles.storeVisible:styles.storeHidden}`}>{marketplaceVisible?'ظاهرة في المتجر':'مخفية من المتجر'}</span><small>{activeMedia} صور معتمدة · {item.media?.length||0} خانات</small></div>
         <Status value={item.manifest?.status||item.status}/>
         <div className={styles.actions}><button type="button" className={styles.manage} onClick={()=>onEdit(item)}>إدارة</button><button type="button" onClick={()=>onCategory(item)}>تصنيف</button><button type="button" onClick={()=>onPrice(item)}>تسعير</button></div>
@@ -724,8 +753,30 @@ function PaymobControlModal({action,busy,onClose,onSubmit}){
 }
 
 function PriceModal({item,busy,onClose,onSubmit}){
+  const initialFree=item.pricingMode==='free'
+    ||(item.pricingConfigured!==false&&item.monthlyAmountMinor===0);
+  const [pricingMode,setPricingMode]=useState(initialFree?'free':'fixed');
+  const [monthlyAmount,setMonthlyAmount]=useState(
+    item.pricingConfigured===false?'':String((Number(item.monthlyAmountMinor)||0)/100)
+  );
   if(item.componentOnly)return <Modal title={item.name} onClose={onClose}><p>مكون تشغيلي داخل الإضافة التي تحتاجه، وليس اشتراكًا منفصلًا للبيع.</p><button type="button" onClick={onClose}>إغلاق</button></Modal>;
-  if(item.independent)return <Modal title={`أسعار ${item.name}`} onClose={onClose}><div className={styles.form}><p>ترخيص مستقل، بلا مستويات أو حزم. السعر ثابت لجميع نسخ أودير.</p><p><b>{money(item.monthlyAmountMinor,item.currency)} شهريًا</b></p><p><b>{money(item.annualAmountMinor,item.currency)} سنويًا</b> — 12 شهرًا بسعر 10، قبل الضريبة.</p><p>هذه أسعار النسخة التجارية المعتمدة. لا يعدّل محرر السعر السنوي القديم هذه النسخة، ولا يعيد تسعير أي طلب سابق.</p><button type="button" onClick={onClose}>إغلاق</button></div></Modal>;
+  if(item.independent){
+    const monthlyMinor=pricingMode==='free'
+      ?0
+      :Math.max(0,Math.round(Number(monthlyAmount||0)*100));
+    return <Modal title={`تسعير ${item.name}`} onClose={onClose}><form onSubmit={onSubmit} className={styles.form}>
+      <aside className={styles.safety}>السعر الجديد يطبق على الطلبات الجديدة فقط. الطلبات والمدفوعات والتراخيص السابقة لا يعاد تسعيرها.</aside>
+      <label>نوع التسعير<select name="pricing_mode" value={pricingMode} onChange={event=>setPricingMode(event.target.value)}>
+        <option value="fixed">مدفوعة</option><option value="free">مجانية</option>
+      </select></label>
+      <label>السعر الشهري بالريال<input name="monthly_amount" type="number" min="0.01" step="0.01" value={pricingMode==='free'?'0':monthlyAmount} onChange={event=>setMonthlyAmount(event.target.value)} disabled={pricingMode==='free'} required={pricingMode==='fixed'}/></label>
+      <label>السعر السنوي المحسوب<input value={(monthlyMinor*10/100).toFixed(2)} readOnly dir="ltr"/><small>12 شهرًا بسعر 10 أشهر.</small></label>
+      <label>العملة<input value="SAR" readOnly dir="ltr"/></label>
+      <label className={styles.wide}>سبب التغيير<input name="reason" minLength="3" maxLength="500" placeholder="مثال: إطلاق الإضافة مجانًا" required/></label>
+      {pricingMode==='free'&&<aside className={styles.safety}>ستظهر الإضافة «مجانية» ويستخدم العميل التفعيل الفوري؛ لن ينشئ أودير طلبًا أو محاولة دفع بقيمة صفر.</aside>}
+      <footer><button type="button" onClick={onClose}>إلغاء</button><button className={styles.primary} disabled={busy==='price'||(pricingMode==='fixed'&&monthlyMinor<1)}>{busy==='price'?'جارٍ الحفظ…':'حفظ التسعير'}</button></footer>
+    </form></Modal>;
+  }
   return <Modal title={`تسعير ${item.name}`} onClose={onClose}><form onSubmit={onSubmit} className={styles.form}>
     <label>السعر السنوي بالريال<input name="amount" type="number" min="1" step="1" defaultValue={(Number(item.price?.amountMinor)||0)/100} required/></label>
     <label>العملة<select name="currency" defaultValue={item.price?.currency||'SAR'}><option>SAR</option><option>USD</option></select></label>

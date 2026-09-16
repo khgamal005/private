@@ -86,6 +86,7 @@ export interface TrainingHandoff { id: string; contactId: string; contactName: s
 export interface TrainingOperationEnrollment { id: string; handoffId?: string; studentId: string; studentName: string; studentEmail?: string; courseId: string; courseTitle: string; courseRunId?: string; runTitle?: string; status: string; financial?: TrainingFinance }
 export interface TrainingRequest { id: string; enrollmentId: string; kind: 'transfer' | 'defer' | 'withdraw' | 'access_exception' | 'resume'; status: string; reason: string; assignedStaffId?: string; dueAt?: string; targetRunId?: string }
 export interface TrainingOperationsSnapshot {
+  offset?: number; pageSize?: number; hasMore?: boolean;
   enabled: boolean; settings: { graceDays: number; timezone: string };
   handoffs: TrainingHandoff[]; enrollments: TrainingOperationEnrollment[];
   invoices: Array<{ id: string; number: string; customerAccountId: string; customerName: string; totalMinor: number; currency: string }>;

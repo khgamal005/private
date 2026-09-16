@@ -176,6 +176,41 @@ test('employee credentials cannot receive training session without learner autho
   assert.equal(response.status,403);assert.equal(h.cookieWrites.length,0);
 });
 
+test('instructor login authorizes exactly the instructor snapshot and returns a fixed role-aware destination',async()=>{
+  const h=authRouteHarness({upstream:[{data:SESSION}]});
+  const response=await h.request('login',{email:'instructor@example.test',password:PASSWORD,role:'instructor',next:'https://evil.example/steal'});
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{success:true,next:'/training/marktone?role=instructor'});
+  assert.deepEqual(h.rpcCalls,[['v1_training_learning_snapshot',{p_tenant_slug:'marktone',p_role:'instructor'},{token:SESSION.access_token}]]);
+  assert.equal(h.cookieWrites.length,2);
+});
+
+test('denied instructor login cannot silently fall back to a learner snapshot or establish a session',async()=>{
+  const h=authRouteHarness({upstream:[{data:SESSION}],rpcError:requestHelpers.trainingProblem('forbidden',403)});
+  const response=await h.request('login',{email:'instructor@example.test',password:PASSWORD,role:'instructor'});
+  assert.equal(response.status,403);
+  assert.deepEqual(h.rpcCalls,[['v1_training_learning_snapshot',{p_tenant_slug:'marktone',p_role:'instructor'},{token:SESSION.access_token}]]);
+  assert.equal(h.cookieWrites.length,0);
+});
+
+test('unsupported login roles are rejected before password grants or authorization calls',async()=>{
+  for(const role of ['manager','admin','platform_owner','Instructor','instructor&role=manager',{},['instructor'],true]){
+    const h=authRouteHarness();
+    const response=await h.request('login',{email:'instructor@example.test',password:PASSWORD,role});
+    assert.equal(response.status,400,JSON.stringify(role));
+    assert.equal(h.calls.length,0);assert.equal(h.rpcCalls.length,0);assert.equal(h.cookieWrites.length,0);
+  }
+});
+
+test('learner invitations cannot be promoted to instructor through register, login or accept',async()=>{
+  for(const action of ['register','login','accept']){
+    const h=authRouteHarness({cookieToken:'real-authenticated-user'});
+    const response=await h.request(action,{email:'instructor@example.test',password:PASSWORD,token:TOKEN,commandId:CLAIM,role:'instructor'});
+    assert.equal(response.status,400,action);
+    assert.equal(h.calls.length,0);assert.equal(h.rpcCalls.length,0);assert.equal(h.cookieWrites.length,0);
+  }
+});
+
 test('authenticated invitation acceptance hashes bearer token and does not change session identity',async()=>{
   const h=authRouteHarness({cookieToken:'real-authenticated-user'});
   const response=await h.request('accept',{token:TOKEN,commandId:CLAIM});

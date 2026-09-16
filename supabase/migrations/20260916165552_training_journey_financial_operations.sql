@@ -52,9 +52,13 @@ create table academy.training_journey_commands (
   action text not null,
   request_hash text not null,
   response jsonb,
+  transaction_id bigint not null default txid_current(),
+  auto_handoff_id uuid references academy.registration_handoffs(id),
+  auto_run_id uuid references academy.course_runs(id),
   created_at timestamptz not null default now(),
   primary key (tenant_id,command_id)
 );
+create index training_journey_auto_claim_idx on academy.training_journey_commands(tenant_id,auto_handoff_id,transaction_id) where auto_handoff_id is not null;
 
 create table academy.training_journey_requests (
   id uuid primary key default gen_random_uuid(),
@@ -313,6 +317,16 @@ begin
  perform 1 from academy.registration_handoffs where tenant_id=p_tenant_id and id=p_handoff_id for update;
 end $$;
 
+create function private_app.training_journey_auto_admission_authorized_v1(p_tenant_id uuid,p_handoff_id uuid) returns boolean
+language sql stable security definer set search_path='' as $$
+ select private_app.training_journey_payment_authorized_v1(p_tenant_id) and exists(
+  select 1 from academy.training_journey_commands cmd join academy.registration_handoffs h
+   on h.tenant_id=cmd.tenant_id and h.id=cmd.auto_handoff_id and h.course_run_id=cmd.auto_run_id
+  where cmd.tenant_id=p_tenant_id and cmd.auto_handoff_id=p_handoff_id and cmd.transaction_id=txid_current()
+   and cmd.actor_subject_id=private_app.current_subject_id() and cmd.action='operations.verify_payment'
+   and cmd.response is null and h.payment_status='verified')
+$$;
+
 create function private_app.training_journey_request_v1(p_tenant_id uuid,p_enrollment_id uuid,p_kind text,p_reason text,
  p_target_run_id uuid default null,p_staff_id uuid default null,p_due_at timestamptz default null) returns jsonb
 language plpgsql security definer set search_path='' as $$
@@ -356,7 +370,7 @@ declare t uuid; actor uuid:=private_app.current_subject_id(); command uuid; resu
  h academy.registration_handoffs%rowtype; e academy.enrollments%rowtype; d accounting_core.sales_documents%rowtype;
  p accounting_core.payments%rowtype; l academy.training_financial_links%rowtype; req academy.training_journey_requests%rowtype;
  run academy.course_runs%rowtype; new_h uuid; new_e uuid; amount bigint; allocated bigint; remaining bigint; staff uuid;
- can_manage boolean; can_verify boolean; learner boolean:=false; row_record record; affected integer:=0; tz text;
+ can_manage boolean; can_verify boolean; learner boolean:=false; row_record record; affected integer:=0; tz text; assignment_issue text; auto_result jsonb;
 begin
  if auth.uid() is null or actor is null then raise exception 'authentication_required' using errcode='42501'; end if;
  if jsonb_typeof(p_payload)<>'object' then raise exception 'training_payload_invalid'; end if;
@@ -455,6 +469,28 @@ begin
   end if;
   result:=jsonb_build_object('handoffId',h.id,'paymentId',p.id,'financial',f,'paymentStatus',h.payment_status,
    'paymentVerified',p.id is not null,'admissionReady',coalesce((f->>'trainingAllowed')::boolean,false));
+  if p.id is not null and h.payment_status='verified' and h.course_run_id is not null and h.status<>'completed'
+    and coalesce((f->>'trainingAllowed')::boolean,false) then
+   -- A persisted command receipt authorizes exactly this actor, transaction, handoff and already
+   -- selected run. No session flag or impersonated role can manufacture this capability.
+   update academy.training_journey_commands set auto_handoff_id=h.id,auto_run_id=h.course_run_id where tenant_id=t and command_id=command;
+   begin
+    auto_result:=public.v2_tenant_update_admission(p_slug,h.id,'complete');
+    select id into new_e from academy.enrollments where tenant_id=t and handoff_id=h.id;
+    if new_e is not null and to_regprocedure('private_app.training_learning_pin_latest_v1(uuid,uuid)') is not null then
+     execute 'select private_app.training_learning_pin_latest_v1($1,$2)' into new_h using t,new_e;
+    end if;
+    result:=result||jsonb_build_object('autoAssigned',true,'enrollmentId',new_e,'learningReady',new_h is not null,'contentVersionId',new_h);
+    h.status:='completed';
+   exception when others then
+    assignment_issue:=case when sqlstate='23505' then 'already_registered'
+     when sqlerrm in ('course_run_full','course_run_not_open','course_run_registration_not_started','course_run_registration_closed',
+      'invalid_course_run','documents_incomplete','payment_not_verified','training_financial_clearance_required') then sqlerrm
+     else 'admission_review_required' end;
+    result:=result||jsonb_build_object('autoAssigned',false,'assignmentIssue',assignment_issue);
+   end;
+   update academy.training_journey_commands set auto_handoff_id=null,auto_run_id=null where tenant_id=t and command_id=command;
+  end if;
   if coalesce((f->>'trainingAllowed')::boolean,false) and h.status='completed' then
    update work_core.tasks set status='completed',completed_at=now() where tenant_id=t and task_key='training-clearance-'||h.id::text and status in ('todo','in_progress');
   end if;
@@ -497,6 +533,8 @@ begin
   if coalesce(p_payload->>'decision','') not in ('approve','reject') or length(btrim(coalesce(p_payload->>'reason','')))<3 then raise exception 'training_decision_invalid'; end if;
   select * into e from academy.enrollments where tenant_id=t and id=req.enrollment_id for update;
   if p_payload->>'decision'='approve' then
+   if e.status not in ('confirmed','active') or exists(select 1 from academy.certificates where tenant_id=t and enrollment_id=e.id and status='issued')
+   then raise exception 'training_completed_enrollment_change_requires_review'; end if;
    if req.kind='access_exception' then
     if not private_app.has_accounting_permission(t,'tenant.accounting.payments.approve') then raise exception 'training_access_exception_forbidden'; end if;
     if nullif(p_payload->>'exceptionUntil','') is null or (p_payload->>'exceptionUntil')::timestamptz<=now() or (p_payload->>'exceptionUntil')::timestamptz>now()+interval '90 days' then raise exception 'training_exception_expiry_invalid'; end if;
@@ -684,7 +722,9 @@ begin
   if not (private_app.has_tenant_permission(v_tenant_id, 'tenant.admissions.write')
     or (p_action = 'verify_payment'
       and private_app.training_journey_payment_authorized_v1(v_tenant_id)
-      and exists(select 1 from academy.training_financial_links where tenant_id=v_tenant_id and handoff_id=p_handoff_id)))
+      and exists(select 1 from academy.training_financial_links where tenant_id=v_tenant_id and handoff_id=p_handoff_id))
+    or (p_action='complete' and p_course_id is null and p_course_run_id is null
+      and private_app.training_journey_auto_admission_authorized_v1(v_tenant_id,p_handoff_id)))
   then raise exception 'forbidden'; end if;
   if p_action not in (
     'start_review',
@@ -745,7 +785,8 @@ begin
   end if;
 
   if v_handoff.status in ('completed', 'cancelled')
-     and p_action <> 'save_details' then
+     and p_action <> 'save_details'
+     and not (v_handoff.status='completed' and p_action='verify_payment' and private_app.training_journey_credit_authorized_v1(v_handoff.id)) then
     raise exception 'admission_closed';
   end if;
 
@@ -788,7 +829,7 @@ begin
     end if;
 
     update academy.registration_handoffs
-    set status = 'in_review',
+    set status = case when status='completed' and private_app.training_journey_credit_authorized_v1(id) then 'completed' else 'in_review' end,
         payment_status = 'verified',
         payment_verified_at = now(),
         payment_verified_by_subject_id = v_subject_id,
@@ -1305,7 +1346,7 @@ AS $function$
 declare t uuid; contact uuid;
 begin
  select id into t from core.tenants where slug=p_tenant_slug;
- if private_app.current_subject_id() is null or t is null or not (private_app.has_tenant_permission(t,'tenant.admissions.write') or (p_action='verify_payment' and private_app.training_journey_payment_authorized_v1(t) and exists(select 1 from academy.training_financial_links where tenant_id=t and handoff_id=p_handoff_id)))
+ if private_app.current_subject_id() is null or t is null or not (private_app.has_tenant_permission(t,'tenant.admissions.write') or (p_action='verify_payment' and private_app.training_journey_payment_authorized_v1(t) and exists(select 1 from academy.training_financial_links where tenant_id=t and handoff_id=p_handoff_id)) or (p_action='complete' and p_course_id is null and p_course_run_id is null and private_app.training_journey_auto_admission_authorized_v1(t,p_handoff_id)))
   then raise exception 'forbidden';end if;
  select contact_id into contact from academy.registration_handoffs where tenant_id=t and id=p_handoff_id;
  if contact is null then raise exception 'admission_not_found';end if;
@@ -1340,6 +1381,29 @@ create trigger training_journey_requests_validate before insert or update on aca
 create trigger training_journey_events_append_only before update or delete on academy.training_journey_events
  for each row execute function private_app.accounting_append_only();
 
+create function private_app.training_journey_prevent_duplicate_cash_v1() returns trigger
+language plpgsql security definer set search_path='' as $$
+declare source_handoff uuid;
+begin
+ if new.source_type='registration_handoff' then
+  begin source_handoff:=new.source_id::uuid; exception when invalid_text_representation then return new; end;
+  if exists(select 1 from academy.training_financial_links l where l.tenant_id=new.tenant_id and l.handoff_id=source_handoff)
+   then raise exception 'payment_source_already_imported'; end if;
+ end if;
+ return new;
+end $$;
+create trigger training_journey_no_duplicate_handoff_cash before insert on accounting_core.payments
+ for each row execute function private_app.training_journey_prevent_duplicate_cash_v1();
+
+create function public.v1_training_journey_navigation(p_slug text) returns jsonb
+language sql stable security definer set search_path='' as $$
+ select jsonb_build_object('enabled',exists(select 1 from core.tenants t
+  join academy.training_journey_settings cfg on cfg.tenant_id=t.id and cfg.enabled
+  where t.id='3d185482-b916-49cc-b868-b6dfdb93eba8'::uuid and t.slug='marktone' and t.slug=p_slug
+  and t.status in ('trial','active') and auth.uid() is not null
+  and private_app.has_tenant_permission(t.id,'tenant.academy.read') and private_app.tenant_addon_enabled(t.id,'lms')))
+$$;
+
 do $$
 declare f record;
 begin
@@ -1351,4 +1415,6 @@ revoke all on function public.v1_tenant_training_journey_action(text,text,jsonb)
 revoke all on function public.v1_tenant_training_journey_snapshot(text,integer) from public,anon;
 grant execute on function public.v1_tenant_training_journey_action(text,text,jsonb) to authenticated;
 grant execute on function public.v1_tenant_training_journey_snapshot(text,integer) to authenticated;
+revoke all on function public.v1_training_journey_navigation(text) from public,anon;
+grant execute on function public.v1_training_journey_navigation(text) to authenticated;
 commit;

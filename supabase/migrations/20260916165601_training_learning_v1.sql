@@ -129,7 +129,8 @@ create trigger training_unit_insert_guard before insert on academy.training_unit
 create function private_app.training_enrollment_version_guard_v1() returns trigger language plpgsql set search_path='' as $$
 begin
  if tg_op<>'INSERT' then raise exception 'training_enrollment_version_immutable';end if;
- if not exists(select 1 from academy.enrollments e join academy.training_course_versions v on v.tenant_id=e.tenant_id and v.course_id=e.course_id join academy.course_runs r on r.tenant_id=e.tenant_id and r.id=e.course_run_id where (coalesce(r.metadata->>'trainingJourneySelfpaced','false')<>'true' or v.learning_mode='self_paced') and e.tenant_id=new.tenant_id and e.id=new.enrollment_id and v.id=new.version_id and v.status='published') then raise exception 'training_version_course_mismatch';end if;return new;
+ if not exists(select 1 from academy.enrollments e join academy.training_course_versions v on v.tenant_id=e.tenant_id and v.course_id=e.course_id where e.tenant_id=new.tenant_id and e.id=new.enrollment_id and v.id=new.version_id and v.status='published') then raise exception 'training_version_course_mismatch';end if;
+ if exists(select 1 from academy.enrollments e join academy.course_runs r on r.tenant_id=e.tenant_id and r.id=e.course_run_id join academy.training_course_versions v on v.tenant_id=e.tenant_id and v.id=new.version_id where e.tenant_id=new.tenant_id and e.id=new.enrollment_id and r.metadata->>'trainingJourneySelfpaced'='true' and v.learning_mode<>'self_paced') then raise exception 'training_learning_mode_mismatch';end if;return new;
 end $$;
 create trigger training_enrollment_version_guard before insert or update or delete on academy.training_enrollment_versions for each row execute function private_app.training_enrollment_version_guard_v1();
 

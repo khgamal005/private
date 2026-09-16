@@ -18,6 +18,7 @@ test('independent add-on pricing accepts a first-class free offer without zero-v
   assert.match(migration,/annual_amount_minor\s*=\s*v_annual/);
   assert.match(migration,/pricing_mode\s*=\s*v_mode/);
   assert.match(tenantStore,/action\('activate_free_addon'/);
+  assert.match(tenantStore,/google_ads_connect:'reports\/google-ads'/);
   assert.doesNotMatch(tenantStore,/create_order[\s\S]{0,400}pricingMode==='free'/);
 });
 

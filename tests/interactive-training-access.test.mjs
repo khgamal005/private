@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import vm from 'node:vm';
 import ts from 'typescript';
+import {isTrainingJourneyView,TRAINING_JOURNEY_VIEWS,trainingJourneyHref} from '../lib/training-navigation.mjs';
 import {
   INTERACTIVE_TRAINING_PILOT,
   INTERACTIVE_TRAINING_VIEWS,
@@ -118,6 +119,7 @@ function routeHarness(path,input,{addonError,journeyEnabled=false}={}){
   const localRequire=name=>{
     if(name==='next/navigation')return {notFound(){throw new Error('not-found');}};
     if(name.endsWith('/interactive-training-workspace'))return {__esModule:true,default:Native};
+    if(name.endsWith('/training-navigation.mjs'))return {isTrainingJourneyView,TRAINING_JOURNEY_VIEWS,trainingJourneyHref};
     if(name.endsWith('/training-journey-workspace'))return {__esModule:true,default:Journey};
     if(name.endsWith('/training-snapshot'))return {getTrainingSnapshot:async()=>({operations:{enabled:journeyEnabled}})};
     if(name.endsWith('/lms-workspace'))return {__esModule:true,default:Legacy};
@@ -165,7 +167,7 @@ test('server routes enforce the authenticated pilot and preserve the existing li
 });
 
 test('enabled persistent journey replaces demo screens only after authenticated pilot and server rollout checks',async()=>{
-  for(const view of INTERACTIVE_TRAINING_VIEWS){
+  for(const view of TRAINING_JOURNEY_VIEWS){
     const route=routeHarness('app/tenant/[slug]/lms/[view]/page.js',fixture(),{journeyEnabled:true});
     const result=await route.page({params:Promise.resolve({slug:'marktone',view:view.key})});
     assert.equal(result.type,route.Journey);

@@ -10,6 +10,7 @@ import NotificationCenter from './notification-center';
 import {WORKSPACE_KINDS} from '../lib/workspaces';
 import {tenantRolePolicy} from '../lib/tenant-role-policy';
 import {INTERACTIVE_TRAINING_VIEWS,interactiveTrainingHref} from '../lib/interactive-training-access.mjs';
+import {TRAINING_JOURNEY_VIEWS,trainingJourneyHref} from '../lib/training-navigation.mjs';
 
 const OdeiryAssistant=dynamic(()=>import('./odeiry-assistant'),{ssr:false});
 
@@ -85,10 +86,10 @@ function tenantItems(
     {key:'courses',label:'الدبلومات والدورات',href:`${base}/courses`,permission:'tenant.academy.read'},
     interactiveTraining?.enabled===true
       ?{key:'interactive',label:'منصة التدريب التفاعلي',visible:hasAddon('lms'),children:
-        INTERACTIVE_TRAINING_VIEWS.map(view=>({
+        (interactiveTraining.operational?TRAINING_JOURNEY_VIEWS:INTERACTIVE_TRAINING_VIEWS).map(view=>({
           key:view.icon,
           label:view.label,
-          href:interactiveTrainingHref(slug,view.key),
+          href:interactiveTraining.operational?trainingJourneyHref(slug,view.key):interactiveTrainingHref(slug,view.key),
           permission:'tenant.academy.read'
         }))}
       :{key:'interactive',label:'منصة التدريب التفاعلي',href:`${base}/lms`,permission:'tenant.academy.read',visible:policy.showInteractiveTraining&&hasAddon('lms')},

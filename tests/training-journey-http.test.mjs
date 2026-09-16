@@ -23,7 +23,7 @@ function harness(path,stubs){
 }
 function route(){
   const calls=[];
-  const module=harness('app/api/training/[action]/route.js',{
+  const routeModule=harness('app/api/training/[action]/route.js',{
     '/training-request.mjs':policy,
     '/training-server':{
       trainingJson:(body,status=200)=>({body,status}),
@@ -32,7 +32,7 @@ function route(){
     },
     '/training-snapshot':{getTrainingSnapshot:async(...args)=>{calls.push(['snapshot',...args]);return {role:args[1].role};}}
   });
-  return {...module,calls};
+  return {...routeModule,calls};
 }
 
 test('training mutations reject missing/cross-site origins and unsupported payloads before any RPC',async()=>{

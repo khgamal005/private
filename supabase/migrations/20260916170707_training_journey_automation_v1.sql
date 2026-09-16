@@ -99,7 +99,11 @@ begin
  -- Cursor scans bounded source slices. Financial calculations occur only inside this batch.
  for row_record in
   select * from (
-   (select 'f:'||l.handoff_id::text candidate,'finance' kind,l.handoff_id resource_id from academy.training_financial_links l
+   (select 'c:'||en.id::text candidate,'content' kind,en.id resource_id from academy.enrollments en
+     join academy.training_financial_links l on l.tenant_id=en.tenant_id and l.handoff_id=en.handoff_id
+     where en.tenant_id=t and (cursor_key is null or cursor_key<'c:' or (left(cursor_key,2)='c:' and en.id>substring(cursor_key from 3)::uuid)) order by en.id limit batch_size)
+   union all
+   (select 'f:'||l.handoff_id::text,'finance',l.handoff_id from academy.training_financial_links l
      where l.tenant_id=t and (cursor_key is null or cursor_key<'f:' or (left(cursor_key,2)='f:' and l.handoff_id>substring(cursor_key from 3)::uuid)) order by l.handoff_id limit batch_size)
    union all
    (select 'g:'||s.id::text,'grading',s.id from academy.training_submissions s
@@ -111,7 +115,19 @@ begin
  loop
   checked:=checked+1; cursor_key:=row_record.candidate; resource:=row_record.resource_id;
   staff:=null; contact:=null; handoff:=null; active:=false; due:=null; milestone:='resolved'; title:='متابعة التدريب';
-  if row_record.kind='finance' then
+  if row_record.kind='content' then
+   select * into e from academy.enrollments where tenant_id=t and id=resource;
+   select * into h from academy.registration_handoffs where tenant_id=t and id=e.handoff_id;
+   key:='training-content-'||e.id::text;handoff:=h.id;contact:=h.contact_id;
+   active:=e.status in ('confirmed','active') and not exists(
+    select 1 from academy.training_enrollment_versions ev
+    join academy.training_course_versions v on v.tenant_id=ev.tenant_id and v.id=ev.version_id and v.course_id=e.course_id and v.status='published'
+    where ev.tenant_id=t and ev.enrollment_id=e.id);
+   if active then
+    staff:=cfg.automation_admissions_staff_id;title:='استكمال ربط المحتوى التدريبي';milestone:='content_version_required';
+    due:=(((e.enrolled_at at time zone tz)::date+cfg.automation_assignment_due_days)+time '17:00') at time zone tz;
+   end if;
+  elsif row_record.kind='finance' then
    select * into h from academy.registration_handoffs where tenant_id=t and id=resource;
    select * into e from academy.enrollments where tenant_id=t and handoff_id=h.id;
    financial:=case when e.id is null then private_app.training_journey_handoff_finance_v1(h.id) else private_app.training_journey_financial_access_v1(e.id) end;

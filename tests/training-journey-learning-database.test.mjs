@@ -110,12 +110,14 @@ test('published course → invited learner → scored work → authorized grade 
   });
   await t.test('certificate persists canonical evidence and does not create another enrollment',async()=>{
     await login(db,ADMIN_AUTH);const command=id(sequence++),payload={enrollmentId:ENROLLMENT};
+    const pending=await call(db,'public.v1_tenant_training_journey_action',{p_slug:'marktone',p_action:'create_request',p_payload:{commandId:id(sequence++),enrollmentId:ENROLLMENT,kind:'defer',reason:'Pending request before graduation'}});
     const issued=await action(db,'issue_certificate',payload,command);
     assert.deepEqual(await action(db,'issue_certificate',payload,command),issued);
     assert.equal(await count(db,'academy.certificates'),1);assert.equal(await count(db,'academy.enrollments'),1);
     const c=(await db.query('select * from academy.certificates')).rows[0];
     assert.equal(c.id,issued.certificateId);assert.equal(c.metadata.trainingJourneyEvidence.versionId,versionId);
     assert.equal((await db.query('select status from academy.enrollments')).rows[0].status,'completed');
+    await assert.rejects(call(db,'public.v1_tenant_training_journey_action',{p_slug:'marktone',p_action:'decide_request',p_payload:{commandId:id(sequence++),requestId:pending.requestId,decision:'approve',reason:'Stale approval after graduation'}}),/training_completed_enrollment_change_requires_review/);
   });
   await t.test('published versions and enrolled version pins are immutable',async()=>{
     await assert.rejects(db.query("update academy.training_units set body='Changed after publication' where id=$1",[lesson.id]),/training_published_version_immutable/);
@@ -235,7 +237,8 @@ test('hidden self-paced delivery cannot be pinned to a live or blended content v
   await db.query("update academy.course_runs set metadata='{"+'"trainingJourneySelfpaced":true,"hiddenDeliveryRun":true'+"}' where id=$1",[RUN]);
   const versionId=(await action(db,'save_draft',{...draft,learningMode:'live'})).versionId;
   await action(db,'publish_version',{versionId,humanReviewed:true});
-  await assert.rejects(action(db,'assign_version',{enrollmentId:ENROLLMENT,versionId}),/training_.*mode|training_.*self.*paced/);
+  await assert.rejects(action(db,'assign_version',{enrollmentId:ENROLLMENT,versionId}),/training_learning_mode_mismatch/);
+  assert.equal(await call(db,'private_app.training_learning_pin_latest_v1',{p_tenant_id:T,p_enrollment_id:ENROLLMENT}),null);
   assert.equal(await count(db,'academy.training_enrollment_versions'),0);
 });
 

@@ -65,7 +65,8 @@ const ADDON_LINKS={
   zid:'integrations',
   shopify:'integrations',
   custom_store:'integrations',
-  lms:'lms'
+  lms:'lms',
+  google_ads_connect:'reports/google-ads'
 };
 
 function money(amountMinor,currency='SAR'){

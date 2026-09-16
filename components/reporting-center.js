@@ -305,7 +305,7 @@ function EmployeeHero({employee,summary}){
   </section>;
 }
 
-export default function ReportingCenter({data,slug,view='overview',range,analytics}){
+export default function ReportingCenter({data,slug,view='overview',range,analytics,campaignNavigation=null}){
   const summary=data?.summary||{};
   const selectedEmployee=data?.selectedEmployee||null;
   const availability=data?.availability||{};
@@ -328,6 +328,7 @@ export default function ReportingCenter({data,slug,view='overview',range,analyti
       <PeriodFilter range={range} analytics={analytics} exportPayload={exportPayload}/>
     </section>
     <ReportTabs slug={slug} view={view==='employee'?'employees':view} range={range} availability={availability} personalOnly={personalOnly}/>
+    {view==='campaigns'?campaignNavigation:null}
     {view==='employee'&&<EmployeeHero employee={selectedEmployee} summary={summary}/>}
     <MetricGrid items={metricsFor(view,summary)} canExport={canExport} exportPayload={exportPayload}/>
 

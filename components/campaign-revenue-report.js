@@ -12,7 +12,7 @@ const statuses={new:'جديد',interested:'مهتم',very_interested:'مهتم �
 const errors={source_changed_refresh_preview:'تغيّرت بيانات هذه المجموعة. حدّث المعاينة ثم راجع الربط.',command_id_reused:'تعذر إعادة استخدام طلب الربط. حدّث المعاينة.',ad_not_found:'رقم الإعلان لا ينتمي إلى الحملة المختارة.',campaign_not_found:'الحملة غير متاحة لهذه المنشأة.',forbidden:'ليست لديك صلاحية مراجعة المصادر.',session_expired:'انتهت الجلسة. سجّل الدخول مجددًا.'};
 const api='/api/tenant/campaign-revenue';
 
-export default function CampaignRevenueReport({slug,data,filters,meta,children}){
+export default function CampaignRevenueReport({slug,data,filters,meta,navigation=null,children}){
   const group=filters.group;
   const groups=data.groups||[];
   const total=data.summary||{};
@@ -23,6 +23,7 @@ export default function CampaignRevenueReport({slug,data,filters,meta,children})
     <header className="cr-heading"><div><small>من الإعلان إلى التسجيل</small><h1>تحليل الإعلانات والمبيعات</h1>
       <p>التحويل يعتمد على تأكيد وصول الدفع لدى التسجيل. نتائج Meta معروضة بمصدرها.</p></div>
       <a className="cr-button" href={exportUrl}>تصدير نتائج الفلاتر</a></header>
+    {navigation}
     <form className="cr-filters" method="get">
       <label>نوع الفترة<select name="mode" defaultValue={filters.mode}><option value="cohort">العملاء الذين وصلوا خلال الفترة</option><option value="cash">التحصيل خلال الفترة</option></select></label>
       <label>من<input type="date" name="from" defaultValue={filters.dateFrom} required max={filters.today}/></label>

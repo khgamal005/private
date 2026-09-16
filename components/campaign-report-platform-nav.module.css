@@ -1,0 +1,48 @@
+.hub{
+  margin:18px 0 22px;
+  padding:18px;
+  border:1px solid #dbe5ee;
+  border-radius:18px;
+  background:linear-gradient(135deg,#fff 0%,#f7fbff 100%);
+  box-shadow:0 10px 28px rgba(19,53,84,.06);
+}
+.heading{display:flex;align-items:end;justify-content:space-between;gap:18px;margin-bottom:14px}
+.heading h2{margin:2px 0 0;font-size:20px;color:#0b3557}
+.heading>p{margin:0;max-width:520px;color:#5d7182;font-size:14px}
+.eyebrow{margin:0;color:#087d71;font-size:12px;font-weight:800}
+.grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.card,.active,.upcoming{
+  min-height:112px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  padding:14px;
+  border:1px solid #dce7ef;
+  border-radius:14px;
+  background:#fff;
+  color:#18364d;
+  text-decoration:none;
+  transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.card:hover{border-color:#69a8c9;box-shadow:0 8px 20px rgba(17,76,111,.1);transform:translateY(-1px)}
+.active{border:2px solid #087d71;background:#effbf8;box-shadow:0 8px 20px rgba(8,125,113,.1)}
+.upcoming{background:#f7f9fb;color:#71808c;cursor:not-allowed}
+.cardTop{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.cardTop strong{font-size:15px}
+.cardTop small{padding:3px 7px;border-radius:999px;background:#eaf2f7;color:#42657d;font-size:10px;white-space:nowrap}
+.active .cardTop small{background:#d5f2eb;color:#07665e}
+.description{font-size:12px;line-height:1.55;color:#657888}
+.platformPage{max-width:1240px;margin:0 auto;padding:24px 20px 48px;direction:rtl}
+.platformHeading h1{margin:0;color:#0b3557}
+.platformHeading p{margin:7px 0 0;color:#637889}
+.platformPanel{margin-top:16px;padding:18px;border:1px solid #dbe5ee;border-radius:16px;background:#fff}
+.platformPanel summary{cursor:pointer;font-weight:800;color:#123f60}
+@media(max-width:1100px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:720px){
+  .hub{padding:14px}
+  .heading{align-items:start;flex-direction:column}
+  .grid{display:flex;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x proximity}
+  .card,.active,.upcoming{min-width:230px;scroll-snap-align:start}
+  .platformPage{padding:18px 12px 36px}
+}
+@media(prefers-reduced-motion:reduce){.card{transition:none}}

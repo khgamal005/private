@@ -32,4 +32,8 @@ test('Google Kit report heading uses the new product name without changing the G
  assert.match(source,/إضافة Google Kit/);
  assert.match(source,/المصدر: Google Ads/);
  assert.doesNotMatch(source,/إضافة إعلانات جوجل/);
+ const ga4=await readFile('components/google-ga4-report.js','utf8');
+ assert.match(ga4,/ضمن إضافة Google Kit/);
+ assert.match(ga4,/اشتراك Google Kit/);
+ assert.doesNotMatch(ga4,/إضافة إعلانات جوجل|اشتراك إضافة جوجل/);
 });

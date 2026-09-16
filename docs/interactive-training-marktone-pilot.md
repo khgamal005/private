@@ -43,3 +43,7 @@ Rollback the application commit to restore the previous native LMS screen. If a 
 ## Verification
 
 Targeted checks cover tenant identity spoofing, missing entitlement, inactive/missing membership, conflicting UUIDs, route whitelist, permissions and role-preview revocation; mounted React tests cover the learner-to-instructor completion flow and storage isolation. Existing add-on navigation and admissions/LMS boundary tests are retained. Full repository lint/typecheck/test/migration/build gates run on the PR before release.
+# Historical prototype scope
+
+This document records the initial interactive preview release. The subsequent persistent operating journey is specified in [training-journey-engineering-gate.md](training-journey-engineering-gate.md); its database and authorization behavior differs from the local-only prototype described below.
+

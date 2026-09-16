@@ -3,12 +3,13 @@ import {
   getTenantDashboardLive,
   getTenantYeastarAccess
 } from '../../../lib/api';
-import {requireTenant} from '../../../lib/server-auth';
+import {requireTenant,authRpc} from '../../../lib/server-auth';
 import {optionalServerRead} from '../../../lib/server-resilience';
 import {getTenantSupport} from '../../../lib/support-api';
 import {navigationPolicyRoleKey} from '../../../lib/tenant-role-policy';
 import {getTenantOdeirySnapshot} from '../../../lib/odeiry-api';
 import {interactiveTrainingAccess} from '../../../lib/interactive-training-access.mjs';
+import {trainingOperationsAccess} from '../../../lib/training-navigation.mjs';
 import WorkspaceShell from '../../../components/workspace-shell';
 import MyRoleGuide from '../../../components/my-role-guide';
 
@@ -85,6 +86,20 @@ export default async function TenantLayout({children,params}){
   const guideRoleKey=roleKey==='admissions_officer'?'customer_service':roleKey;
   const navigationRoleKey=navigationPolicyRoleKey(permissions,{platformAccess:Boolean(context.platformAccess)});
   const interactiveTraining=interactiveTrainingAccess({slug,context,addonAccess});
+  const trainingOperations=trainingOperationsAccess({slug,context,addonAccess});
+  if(trainingOperations.enabled){
+    const journey=await optionalServerRead('tenant-shell-training-navigation',
+      ()=>authRpc('v1_training_journey_navigation',{p_slug:slug},{timeoutMs:8000,redirectForbidden:false}),
+      {enabled:false});
+    if(journey?.enabled===true){
+      interactiveTraining.enabled=true;
+      interactiveTraining.operational=true;
+      interactiveTraining.operationalViews=trainingOperations.views;
+      interactiveTraining.canPreviewRoles=interactiveTraining.canPreviewRoles===true;
+      interactiveTraining.tenantId=trainingOperations.tenantId;
+      interactiveTraining.subjectId=trainingOperations.subjectId;
+    }
+  }
 
   return <WorkspaceShell
     kind="tenant"

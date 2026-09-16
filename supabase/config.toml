@@ -43,6 +43,11 @@ verify_jwt = false
 # The one-time invitation token is the custom bearer credential for activation.
 verify_jwt = false
 
+[functions.training-invitation-activation]
+# Exact pilot and expiring single-use hashed invitation authorize account creation;
+# acceptance runs with the new learner's real JWT and never grants staff access.
+verify_jwt = false
+
 [functions.platform-invitation-activation]
 # The one-time platform invitation token is validated by a narrow preview RPC.
 verify_jwt = false

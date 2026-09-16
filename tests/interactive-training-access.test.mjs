@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import vm from 'node:vm';
 import ts from 'typescript';
+import {isTrainingJourneyView,TRAINING_JOURNEY_VIEWS,trainingJourneyHref} from '../lib/training-navigation.mjs';
 import {
   INTERACTIVE_TRAINING_PILOT,
   INTERACTIVE_TRAINING_VIEWS,
@@ -109,15 +110,18 @@ test('direct child routes accept exactly the registered views and build tenant-l
 });
 
 const require=createRequire(import.meta.url);
-function routeHarness(path,input,{addonError}={}){
+function routeHarness(path,input,{addonError,journeyEnabled=false}={}){
   const context={...input.context,addonAccess:input.addonAccess};
-  const calls=[],Native=()=>null,Legacy=()=>null;
+  const calls=[],Native=()=>null,Legacy=()=>null,Journey=()=>null;
   const exports={};
   const source=readFileSync(new URL('../'+path,import.meta.url),'utf8');
   const output=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;
   const localRequire=name=>{
     if(name==='next/navigation')return {notFound(){throw new Error('not-found');}};
     if(name.endsWith('/interactive-training-workspace'))return {__esModule:true,default:Native};
+    if(name.endsWith('/training-navigation.mjs'))return {isTrainingJourneyView,TRAINING_JOURNEY_VIEWS,trainingJourneyHref};
+    if(name.endsWith('/training-journey-workspace'))return {__esModule:true,default:Journey};
+    if(name.endsWith('/training-snapshot'))return {getTrainingSnapshot:async()=>({operations:{enabled:journeyEnabled}})};
     if(name.endsWith('/lms-workspace'))return {__esModule:true,default:Legacy};
     if(name.endsWith('/interactive-training-access.mjs'))return {INTERACTIVE_TRAINING_PILOT,interactiveTrainingAccess,isInteractiveTrainingView};
     if(name.endsWith('/server-auth'))return {requireTenantAddon:async(...args)=>{calls.push(['requireTenantAddon',...args]);if(addonError)throw addonError;return context;}};
@@ -125,7 +129,7 @@ function routeHarness(path,input,{addonError}={}){
     return require(name);
   };
   vm.runInThisContext(`(function(require,module,exports){${output}\n})`,{filename:path})(localRequire,{exports},exports);
-  return {page:exports.default,calls,Native,Legacy};
+  return {page:exports.default,calls,Native,Legacy,Journey};
 }
 
 test('direct server routes reject unknown paths and other tenants before add-on data is accessed',async()=>{
@@ -160,4 +164,16 @@ test('server routes enforce the authenticated pilot and preserve the existing li
     await assert.rejects(route.page({params:Promise.resolve({slug:'marktone',view:'courses'})}),/addon_required/);
     assert.equal(route.calls.some(call=>call[0]==='getTenantLms'),false,'entitlement denial cannot fall back to another workspace');
   }
+});
+
+test('enabled persistent journey replaces demo screens only after authenticated pilot and server rollout checks',async()=>{
+  for(const view of TRAINING_JOURNEY_VIEWS){
+    const route=routeHarness('app/tenant/[slug]/lms/[view]/page.js',fixture(),{journeyEnabled:true});
+    const result=await route.page({params:Promise.resolve({slug:'marktone',view:view.key})});
+    assert.equal(result.type,route.Journey);
+    assert.equal(result.props.initialView,view.key);
+    assert.equal(result.props.initialData.operations.enabled,true);
+  }
+  const root=routeHarness('app/tenant/[slug]/lms/page.js',fixture(),{journeyEnabled:true});
+  assert.equal((await root.page({params:Promise.resolve({slug:'marktone'})})).type,root.Journey);
 });

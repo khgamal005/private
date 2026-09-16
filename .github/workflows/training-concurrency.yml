@@ -1,0 +1,52 @@
+name: Training transaction concurrency
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/training-concurrency.yml'
+      - 'supabase/migrations/*training*'
+      - 'tests/training-journey-*.test.mjs'
+      - 'tests/fixtures/training-journey-*'
+      - 'lib/training-*'
+      - 'app/api/training/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: training_ci
+          POSTGRES_PASSWORD: training_ci_password
+          POSTGRES_DB: training_concurrency
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U training_ci -d training_concurrency"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # Synthetic credentials for this disposable local service only. No secrets.
+      TRAINING_TEST_DATABASE_URL: postgres://training_ci:training_ci_password@127.0.0.1:5432/training_concurrency
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Install isolated PostgreSQL test driver
+        run: npm install --no-save --package-lock=false --ignore-scripts pg@8.16.3
+      - name: Verify dependency manifests remain unchanged
+        run: git diff --exit-code -- package.json package-lock.json
+      - name: Exercise real concurrent transactions
+        run: node --test tests/training-journey-concurrency.test.mjs

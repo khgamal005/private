@@ -17,8 +17,8 @@ export const call = async (db, name, args = {}) => {
 export const login = (db, authId = ADMIN_AUTH) => db.query("select set_config('fixture.auth_user_id',$1,false)", [authId || '']);
 export const count = async (db, table) => (await db.query(`select count(*)::int n from ${table}`)).rows[0].n;
 
-export async function setup({ learning = false } = {}) {
-  const db = new PGlite({ extensions: { pgcrypto } });
+export async function setup({ learning = false, database = null } = {}) {
+  const db = database ?? new PGlite({ extensions: { pgcrypto } });
   try {
     await db.exec(await read('./training-journey-live-schema.sql'));
     await db.exec(`create function auth.jwt() returns jsonb language sql stable as $$

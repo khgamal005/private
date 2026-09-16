@@ -32,7 +32,11 @@ function isProtected(pathname){
     ||pathname.startsWith('/api/woocommerce')
     ||pathname.startsWith('/api/commerce')
     ||pathname.startsWith('/api/marketing')
-    ||pathname.startsWith('/api/accounting');
+    ||pathname.startsWith('/api/accounting')
+    ||pathname==='/training/marktone'
+    ||pathname.startsWith('/training/marktone/')
+    ||pathname.startsWith('/api/training/')
+    ||pathname==='/api/training-auth/accept';
 }
 
 function refreshedResponse(req,session,currentRefresh){
@@ -96,7 +100,7 @@ export async function proxy(req){
     );
   }
   const loginUrl=req.nextUrl.clone();
-  loginUrl.pathname='/login';
+  loginUrl.pathname=pathname.startsWith('/training/')?'/training/login':'/login';
   loginUrl.search='';
   loginUrl.searchParams.set('next',`${pathname}${req.nextUrl.search}`);
   return NextResponse.redirect(loginUrl);
@@ -113,6 +117,9 @@ export const config={
     '/api/woocommerce/:path*',
     '/api/commerce/:path*',
     '/api/marketing/:path*',
-    '/api/accounting/:path*'
+    '/api/accounting/:path*',
+    '/training/marktone/:path*',
+    '/api/training/:path*',
+    '/api/training-auth/accept'
   ]
 };

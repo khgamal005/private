@@ -1,5 +1,7 @@
 import {notFound} from 'next/navigation';
 import InteractiveTrainingWorkspace from '../../../../../components/interactive-training-workspace';
+import TrainingJourneyWorkspace from '../../../../../components/training-journey-workspace';
+import {getTrainingSnapshot} from '../../../../../lib/training-snapshot';
 import {requireTenantAddon} from '../../../../../lib/server-auth';
 import {INTERACTIVE_TRAINING_PILOT,interactiveTrainingAccess,isInteractiveTrainingView} from '../../../../../lib/interactive-training-access.mjs';
 
@@ -13,6 +15,8 @@ export default async function InteractiveTrainingViewPage({params}){
   });
   const access=interactiveTrainingAccess({slug,context,addonAccess:context.addonAccess});
   if(!access.enabled)notFound();
+  const journey=await getTrainingSnapshot(slug,{role:'manager'});
+  if(journey.operations?.enabled)return <TrainingJourneyWorkspace slug={slug} initialData={journey} initialView={view}/>;
   return <InteractiveTrainingWorkspace
     slug={slug}
     tenantId={access.tenantId}

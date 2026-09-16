@@ -1,5 +1,7 @@
 import LmsWorkspace from '../../../../components/lms-workspace';
 import InteractiveTrainingWorkspace from '../../../../components/interactive-training-workspace';
+import TrainingJourneyWorkspace from '../../../../components/training-journey-workspace';
+import {getTrainingSnapshot} from '../../../../lib/training-snapshot';
 import {getTenantLms} from '../../../../lib/api';
 import {requireTenantAddon} from '../../../../lib/server-auth';
 import {interactiveTrainingAccess} from '../../../../lib/interactive-training-access.mjs';
@@ -12,6 +14,10 @@ export default async function LmsPage({params}){
     permission:'tenant.academy.read'
   });
   const access=interactiveTrainingAccess({slug,context,addonAccess:context.addonAccess});
+  if(access.enabled){
+    const journey=await getTrainingSnapshot(slug,{role:'manager'});
+    if(journey.operations?.enabled)return <TrainingJourneyWorkspace slug={slug} initialData={journey}/>;
+  }
   if(access.enabled)return <InteractiveTrainingWorkspace
     slug={slug}
     tenantId={access.tenantId}

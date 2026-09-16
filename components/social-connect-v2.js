@@ -56,7 +56,7 @@ function initialFeedback(outcome,reason){
 }
 
 export default function SocialConnectV2({
-  slug,initialData,initialReport,reportFilters,canManage,outcome,reason,display='all',hideFilters=false
+  slug,initialData,initialReport,reportFilters,canManage,outcome,reason,display='all',hideFilters=false,recommendations=null
 }){
   const router=useRouter();
   const data=initialData||{};
@@ -224,8 +224,9 @@ export default function SocialConnectV2({
           </article>)}</div>}
     </section>:null}
 
+    {!selected&&display==='performance'?<div className="scv2-panel"><h2>ابدأ باختيار الحساب الإعلاني</h2><p>يظهر التقرير بعد ربط الحساب ومزامنة بياناته.</p><Link href={`/tenant/${encodeURIComponent(slug)}/addons/social-connect`}>إعدادات Meta</Link></div>:null}
     {selected&&display!=='connection'?<>
-      {hideFilters?<form className="scv2-filters" method="get">
+      {hideFilters?<form className="scv2-filters" method="get"><input type="hidden" name="platform" value="meta"/>
         {Object.entries({from:filters.dateFrom,to:filters.dateTo,asOf:filters.asOf,mode:filters.mode,campaign:filters.campaign,staff:filters.staff,course:filters.course,q:filters.search}).map(([name,value])=><input type="hidden" key={name} name={name} value={value||''}/>)}
         <label>بحث داخل إعلانات Meta<input name="metaQ" defaultValue={filters.metaSearch}/></label>
         <label>حالة إعلان Meta<select name="status" defaultValue={filters.status}><option value="all">الكل</option><option value="active">نشط</option><option value="paused">متوقف</option><option value="other">أخرى</option></select></label>
@@ -240,7 +241,7 @@ export default function SocialConnectV2({
           <QuickRange slug={slug} filters={filters} days={30} label="آخر 30 يومًا"/>
           <QuickRange slug={slug} filters={filters} days={90} label="آخر 90 يومًا"/>
         </nav>
-        <form className="scv2-filters" method="get">
+        <form className="scv2-filters" method="get"><input type="hidden" name="platform" value="meta"/>
           <label><span>من تاريخ</span><input type="date" name="from" required
             defaultValue={filters.dateFrom} max={filters.today}/></label>
           <label><span>إلى تاريخ</span><input type="date" name="to" required
@@ -259,29 +260,32 @@ export default function SocialConnectV2({
           </select></label>
           <div className="scv2-filter-actions">
             <button className="scv2-primary" type="submit">تطبيق الفلاتر</button>
-            <Link href={`/tenant/${encodeURIComponent(slug)}/reports/campaigns`}>مسح</Link>
+            <Link href={`/tenant/${encodeURIComponent(slug)}/reports/campaigns?platform=meta`}>مسح</Link>
           </div>
         </form>
         <div className="scv2-range-actions">
           <p>النتائج المعروضة من <b>{formatDay(range.from)}</b> إلى <b>{formatDay(range.to)}</b>.</p>
           {canManage&&data.syncEnabled?<button className="scv2-secondary" disabled={Boolean(busy)||needsReauthorization}
-            onClick={()=>action('sync',syncRange)}>{busy==='sync'?'جارٍ تحميل الفترة…':'تحميل/تحديث هذه الفترة من Meta'}</button>:null}
+            onClick={()=>action('sync',syncRange)}>{busy==='sync'?'جارٍ تحميل الفترة…':'مزامنة سريعة'}</button>:null}
         </div>
         {report.metricRows===0?<p className="scv2-empty scv2-empty-warning">
-          لا توجد نتائج مخزنة لهذه الفترة. اضغط «تحميل/تحديث هذه الفترة من Meta» لجلب بياناتها، أو اختر فترة شهدت إنفاقًا فعليًا.
+          لا توجد نتائج مخزنة لهذه الفترة. اضغط «مزامنة سريعة» لجلب بياناتها، أو اختر فترة شهدت إنفاقًا فعليًا.
         </p>:null}
       </section>:null}
 
-      <section className="scv2-metrics" aria-label="ملخص الفترة المختارة">
-        <Metric label="الإنفاق" value={formatMoney(summary.spendMinor,currency)}/>
-        <Metric label="مرات الظهور" value={formatNumber(summary.impressions)}/>
-        <Metric label="الوصول الفريد للفترة" value="غير قابل للجمع اليومي"/>
-        <Metric label="النقرات" value={formatNumber(summary.clicks)}/>
-        <Metric label="CTR" value={summary.ctr==null?'—':`${formatNumber(summary.ctr)}%`}/>
+      <section className="scv2-metrics scv2-executive" aria-label="ملخص الفترة المختارة">
+        <Metric label="الإنفاق الإعلاني" value={formatMoney(summary.spendMinor,currency)}/>
         <Metric label="نتائج Meta" value={formatNumber(summary.platformConversions)}/>
-        <Metric label="تكلفة النتيجة" value={summary.cpaMinor==null?'—':formatMoney(summary.cpaMinor,currency)}/>
-        <Metric label="قيمة النتائج وفق Meta" value={formatMoney(summary.platformRevenueMinor,currency)}/>
+        <Metric label="تكلفة النتيجة لدى Meta" value={summary.cpaMinor==null?'—':formatMoney(summary.cpaMinor,currency)}/>
+        <Metric label="النقرات" value={formatNumber(summary.clicks)}/>
       </section>
+      <p className="scv2-measurement-note">نتائج Meta حسب إعدادات التحويل في المنصة، وليست عدد الطلاب بدفع مؤكد. راجع التقرير العام لنتائج سجلات أودير.</p>
+      {recommendations}
+      <details className="scv2-panel"><summary>مؤشرات الوصول والتفاعل</summary><div className="scv2-metrics">
+        <Metric label="مرات الظهور" value={formatNumber(summary.impressions)}/>
+        <Metric label="نسبة النقر CTR" value={summary.ctr==null?'—':`${formatNumber(summary.ctr)}%`}/>
+        <Metric label="قيمة النتائج وفق Meta" value={formatMoney(summary.platformRevenueMinor,currency)}/>
+      </div><p>الوصول الفريد لا يُجمع عبر الأيام.</p></details>
 
       <section className="scv2-panel">
         <header><div><small>قراءة سريعة للفترة</small><h2>التحليل</h2></div>
@@ -315,7 +319,7 @@ export default function SocialConnectV2({
           </tr>)}</tbody></table></div>}
       </section>
 
-      <section className="scv2-panel">
+      <details className="scv2-panel"><summary>تفاصيل الإعلانات</summary>
         <header><div><small>الإعلانات الداخلية</small><h2>أداء كل إعلان</h2></div>
           <span>{formatNumber(filterMeta.totalAds)} إعلان مطابق</span></header>
         {ads.length===0?<p className="scv2-empty">لا توجد إعلانات مطابقة. غيّر البحث أو الفلاتر، ثم حدّث الفترة عند الحاجة.</p>
@@ -331,7 +335,7 @@ export default function SocialConnectV2({
             <td>{ad.cpaMinor==null?'—':formatMoney(ad.cpaMinor,ad.currency)}</td>
           </tr>)}</tbody></table></div>}
         <Pagination slug={slug} filters={filters} current={filterMeta.page} total={filterMeta.totalPages}/>
-      </section>
+      </details>
     </>:null}
   </section>;
 }
@@ -413,3 +417,4 @@ function formatDate(value){
     dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Riyadh'
   }).format(date);
 }
+

@@ -64,11 +64,9 @@ function metricsFor(view,summary){
   ];
   if(view==='campaigns')return [
     metric('عملاء الحملات',number(summary.leadsCreated),'داخل الفترة المختارة','blue'),
-    metric('حملات وإعلانات',number(summary.campaignCount),'مصادر قابلة للقياس','purple'),
     metric('مدفوعات مؤكدة',number(summary.paidContacts),'من عملاء الفترة بعد التحقق','green'),
     metric('قيمة المبيعات',moneyMinor(revenue),'منسوبة للمصدر والحملة','green'),
-    metric('التحويل العام',percent(summary.conversionRate),'من العميل إلى الدفع','cyan'),
-    metric('اكتمال البيانات',percent(summary.dataCompletenessRate),'الحقول الأساسية للعملاء','amber')
+    metric('التحويل العام',percent(summary.conversionRate),'من العميل إلى الدفع','cyan')
   ];
   return [
     metric('العملاء المسندون',number(summary.leadsAssigned),'عملاء فريدون تم إسنادهم خلال الفترة بغض النظر عن نتيجتهم اللاحقة','blue'),
@@ -305,7 +303,7 @@ function EmployeeHero({employee,summary}){
   </section>;
 }
 
-export default function ReportingCenter({data,slug,view='overview',range,analytics,campaignNavigation=null}){
+export default function ReportingCenter({data,slug,view='overview',range,analytics,campaignNavigation=null,campaignSpendOverview=null,campaignRecommendations=null}){
   const summary=data?.summary||{};
   const selectedEmployee=data?.selectedEmployee||null;
   const availability=data?.availability||{};
@@ -319,18 +317,20 @@ export default function ReportingCenter({data,slug,view='overview',range,analyti
     to:range.to,
     staffId:view==='employee'?(selectedEmployee?.staffId||range.staffId):range.staffId
   };
-  const title=view==='employees'?'أداء الموظفين':view==='employee'?`تقرير ${selectedEmployee?.name||'الموظف'}`:view==='sales'?'تقارير المبيعات':view==='campaigns'?'تقارير الحملات':'لوحة التقارير';
+  const title=view==='employees'?'أداء الموظفين':view==='employee'?`تقرير ${selectedEmployee?.name||'الموظف'}`:view==='sales'?'تقارير المبيعات':view==='campaigns'?'الملخص التنفيذي للحملات':'لوحة التقارير';
   const description=view==='employee'?'قراءة موحّدة للمبيعات والمهام والمكالمات والمتابعة وجودة استكمال البيانات.':'حوّل الفترة المختارة إلى مؤشرات قابلة للفهم ثم افتح التفاصيل حتى السجل الأصلي.';
 
-  return <div className={styles.workspace}>
+  return <div className={`${styles.workspace} ${view==='campaigns'?styles.campaignWorkspace:''}`}>
     <section className={styles.hero}>
       <div><span>التقارير والتحليلات</span><h1>{title}</h1><p>{description}</p></div>
       <PeriodFilter range={range} analytics={analytics} exportPayload={exportPayload}/>
     </section>
-    <ReportTabs slug={slug} view={view==='employee'?'employees':view} range={range} availability={availability} personalOnly={personalOnly}/>
+    {view!=='campaigns'?<ReportTabs slug={slug} view={view==='employee'?'employees':view} range={range} availability={availability} personalOnly={personalOnly}/>:null}
     {view==='campaigns'?campaignNavigation:null}
+    {view==='campaigns'?campaignSpendOverview:null}
     {view==='employee'&&<EmployeeHero employee={selectedEmployee} summary={summary}/>}
     <MetricGrid items={metricsFor(view,summary)} canExport={canExport} exportPayload={exportPayload}/>
+    {view==='campaigns'?campaignRecommendations:null}
 
     {view==='overview'&&<>
       <ReportDirectory slug={slug} range={range} data={data}/>
@@ -357,9 +357,9 @@ export default function ReportingCenter({data,slug,view='overview',range,analyti
     </>}
 
     {view==='campaigns'&&<>
-      <section className={styles.twoColumns}><Breakdown eyebrow="مصادر العملاء" title="حجم العملاء حسب المصدر" items={data.sources||[]} labelKey="source" valueKey="leads"/><Breakdown eyebrow="جودة التحويل" title="المبيعات حسب المصدر" items={data.sources||[]} labelKey="source" valueKey="paidContacts"/></section>
       <CampaignTable campaigns={data.campaigns||[]} canExport={canExport} exportPayload={exportPayload}/>
-      <div className={styles.dataNote}><b>حدود القياس الحالية</b><p>الأرقام تنسب العميل والمبيعات إلى المصدر والحملة والإعلان المسجلين داخل CRM. تكلفة الإعلان وROAS ستظهران بعد ربط Meta وGoogle والمنصات الإعلانية، ولن يتم تقديرهما افتراضيًا.</p></div>
+      <details className={styles.campaignDetails}><summary>تفاصيل توزيع العملاء والتحويل حسب المصدر</summary><section className={styles.twoColumns}><Breakdown eyebrow="مصادر العملاء" title="حجم العملاء حسب المصدر" items={data.sources||[]} labelKey="source" valueKey="leads"/><Breakdown eyebrow="جودة التحويل" title="المبيعات حسب المصدر" items={data.sources||[]} labelKey="source" valueKey="paidContacts"/></section></details>
+      <div className={styles.dataNote}><b>حدود القياس الحالية</b><p>الأرقام تنسب العميل والمبيعات إلى المصدر والحملة والإعلان المسجلين داخل CRM. ملخص إنفاق المنصات يظهر أعلى التقرير عند توفره. مقارنة التكلفة بالتحصيل تحتاج ربط المصادر ومزامنة الفترة؛ لا تُقدّر الأرقام غير المتاحة.</p></div>
     </>}
   </div>;
 }
@@ -367,3 +367,4 @@ export default function ReportingCenter({data,slug,view='overview',range,analyti
 export function ReportsUnavailable({message}){
   return <div className={styles.unavailable}><span>!</span><h2>تعذر تحميل مركز التقارير</h2><p>{message||'أعد المحاولة بعد قليل، وإن استمرت المشكلة راجع صلاحية التقارير أو اكتمال تحديث قاعدة البيانات.'}</p></div>;
 }
+

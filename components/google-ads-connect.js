@@ -11,6 +11,7 @@ import {
 import styles from './google-ads-connect.module.css';
 import GoogleGA4Report from './google-ga4-report';
 import CampaignReportPlatformNav from './campaign-report-platform-nav';
+import CampaignRecommendations from './campaign-recommendations';
 
 const formatDate=(value,timezone)=>{
   if(!value)return 'لم تتم المزامنة بعد';
@@ -114,8 +115,10 @@ function SourceReview({slug,canManage,initialCampaigns,onSaved}){
   </section>;
 }
 
-export default function GoogleAdsConnect({slug,initialData,initialReport,filters,outcome,reason,unavailable=false}){
+export default function GoogleAdsConnect({slug,initialData,initialReport,filters,outcome,reason,unavailable=false,display='report',aiAvailable=false}){
   const router=useRouter();
+  const settings=display==='settings';
+  const settingsHref=`/tenant/${encodeURIComponent(slug)}/addons/google-kit`;
   const data=initialData||{};
   const report=initialReport||{};
   const selected=data.selectedAccount;
@@ -139,13 +142,13 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
   const metric=(value,options={})=>formatGoogleMetric(value,{currency,...options});
 
   useEffect(()=>{
-    if(!canManage||!connected||selected||data.accounts?.length)return;
+    if(!settings||!canManage||!connected||selected||data.accounts?.length)return;
     const controller=new AbortController();
     requestGoogleAction({name:'assets',slug,signal:controller.signal})
       .then(result=>setAccounts(result.accounts||[]))
       .catch(error=>{if(error.name!=='AbortError')setFeedback({error:true,message:googleErrorMessage(error.message)});});
     return ()=>controller.abort();
-  },[canManage,connected,selected,data.accounts?.length,slug]);
+  },[settings,canManage,connected,selected,data.accounts?.length,slug]);
 
   async function action(name,payload={}){
     if(!canManage||busy)return;
@@ -190,16 +193,16 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
   return <section className={styles.page} dir="rtl">
     <header className={styles.hero}>
       <div className={styles.heroTitle}><span className={styles.provider}><Image src="/integrations/google-ads-color.svg" alt="" width={36} height={36}/></span>
-        <div><span className={styles.eyebrow}>تقارير التسويق</span><h1 dir="ltr">Google Kit</h1><p>إعلانات جوجل وGA4 ومطابقة الطلبات بالتحصيل الفعلي داخل أودير.</p></div>
+        <div><span className={styles.eyebrow}>{settings?'إعدادات الإضافة':'تقارير الحملات'}</span><h1>{settings?'إعدادات Google Kit':'تقرير Google'}</h1><p>{settings?'إدارة ربط Google Ads وGoogle Analytics والمزامنة.':'الإنفاق، والعملاء، والتحصيل المؤكد؛ ثم تفاصيل الحملات والمتجر.'}</p></div>
       </div>
-      <Link className={styles.heroLink} href={`/tenant/${encodeURIComponent(slug)}/reports`}>كل التقارير <span aria-hidden="true">←</span></Link>
+      <Link className={styles.heroLink} href={settings?googleReportHref(slug,filters):settingsHref}>{settings?'عرض التقرير':'إعدادات الإضافة'} <span aria-hidden="true">←</span></Link>
     </header>
-    <CampaignReportPlatformNav slug={slug} active="google" from={filters.dateFrom} to={filters.dateTo}/>
+    {!settings?<CampaignReportPlatformNav slug={slug} active="google" from={filters.dateFrom} to={filters.dateTo}/>:null}
     <Feedback feedback={feedback}/>
     {enabled&&reportingOnly?<p className={styles.note}>تجربة ريف: قراءة تقارير جوجل فقط، دون تعديل الحملات أو العملاء أو التسجيلات أو المدفوعات. مطابقة مصادر العملاء متوقفة في هذه المرحلة.</p>:null}
     {unavailable?<p className={`${styles.feedback} ${styles.error}`} role="alert">تعذر تحميل التقرير حاليًا. حاول تحديث الصفحة بعد قليل.</p>:null}
-    {!enabled?unavailable?null:<section className={styles.panel}><h2>الربط غير متاح حاليًا</h2><p>تواصل مع إدارة المنصة لتفعيل إضافة Google Kit لهذه المنشأة.</p></section>:<>
-      <section className={styles.connection} aria-busy={Boolean(busy)}>
+    {!enabled?unavailable?null:<section className={styles.panel}><h2>Google Kit غير متاح لهذه المنشأة</h2><p>راجع حالة التفعيل في متجر الإضافات.</p><Link className={styles.secondary} href={`/tenant/${encodeURIComponent(slug)}/addons-store`}>فتح متجر الإضافات</Link></section>:<>
+      {settings?<section className={styles.connection} aria-busy={Boolean(busy)}>
         <div className={styles.connectionMain}>
           <header className={styles.sectionHead}><div><span className={styles.eyebrow}>حساب الإعلانات</span><h2>{selected?.name||'اربط جوجل وابدأ التحليل'}</h2></div>
             <span className={`${styles.badge} ${connected?styles.connected:styles.pending}`}>{connected?'متصل':data.status==='reauth_required'?'يحتاج إعادة ربط':'غير متصل'}</span></header>
@@ -226,9 +229,9 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
           <li className={selected?styles.stepDone:''}><span>٢</span><div><b>اختيار حساب الإعلانات</b><small>حساب واحد لهذه المنشأة</small></div></li>
           <li className={data.sync?.lastSyncedAt?styles.stepDone:''}><span>٣</span><div><b>ظهور الحملات والنتائج</b><small>تبدأ المزامنة بعد الاختيار</small></div></li>
         </ol>
-      </section>
+      </section>:null}
 
-      {connected&&canManage&&(!selected||showAccounts)?<section className={styles.panel}>
+      {settings&&connected&&canManage&&(!selected||showAccounts)?<section className={styles.panel}>
         <header className={styles.sectionHead}><div><h2>اختر حساب الإعلانات</h2><p>تبدأ المزامنة الأولى بعد اختيار الحساب مباشرة.</p></div>
           <button type="button" className={styles.secondary} disabled={Boolean(busy)} onClick={()=>action('assets')}>تحديث الحسابات</button></header>
         {accounts===null?<p className={styles.empty}>جارٍ البحث عن حساباتك المتاحة…</p>:accounts.length?<div className={styles.accounts}>{accounts.map(account=><article key={account.customerId}>
@@ -237,7 +240,8 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
         </article>)}</div>:<p className={styles.empty}>لم تظهر حسابات إعلانية متاحة. تأكد من وصول حساب جوجل إلى الحساب المطلوب، ثم حدّث القائمة.</p>}
       </section>:null}
 
-      <section className={styles.panel}>
+      {!settings?<section className={styles.panel}>
+        <div className={styles.sectionHead}><p className={styles.note}>آخر مزامنة Google Ads: {formatDate(data.sync?.lastSyncedAt,selected?.timezone)}</p>{selected&&connected&&canManage?<button type="button" className={styles.secondary} disabled={Boolean(busy)} onClick={()=>action('sync',{dateFrom:filters.dateFrom,dateTo:filters.dateTo})}>{busy==='sync'?'جارٍ المزامنة…':'مزامنة سريعة'}</button>:null}</div>
         <form className={styles.filters} onSubmit={applyFilters} key={`${filters.dateFrom}:${filters.dateTo}:${filters.asOf}:${filters.search}`}>
           <label>من<input type="date" name="from" required max={filters.syncToday||filters.today} defaultValue={filters.dateFrom}/></label>
           <label>إلى<input type="date" name="to" required max={filters.syncToday||filters.today} defaultValue={filters.dateTo}/></label>
@@ -247,28 +251,31 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
         </form>
         <p className={styles.note}>الفترة تخص إنفاق الحملات والعملاء الذين وصلوا خلالها. تُتابع نتائجهم حتى {range.asOf||filters.asOf} وفق البيانات المتاحة.</p>
         {filters.rangeLimited?<p className={`${styles.feedback} ${styles.error}`} role="status">تم تحديد الفترة بآخر ٣١ يومًا من تاريخ النهاية. اختر فترة أقصر لعرض شهر آخر.</p>:null}
-      </section>
+      </section>:null}
 
-      {selected?<>
+      {!settings&&selected?<>
         <section aria-labelledby="google-performance-title">
-          <header className={styles.sectionHead}><div><span className={styles.eyebrow}>بيانات حساب الإعلانات</span><h2 id="google-performance-title">الأداء في جوجل</h2></div><span className={styles.badge}>المصدر: Google Ads</span></header>
+          <header className={styles.sectionHead}><div><span className={styles.eyebrow}>بيانات حساب الإعلانات</span><h2 id="google-performance-title">ملخص القرار</h2></div><span className={styles.badge}>Google Ads + سجلات أودير</span></header>
           <div className={styles.metrics}>
             <Metric label="الإنفاق الإعلاني" value={metric(summary.spendMinor,{money:true})} note={report.coverage?.spendComplete?'مزامنة مكتملة للفترة':'قد تكون بيانات الفترة غير مكتملة'} accent/>
-            <Metric label="النقرات" value={metric(summary.clicks)}/>
-            <Metric label="النتائج المسجلة لدى جوجل" value={metric(summary.googleConversions,{digits:2})} note="بحسب إعداد التحويلات في حساب جوجل"/>
-            <Metric label="الحملات في التقرير" value={metric(report.totalCampaigns)} note={filters.search?'وفق البحث الحالي':undefined}/>
+            <Metric label="عملاء أودير" value={metric(summary.manualLeads)} note="مصادر تمت مطابقتها يدويًا"/>
+            <Metric label="عملاء بدفع مؤكد" value={metric(summary.verifiedPayers)} note="بناءً على اعتماد الدفع في أودير"/>
+            <Metric label="صافي التحصيل" value={metric(summary.netCollectionsMinor,{money:true})} note="وفق المطابقة اليدوية والاستردادات"/>
           </div>
         </section>
+        <CampaignRecommendations slug={slug} platform="google" filters={filters} available={aiAvailable}/>
+        <details className={styles.panel}><summary>تفاصيل الوصول والتسجيل وجودة القياس</summary>
         <section aria-labelledby="google-odeir-title">
           <header className={styles.sectionHead}><div><span className={styles.eyebrow}>المصدر: سجلات أودير</span><h2 id="google-odeir-title">من العملاء إلى التسجيل والتحصيل</h2></div><span className={`${styles.badge} ${styles.manual}`}>مطابقة مصادر يدوية</span></header>
           <div className={styles.metrics}>
-            <Metric label="العملاء المرتبطون يدويًا" value={metric(summary.manualLeads)} note="بحسب المصادر التي تمت مراجعتها"/>
+            <Metric label="النقرات" value={metric(summary.clicks)} note="بحسب Google Ads"/>
             <Metric label="تسجيلات بدفع مؤكد" value={metric(summary.registrations)} note="قد يكون للعميل أكثر من تسجيل"/>
             <Metric label="عملاء بدفع مؤكد" value={metric(summary.verifiedPayers)} note="بعد اعتماد الدفع في أودير"/>
-            <Metric label="صافي التحصيل" value={metric(summary.netCollectionsMinor,{money:true})} note="وفق المبالغ المسجلة والاستردادات" accent/>
+            <Metric label="نتائج Google Ads" value={metric(summary.googleConversions,{digits:2})} note="حسب إعدادات التحويل؛ ليست طلابًا بالضرورة"/>
           </div>
           <p className={styles.note}>نتائج جوجل ونتائج أودير مقياسان منفصلان. ربط المصدر هنا يدوي بعد مراجعة ملفات العملاء؛ لا يمثل تتبعًا تلقائيًا لزيارات المتجر.</p>
         </section>
+        </details>
         <section className={styles.panel}>
           <header className={styles.sectionHead}><div><h2>ماذا حققت كل حملة؟</h2><p>تكلفة العميل الدافع والعائد يُحسبان عند اكتمال الإنفاق وتوافق الفترة والعملة.</p></div></header>
           {campaigns.length?<div className={styles.tableWrap}><table className={styles.table}>
@@ -295,10 +302,11 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
           <div className={styles.customerList}>{(report.details||[]).filter(row=>row.campaignId===detailsCampaign.campaignId).map(row=><div key={row.originKey}><b>{row.name||'عميل بدون اسم'}</b><span className={`${styles.badge} ${row.paid?styles.connected:styles.pending}`}>{row.paid?'دفع مؤكد':'لم يتأكد الدفع'}</span></div>)}</div>
           {!(report.details||[]).some(row=>row.campaignId===detailsCampaign.campaignId)?<p className={styles.empty}>لا تتوافر تفاصيل عملاء لهذه الحملة ضمن العينة الحالية.</p>:null}
         </section>:null}
-        <GoogleGA4Report key={`${slug}:${filters.dateFrom}:${filters.dateTo}:${filters.asOf}`} slug={slug} filters={filters} canManage={canManage} connected={connected}/>
-        {!reportingOnly?<SourceReview slug={slug} canManage={canManage} initialCampaigns={campaigns} onSaved={()=>router.refresh()}/>:null}
-      </>:<section className={styles.empty}><b>يبدأ التقرير بعد اختيار حساب الإعلانات</b><p>اربط جوجل، ثم اختر الحساب لعرض الحملات المتاحة.</p></section>}
+      </>:!settings?<section className={styles.empty}><b>لا يوجد حساب إعلانات محدد</b><p>اختر حساب Google Ads من إعدادات الإضافة لبدء عرض الحملات.</p><Link className={styles.secondary} href={settingsHref}>إعدادات Google Kit</Link></section>:null}
+      <GoogleGA4Report key={`${display}:${slug}:${filters.dateFrom}:${filters.dateTo}:${filters.asOf}`} slug={slug} filters={filters} canManage={canManage} connected={connected} display={display}/>
+      {settings&&!reportingOnly?<SourceReview slug={slug} canManage={canManage} initialCampaigns={campaigns} onSaved={()=>router.refresh()}/>:null}
     </>}
   </section>;
 }
+
 

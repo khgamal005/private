@@ -1,5 +1,6 @@
 import 'server-only';
 
+import {readCampaignDecisionReport} from '../../../../lib/campaign-report-insights.mjs';
 import {createHash} from 'node:crypto';
 import {NextResponse} from 'next/server';
 import {
@@ -154,7 +155,7 @@ export async function POST(request){
     }
 
     const {runOdeiryAgent}=await import('../../../../lib/odeiry-agent.js');
-    const approvedMemories=input.assistantMode==='manager_v1'
+    const approvedMemories=input.assistantMode==='manager_v1'&&!input.reportContext
       ?await supportRpc(
         token,
         'v1_tenant_odeiry_manager_memory_context',
@@ -168,7 +169,7 @@ export async function POST(request){
     const result=await runOdeiryAgent({
       message:input.message,
       context:input.context,
-      contextMessages:started.contextMessages,
+      contextMessages:input.reportContext?[]:started.contextMessages,
       assistantMode:input.assistantMode,
       approvedMemories,
       viewer,
@@ -182,6 +183,7 @@ export async function POST(request){
           p_limit:6
         }
       ),
+      readCampaignReport:input.reportContext?()=>readCampaignDecisionReport({rpc:(name,args)=>supportRpc(token,name,args),slug:input.slug,context:input.reportContext}):undefined,
       readManagerAnalytics:({period})=>supportRpc(
         token,
         'v1_tenant_odeiry_manager_analytics',
@@ -516,3 +518,4 @@ function persistableOutput(output){
     memoryProposals:[]
   };
 }
+

@@ -13,7 +13,7 @@ export const CAMPAIGN_REPORT_PLATFORMS=[
     key:'meta',
     label:'Meta',
     badge:'تفصيلي',
-    description:'ربط الحساب ومراجعة أداء حملات Facebook وInstagram.',
+    description:'أداء حملات Facebook وInstagram.',
     route:'campaigns',
     platform:'meta'
   },
@@ -55,9 +55,9 @@ export default function CampaignReportPlatformNav({slug,active='overview',from='
       <div className={styles.heading}>
         <div>
           <p className={styles.eyebrow}>مركز تقارير الحملات</p>
-          <h2 id="campaign-report-platforms-title">اختر مستوى التقرير</h2>
+          <h2 id="campaign-report-platforms-title">تقارير الحملات</h2>
         </div>
-        <p>ابدأ بالصورة العامة، ثم افتح المنصة المطلوبة للتفاصيل والربط.</p>
+        <p>الملخص أولًا، ثم تفاصيل كل منصة.</p>
       </div>
       <nav className={styles.grid} aria-label="منصات تقارير الحملات">
         {CAMPAIGN_REPORT_PLATFORMS.map(item=>{
@@ -71,7 +71,7 @@ export default function CampaignReportPlatformNav({slug,active='overview',from='
             </>
           );
           if(item.upcoming){
-            return <span key={item.key} className={styles.upcoming} aria-disabled="true">{content}</span>;
+            return <span key={item.key} className={styles.upcoming} aria-disabled="true" data-disabled-reason="سيُتاح التقرير بعد إطلاق موصل المنصة.">{content}</span>;
           }
           return (
             <Link
@@ -88,3 +88,4 @@ export default function CampaignReportPlatformNav({slug,active='overview',from='
     </section>
   );
 }
+

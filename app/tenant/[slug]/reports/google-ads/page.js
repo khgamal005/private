@@ -1,3 +1,4 @@
+import {campaignAiAvailable} from '../../../../../lib/campaign-report-access';
 import {redirect} from 'next/navigation';
 import {authRpc,requireTenant} from '../../../../../lib/server-auth';
 import {googleReportFilters} from '../../../../../lib/google-ads/ui.mjs';
@@ -9,6 +10,11 @@ export default async function GoogleAdsReportsPage({params,searchParams}){
   const [{slug},query]=await Promise.all([params,searchParams]);
   if(['reefskills'].includes(slug.toLowerCase()))redirect(`/tenant/${encodeURIComponent(slug)}/reports`);
   await requireTenant(slug);
+  if(query.google_ads){
+    const outcome=new URLSearchParams();
+    for(const key of ['google_ads','reason'])if(typeof query[key]==='string')outcome.set(key,query[key].slice(0,100));
+    redirect(`/tenant/${encodeURIComponent(slug)}/addons/google-kit?${outcome}`);
+  }
   let snapshot=null,report=null,unavailable=false;
   let filters=googleReportFilters(query);
   try{
@@ -28,5 +34,6 @@ export default async function GoogleAdsReportsPage({params,searchParams}){
     }
   }catch{unavailable=true;}
   return <GoogleAdsConnect slug={slug} initialData={snapshot} initialReport={report} filters={filters}
-    outcome={query.google_ads} reason={query.reason} unavailable={unavailable}/>;
+    outcome={query.google_ads} reason={query.reason} unavailable={unavailable} aiAvailable={await campaignAiAvailable(slug)}/>;
 }
+

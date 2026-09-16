@@ -66,7 +66,7 @@ const ADDON_LINKS={
   shopify:'integrations',
   custom_store:'integrations',
   lms:'lms',
-  google_ads_connect:'reports/google-ads'
+  google_ads_connect:'addons/google-kit'
 };
 
 function money(amountMinor,currency='SAR'){
@@ -555,4 +555,5 @@ function AddonCard({slug,item,canPurchase,pending,busy,onActivateFree,onBuy}){
     </footer>
   </article>;
 }
+
 

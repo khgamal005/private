@@ -482,3 +482,6 @@
   .hero{min-height:0;background:#173a57!important;print-color-adjust:exact}
   .panel,.metric,.directory a{break-inside:avoid;box-shadow:none}
 }
+
+
+.campaignWorkspace .hero{padding:20px;gap:16px}.campaignWorkspace .hero h1{font-size:26px}.campaignDetails{background:#fff;border:1px solid #dce6ed;border-radius:14px;padding:16px}.campaignDetails summary{cursor:pointer;font-weight:700;color:#194960}.campaignDetails[open]>summary{margin-bottom:16px}

@@ -46,3 +46,13 @@
   .platformPage{padding:18px 12px 36px}
 }
 @media(prefers-reduced-motion:reduce){.card{transition:none}}
+
+
+/* Compact report destinations: report metrics have visual priority. */
+.hub{margin:0;padding:12px 14px;box-shadow:none;background:#fff}
+.heading{margin-bottom:10px;align-items:center}.heading h2{font-size:15px}.heading>p{font-size:12px}.eyebrow{display:none}
+.card,.active,.upcoming{min-height:0;padding:10px 12px;gap:3px;justify-content:center}
+.cardTop{align-items:center}.cardTop strong{font-size:14px}.description{display:none}.upcoming{cursor:default}
+.platformHeading{display:flex;align-items:center;justify-content:space-between;gap:16px}.platformHeading a{color:#146b8d;text-decoration:none;font-size:14px}
+.platformPage{display:grid;gap:18px}.platformPanel{margin-top:0}.platformPage :focus-visible{outline:3px solid #159d9d;outline-offset:3px}
+@media(max-width:720px){.heading{flex-direction:row}.heading>p{display:none}.card,.active,.upcoming{min-width:155px}.platformHeading{align-items:start;flex-direction:column}}

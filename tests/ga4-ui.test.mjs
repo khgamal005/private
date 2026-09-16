@@ -6,7 +6,7 @@ import ts from 'typescript';
 import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 const source=await readFile(new URL('../components/google-ga4-report.js',import.meta.url),'utf8');
-const code=source.replace(/import styles from '[^']+';/,"const styles=new Proxy({}, {get:(_target,key)=>key});")
+const code=source.replace("import Link from 'next/link';","const Link=({href,children,...props})=><a href={href} {...props}>{children}</a>;").replace(/import styles from '[^']+';/,"const styles=new Proxy({}, {get:(_target,key)=>key});")
  .replaceAll("'../lib/google-ads/ui.mjs'",JSON.stringify(new URL('../lib/google-ads/ui.mjs',import.meta.url).href))
  .replaceAll("'../lib/google-ads/ga4-ui.mjs'",JSON.stringify(new URL('../lib/google-ads/ga4-ui.mjs',import.meta.url).href));
 const file=new URL('.ga4-ui-'+process.pid+'.mjs',import.meta.url);
@@ -34,3 +34,4 @@ test('GA4 UI hides financial/detail records when permissions are absent',async t
 test('GA4 UI shows safe actionable provider error instead of a false zero report',async t=>{
  const {dom}=await mount(t,{reject:true});assert.match(dom.window.document.querySelector('[role="alert"]').textContent,/غير مخوّل/);assert.doesNotMatch(dom.window.document.body.textContent,/معاملات الشراء/);
 });
+

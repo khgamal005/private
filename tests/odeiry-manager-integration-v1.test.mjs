@@ -659,7 +659,7 @@ test('manager runtime keeps memory reviewed and makes all execution impossible',
   const {agent,memorySafety,route,service,managerUi}=await sources();
   assert.equal((agent.match(/new Agent\(/g)||[]).length,1);
   assert.match(agent,
-    /instructions:runContext=>runContext\.context\?\.assistantMode===['"]manager_v1['"][\s\S]+?MANAGER_INSTRUCTIONS:OPERATIONS_INSTRUCTIONS/);
+    /instructions:runContext=>runContext\.context\?\.assistantMode===['"]manager_v1['"][\s\S]+?MANAGER_INSTRUCTIONS\):OPERATIONS_INSTRUCTIONS/);
   assert.match(agent,
     /mode===['"]manager_v1['"]\s*\?normalizeApprovedMemories\(approvedMemories\):\[\]/);
   assert.match(agent,
@@ -728,3 +728,4 @@ test('manager runtime keeps memory reviewed and makes all execution impossible',
   assert.doesNotMatch(`${agent}\n${route}`,
     /create_ticket|v3_tenant_support_action|insert into core\.|update core\.|delete from core\./i);
 });
+

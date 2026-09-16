@@ -65,7 +65,7 @@ function metricsFor(view,summary){
   if(view==='campaigns')return [
     metric('عملاء الحملات',number(summary.leadsCreated),'داخل الفترة المختارة','blue'),
     metric('مدفوعات مؤكدة',number(summary.paidContacts),'من عملاء الفترة بعد التحقق','green'),
-    metric('قيمة المبيعات',moneyMinor(revenue),'منسوبة للمصدر والحملة','green'),
+    metric('قيمة المبيعات',summary.realizedRevenueMinor==null?'غير متاح':moneyMinor(summary.realizedRevenueMinor),'منسوبة للمصدر والحملة','green'),
     metric('التحويل العام',percent(summary.conversionRate),'من العميل إلى الدفع','cyan')
   ];
   return [

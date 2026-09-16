@@ -125,6 +125,7 @@ test('deletion lookup fails honestly and accepts only verified recognized status
 });
 
 test('the add-on opens its dedicated connection page',()=>{
-  assert.equal(addonHref('example-center',{key:'social_connect'}),'/tenant/example-center/reports/campaigns');
-  assert.equal(addonHref('example-center',{key:'social_connect',actions:{openPlacementKey:'tenant.social_connect'}}),'/tenant/example-center/reports/campaigns');
+  assert.equal(addonHref('example-center',{key:'social_connect'}),'/tenant/example-center/addons/social-connect');
+  assert.equal(addonHref('example-center',{key:'social_connect',actions:{openPlacementKey:'tenant.social_connect'}}),'/tenant/example-center/addons/social-connect');
 });
+

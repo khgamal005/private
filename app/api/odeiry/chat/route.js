@@ -227,7 +227,8 @@ export async function POST(request){
       citationKeys:result.citationKeys,
       metadata:{
         sourceCount:result.output.sources.length,
-        knowledgeSearchEnabled:true
+        knowledgeSearchEnabled:!input.reportContext,
+        reportAnalysis:Boolean(input.reportContext)
       }
     };
     let memoryProposalCount=0;

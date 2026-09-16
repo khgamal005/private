@@ -74,7 +74,7 @@ test('report pages share date filters and employee drill-down',async()=>{
   assert.match(component,/DetailTables/);
   assert.match(component,/TrendChart/);
   assert.match(component,/CampaignTable/);
-  assert.match(component,/تكلفة الإعلان وROAS/);
+  assert.match(component,/مقارنة التكلفة بالتحصيل تحتاج ربط المصادر ومزامنة الفترة/);
   assert.match(styles,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles,/\.metric\.blue\{/);
   assert.match(styles,/\.legend \.blue,.bars \.blue\{/);
@@ -87,3 +87,4 @@ test('report pages share date filters and employee drill-down',async()=>{
   assert.match(employeePage,/if\(!isUuid\(staffId\)\)notFound\(\)/);
   assert.match(employeePage,/report:'employee'/);
 });
+

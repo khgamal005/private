@@ -117,7 +117,7 @@ test('agent remains one bounded workflow while operations keeps its reviewed rea
   ]);
   assert.equal((agent.match(/new Agent\(/g)||[]).length,1);
   assert.match(agent,
-    /instructions:runContext=>runContext\.context\?\.assistantMode===['"]manager_v1['"][\s\S]+?MANAGER_INSTRUCTIONS:OPERATIONS_INSTRUCTIONS/,
+    /instructions:runContext=>runContext\.context\?\.assistantMode===['"]manager_v1['"][\s\S]+?MANAGER_INSTRUCTIONS\):OPERATIONS_INSTRUCTIONS/,
     'one agent must choose explicit mode instructions from trusted run state');
   assert.match(agent,/tools:\[inspectOperations,searchKnowledge\]/);
   assert.match(agent,

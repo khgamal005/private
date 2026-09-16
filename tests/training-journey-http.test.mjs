@@ -99,13 +99,14 @@ test('learner/instructor snapshots never fetch staff finance data; invalid roles
   await assert.rejects(getTrainingSnapshot('reefskills',{role:'manager'}));assert.equal(calls.length,0);
 });
 
-test('disabled operational rollout returns its real disabled state without demo hydration or learning reads',async()=>{
+test('disabled operational rollout skips automation and learning reads even for a fully permitted owner',async()=>{
   const calls=[];
   const {getTrainingSnapshot}=harness('lib/training-snapshot.js',{
-    '/training-request.mjs':policy,'/training-server':{trainingRpc:async(name)=>{calls.push(name);return {enabled:false,settings:{timezone:'Asia/Riyadh'},capabilities:{canManage:true}};}}
+    '/training-request.mjs':policy,'/training-server':{trainingRpc:async(name)=>{calls.push(name);return {enabled:false,settings:{timezone:'Asia/Riyadh'},capabilities:{canManage:true,canConfigureAutomation:true}};}}
   });
   const snapshot=await getTrainingSnapshot('marktone',{role:'manager'});
   assert.equal(snapshot.operations.enabled,false);assert.equal(snapshot.learning,null);
+  assert.equal(snapshot.operations.automation,undefined);
   assert.deepEqual(calls,['v1_tenant_training_journey_snapshot']);
 });
 

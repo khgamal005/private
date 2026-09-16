@@ -45,6 +45,36 @@ async function change(node,value){assert.ok(node);const proto=node.tagName==='TE
 async function submit(form){assert.ok(form);await act(async()=>form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));}
 const response=data=>({ok:true,json:async()=>({data})});
 
+function rolloutSnapshot({enabled=false,role='manager',canConfigureAutomation=true}={}){
+ const capabilities={canManage:true,canVerifyPayments:true,canApproveCredit:true,canConfigureAutomation};
+ return {...learner,role,viewer:{...capabilities},learning:null,operations:{enabled,settings:{graceDays:7,timezone:'Asia/Riyadh'},handoffs:[],enrollments:[],invoices:[],payments:[],runs:[],staff:[],requests:[],tasks:[],capabilities}};
+}
+
+test('permitted owner activates disabled training only through the authenticated command endpoint',async()=>{
+ await mounted(rolloutSnapshot(),async({doc,click,calls})=>{
+  assert.match(doc.body.textContent,/تفعيل رحلة التدريب لمركز ماركتون/);assert.equal(calls.length,0);
+  await click('تفعيل التشغيل المتكامل');assert.equal(calls.length,1);assert.equal(calls[0].url,'/api/training/set_enabled');
+  assert.equal(calls[0].body.tenantSlug,'marktone');assert.deepEqual(calls[0].body.payload,{enabled:true});
+  assert.match(calls[0].body.commandId,/^[0-9a-f-]{36}$/);assert.match(doc.querySelector('[role="status"]').textContent,/تم تفعيل رحلة التدريب/);
+ },{view:'overview',respond:()=>response({success:true,enabled:true})});
+});
+
+test('finance-only staff, learners and instructors receive no rollout activation or rollback controls',async()=>{
+ for(const options of [{canConfigureAutomation:false},{role:'learner'},{role:'instructor'}]){
+  for(const enabled of [false,true])await mounted(rolloutSnapshot({...options,enabled}),async({button,calls})=>{
+   assert.equal(button('تفعيل التشغيل المتكامل'),undefined);assert.equal(button('إيقاف التشغيل المتكامل'),undefined);assert.equal(calls.length,0);
+  },{view:'tasks'});
+ }
+});
+
+test('permitted owner can disable the journey from operational tasks with history preservation explained',async()=>{
+ await mounted(rolloutSnapshot({enabled:true}),async({doc,button,click,calls})=>{
+  assert.equal(button('تفعيل التشغيل المتكامل'),undefined);assert.match(doc.body.textContent,/الاحتفاظ بالتسجيلات والمدفوعات والمحتوى والتقدم المحفوظ/);
+  await click('إيقاف التشغيل المتكامل مع حفظ السجل');assert.equal(calls.length,1);assert.equal(calls[0].url,'/api/training/set_enabled');
+  assert.equal(calls[0].body.tenantSlug,'marktone');assert.deepEqual(calls[0].body.payload,{enabled:false});assert.ok(calls[0].body.commandId);
+ },{view:'tasks',respond:()=>response({success:true,enabled:false})});
+});
+
 test('learner quiz and assignment submit only enrollment identity and answers to authorized action',async()=>{
  const quiz={...unit,kind:'quiz',title:'اختبار التطبيق'},assignment={...unit,id:'unit-2',kind:'assignment',title:'واجب التطبيق'};const data={...learner,learning:{...learner.learning,enrollments:[{...enrollment,units:[quiz,assignment]}]}};
  await mounted(data,async({doc,click,calls})=>{await click('اختبار التطبيق');await act(async()=>doc.querySelectorAll('input[type="radio"]')[1].click());await submit(doc.querySelector('form'));assert.equal(calls[1].url,'/api/training/submit_quiz');assert.deepEqual(calls[1].body.payload,{enrollmentId:'enrollment-1',unitId:'unit-1',answers:{q1:1}});assert.match(doc.body.textContent,/اجتزت الاختبار/);await click('واجب التطبيق');await change(doc.querySelector('textarea'),'هذا تطبيق عملي يوضح تسلسل العمل كاملًا.');await submit(doc.querySelector('form'));assert.equal(calls[3].url,'/api/training/submit_assignment');assert.equal(calls[3].body.payload.body,'هذا تطبيق عملي يوضح تسلسل العمل كاملًا.');assert.equal(calls[3].body.payload.studentId,undefined);},{respond:(_,call)=>call.url.endsWith('open_unit')?response({unit:call.body.payload.unitId==='unit-1'?{...quiz,body:'اختر الإجابة.',questions:[{id:'q1',prompt:'أي خطوة؟',options:['أ','ب']}],passPercent:70,maxAttempts:3}:{...assignment,body:'نفذ المطلوب.'}}):call.url.endsWith('submit_quiz')?response({score:100,passed:true,attempt:1}):response({submissionId:'sub-1'})});

@@ -477,7 +477,7 @@ begin
  if p_claim_id is null or p_action not in ('claim','release') then raise exception 'training_activation_claim_invalid';end if;
  select * into inv from academy.training_invitations where token_hash=p_token_hash for update;
  if inv.id is null or inv.status<>'pending' or inv.expires_at<=now() or inv.tenant_id<>'3d185482-b916-49cc-b868-b6dfdb93eba8'::uuid then raise exception 'training_invitation_invalid';end if;
- if not exists(select 1 from core.tenants t join academy.training_journey_settings c on c.tenant_id=t.id and c.enabled where t.id=inv.tenant_id and t.slug='marktone' and t.status in ('active','trial')) or not private_app.tenant_addon_enabled(inv.tenant_id,'lms') then raise exception 'training_journey_disabled';end if;
+ if not exists(select 1 from core.tenants t join academy.training_journey_settings c on c.tenant_id=t.id and c.enabled where t.id=inv.tenant_id and t.slug='marktone' and t.status in ('active','trial')) or not private_app.tenant_addon_enabled(inv.tenant_id,'addon.training.lms') then raise exception 'training_journey_disabled';end if;
  if not exists(select 1 from academy.students st where st.tenant_id=inv.tenant_id and st.id=inv.student_id and st.status in ('active','graduated') and lower(trim(st.email))=inv.email) then raise exception 'training_invitation_invalid';end if;
  if p_action='release' then
   if inv.activation_claim_id is distinct from p_claim_id then raise exception 'training_activation_claim_invalid';end if;

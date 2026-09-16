@@ -28,7 +28,7 @@ export async function setup({ learning = false, database = null } = {}) {
     // External entitlement and WooCommerce seams: no subscription or connector
     // side effects are modeled. Every permission check uses the real ACL above.
     await db.exec(`create function private_app.tenant_addon_enabled(t uuid, p text) returns boolean language sql stable as $$
-      select p='lms' and t='${T}'::uuid and coalesce(current_setting('fixture.addon',true),'yes')='yes' $$;
+      select p='addon.training.lms' and t='${T}'::uuid and coalesce(current_setting('fixture.addon',true),'yes')='yes' $$;
       create schema commerce_sync;
       create table commerce_sync.connections(id uuid primary key,tenant_id uuid);
       create table sales_core.commerce_order_work_items(id uuid primary key,tenant_id uuid,connection_id uuid);

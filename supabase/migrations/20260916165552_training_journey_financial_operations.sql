@@ -121,7 +121,7 @@ begin
  if t is null then raise exception 'training_journey_not_available' using errcode='42501'; end if;
  if not exists(select 1 from academy.training_journey_settings where tenant_id=t and enabled)
  then raise exception 'training_journey_disabled'; end if;
- if not private_app.tenant_addon_enabled(t,'lms') then raise exception 'training_addon_required' using errcode='42501'; end if;
+ if not private_app.tenant_addon_enabled(t,'addon.training.lms') then raise exception 'training_addon_required' using errcode='42501'; end if;
  return t;
 end $$;
 
@@ -130,7 +130,7 @@ language sql stable security definer set search_path='' as $$
  select p_tenant_id='3d185482-b916-49cc-b868-b6dfdb93eba8'::uuid
  and exists(select 1 from core.tenants t join academy.training_journey_settings s on s.tenant_id=t.id
   where t.id=p_tenant_id and t.slug='marktone' and t.status in ('trial','active') and s.enabled)
- and private_app.tenant_addon_enabled(p_tenant_id,'lms')
+ and private_app.tenant_addon_enabled(p_tenant_id,'addon.training.lms')
  and (private_app.has_accounting_permission(p_tenant_id,'tenant.accounting.payments.approve')
   or private_app.has_tenant_permission(p_tenant_id,'tenant.admissions.payment.verify'))
 $$;
@@ -234,7 +234,7 @@ language sql stable security definer set search_path='' as $$
   join core.tenants t on t.id=l.tenant_id and t.slug='marktone' and t.status in ('trial','active')
   where l.handoff_id=p_handoff_id and l.tenant_id='3d185482-b916-49cc-b868-b6dfdb93eba8'::uuid
   and l.policy='company_credit' and l.sponsor and l.credit_approved_by_subject_id is not null
-  and private_app.tenant_addon_enabled(l.tenant_id,'lms')
+  and private_app.tenant_addon_enabled(l.tenant_id,'addon.training.lms')
   and private_app.training_journey_handoff_finance_v1(l.handoff_id,p_as_of)->>'financialStatus' in ('approved_credit','settled'))
 $$;
 
@@ -378,7 +378,7 @@ begin
   select id into t from core.tenants where slug=p_slug and slug='marktone' and id='3d185482-b916-49cc-b868-b6dfdb93eba8'::uuid and status in ('trial','active');
   if t is null or not private_app.has_tenant_permission(t,'tenant.settings.manage') or not private_app.has_tenant_permission(t,'tenant.academy.write')
    then raise exception 'forbidden' using errcode='42501'; end if;
-  if not private_app.tenant_addon_enabled(t,'lms') then raise exception 'training_addon_required'; end if;
+  if not private_app.tenant_addon_enabled(t,'addon.training.lms') then raise exception 'training_addon_required'; end if;
  else t:=private_app.training_journey_tenant_v1(p_slug); end if;
  can_manage:=private_app.has_tenant_permission(t,'tenant.academy.write') and private_app.has_tenant_permission(t,'tenant.admissions.write');
  can_verify:=private_app.training_journey_payment_authorized_v1(t);
@@ -639,7 +639,7 @@ begin
  configure:=learning and private_app.has_tenant_permission(t.id,'tenant.settings.manage');
  manage:=private_app.has_tenant_permission(t.id,'tenant.academy.write') and private_app.has_tenant_permission(t.id,'tenant.admissions.write');
  if not (learning or finance or admissions) then raise exception 'forbidden' using errcode='42501'; end if;
- if not private_app.tenant_addon_enabled(t.id,'lms') then raise exception 'training_addon_required'; end if;
+ if not private_app.tenant_addon_enabled(t.id,'addon.training.lms') then raise exception 'training_addon_required'; end if;
  select s.enabled,jsonb_build_object('graceDays',s.grace_days,'policyVersion',s.policy_version,'timezone',t.timezone,'policySource',s.policy_source)
  into enabled,settings from academy.training_journey_settings s where s.tenant_id=t.id;
  settings:=coalesce(settings,jsonb_build_object('graceDays',7,'policyVersion',1,'timezone',t.timezone,'policySource','tenant_approved_operating_policy'));
@@ -1337,6 +1337,32 @@ begin
 end;
 $function$;
 
+-- Beneficiary-enabled installations already replaced global handoff uniqueness
+-- with an ordinary-enrollment partial index. Preserve that existing contract;
+-- do not add/remove columns or indexes, or change the production-only contract.
+do $training_admission_compatibility$
+declare
+ v_definition text;
+ v_clause constant text := 'on conflict (handoff_id) do update';
+begin
+ if exists(
+  select 1 from pg_attribute a
+  where a.attrelid='academy.enrollments'::regclass and a.attname='commerce_seat_id'
+   and a.attnum>0 and not a.attisdropped
+ ) and exists(
+  select 1 from pg_index i
+  join pg_attribute a on a.attrelid=i.indrelid and a.attname='handoff_id' and not a.attisdropped
+  where i.indrelid='academy.enrollments'::regclass and i.indisunique and i.indisvalid
+   and i.indnkeyatts=1 and i.indkey[0]=a.attnum
+   and pg_get_expr(i.indpred,i.indrelid)='(commerce_seat_id IS NULL)'
+ ) then
+  v_definition:=pg_get_functiondef('private_app.update_admission_before_commerce_v1(text,uuid,text,uuid,uuid,text,text)'::regprocedure);
+  if (length(v_definition)-length(replace(v_definition,v_clause,'')))/length(v_clause)<>1
+   then raise exception 'training_admission_conflict_clause_mismatch'; end if;
+  execute replace(v_definition,v_clause,'on conflict (handoff_id) where commerce_seat_id is null do update');
+ end if;
+end $training_admission_compatibility$;
+
 CREATE OR REPLACE FUNCTION public.v2_tenant_update_admission(p_tenant_slug text, p_handoff_id uuid, p_action text, p_course_id uuid DEFAULT NULL::uuid, p_course_run_id uuid DEFAULT NULL::uuid, p_notes text DEFAULT NULL::text, p_reason text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1405,7 +1431,7 @@ language sql stable security definer set search_path='' as $$
     or private_app.has_accounting_permission(t.id,'tenant.accounting.read')
     or private_app.has_tenant_permission(t.id,'tenant.admissions.read')
     or private_app.has_tenant_permission(t.id,'tenant.admissions.write'))
-  and private_app.tenant_addon_enabled(t.id,'lms')))
+  and private_app.tenant_addon_enabled(t.id,'addon.training.lms')))
 $$;
 
 do $$

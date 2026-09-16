@@ -88,7 +88,7 @@ begin
  if p_dry_run is null or p_preview is null then raise exception 'training_automation_options_required';end if;
  select s.* into cfg from academy.training_journey_settings s join core.tenants c on c.id=s.tenant_id
  where s.tenant_id=t and c.slug='marktone' and c.status in ('trial','active') and s.enabled;
- if cfg.tenant_id is null or not private_app.tenant_addon_enabled(t,'lms') or (not cfg.automation_enabled and not p_preview) then
+ if cfg.tenant_id is null or not private_app.tenant_addon_enabled(t,'addon.training.lms') or (not cfg.automation_enabled and not p_preview) then
   return jsonb_build_object('skipped',true,'reason','disabled','checkedCount',0,'dryRun',p_dry_run);
  end if;
  if not p_dry_run and not pg_try_advisory_xact_lock(hashtextextended('training-journey-automation:'||t::text,91217)) then

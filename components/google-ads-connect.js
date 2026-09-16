@@ -10,6 +10,7 @@ import {
 } from '../lib/google-ads/ui.mjs';
 import styles from './google-ads-connect.module.css';
 import GoogleGA4Report from './google-ga4-report';
+import CampaignReportPlatformNav from './campaign-report-platform-nav';
 
 const formatDate=(value,timezone)=>{
   if(!value)return 'لم تتم المزامنة بعد';
@@ -193,6 +194,7 @@ export default function GoogleAdsConnect({slug,initialData,initialReport,filters
       </div>
       <Link className={styles.heroLink} href={`/tenant/${encodeURIComponent(slug)}/reports`}>كل التقارير <span aria-hidden="true">←</span></Link>
     </header>
+    <CampaignReportPlatformNav slug={slug} active="google" from={filters.dateFrom} to={filters.dateTo}/>
     <Feedback feedback={feedback}/>
     {enabled&&reportingOnly?<p className={styles.note}>تجربة ريف: قراءة تقارير جوجل فقط، دون تعديل الحملات أو العملاء أو التسجيلات أو المدفوعات. مطابقة مصادر العملاء متوقفة في هذه المرحلة.</p>:null}
     {unavailable?<p className={`${styles.feedback} ${styles.error}`} role="alert">تعذر تحميل التقرير حاليًا. حاول تحديث الصفحة بعد قليل.</p>:null}

@@ -47,6 +47,10 @@ Disable automation and the pilot setting; existing history remains. Restore the 
 
 After the release gates and publication instruction, the authenticated Marktone administrator can send a same-origin `POST /api/training/set_enabled` with `tenantSlug: "marktone"`, a fresh UUID `commandId`, and `payload: {enabled: true}`. The database independently checks the immutable tenant identity, current actor, entitlement and permission. Rollback uses the same endpoint with `enabled: false` and a new command; neither operation erases history. Do not simulate an actor or use a service credential to bypass this boundary.
 
+Publication was explicitly authorized by Marwan on 2026-09-16. A permitted administrator can activate from `/tenant/marktone/lms/operations`; the operational task screen provides the corresponding history-preserving disable action. Both controls use the same authenticated command boundary and require academy-write plus settings-management authority. Disabled snapshots do not fetch the separately gated automation configuration.
+
+Release inspection verified that the entitlement helper accepts the catalog feature key `addon.training.lms`, whereas navigation exposes the product key `lms`. The database uses the former. The admission migration also preserves an already-installed beneficiary partial handoff index; production without that extension retains its original conflict contract. Executable tests cover both existing schema variants and entitlement revocation.
+
 Automation remains separately disabled. In the operational task screen, assign the admissions, finance and escalation owners, inspect the dry-run preview, and then save the automation setting. The invitation activation Edge Function must be deployed before learner invitations are used; client pages receive no service credential.
 
 ## Regulatory and delivery limits

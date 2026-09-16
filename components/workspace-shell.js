@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import {usePathname} from 'next/navigation';
+import {usePathname,useSearchParams} from 'next/navigation';
 import {useMemo,useState} from 'react';
 import LogoutButton from './logout-button';
 import MarktoneLogo from './marktone-logo';
@@ -10,7 +10,7 @@ import NotificationCenter from './notification-center';
 import {WORKSPACE_KINDS} from '../lib/workspaces';
 import {tenantRolePolicy} from '../lib/tenant-role-policy';
 import {INTERACTIVE_TRAINING_VIEWS,interactiveTrainingHref} from '../lib/interactive-training-access.mjs';
-import {TRAINING_JOURNEY_VIEWS,trainingJourneyHref} from '../lib/training-navigation.mjs';
+import {TRAINING_JOURNEY_VIEWS,trainingOperationsHref} from '../lib/training-navigation.mjs';
 
 const OdeiryAssistant=dynamic(()=>import('./odeiry-assistant'),{ssr:false});
 
@@ -86,10 +86,11 @@ function tenantItems(
     {key:'courses',label:'الدبلومات والدورات',href:`${base}/courses`,permission:'tenant.academy.read'},
     interactiveTraining?.enabled===true
       ?{key:'interactive',label:'منصة التدريب التفاعلي',visible:hasAddon('lms'),children:
-        (interactiveTraining.operational?TRAINING_JOURNEY_VIEWS:INTERACTIVE_TRAINING_VIEWS).map(view=>({
+        (interactiveTraining.operational?(interactiveTraining.operationalViews||TRAINING_JOURNEY_VIEWS):INTERACTIVE_TRAINING_VIEWS).map(view=>({
           key:view.icon,
           label:view.label,
-          href:interactiveTraining.operational?trainingJourneyHref(slug,view.key):interactiveTrainingHref(slug,view.key),
+          href:interactiveTraining.operational?trainingOperationsHref(slug,view.key):interactiveTrainingHref(slug,view.key),
+          always:interactiveTraining.operational===true,
           permission:'tenant.academy.read'
         }))}
       :{key:'interactive',label:'منصة التدريب التفاعلي',href:`${base}/lms`,permission:'tenant.academy.read',visible:policy.showInteractiveTraining&&hasAddon('lms')},
@@ -190,7 +191,11 @@ function platformItems(permissions,registrationSummary,supportSummary){
     .filter(item=>item.children?.length||canUse(item.permission));
 }
 
-function isActive(pathname,href){
+function isActive(pathname,href,searchParams){
+  if(href?.includes('?view=')){
+    const [base,query]=href.split('?');
+    return pathname===base&&(searchParams?.get('view')||'dashboard')===new URLSearchParams(query).get('view');
+  }
   if(href==='/control')return pathname===href;
   if(/^\/tenant\/[^/]+$/.test(href))return pathname===href;
   if(/\/yeastar$/.test(href))return pathname===href;
@@ -292,6 +297,7 @@ function odeiryContext(pathname){
 
 export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,supportSummary=null,yeastarAccess=null,addonAccess=null,interactiveTraining=null,odeiryEnabled=false,odeiryAccessMode=null,odeiryManagerEnabled=false,odeiryManagerReviewEnabled=false}){
   const pathname=usePathname();
+  const searchParams=useSearchParams();
   const [mobileOpen,setMobileOpen]=useState(false);
   const [openGroups,setOpenGroups]=useState(()=>({
     marketplace:pathname.includes('/addons'),
@@ -373,15 +379,15 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       <div className="mt-context-card"><span className="mt-context-status">{kind===WORKSPACE_KINDS.tenant?'منشأة نشطة':'إدارة SaaS المركزية'}</span><b>{title}</b></div>
       <nav className="mt-navigation" aria-label="القائمة الرئيسية">
         {items.map(item=>{
-          if(!item.children)return <Link key={item.href||item.key} href={item.href||'#'} aria-disabled={item.disabled||undefined} tabIndex={item.disabled?-1:undefined} className={item.disabled?'disabled':isActive(pathname,item.href)?'active':''} style={item.disabled?{cursor:'default',opacity:.55}:undefined} onClick={event=>{if(item.disabled){event.preventDefault();return;}setMobileOpen(false);}}><span><ShellIcon name={item.key}/></span><b>{item.label}</b>{item.badge>0&&<em className="mt-navigation-badge" aria-label={`${item.badge} ${item.badgeLabel||'عناصر تحتاج متابعة'}`}>{item.badge>99?'99+':item.badge}</em>}</Link>;
-          const childActive=item.children.some(child=>!child.disabled&&child.href&&isActive(pathname,child.href));
+          if(!item.children)return <Link key={item.href||item.key} href={item.href||'#'} aria-disabled={item.disabled||undefined} tabIndex={item.disabled?-1:undefined} className={item.disabled?'disabled':isActive(pathname,item.href,searchParams)?'active':''} style={item.disabled?{cursor:'default',opacity:.55}:undefined} onClick={event=>{if(item.disabled){event.preventDefault();return;}setMobileOpen(false);}}><span><ShellIcon name={item.key}/></span><b>{item.label}</b>{item.badge>0&&<em className="mt-navigation-badge" aria-label={`${item.badge} ${item.badgeLabel||'عناصر تحتاج متابعة'}`}>{item.badge>99?'99+':item.badge}</em>}</Link>;
+          const childActive=item.children.some(child=>!child.disabled&&child.href&&isActive(pathname,child.href,searchParams));
           const isPilotTrainingGroup=item.key==='interactive'&&interactiveTraining?.enabled===true;
           const isOpen=isPilotTrainingGroup
             ?Boolean(openGroups[item.key]??childActive)
             :Boolean(openGroups[item.key]);
           return <div className={`mt-navigation-group ${childActive?'active':''}`} key={item.key}>
             <button type="button" className="mt-navigation-parent" aria-expanded={isOpen} onClick={()=>setOpenGroups(current=>({...current,[item.key]:isPilotTrainingGroup?!isOpen:!current[item.key]}))}><span><ShellIcon name={item.key}/></span><b>{item.label}</b><i><ShellIcon name="chevron"/></i></button>
-            {isOpen&&<div className="mt-navigation-children">{item.children.map(child=><Link key={child.href||`${item.key}-${child.key}`} href={child.href||'#'} aria-disabled={child.disabled||undefined} tabIndex={child.disabled?-1:undefined} className={child.disabled?'disabled':isActive(pathname,child.href)?'active':''} style={child.disabled?{cursor:'default',opacity:.55}:undefined} onClick={event=>{if(child.disabled){event.preventDefault();return;}setMobileOpen(false);}}><span><ShellIcon name={child.key}/></span><b>{child.label}</b></Link>)}</div>}
+            {isOpen&&<div className="mt-navigation-children">{item.children.map(child=><Link key={child.href||`${item.key}-${child.key}`} href={child.href||'#'} aria-disabled={child.disabled||undefined} tabIndex={child.disabled?-1:undefined} className={child.disabled?'disabled':isActive(pathname,child.href,searchParams)?'active':''} style={child.disabled?{cursor:'default',opacity:.55}:undefined} onClick={event=>{if(child.disabled){event.preventDefault();return;}setMobileOpen(false);}}><span><ShellIcon name={child.key}/></span><b>{child.label}</b></Link>)}</div>}
           </div>;
         })}
       </nav>

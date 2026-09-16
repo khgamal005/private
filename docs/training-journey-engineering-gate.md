@@ -43,6 +43,12 @@ Pilot identity is the immutable tenant UUID `3d185482-b916-49cc-b868-b6dfdb93eba
 
 Disable automation and the pilot setting; existing history remains. Restore the previous application commit if required. Do not drop new tables or remove existing contacts, payments, enrollments, certificates, grades or audit events. Staff canonical operations remain authoritative. A rollback to the historical prototype must be clearly identified as the prototype; it must not report live training outcomes from local sample state.
 
+## Pilot activation contract
+
+After the release gates and publication instruction, the authenticated Marktone administrator can send a same-origin `POST /api/training/set_enabled` with `tenantSlug: "marktone"`, a fresh UUID `commandId`, and `payload: {enabled: true}`. The database independently checks the immutable tenant identity, current actor, entitlement and permission. Rollback uses the same endpoint with `enabled: false` and a new command; neither operation erases history. Do not simulate an actor or use a service credential to bypass this boundary.
+
+Automation remains separately disabled. In the operational task screen, assign the admissions, finance and escalation owners, inspect the dry-run preview, and then save the automation setting. The invitation activation Edge Function must be deployed before learner invitations are used; client pages receive no service credential.
+
 ## Regulatory and delivery limits
 
 See `training-journey-nelc-requirements.md` for dated primary sources and applicability. Attendance and pass thresholds are program policy, not hardcoded claims of a universal regulatory minimum. Recorded elapsed-open time plus learner acknowledgement is evidence of the application interaction, not proof of video watch time. Public/external resource URLs already disclosed to an authorized learner cannot be recalled; protected media hosting requires its own short-lived delivery enforcement.
@@ -54,5 +60,5 @@ Learning events persist with external delivery disabled. This change does not cl
 - Executable Postgres fixtures preserve 50 inspected canonical tables, 442 constraints and 30 integrity triggers, together with the actual financial/admission permission functions. Tests execute the three new migrations rather than matching SQL text alone.
 - HTTP tests cover cross-origin rejection, streamed size limits, finite actions, role/tenant overrides, hashed invitations, cookies and fixed login destinations. Mounted component tests cover real learner actions, uncertain retries, suspension, pagination, content editing and instructor feedback.
 - A synthetic catalog of 2,002 courses across two tenants returned a 50-course metadata page of 14,302 bytes without private content or other-tenant data. Actual EXPLAIN plans were inspected; this is bounded-query evidence, not a production throughput benchmark.
-- Embedded Postgres tests do not establish concurrent multi-session behavior. Isolated real-Postgres concurrency and live desktop/mobile end-to-end checks remain release gates, along with FutureX contract validation if external reporting is enabled.
+- The dedicated `Training transaction concurrency` workflow runs a disposable PostgreSQL 16 service with two independent worker connections and observed lock barriers. It verifies payment idempotency, the final cohort seat and exclusive invitation claims. Its first run passed all four reported tests. This is concurrency evidence for those invariants, not a load benchmark. Live desktop/mobile end-to-end checks remain release gates, along with FutureX contract validation if external reporting is enabled.
 - The operational sidebar reflects real capabilities. Supplemental historical prototype screens remain accessible through a clearly labeled development-preview link; their sample state is never used as operational training evidence.

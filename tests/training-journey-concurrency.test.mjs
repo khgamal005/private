@@ -124,6 +124,13 @@ test('real PostgreSQL serializes training money, the final seat and invitation c
     assert.equal((await db.query('select count(*)::int n from accounting_core.payments where tenant_id=$1 and id=$2', [T, PAYMENT])).rows[0].n, 1);
     assert.equal((await db.query('select count(*)::int n from academy.training_journey_commands where tenant_id=$1 and command_id=$2 and response is not null', [T, commandId])).rows[0].n, 1);
     assert.equal((await db.query("select count(*)::int n from academy.training_journey_events where tenant_id=$1 and event_type='verify_payment'", [T])).rows[0].n, 1);
+    // A retry that arrives with a new command ID must still not allocate the
+    // same verified payment twice. This race reaches the actual payment lock.
+    const independentRetries = await race(controller, workers,
+      client => client.query('select id from accounting_core.payments where tenant_id=$1 and id=$2 for update', [T, PAYMENT]),
+      [id(20101), id(20102)].map(retryId => client => financialAction(client, 'verify_payment', { ...payload, commandId: retryId })));
+    assert.equal(independentRetries.filter(result => result.ok).length, 2, JSON.stringify(independentRetries));
+    assert.deepEqual((await db.query('select count(*)::int n,sum(amount_minor)::int amount from accounting_core.payment_allocations where tenant_id=$1 and payment_id=$2 and invoice_id=$3', [T, PAYMENT, INVOICE])).rows[0], { n: 1, amount: 10000 });
   });
 
   await t.test('two paid learners competing for the last seat produce one enrollment', async () => {

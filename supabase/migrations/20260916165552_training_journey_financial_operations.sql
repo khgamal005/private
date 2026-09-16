@@ -1401,7 +1401,11 @@ language sql stable security definer set search_path='' as $$
   join academy.training_journey_settings cfg on cfg.tenant_id=t.id and cfg.enabled
   where t.id='3d185482-b916-49cc-b868-b6dfdb93eba8'::uuid and t.slug='marktone' and t.slug=p_slug
   and t.status in ('trial','active') and auth.uid() is not null
-  and private_app.has_tenant_permission(t.id,'tenant.academy.read') and private_app.tenant_addon_enabled(t.id,'lms')))
+  and (private_app.has_tenant_permission(t.id,'tenant.academy.write')
+    or private_app.has_accounting_permission(t.id,'tenant.accounting.read')
+    or private_app.has_tenant_permission(t.id,'tenant.admissions.read')
+    or private_app.has_tenant_permission(t.id,'tenant.admissions.write'))
+  and private_app.tenant_addon_enabled(t.id,'lms')))
 $$;
 
 do $$

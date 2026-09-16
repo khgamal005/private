@@ -493,7 +493,7 @@ end $$;
 create function private_app.training_learning_pin_latest_v1(p_tenant_id uuid,p_enrollment_id uuid) returns uuid language plpgsql security definer set search_path='' as $$
 declare e academy.enrollments%rowtype;v_version uuid;begin
  select * into e from academy.enrollments where tenant_id=p_tenant_id and id=p_enrollment_id for update;
- if e.id is null or not(private_app.has_tenant_permission(p_tenant_id,'tenant.admissions.write') or private_app.has_tenant_permission(p_tenant_id,'tenant.academy.write')) then raise exception 'training_permission_denied';end if;
+ if e.id is null or not(private_app.has_tenant_permission(p_tenant_id,'tenant.admissions.write') or private_app.has_tenant_permission(p_tenant_id,'tenant.academy.write') or private_app.training_journey_auto_admission_authorized_v1(p_tenant_id,e.handoff_id)) then raise exception 'training_permission_denied';end if;
  select version_id into v_version from academy.training_enrollment_versions where tenant_id=p_tenant_id and enrollment_id=e.id;
  if v_version is not null then return v_version;end if;
  select cv.id into v_version from academy.training_course_versions cv where cv.tenant_id=p_tenant_id and cv.course_id=e.course_id and cv.status='published' and (cv.learning_mode='self_paced' or not exists(select 1 from academy.course_runs r where r.tenant_id=p_tenant_id and r.id=e.course_run_id and r.metadata->>'trainingJourneySelfpaced'='true')) order by cv.version desc limit 1;

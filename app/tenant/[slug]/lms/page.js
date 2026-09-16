@@ -16,7 +16,7 @@ export default async function LmsPage({params}){
   const access=interactiveTrainingAccess({slug,context,addonAccess:context.addonAccess});
   if(access.enabled){
     const journey=await getTrainingSnapshot(slug,{role:'manager'});
-    if(journey.operations?.enabled)return <TrainingJourneyWorkspace slug={slug} initialData={journey}/>;
+    if(journey.operations?.enabled)return <TrainingJourneyWorkspace slug={slug} initialData={journey} canPreviewDevelopment={access.enabled}/>;
   }
   if(access.enabled)return <InteractiveTrainingWorkspace
     slug={slug}

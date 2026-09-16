@@ -31,7 +31,7 @@ function Panel({title,description,actions,children}:{title:string;description?:s
 function Badge({value,good=false,bad=false}:{value:string;good?:boolean;bad?:boolean}){return <span className={cx(styles.badge,good&&styles.good,bad&&styles.bad)}>{label(value)}</span>;}
 function Progress({percent}:{percent:number}){const normalized=Math.max(0,Math.min(100,Number.isFinite(percent)?percent:0));return <div className={styles.progress} role="progressbar" aria-label="إتمام المحتوى" aria-valuenow={normalized} aria-valuemin={0} aria-valuemax={100}><span style={{width:`${normalized}%`}}/></div>;}
 
-export default function TrainingJourneyWorkspace({slug,initialData,initialView='overview'}:{slug:string;initialData:TrainingJourneySnapshot;initialView?:string}){
+export default function TrainingJourneyWorkspace({slug,initialData,initialView='overview',canPreviewDevelopment=false}:{slug:string;initialData:TrainingJourneySnapshot;initialView?:string;canPreviewDevelopment?:boolean}){
   const router=useRouter();
   const aliases:Record<string,string>={dashboard:'overview',operations:'overview',courses:'content',learners:'enrollments',calendar:'attendance',assessments:'grading',compliance:'readiness',settings:'content'};
   const requestedView=aliases[initialView]||initialView;
@@ -88,7 +88,7 @@ export default function TrainingJourneyWorkspace({slug,initialData,initialView='
   const count=learning.enrollments.length;
   const isManager=role==='manager';
   return <main className={styles.workspace} dir="rtl" aria-busy={busy}>
-    <header className={styles.header}><div><span className={styles.eyebrow}>منصة التدريب التفاعلي · {data.tenant.name}</span><h1>{isManager?'رحلة التدريب المتكاملة':role==='instructor'?'مساحة المحاضر':'مساحتي التدريبية'}</h1><p>{isManager?'التسجيل والسداد والتعلم والشهادة، في رحلة واحدة مرتبطة بأودير.':role==='instructor'?'تابع دفعاتك، سجل الحضور، وقدم ملاحظات واضحة على أعمال المتدربين.':'تعرف على خطوتك التالية وتابع تعلمك ومواعيدك ونتائجك.'}</p></div><div className={styles.actions}><span className={styles.role}>{TRAINING_ROLE_LABELS[role]}</span>{isManager&&<Link className={styles.button} href={`/tenant/${encodeURIComponent(slug)}/lms/paths`}>استعراض شاشات التطوير</Link>}<Button disabled={busy} onClick={()=>router.refresh()}>تحديث البيانات</Button></div></header>
+    <header className={styles.header}><div><span className={styles.eyebrow}>منصة التدريب التفاعلي · {data.tenant.name}</span><h1>{isManager?'رحلة التدريب المتكاملة':role==='instructor'?'مساحة المحاضر':'مساحتي التدريبية'}</h1><p>{isManager?'التسجيل والسداد والتعلم والشهادة، في رحلة واحدة مرتبطة بأودير.':role==='instructor'?'تابع دفعاتك، سجل الحضور، وقدم ملاحظات واضحة على أعمال المتدربين.':'تعرف على خطوتك التالية وتابع تعلمك ومواعيدك ونتائجك.'}</p></div><div className={styles.actions}><span className={styles.role}>{TRAINING_ROLE_LABELS[role]}</span>{isManager&&canPreviewDevelopment&&<Link className={styles.button} href={`/tenant/${encodeURIComponent(slug)}/lms/paths`}>استعراض شاشات التطوير</Link>}<Button disabled={busy} onClick={()=>router.refresh()}>تحديث البيانات</Button></div></header>
     {notice&&<div className={styles.notice} role="status">{notice}</div>}{error&&<div className={cx(styles.notice,styles.error)} role="alert">{error}</div>}
     <nav className={styles.tabs} aria-label="أقسام التدريب">{tabs.filter(([key])=>role!=='manager'||data.viewer.canManageLearning!==false||!['content','enrollments','grading','attendance','readiness'].includes(key)).map(([key,title])=><button key={key} type="button" className={styles.tab} aria-current={view===key} onClick={()=>{setView(key);if(activeFocusedCourseId&&key!=='content')void loadSnapshot({offset:0});}}>{title}</button>)}</nav>
     {view==='overview'&&<>
@@ -164,14 +164,14 @@ function AdmissionOperations({operations,slug,tenantId,busy,mutate}:{operations?
   const optionsRequest=useRef(false);
   const currentOptions=optionPage?.base===operations?optionPage:null;
   const expanded=operations&&currentOptions?{...operations,invoices:currentOptions.invoices,payments:currentOptions.payments,runs:currentOptions.runs}:operations;
-  const optionOffset=currentOptions?.offset??operations?.offset??0;
   const optionSize=operations?.pageSize||50;
-  const hasMoreOptions=currentOptions?.hasMore??Boolean(operations&&[operations.invoices,operations.payments||[],operations.runs].some(items=>items.length>=optionSize));
+  const nextOptionOffset=currentOptions?currentOptions.offset+optionSize:(operations?.offset||0)>0?0:optionSize;
+  const hasMoreOptions=currentOptions?.hasMore??Boolean(operations&&((operations.offset||0)>0||[operations.invoices,operations.payments||[],operations.runs].some(items=>items.length>=optionSize)));
   async function loadOptions(){
-    if(!operations||busy||optionsRequest.current||optionOffset+optionSize>100000)return;
+    if(!operations||busy||optionsRequest.current||nextOptionOffset>100000)return;
     optionsRequest.current=true;setOptionsBusy(true);setOptionsError('');
     try{
-      const offset=optionOffset+optionSize;
+      const offset=nextOptionOffset;
       const result=await fetch('/api/training/snapshot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantSlug:slug,payload:{role:'manager',offset}})});
       const payload=await result.json().catch(()=>null);
       if(!result.ok)throw Error(payload?.error||'تعذر تحميل خيارات إضافية. حاول مرة أخرى.');
@@ -185,7 +185,7 @@ function AdmissionOperations({operations,slug,tenantId,busy,mutate}:{operations?
   }
   return <Panel title="القبول والسداد وفتح التدريب" description="تأكيد التحصيل لا يكرر الدفعة المالية. لكل تسجيل فاتورة وسياسة وصول واضحة." actions={<Link className={styles.button} href={`/tenant/${encodeURIComponent(slug)}/admissions`}>فتح طلبات التسجيل</Link>}>
     {optionsError&&<div className={cx(styles.notice,styles.error)} role="alert">{optionsError}</div>}
-    {operations?.enabled&&hasMoreOptions&&<div className={styles.info}><p>هل الفاتورة أو الدفعة المطلوبة غير ظاهرة؟ حمّل خيارات إضافية مع الاحتفاظ بطلبات التسجيل الحالية.</p><Button disabled={busy||optionsBusy||optionOffset+optionSize>100000} onClick={()=>void loadOptions()}>{optionsBusy?'جارٍ تحميل الخيارات…':'تحميل خيارات إضافية'}</Button></div>}
+    {operations?.enabled&&hasMoreOptions&&<div className={styles.info}><p>هل الفاتورة أو الدفعة المطلوبة غير ظاهرة؟ حمّل خيارات إضافية مع الاحتفاظ بطلبات التسجيل الحالية.</p><Button disabled={busy||optionsBusy||nextOptionOffset>100000} onClick={()=>void loadOptions()}>{optionsBusy?'جارٍ تحميل الخيارات…':'تحميل خيارات إضافية'}</Button></div>}
     {!expanded?.enabled?<Empty title="التشغيل المتكامل قيد التجهيز">ستظهر طلبات القبول بعد تفعيل دورة التشغيل لهذه المنشأة.</Empty>:!expanded.handoffs.length?<Empty title="لا توجد طلبات تسجيل في هذه الصفحة">تصل الطلبات من قنوات التسجيل الحالية في أودير، وتُستكمل هنا علاقتها بالسداد والتدريب.</Empty>:<div className={styles.stack}>{expanded.handoffs.map(handoff=><HandoffCard key={handoff.id} handoff={handoff} operations={expanded} busy={busy||optionsBusy} mutate={mutate}/>)}</div>}
   </Panel>;
 }

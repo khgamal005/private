@@ -17,7 +17,7 @@ export default async function InteractiveTrainingViewPage({params}){
   const access=interactiveTrainingAccess({slug,context,addonAccess:context.addonAccess});
   if(!access.enabled)notFound();
   const journey=await getTrainingSnapshot(slug,{role:'manager'});
-  if(journey.operations?.enabled&&isTrainingJourneyView(view))return <TrainingJourneyWorkspace slug={slug} initialData={journey} initialView={view}/>;
+  if(journey.operations?.enabled&&isTrainingJourneyView(view))return <TrainingJourneyWorkspace slug={slug} initialData={journey} initialView={view} canPreviewDevelopment={access.enabled}/>;
   if(!isInteractiveTrainingView(view))notFound();
   return <InteractiveTrainingWorkspace
     slug={slug}

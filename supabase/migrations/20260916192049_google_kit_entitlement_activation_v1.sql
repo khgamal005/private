@@ -46,7 +46,7 @@ returns jsonb language plpgsql security definer set search_path='' as $$
 declare result jsonb;tenant_id uuid;
 begin
  result:=private_app.v2_tenant_marketplace_action_before_google_activation_v1(p_slug,p_action,p_payload);
- if p_action='create_order' and p_payload->>'itemType'='addon' and p_payload->>'productKey'='google_ads_connect' then
+ if (p_action='activate_free_addon' or (p_action='create_order' and p_payload->>'itemType'='addon')) and p_payload->>'productKey'='google_ads_connect' then
   select id into tenant_id from core.tenants where slug=p_slug;
   perform google_ads.enable_entitled_tenant_v1(tenant_id,'marketplace_activation');
  end if;

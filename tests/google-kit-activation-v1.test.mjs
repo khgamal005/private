@@ -41,7 +41,7 @@ test('Google activation follows entitlement, is idempotent, and preserves protec
  assert.equal((await db.query("select private_app.tenant_addon_enabled($1,'addon.integrations.google_ads_connect') allowed",[N])).rows[0].allowed,false);
  // Explicit reactivation in the store can repair an older missing runtime row.
  await db.exec(`delete from google_ads.rollouts where tenant_id='${T}';`);
- await db.query("select public.v2_tenant_marketplace_action('marktone','create_order','{\"itemType\":\"addon\",\"productKey\":\"google_ads_connect\"}')");
+ await db.query("select public.v2_tenant_marketplace_action('marktone','activate_free_addon','{\"productKey\":\"google_ads_connect\"}')");
  assert.equal((await db.query('select enabled from google_ads.rollouts where tenant_id=$1',[T])).rows[0].enabled,true);
  }finally{await db.close();}
 });

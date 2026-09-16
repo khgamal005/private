@@ -129,7 +129,7 @@ test('ad analytics are date-bounded, tenant-authorized, searchable, and read-onl
   assert.match(route,/dateFrom,dateTo/);
   assert.match(component,/إعلان بعينه/);
   assert.match(component,/الإعلانات الداخلية/);
-  assert.match(component,/تحميل\/تحديث هذه الفترة من Meta/);
+  assert.match(component,/مزامنة سريعة/);
   assert.doesNotMatch(`${sql}\n${adapter}\n${route}\n${component}`,/ads_management/);
 });
 
@@ -158,7 +158,8 @@ test('private add-on UI uses its own server gateway and never calls legacy save'
     readFile(new URL('app/tenant/[slug]/reports/campaigns/page.js',root),'utf8')
   ]);
   assert.match(page,/requireTenantPermission\(slug,'tenant\.meta_connect\.read'\)/);
-  assert.match(page,/redirect\(path/);
+  assert.match(page,/display="connection"/);
+  assert.doesNotMatch(reports,/display="connection"/);
   assert.match(reports,/v1_tenant_meta_connect_v2_snapshot/);
   assert.match(reports,/v3_tenant_campaign_meta_report/);
   assert.match(reports,/snapshot\?\.addonEnabled/);

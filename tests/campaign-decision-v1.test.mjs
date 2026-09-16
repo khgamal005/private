@@ -33,3 +33,10 @@ test('permission failures propagate, and Meta pagination preserves platform and 
  const href=socialReportHref('test',{dateFrom:context.from,dateTo:context.to,page:2});
  const url=new URL(href,'https://odeir.com');assert.equal(url.searchParams.get('platform'),'meta');assert.equal(url.searchParams.get('page'),'2');
 });
+test('CRM overview analysis retains its displayed long range and staff filter',async()=>{
+ const staff='20000000-0000-4000-8000-000000000001';let args;
+ const result=await readCampaignDecisionReport({slug:'test',context:{...context,platform:'overview',mode:'crm',from:'2026-01-01',staff},now,rpc:async(name,input)=>{
+ assert.equal(name,'v5_tenant_reports_snapshot');args=input;return {summary:{leadsCreated:20,paidContacts:4,realizedRevenueMinor:90000},employees:[{name:'Private staff'}]};
+ }});
+ assert.equal(args.p_from,'2026-01-01');assert.equal(args.p_staff_id,staff);assert.equal(result.metrics.paidContacts,4);assert.equal(result.metrics.realizedRevenueMinor,undefined);assert.doesNotMatch(JSON.stringify(result),/Private staff/);
+});

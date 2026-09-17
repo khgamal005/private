@@ -1,4 +1,5 @@
 // GA4 is a read-only extension of the Google Ads entitlement. No event uploads.
+import {ga4ReportFailureCode} from './ga4-report-errors.mjs';
 export const GA4_SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
 const ADMIN = 'https://analyticsadmin.googleapis.com/v1beta';
 const DATA = 'https://analyticsdata.googleapis.com/v1beta';
@@ -34,18 +35,21 @@ function metadata(value, expected) {
     sampled:(m.samplingMetadatas||[]).some(s=>BigInt(s.samplesReadCount||0)<BigInt(s.samplingSpaceSize||0)),
     restricted:Boolean(m.schemaRestrictionResponse?.activeMetricRestrictions?.length)};
 }
+async function errorPayload(response) {
+  const reader=response.body?.getReader();if(!reader)return null;
+  const chunks=[];let size=0;
+  try {
+    for(;;){const {done,value}=await reader.read();if(done)break;size+=value.length;
+      if(size>65536){await reader.cancel();return null;}chunks.push(value);}
+  }catch{return null;}finally{reader.releaseLock();}
+  const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
+  try{return JSON.parse(new TextDecoder().decode(bytes));}catch{return null;}
+}
 async function permissionFailure(response,url) {
   // Only bounded, structured ErrorInfo enums are inspected. Never return provider
   // messages, metadata, activation URLs, project IDs or access tokens.
   const fallback='ga4_access_denied';
-  const reader=response.body?.getReader();if(!reader)return fallback;
-  const chunks=[];let size=0;
-  try {
-    for(;;){const {done,value}=await reader.read();if(done)break;size+=value.length;
-      if(size>65536){await reader.cancel();return fallback;}chunks.push(value);}
-  }catch{return fallback;}finally{reader.releaseLock();}
-  const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
-  let payload;try{payload=JSON.parse(new TextDecoder().decode(bytes));}catch{return fallback;}
+  const payload=await errorPayload(response);
   const details=payload?.error?.details;if(!Array.isArray(details)||details.length>20)return fallback;
   const reasons=details.filter(item=>plain(item)&&item['@type']==='type.googleapis.com/google.rpc.ErrorInfo'
     &&item.domain==='googleapis.com').map(item=>item.reason);
@@ -54,7 +58,7 @@ async function permissionFailure(response,url) {
   return fallback;
 }
 export function createGA4Client({fetchImpl=fetch,signal,maxRows=20000,pageSize=1000,maxPages=30,wait=ms=>new Promise(r=>setTimeout(r,ms))}={}) {
-  async function request(url,token,body) {
+  async function request(url,token,body,reportKind=null) {
     if(typeof token!=='string'||!token||/[\r\n]/.test(token)) fail('reauth_required');
     for(let attempt=0;attempt<3;attempt++) {
       const s=signal?AbortSignal.any([signal,AbortSignal.timeout(15000)]):AbortSignal.timeout(15000);
@@ -63,7 +67,7 @@ export function createGA4Client({fetchImpl=fetch,signal,maxRows=20000,pageSize=1
       if(res.status===401) fail('reauth_required');
       if(res.status===403) fail(await permissionFailure(res,url));
       if(res.status===429) fail('rate_limited');
-      if(!res.ok) fail('ga4_request_failed');
+      if(!res.ok) fail(reportKind?ga4ReportFailureCode(res.status,await errorPayload(res),reportKind):'ga4_request_failed');
       // Bound bytes before parsing; never include provider errors or tokens in logs.
       const reader=res.body.getReader(); let size=0; const chunks=[];
       try { for(;;) { const {done,value}=await reader.read(); if(done)break; size+=value.length;if(size>8*1024*1024){await reader.cancel();fail('ga4_result_limit');}chunks.push(value); } } finally { reader.releaseLock(); }
@@ -93,7 +97,7 @@ export function createGA4Client({fetchImpl=fetch,signal,maxRows=20000,pageSize=1
     if((Date.parse(to)-Date.parse(from))/86400000>30||to<from)fail('invalid_date_range');
     const rows=[];let expected=null;let quality={thresholded:false,otherRow:false,sampled:false,restricted:false};const keys=new Set();
     for(let p=0;p<maxPages;p++) {
-      const b=await request(DATA+'/properties/'+id(property.id)+':runReport',token,{...base,offset:String(rows.length)});
+      const b=await request(DATA+'/properties/'+id(property.id)+':runReport',token,{...base,offset:String(rows.length)},purchasesOnly?'transactions':'traffic');
       if(b.rowCount===undefined&&(!b.rows||b.rows.length===0))b.rowCount=0;
       if(!Number.isSafeInteger(b.rowCount)||b.rowCount<0||b.rowCount>maxRows)fail('ga4_result_limit');
       if(expected!==null&&expected!==b.rowCount)fail('ga4_report_changed');expected=b.rowCount;

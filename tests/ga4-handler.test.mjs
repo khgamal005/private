@@ -37,3 +37,15 @@ test('stream discovery replay returns saved choices without credentials or provi
  const streams=[{id:'5678',hostname:'site.example',name:'Website'}];const h=fixture({run:{duplicate:true,status:'success',streams}});
  h.args.route='ga4-streams';h.args.body.propertyId='1234';assert.deepEqual((await handleGA4(h.args)).streams,streams);assert.deepEqual(h.calls,['ga4_begin_v2']);
 });
+
+test('failed GA4 report persists its safe diagnostic while preserving the current snapshot',async()=>{
+ const h=fixture();h.args.route='ga4-sync';h.args.body={commandId:id,dateFrom:'2026-08-01',dateTo:'2026-08-02'};
+ h.args.service=async(name,p)=>{h.calls.push({name,p});return name==='ga4_credentials'?{refreshToken:'synthetic-secret',storeUrl:'https://store.example',dateFrom:'2026-08-01',dateTo:'2026-08-02',property:{id:'1234',currency:'SAR',timezone:'Asia/Riyadh',hostname:'store.example'}}:{status:'failed'};};
+ h.args.fetchImpl=async url=>{
+  if(url.includes(':runReport'))return Response.json({error:{status:'INVALID_ARGUMENT',message:'Please remove currencyCode. The dimensions & metrics are incompatible. PRIVATE detail'}},{status:400});
+  return Response.json(url.includes('dataStreams')?{dataStreams:[{type:'WEB_DATA_STREAM',webStreamData:{defaultUri:'https://store.example'}}]}:{name:'properties/1234',currencyCode:'SAR',timeZone:'Asia/Riyadh'});
+ };
+ await assert.rejects(handleGA4(h.args),/^Error: ga4_transactions_incompatible_currencycode$/);
+ const finish=h.calls.at(-1);assert.equal(finish.name,'ga4_finish');assert.equal(finish.p.p_success,false);assert.equal(finish.p.p_error,'ga4_transactions_incompatible_currencycode');assert.deepEqual(finish.p.p_payload,{});
+ assert.doesNotMatch(JSON.stringify(finish),/PRIVATE|synthetic-secret|synthetic-access/);
+});

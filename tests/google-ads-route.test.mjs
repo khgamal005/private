@@ -68,6 +68,16 @@ test('route rejects unauthenticated requests before contacting the Edge function
   assert.equal(fixture.edgeCalls.length, 0);
 });
 
+test('GA4 streams and standalone selection forward only the authorized site identifiers',async()=>{
+ const fixture=harness();
+ for(const action of ['ga4-streams','ga4-select']){
+  const r=await fixture.route.POST(postRequest(action,{tenantSlug:'demo-a',propertyId:'1234',streamId:'5678',connectionId:null,hostname:'untrusted.example',storeUrl:'https://untrusted.example',refreshToken:'private'}),params(action));
+  assert.equal(r.status,200);const body=fixture.edgeCalls.at(-1).payload;
+  assert.equal(body.streamId,'5678');assert.equal(body.propertyId,'1234');assert.equal(body.connectionId,null);
+  assert.ok(!('hostname' in body));assert.ok(!('storeUrl' in body));assert.ok(!('refreshToken' in body));
+ }
+});
+
 test('cross-origin, cross-site, missing-origin and unsupported content types never reach Edge', async () => {
   const fixture = harness();
   const variations = [

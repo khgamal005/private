@@ -10,7 +10,7 @@ import {boundedJson,publicError} from '../../../../../supabase/functions/google-
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 export const maxDuration=150;
-const ACTIONS=new Set(['start','assets','select','sync','disconnect','sources','review','ga4-status','ga4-assets','ga4-select','ga4-sync','ga4-report','ga4-disable']);
+const ACTIONS=new Set(['start','assets','select','sync','disconnect','sources','review','ga4-status','ga4-assets','ga4-streams','ga4-select','ga4-sync','ga4-report','ga4-disable']);
 const COOKIE_OPTIONS={httpOnly:true,secure:true,sameSite:'lax',path:'/'};
 function json(body,status=200){return NextResponse.json(body,{status,headers:{
   'cache-control':'private, no-store, max-age=0','x-content-type-options':'nosniff','referrer-policy':'no-referrer'
@@ -40,7 +40,7 @@ export async function POST(request,{params}){
     if(action==='sync')Object.assign(payload,{dateFrom:body.dateFrom,dateTo:body.dateTo,commandId:body.commandId||crypto.randomUUID()});
     if(action==='sources')payload.offset=body.offset??0;
     if(action==='review')Object.assign(payload,{rows:body.rows,campaignId:body.campaignId,commandId:body.commandId,reason:body.reason});
-    if(action.startsWith('ga4-'))Object.assign(payload,{propertyId:body.propertyId,connectionId:body.connectionId,dateFrom:body.dateFrom,dateTo:body.dateTo,asOf:body.asOf,page:body.page,status:body.status,campaignId:body.campaignId,commandId:body.commandId||crypto.randomUUID()});
+    if(action.startsWith('ga4-'))Object.assign(payload,{propertyId:body.propertyId,streamId:body.streamId,connectionId:body.connectionId,dateFrom:body.dateFrom,dateTo:body.dateTo,asOf:body.asOf,page:body.page,status:body.status,campaignId:body.campaignId,commandId:body.commandId||crypto.randomUUID()});
     const response=await edge(action,payload,accessToken);
     const result=await response.json().catch(()=>({}));
     if(!response.ok||result.ok!==true)return json({ok:false,error:publicError(result.error)},response.ok?502:response.status);
@@ -101,3 +101,4 @@ export async function GET(request,{params}){
     return finish(path);
   }catch{return failure('service_unavailable');}
 }
+

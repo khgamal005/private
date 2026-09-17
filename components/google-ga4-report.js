@@ -75,7 +75,7 @@ export default function GoogleGA4Report({slug,filters,canManage,connected,displa
     <label>خاصية GA4<select required disabled={Boolean(busy)} value={propertyId} onChange={e=>{const value=e.target.value;setPropertyId(value);setStreams([]);setStreamsFor('');setStreamId('');if(value)action('ga4-streams',{propertyId:value});}}><option value="">اختر الخاصية</option>{(config?.properties||[]).map(p=><option key={p.id} value={p.id}>{p.name} · {p.id}</option>)}</select></label>
     <label>الموقع المراد تحليله<select required disabled={Boolean(busy)||streamsFor!==propertyId} value={streamId} onChange={e=>setStreamId(e.target.value)}><option value="">اختر موقع المنشأة</option>{streams.map(site=><option key={site.id} value={site.id}>{site.name} · {site.hostname}</option>)}</select></label>
    </div>
-   <p className={styles.note}>اختر مسار بيانات الويب المخصص لموقع هذه المنشأة. بعد الحفظ يمكنك إضافة مصدر الطلبات بشكل اختياري.</p>
+   <p className={styles.note}>تحليلات GA4 ضمن اشتراك Google Kit. اختر مسار بيانات الويب المخصص لموقع هذه المنشأة. بعد الحفظ يمكنك إضافة مصدر الطلبات بشكل اختياري.</p>
    {propertyId&&streamsFor===propertyId&&!streams.length?<p role="status" className={styles.note}>لا يوجد مسار بيانات ويب لهذه الخاصية. أضف موقعك في GA4 ثم أعد تحميل المواقع.</p>:null}
    <div className={styles.actions}>
     <button className={styles.primary} disabled={Boolean(busy)||!propertyId||!streamId||streamsFor!==propertyId}>حفظ ربط التحليلات</button>

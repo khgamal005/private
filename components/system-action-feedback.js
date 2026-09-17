@@ -1,6 +1,7 @@
 'use client';
 
 import {useEffect,useRef,useState} from 'react';
+import {googleErrorMessage} from '../lib/google-ads/ui.mjs';
 
 const FEEDBACK_EVENT='marktone:action-feedback';
 const AUTO_HIDE_MS=7000;
@@ -212,10 +213,12 @@ export default function SystemActionFeedback(){
           }catch{
             payload={};
           }
+          const requestLocation=new URL(requestUrl,window.location.origin);
+          const googleKit=requestLocation.origin===window.location.origin&&requestLocation.pathname.startsWith('/api/tenant/google-ads/');
           show({
             title:'تعذر تنفيذ العملية',
-            reasons:[payload?.error||`أعاد النظام خطأ برمز ${response.status}.`],
-            nextStep:payload?.nextStep||nextStepForStatus(response.status),
+            reasons:[googleKit?googleErrorMessage(payload?.error):(payload?.error||`أعاد النظام خطأ برمز ${response.status}.`)],
+            nextStep:googleKit?'':payload?.nextStep||nextStepForStatus(response.status),
             tone:'error'
           });
         }

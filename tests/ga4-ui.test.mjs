@@ -13,13 +13,13 @@ const file=new URL('.ga4-ui-'+process.pid+'.mjs',import.meta.url);
 await writeFile(file,ts.transpileModule(code,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText);
 let Report;try{Report=(await import(file.href)).default;}finally{await unlink(file);}
 const data={configured:true,canReadMoney:true,canReadDetails:true,coverage:{complete:true,missingDays:0},summary:{transactions:1,matchedOrders:1,verifiedOrders:1,verifiedRegistrations:1,unmatched:0,pendingPayments:0,sessionAttributedOrders:1},traffic:{sessions:10,engagedSessions:8,checkouts:2},finances:[{currency:'SAR',netMinor:9000,collectionsMinor:10000,refundsMinor:1000}],rows:[{transactionId:'001',date:'2026-08-01',orderNumber:'001',status:'verified',currency:'SAR',netMinor:9000,amountCheck:'consistent_item_value',verifiedRegistrations:1}],campaigns:[],totalRows:1};
-async function mount(t,{report=data,config={configured:true,consentGranted:true,canManage:true,property:{name:'Synthetic',hostname:'store.example',timezone:'Asia/Riyadh'}},reject=false}={}) {
+async function mount(t,{report=data,config={configured:true,consentGranted:true,canManage:true,property:{name:'Synthetic',hostname:'store.example',timezone:'Asia/Riyadh'}},reject=false,display='report',actionError=''}={}) {
  const dom=new JSDOM('<div id="root"></div>',{url:'https://odeir.com'});const original={window:globalThis.window,document:globalThis.document,fetch:globalThis.fetch,act:globalThis.IS_REACT_ACT_ENVIRONMENT};
  globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.IS_REACT_ACT_ENVIRONMENT=true;const calls=[];
- globalThis.fetch=async(url,o)=>{calls.push({url,body:JSON.parse(o.body)});return Response.json(reject?{ok:false,error:'ga4_access_denied'}:{ok:true,...(url.endsWith('ga4-status')?config:report)},{status:reject?403:200});};
+ globalThis.fetch=async(url,o)=>{calls.push({url,body:JSON.parse(o.body)});const error=reject?'ga4_access_denied':url.endsWith('ga4-assets')?actionError:'';return Response.json(error?{ok:false,error}:{ok:true,...(url.endsWith('ga4-status')?config:report)},{status:error?403:200});};
  const root=createRoot(document.getElementById('root'));
  t.after(async()=>{await act(async()=>root.unmount());dom.window.close();globalThis.window=original.window;globalThis.document=original.document;globalThis.fetch=original.fetch;globalThis.IS_REACT_ACT_ENVIRONMENT=original.act;});
- await act(async()=>root.render(React.createElement(Report,{slug:'fixture',filters:{dateFrom:'2026-08-01',dateTo:'2026-08-02',asOf:'2026-09-01'},canManage:true,connected:true})));
+ await act(async()=>root.render(React.createElement(Report,{slug:'fixture',filters:{dateFrom:'2026-08-01',dateTo:'2026-08-02',asOf:'2026-09-01'},canManage:true,connected:true,display})));
  return {dom,calls};
 }
 test('GA4 UI renders payment evidence, mobile labels and status filters',async t=>{
@@ -32,6 +32,18 @@ test('GA4 UI hides financial/detail records when permissions are absent',async t
  const {dom}=await mount(t,{report:{...data,canReadMoney:false,canReadDetails:false,rows:[],finances:[]}});assert.doesNotMatch(dom.window.document.body.textContent,/001|صافي التحصيل المطابق/);assert.match(dom.window.document.body.textContent,/تفاصيل الطلبات متاحة/);
 });
 test('GA4 UI shows safe actionable provider error instead of a false zero report',async t=>{
- const {dom}=await mount(t,{reject:true});assert.match(dom.window.document.querySelector('[role="alert"]').textContent,/غير مخوّل/);assert.doesNotMatch(dom.window.document.body.textContent,/معاملات الشراء/);
+ const {dom}=await mount(t,{reject:true});assert.match(dom.window.document.querySelector('[role="alert"]').textContent,/رفض Google Analytics/);assert.doesNotMatch(dom.window.document.body.textContent,/معاملات الشراء/);
 });
-
+test('settings keep property retry available for disabled Admin API and show no raw error code',async t=>{
+ const {dom}=await mount(t,{config:{configured:false,consentGranted:true},display:'settings',actionError:'ga4_admin_api_disabled'});
+ await act(async()=>dom.window.document.querySelector('button').click());
+ assert.match(dom.window.document.querySelector('[role="alert"]').textContent,/تحميل خصائص Analytics غير مفعلة/);
+ assert.match(dom.window.document.querySelector('button').textContent,/اختيار الخاصية والمتجر/);
+ assert.doesNotMatch(dom.window.document.body.textContent,/ga4_admin_api_disabled/);
+});
+test('scope revocation exposes the GA4 reconnect button even when saved consent was previously granted',async t=>{
+ const {dom}=await mount(t,{config:{configured:false,consentGranted:true},display:'settings',actionError:'ga4_consent_required'});
+ await act(async()=>dom.window.document.querySelector('button').click());
+ assert.match(dom.window.document.querySelector('button').textContent,/ربط GA4 مع جوجل/);
+ assert.doesNotMatch(dom.window.document.body.textContent,/ga4_consent_required/);
+});

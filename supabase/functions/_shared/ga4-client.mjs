@@ -34,6 +34,25 @@ function metadata(value, expected) {
     sampled:(m.samplingMetadatas||[]).some(s=>BigInt(s.samplesReadCount||0)<BigInt(s.samplingSpaceSize||0)),
     restricted:Boolean(m.schemaRestrictionResponse?.activeMetricRestrictions?.length)};
 }
+async function permissionFailure(response,url) {
+  // Only bounded, structured ErrorInfo enums are inspected. Never return provider
+  // messages, metadata, activation URLs, project IDs or access tokens.
+  const fallback='ga4_access_denied';
+  const reader=response.body?.getReader();if(!reader)return fallback;
+  const chunks=[];let size=0;
+  try {
+    for(;;){const {done,value}=await reader.read();if(done)break;size+=value.length;
+      if(size>65536){await reader.cancel();return fallback;}chunks.push(value);}
+  }catch{return fallback;}finally{reader.releaseLock();}
+  const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
+  let payload;try{payload=JSON.parse(new TextDecoder().decode(bytes));}catch{return fallback;}
+  const details=payload?.error?.details;if(!Array.isArray(details)||details.length>20)return fallback;
+  const reasons=details.filter(item=>plain(item)&&item['@type']==='type.googleapis.com/google.rpc.ErrorInfo'
+    &&item.domain==='googleapis.com').map(item=>item.reason);
+  if(reasons.includes('SERVICE_DISABLED'))return url.startsWith(ADMIN+'/')?'ga4_admin_api_disabled':'ga4_data_api_disabled';
+  if(reasons.includes('ACCESS_TOKEN_SCOPE_INSUFFICIENT'))return 'ga4_consent_required';
+  return fallback;
+}
 export function createGA4Client({fetchImpl=fetch,signal,maxRows=20000,pageSize=1000,maxPages=30,wait=ms=>new Promise(r=>setTimeout(r,ms))}={}) {
   async function request(url,token,body) {
     if(typeof token!=='string'||!token||/[\r\n]/.test(token)) fail('reauth_required');
@@ -42,7 +61,7 @@ export function createGA4Client({fetchImpl=fetch,signal,maxRows=20000,pageSize=1
       const res=await fetchImpl(url,{method:body?'POST':'GET',headers:{authorization:'Bearer '+token,...(body?{'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:s,redirect:'error'});
       if((res.status===429||res.status>=500)&&attempt<2) { const delay=Math.min(2000,500*2**attempt); await wait(delay); continue; }
       if(res.status===401) fail('reauth_required');
-      if(res.status===403) fail('ga4_access_denied');
+      if(res.status===403) fail(await permissionFailure(res,url));
       if(res.status===429) fail('rate_limited');
       if(!res.ok) fail('ga4_request_failed');
       // Bound bytes before parsing; never include provider errors or tokens in logs.

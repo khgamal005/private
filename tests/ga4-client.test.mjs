@@ -5,6 +5,32 @@ import {createGoogleAdsClient} from '../supabase/functions/_shared/google-ads-cl
 import {newBrowserTransaction,trustedAuthorizeUrl} from '../lib/google-ads/protocol.mjs';
 import {ga4Csv,ga4Insights} from '../lib/google-ads/ga4-ui.mjs';
 const property={id:'1234',currency:'SAR',timezone:'Asia/Riyadh',hostname:'store.example'};
+const denied = reason => Response.json({error:{message:'PRIVATE provider response',details:[{
+ '@type':'type.googleapis.com/google.rpc.ErrorInfo',reason,domain:'googleapis.com',metadata:{consumer:'PRIVATE project'}
+}]}},{status:403});
+test('disabled Analytics APIs are distinguished from permission and consent failures without exposing provider data',async()=>{
+ for(const [reason,discoveryError,reportError] of [
+  ['SERVICE_DISABLED','ga4_admin_api_disabled','ga4_data_api_disabled'],
+  ['ACCESS_TOKEN_SCOPE_INSUFFICIENT','ga4_consent_required','ga4_consent_required'],
+  ['USER_PERMISSION_DENIED','ga4_access_denied','ga4_access_denied']
+ ]){
+  const c=createGA4Client({fetchImpl:async()=>denied(reason)});
+  for(const [operation,expected] of [[()=>c.properties('synthetic'),discoveryError],[()=>c.reports('synthetic',property,'2026-08-01','2026-08-02'),reportError]]){
+   await assert.rejects(operation,error=>{assert.equal(error.code,expected);assert.doesNotMatch(JSON.stringify(error),/PRIVATE|synthetic/);return true;});
+  }
+ }
+});
+test('permission diagnostics ignore unstructured text, unknown domains and oversized bodies',async()=>{
+ const bodies=[
+  {error:{message:'SERVICE_DISABLED PRIVATE'}},
+  {error:{details:[{'@type':'untrusted',domain:'googleapis.com',reason:'SERVICE_DISABLED'}]}},
+  {error:{details:[{'@type':'type.googleapis.com/google.rpc.ErrorInfo',domain:'other.example',reason:'SERVICE_DISABLED'}]}},
+  {error:{details:Array(21).fill({'@type':'type.googleapis.com/google.rpc.ErrorInfo',domain:'googleapis.com',reason:'SERVICE_DISABLED'})}},
+  {padding:'x'.repeat(65536),error:{details:[{'@type':'type.googleapis.com/google.rpc.ErrorInfo',domain:'googleapis.com',reason:'SERVICE_DISABLED'}]}}
+ ];
+ for(const body of bodies)await assert.rejects(createGA4Client({fetchImpl:async()=>Response.json(body,{status:403})}).properties('synthetic'),/^Error: ga4_access_denied$/);
+ await assert.rejects(createGA4Client({fetchImpl:async()=>new Response('PRIVATE invalid JSON',{status:403})}).properties('synthetic'),/^Error: ga4_access_denied$/);
+});
 function response(body,extra={}) {
  const transaction=body.dimensions.some(d=>d.name==='transactionId');
  const values={date:'20260801',transactionId:'0001',hostName:'store.example',sessionSource:'google',sessionMedium:'cpc',sessionGoogleAdsCustomerId:'1234567890',sessionGoogleAdsCampaignId:'9001',sessionCampaignName:'Course',currencyCode:'SAR'};

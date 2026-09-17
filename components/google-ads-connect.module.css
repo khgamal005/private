@@ -7,3 +7,7 @@
 
 .hero{padding:20px 24px;min-height:0}.hero h1{font-size:26px}.hero p{margin-bottom:0}
 .panel summary,.details summary{cursor:pointer;font-weight:700;padding:8px 0;color:#133c55}.details{margin-top:18px;border-top:1px solid #deebf1;padding-top:10px}
+
+
+.ga4Setup{display:grid;gap:14px;margin-top:18px;padding:18px;background:#f7fafc;border:1px solid #dce7ef;border-radius:14px;min-width:0}.ga4Setup .reviewFields{margin:0}.ga4Optional{margin:22px 0;padding:19px;border:1px solid #dce8ec;border-radius:14px;background:#f6fafb;min-width:0}.ga4Optional h3,.ga4Subhead h3{margin:0;font-size:15px;color:#183d59}.ga4Optional .sectionHead{margin-bottom:12px}.ga4Optional p{overflow-wrap:anywhere}.ga4Subhead{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:24px 0 8px}.ga4Sources{min-width:600px}.ga4Optional .secondary{margin-top:12px}.details .metrics{margin-top:18px}
+@media(max-width:700px){.ga4Setup,.ga4Optional{padding:14px}.ga4Sources{min-width:0}.ga4Setup .actions{align-items:stretch}.ga4Setup .actions button{flex:1 1 140px}}

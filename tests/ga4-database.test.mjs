@@ -15,6 +15,7 @@ const user=async db=>{await db.query("select set_config('request.jwt.claims',$1,
 const service=async db=>{await db.query("select set_config('request.jwt.claims','{\"role\":\"service_role\"}',false),set_config('request.jwt.claim.sub','',false),set_config('request.jwt.claim.role','service_role',false)");};
 async function setup(){
  const db=new PGlite();for(const file of ['tests/fixtures/campaign-revenue-schema.sql','supabase/migrations/20260906204652_unified_campaign_revenue_v1.sql','tests/fixtures/google-ads-schema.sql','supabase/migrations/20260909203555_google_ads_reader_v1.sql','supabase/migrations/20260914203345_google_ads_reef_controlled_pilot.sql','tests/fixtures/ga4-schema.sql','supabase/migrations/20260915205048_google_ads_ga4_reconciliation_v1.sql']) await db.exec(await readFile(file,'utf8'));
+ await db.exec(await readFile('supabase/migrations/20260917193608_ga4_independent_site_analytics_v2.sql','utf8'));
  await db.query("insert into core.tenants(id,slug) values($1,'fixture'),($2,'other')",[T,OTHER]);await db.query('insert into access_control.subjects(id,auth_user_id) values($1,$2)',[ACTOR,AUTH]);
  await db.query("select set_config('fixture.tenant',$1,false)",[T]);await user(db);
  await db.query('insert into google_ads.rollouts(tenant_id,enabled) values($1,true)',[T]);
@@ -96,5 +97,66 @@ test('GA4 database: tenant isolation, atomic sync, exact order/payment reconcili
   await call(db,'tenant_google_ads_ga4_disable',['fixture']);await service(db);await assert.rejects(call(db,'service_google_ads_ga4_credentials',[run.runId,run.leaseToken]),/google_ads_stale_lease/);await user(db);
   assert.equal((await report(db)).configured,false);assert.equal((await db.query('select count(*)::int n from google_ads.ga4_rows')).rows[0].n,2);
   assert.equal((await db.query('select amount_minor from accounting_core.payments')).rows[0].amount_minor,11000);
+ });
+});
+
+test('standalone GA4: explicit site binding, optional reconciliation, bounded analytics and safe migration',async t=>{
+ const db=await setup();t.after(()=>db.close());
+ const migration=await readFile('supabase/migrations/20260917193608_ga4_independent_site_analytics_v2.sql','utf8');
+ const v2=(kind,{commandId=uid(++command),store=null,stream=null,pid='1234'}={})=>call(db,'tenant_google_ads_ga4_begin_v2',['fixture',kind,commandId,pid,store,kind==='sync'?'2026-08-01':null,kind==='sync'?'2026-08-02':null,stream]);
+ await db.query('delete from commerce_sync.connections where tenant_id=$1',[T]);
+ await finish(db,await begin(db,'discover'),{properties:[{id:'1234',name:'Standalone site'}]});
+ await t.test('stream discovery is authorized, serialized, bounded and retry-safe',async()=>{
+  await assert.rejects(v2('streams',{pid:'9999'}),/ga4_invalid_property/);
+  const commandId=uid(++command),run=await v2('streams',{commandId});
+  await assert.rejects(v2('streams'),/google_ads_sync_in_progress/);
+  const streams=[{id:'5678',name:'Website',hostname:'store.example',providerPrivate:'not returned'}];
+  const done=await finish(db,run,{streams});assert.deepEqual(done.streams,[{id:'5678',name:'Website',hostname:'store.example'}]);
+  const retry=await v2('streams',{commandId});assert.equal(retry.duplicate,true);assert.deepEqual(retry.streams,done.streams);
+  await assert.rejects(v2('configure',{stream:'5678',store:uid(2)}),/ga4_invalid_property/);
+  await assert.rejects(v2('configure'),/ga4_stream_required/);
+ });
+ await t.test('binds without a store; rejects mismatched stream results and preserves repeated selection',async()=>{
+  const run=await v2('configure',{stream:'5678'});
+  await assert.rejects(finish(db,run,{property:{...property,streamId:'9999'}}),/ga4_invalid_response/);
+  assert.equal((await call(db,'tenant_google_ads_ga4_status',['fixture'])).configured,false);
+  await finish(db,run,{property:{...property,streamId:'5678'}});
+  const state=await call(db,'tenant_google_ads_ga4_status',['fixture']);assert.equal(state.configured,true);assert.equal(state.property.streamId,'5678');assert.equal(state.reconciliation.enabled,false);assert.deepEqual(state.stores,[]);
+  const first=(await db.query('select config_id from google_ads.ga4_settings where tenant_id=$1',[T])).rows[0].config_id;
+  await finish(db,await v2('configure',{stream:'5678'}),{property:{...property,streamId:'5678'}});
+  assert.equal((await db.query('select config_id from google_ads.ga4_settings where tenant_id=$1',[T])).rows[0].config_id,first);
+  const empty=await report(db);assert.equal(empty.traffic.sessions,null);assert.equal(empty.summary.transactions,null);assert.equal(empty.summary.verifiedOrders,null);
+ });
+ await t.test('reports measured activity and bounded sources without inventing finance or unmatched orders',async()=>{
+  const run=await v2('sync');await service(db);
+  const context=await call(db,'service_google_ads_ga4_credentials',[run.runId,run.leaseToken]);assert.equal(context.storeUrl,null);assert.equal(context.property.streamId,'5678');await user(db);
+  const p=payload();p.traffic=Array.from({length:25},(_,i)=>({...traffic,sessionSource:'source-'+String(i).padStart(2,'0')}));
+  await finish(db,run,p);const r=await report(db);
+  assert.equal(r.basis,'site_activity');assert.equal(r.traffic.sessions,250);assert.equal(r.coverage.complete,true);
+  assert.equal(r.summary.transactions,1);assert.equal(r.summary.matchedOrders,null);assert.equal(r.summary.unmatched,null);assert.equal(r.summary.verifiedRegistrations,null);
+  assert.deepEqual(r.finances,[]);assert.deepEqual(r.issues,[]);assert.deepEqual(r.rows,[]);assert.equal(r.reconciliation.enabled,false);
+  assert.equal(r.trafficSourceCount,25);assert.equal(r.trafficSources.length,20);assert.ok(JSON.stringify(r).length<15000);
+  await assert.rejects(call(db,'tenant_google_ads_ga4_report',['other','2026-08-01','2026-08-02']),/google_ads_forbidden/);
+ });
+ await t.test('a new stream gets a separate observation scope; failure preserves the prior window',async()=>{
+  const before=(await db.query('select count(*)::int n from google_ads.ga4_rows where tenant_id=$1',[T])).rows[0].n;
+  await finish(db,await v2('configure',{stream:'7777'}),{property:{...property,streamId:'7777'}});
+  assert.equal((await report(db)).traffic.sessions,null);assert.equal((await db.query('select count(*)::int n from google_ads.ga4_rows where tenant_id=$1',[T])).rows[0].n,before);
+  await finish(db,await v2('sync'),payload());await finish(db,await v2('sync'),{},false);
+  assert.equal((await report(db)).traffic.sessions,10);
+  await finish(db,await v2('sync'),{transactions:[],traffic:[],quality:{transactions:clean,traffic:clean}});
+  const r=await report(db);assert.equal(r.traffic.sessions,0);assert.equal(r.summary.verifiedOrders,null);assert.equal(r.coverage.complete,true);
+ });
+ await t.test('adding/removing an optional source is tenant-bound and existing records survive migration replay',async()=>{
+  await db.query("insert into commerce_sync.connections values($1,$2,'https://store.example')",[uid(1),T]);
+  await finish(db,await v2('configure',{stream:'7777',store:uid(1)}),{property:{...property,streamId:'7777'}});
+  assert.equal((await call(db,'tenant_google_ads_ga4_status',['fixture'])).reconciliation.connectionId,uid(1));
+  assert.equal((await report(db)).reconciliation.enabled,true);
+  await finish(db,await v2('configure',{stream:'7777'}),{property:{...property,streamId:'7777'}});
+  assert.equal((await report(db)).reconciliation.enabled,false);
+  const snapshot=async()=> (await db.query("select (select jsonb_agg(to_jsonb(s) order by tenant_id) from google_ads.ga4_settings s) settings,(select count(*) from google_ads.ga4_rows) observations,(select count(*) from commerce_sync.connections) stores")).rows;
+  const before=await snapshot();await db.exec(migration);assert.deepEqual(await snapshot(),before);
+  for(const role of ['anon','authenticated','service_role'])assert.equal((await db.query("select has_function_privilege($1,'google_ads.ga4_site_summary(uuid,uuid,date,date)','EXECUTE') allowed",[role])).rows[0].allowed,false);
+  for(const role of ['anon','service_role'])assert.equal((await db.query("select has_function_privilege($1,'public.v1_tenant_google_ads_ga4_begin_v2(text,text,uuid,text,uuid,date,date,text)','EXECUTE') allowed",[role])).rows[0].allowed,false);
  });
 });

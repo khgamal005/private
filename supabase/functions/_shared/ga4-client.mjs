@@ -85,6 +85,7 @@ export function createGA4Client({fetchImpl=fetch,signal,maxRows=20000,pageSize=1
   }
   async function runReport(token,property,from,to,hostname,dimensions,metrics,purchasesOnly=false) {
     const hosts=[hostname,'www.'+hostname]; const filters=[{filter:{fieldName:'hostName',inListFilter:{values:hosts,caseSensitive:false}}}];
+    if(property.streamId)filters.push({filter:{fieldName:'streamId',stringFilter:{matchType:'EXACT',value:id(property.streamId)}}});
     if(purchasesOnly)filters.push({filter:{fieldName:'eventName',stringFilter:{matchType:'EXACT',value:'purchase'}}});
     const base={dateRanges:[{startDate:day(from),endDate:day(to)}],dimensions:dimensions.map(name=>({name})),metrics:metrics.map(name=>({name})),
       currencyCode:property.currency,dimensionFilter:{andGroup:{expressions:filters}},returnPropertyQuota:true,
@@ -112,7 +113,21 @@ export function createGA4Client({fetchImpl=fetch,signal,maxRows=20000,pageSize=1
       if(rows.length>expected||!(b.rows||[]).length)fail('ga4_incomplete_report');
     }fail('ga4_result_limit');
   }
+  async function webStreams(token,propertyId) {
+    const streams=await pagedAdmin('properties/'+id(propertyId)+'/dataStreams',token,'dataStreams');
+    const result=[],seen=new Set();
+    for(const stream of streams){
+      if(stream.type!=='WEB_DATA_STREAM')continue;
+      const match=String(stream.name||'').match(/^properties\/(\d{1,20})\/dataStreams\/(\d{1,20})$/);
+      if(!match||match[1]!==propertyId||seen.has(match[2]))fail('ga4_invalid_response');
+      seen.add(match[2]);
+      result.push({id:match[2],name:text(stream.displayName||match[2]),hostname:ga4Hostname(stream.webStreamData?.defaultUri)});
+    }
+    if(result.length>100)fail('ga4_result_limit');
+    return result;
+  }
   return {
+    streams:webStreams,
     async properties(token) {
       const summaries=await pagedAdmin('accountSummaries',token,'accountSummaries');const result=[];const seen=new Set();
       for(const account of summaries)for(const p of account.propertySummaries||[]) {
@@ -121,13 +136,24 @@ export function createGA4Client({fetchImpl=fetch,signal,maxRows=20000,pageSize=1
       }
       if(result.length>500)fail('ga4_result_limit');return result;
     },
-    async property(token,propertyId,storeUrl) {
+    async property(token,propertyId,storeUrl,streamId=null) {
       const p=await request(ADMIN+'/properties/'+id(propertyId),token);if(p.name!=='properties/'+propertyId)fail('ga4_invalid_response');
       if(!/^[A-Z]{3}$/.test(p.currencyCode||''))fail('ga4_invalid_response');
       try{new Intl.DateTimeFormat('en',{timeZone:p.timeZone}).format();}catch{fail('ga4_invalid_response');}
-      const hostname=ga4Hostname(storeUrl);const streams=await pagedAdmin('properties/'+propertyId+'/dataStreams',token,'dataStreams');
-      if(!streams.some(s=>s.type==='WEB_DATA_STREAM'&&s.webStreamData?.defaultUri&&ga4Hostname(s.webStreamData.defaultUri)===hostname))fail('ga4_store_mismatch');
-      return {id:propertyId,name:text(p.displayName||propertyId),currency:p.currencyCode,timezone:text(p.timeZone,100),hostname};
+      let hostname;
+      if(streamId){
+        const streams=await webStreams(token,propertyId);
+        const selected=streams.find(s=>s.id===id(streamId));
+        if(!selected)fail('ga4_stream_required');
+        hostname=selected.hostname;
+        if(storeUrl&&ga4Hostname(storeUrl)!==hostname)fail('ga4_store_mismatch');
+      }else{
+        // Preserve existing store-bound configurations until the manager chooses a stream.
+        if(!storeUrl)fail('ga4_stream_required');
+        hostname=ga4Hostname(storeUrl);const streams=await pagedAdmin('properties/'+propertyId+'/dataStreams',token,'dataStreams');
+        if(!streams.some(s=>s.type==='WEB_DATA_STREAM'&&s.webStreamData?.defaultUri&&ga4Hostname(s.webStreamData.defaultUri)===hostname))fail('ga4_store_mismatch');
+      }
+      return {id:propertyId,name:text(p.displayName||propertyId),currency:p.currencyCode,timezone:text(p.timeZone,100),hostname,...(streamId?{streamId}: {})};
     },
     async reports(token,property,from,to) {
       const transactions=await runReport(token,property,from,to,property.hostname,TX_DIMS,TX_METRICS,true);

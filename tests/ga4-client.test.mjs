@@ -71,6 +71,23 @@ test('GA4 consent is optional and browser-bound; default Ads flow remains unchan
  assert.equal(trustedAuthorizeUrl(url,'https://odeir.com',t),url);assert.throws(()=>trustedAuthorizeUrl(url,'https://odeir.com',{...t,includeAnalytics:false}));
  assert.equal(new URL(c.authorizationUrl({...t,includeAnalytics:false})).searchParams.get('scope'),'https://www.googleapis.com/auth/adwords');
 });
+
+test('web stream selection works independently of commerce, remains property-bound and filters both reports',async()=>{
+ const requests=[];
+ const streams=[{name:'properties/1234/dataStreams/5678',type:'WEB_DATA_STREAM',displayName:'Website',webStreamData:{defaultUri:'https://www.store.example'}},{name:'properties/1234/dataStreams/7777',type:'WEB_DATA_STREAM',displayName:'Second site',webStreamData:{defaultUri:'https://other.example'}},{name:'properties/1234/dataStreams/8888',type:'ANDROID_APP_DATA_STREAM'}];
+ const client=createGA4Client({fetchImpl:async(url,options)=>{
+  if(options.body){const body=JSON.parse(options.body);requests.push(body);return Response.json(response(body));}
+  return Response.json(url.includes('dataStreams')?{dataStreams:streams}:{name:'properties/1234',currencyCode:'SAR',timeZone:'Asia/Riyadh',displayName:'Website'});
+ }});
+ assert.deepEqual(await client.streams('x','1234'),[{id:'5678',name:'Website',hostname:'store.example'},{id:'7777',name:'Second site',hostname:'other.example'}]);
+ const selected=await client.property('x','1234',null,'5678');assert.equal(selected.hostname,'store.example');assert.equal(selected.streamId,'5678');
+ await client.reports('x',selected,'2026-08-01','2026-08-02');
+ assert.equal(requests.length,2);assert.ok(requests.every(r=>r.dimensionFilter.andGroup.expressions.some(e=>e.filter.fieldName==='streamId'&&e.filter.stringFilter.value==='5678')));
+ await assert.rejects(client.property('x','1234',null),/ga4_stream_required/);
+ await assert.rejects(client.property('x','1234',null,'9999'),/ga4_stream_required/);
+ await assert.rejects(client.property('x','1234','https://other.example','5678'),/ga4_store_mismatch/);
+ streams[0].name='properties/9999/dataStreams/5678';await assert.rejects(client.streams('x','1234'),/ga4_invalid_response/);
+});
 test('CSV is formula-safe, and recommendations expose missing data without inventing performance',()=>{
  const csv=ga4Csv([{transactionId:'=HYPERLINK("bad")',status:'verified'}]);assert.ok(csv.includes("'=HYPERLINK"));
  assert.match(ga4Insights({summary:{pendingPayments:3},coverage:{complete:false}}).join(' '),/3/);

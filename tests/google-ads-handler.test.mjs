@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGoogleAdsHandler,boundedJson,publicError} from '../supabase/functions/google-ads-connect/handler.mjs';
+import {createGoogleAdsClient} from '../lib/google-ads/client.mjs';
 import {newBrowserTransaction,pkceChallenge,stateCookieName,safeCompletionPath,sameOriginMutation,trustedAuthorizeUrl} from '../lib/google-ads/protocol.mjs';
 
 const TX='ac406ee2-2c89-45e3-8dc1-b4f15104cc65';
@@ -69,6 +70,65 @@ test('OAuth claim precedes code exchange and service finalization never exposes 
   assert.equal(h.calls[0].headers.authorization,'Bearer user-fixture');
   assert.equal(h.calls.at(-1).headers.authorization,'Bearer service-fixture');
   assert.doesNotMatch(JSON.stringify(result),/server-refresh|server-access|fixture-secret/);
+});
+test('real Ads adapter completes OAuth for an available account beside cancelled accounts without losing the tenant',async()=>{
+  for(const scenario of ['available','all-inactive','permission-denied']){
+    const calls=[],failures=[];
+    const handler=createGoogleAdsHandler({env,createClient:createGoogleAdsClient,logFailure:event=>failures.push(event),
+      fetchImpl:async(url,options)=>{
+        if(url.startsWith(env.SUPABASE_URL)){
+          const name=url.split('/').at(-1),body=JSON.parse(options.body);calls.push({name,body});
+          if(name==='v1_tenant_google_ads_claim_oauth'){
+            assert.equal(options.headers.authorization,'Bearer user-fixture');
+            return Response.json({transactionId:TX,tenantSlug:'demo-training',returnPath:'/tenant/demo-training/reports/google-ads'});
+          }
+          assert.equal(name,'v1_service_google_ads_finalize_oauth');
+          assert.equal(options.headers.authorization,'Bearer service-fixture');
+          assert.equal(body.p_transaction_id,TX);
+          if(scenario==='all-inactive'){
+            assert.deepEqual(body.p_accounts,[]);
+            return Response.json({message:'google_ads_no_eligible_accounts'},{status:400});
+          }
+          assert.deepEqual(body.p_accounts.map(row=>row.customerId),['1111111111']);
+          assert.equal(body.p_accounts[0].selectable,true);
+          return Response.json({status:'connected'});
+        }
+        calls.push({name:url.includes('oauth2.googleapis.com')?'exchange':url.includes('listAccessibleCustomers')?'list':'identity'});
+        if(url==='https://oauth2.googleapis.com/token')return Response.json({access_token:'private-access',refresh_token:'private-refresh-token-fixture',
+          token_type:'Bearer',scope:SCOPE,expires_in:3600});
+        if(url.endsWith(':listAccessibleCustomers'))return Response.json({resourceNames:['customers/2222222222','customers/1111111111','customers/3333333333']});
+        assert.equal(options.headers.authorization,'Bearer private-access');
+        const id=url.match(/customers\/(\d+)/)[1];
+        if(id==='1111111111'&&scenario==='available')return Response.json({results:[{customer:{id,descriptiveName:'Fixture advertiser',currencyCode:'SAR',timeZone:'Asia/Riyadh',status:'ENABLED'}}]});
+        return Response.json({error:{details:[{'@type':'type.googleapis.com/google.ads.googleads.v25.errors.GoogleAdsFailure',
+          errors:[{errorCode:{authorizationError:scenario==='permission-denied'?'USER_PERMISSION_DENIED':'CUSTOMER_NOT_ENABLED'},message:'private-provider-detail'}]}]}},{status:403});
+      }
+    });
+    const tx=newBrowserTransaction();
+    const response=await handler(new Request('https://fixture.invalid/functions/v1/google-ads-connect/complete',{
+      method:'POST',headers:{authorization:'Bearer user-fixture','content-type':'application/json'},
+      body:JSON.stringify({state:tx.state,codeVerifier:tx.verifier,code:'private-code',tenantSlug:'untrusted-other-tenant'})
+    }));
+    const result=await response.json();
+    assert.equal(calls[0].name,'v1_tenant_google_ads_claim_oauth');
+    assert.equal(response.status,scenario==='available'?200:400);
+    assert.equal(result.returnPath,'/tenant/demo-training/reports/google-ads'+(scenario==='available'?'?google_ads=connected':''));
+    if(scenario==='available')assert.equal(failures.length,0);
+    else assert.equal(result.error,scenario==='all-inactive'?'no_eligible_ads_accounts':'google_access_denied');
+    if(scenario==='permission-denied')assert.ok(!calls.some(call=>call.name==='v1_service_google_ads_finalize_oauth'));
+    assert.doesNotMatch(JSON.stringify([result,failures]),/private-|untrusted-other-tenant/);
+  }
+});
+
+test('sync of an inactive selected account preserves stored metrics and gives an actionable error',async()=>{
+  const h=harness({client:{fetchCampaignReport:new Error('google_customer_not_enabled')}});
+  const result=await h.request('sync',syncBody);
+  assert.equal(result.body.error,'ads_account_inactive');
+  const finish=h.calls.find(call=>call.suffix==='finish_sync').body;
+  assert.equal(finish.p_success,false);
+  assert.equal(finish.p_error_code,'ads_account_inactive');
+  assert.deepEqual(finish.p_campaigns,[]);
+  assert.deepEqual(finish.p_metrics,[]);
 });
 test('invalid, replayed, cancelled or protected OAuth cannot exchange a code',async()=>{
   const tx=newBrowserTransaction();

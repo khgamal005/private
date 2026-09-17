@@ -476,8 +476,8 @@ export default function TeamDirectory({
       </form>
     </Modal>}
 
-    {modal?.type==='resetPassword'&&<Modal title={`إعادة كلمة مرور ${modal.staff.name}`} onClose={closeModal}>
-      <form onSubmit={resetPassword}>
+    {modal?.type==='resetPassword'&&<Modal className="mt-password-reset-modal" title={`إعادة كلمة مرور ${modal.staff.name}`} onClose={closeModal}>
+      <form className="mt-password-reset-form" onSubmit={resetPassword}>
         <div className="mt-form">
           {!resetResult?<>
             <div className="mt-field wide mt-reset-warning">
@@ -491,7 +491,7 @@ export default function TeamDirectory({
           </>:<div className="mt-field wide mt-reset-success">
             <b>تم إنشاء كلمة المرور المؤقتة</b>
             <div>
-              <input dir="ltr" readOnly value={resetResult.temporaryPassword}/>
+              <input aria-label="كلمة المرور المؤقتة" dir="ltr" readOnly value={resetResult.temporaryPassword}/>
               <button type="button" className="mt-button" onClick={copyTemporaryPassword}>نسخ</button>
             </div>
           </div>}
@@ -609,10 +609,10 @@ export default function TeamDirectory({
   </>;
 }
 
-function Modal({title,onClose,children}){
+function Modal({title,onClose,children,className=''}){
   return <div className="mt-modal-layer" dir="rtl">
     <button className="mt-modal-backdrop" aria-label="إغلاق" onClick={onClose}/>
-    <div className="mt-modal" role="dialog" aria-modal="true">
+    <div className={`mt-modal ${className}`} role="dialog" aria-modal="true">
       <header>
         <div><small>STAFF PROFILE</small><h3>{title}</h3></div>
         <button type="button" onClick={onClose}>×</button>

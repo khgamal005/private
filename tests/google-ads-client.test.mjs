@@ -47,6 +47,29 @@ test('refresh preserves refresh credential; OAuth failures redact provider detai
   });
 });
 
+test('invalid OAuth client is a platform configuration failure even with HTTP 401', async () => {
+  const instance = client(async () => new Response(JSON.stringify({error:'invalid_client',error_description:'private-secret'}), {status:401}));
+  await assert.rejects(instance.exchangeCode({code:'private-code',codeVerifier:'v'.repeat(43)}), errorCode('google_oauth_configuration_invalid'));
+});
+
+test('Ads errors classify fixed provider enums without exposing response text', async () => {
+  const detail = errorCode => ({'@type':'type.googleapis.com/google.ads.googleads.v25.errors.GoogleAdsFailure',
+    errors:[{errorCode,message:'private-token'}]});
+  for (const [providerDetail,expected] of [
+    [detail({authorizationError:'CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION'}),'google_cloud_project_access_required'],
+    [detail({authenticationError:'NOT_ADS_USER'}),'google_ads_user_required'],
+    [{'@type':'type.googleapis.com/google.rpc.ErrorInfo',reason:'SERVICE_DISABLED',metadata:{secret:'private-token'}},'google_api_not_enabled'],
+    [detail({authorizationError:'private-token'}),'google_access_denied']
+  ]) {
+    const instance = client(async () => new Response(JSON.stringify({error:{message:'private-token',details:[providerDetail]}}), {status:403}));
+    await assert.rejects(instance.discoverAccounts({accessToken:'private-token'}), error => {
+      assert.equal(error.code,expected);
+      assert.doesNotMatch(JSON.stringify(error),/private-token/);
+      return true;
+    });
+  }
+});
+
 test('account discovery walks managers, preserves login route, dedupes direct access and excludes test accounts', async () => {
   const calls = [];
   const instance = client(async (url, init) => {

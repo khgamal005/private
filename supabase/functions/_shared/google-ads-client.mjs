@@ -99,6 +99,21 @@ function accountShape(customer, loginCustomerId = '') {
   };
 }
 function abortError(signal) { if (signal?.aborted) fail('google_request_aborted'); }
+function providerFailureCode(body) {
+  // Only exact, documented enums are classified; no provider text is exposed.
+  const details = record(record(body).error).details;
+  for (const detail of Array.isArray(details) ? details.slice(0, 20) : []) {
+    const item = record(detail);
+    if (item['@type'] === 'type.googleapis.com/google.rpc.ErrorInfo' && item.reason === 'SERVICE_DISABLED') return 'google_api_not_enabled';
+    if (!/^type\.googleapis\.com\/google\.ads\.googleads\.v\d+\.errors\.GoogleAdsFailure$/.test(item['@type'] || '')) continue;
+    for (const error of Array.isArray(item.errors) ? item.errors.slice(0, 100) : []) {
+      const code = record(record(error).errorCode);
+      if (code.authorizationError === 'CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION') return 'google_cloud_project_access_required';
+      if (code.authenticationError === 'NOT_ADS_USER') return 'google_ads_user_required';
+    }
+  }
+  return '';
+}
 function defaultSleep(ms, signal) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new GoogleAdsClientError('google_request_aborted'));
@@ -168,8 +183,10 @@ export function createGoogleAdsClient(config, options = {}) {
         continue;
       }
       // Never expose Google's error message, details, URLs or body: these can contain secrets.
-      if (record(body).error === 'invalid_grant' || response.status === 401) fail('google_reconnect_required', response.status);
       if (record(body).error === 'invalid_client') fail('google_oauth_configuration_invalid', response.status);
+      const providerCode = providerFailureCode(body);
+      if (providerCode) fail(providerCode, response.status);
+      if (record(body).error === 'invalid_grant' || response.status === 401) fail('google_reconnect_required', response.status);
       if (response.status === 403) fail('google_access_denied', response.status);
       if (response.status === 429) fail('google_rate_limited', response.status);
       fail('google_api_error', response.status);
@@ -323,4 +340,3 @@ export function createGoogleAdsClient(config, options = {}) {
     }
   });
 }
-

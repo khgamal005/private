@@ -28,7 +28,7 @@ function harness({token = 'session-secret', upstream} = {}) {
     redirect(url, status) {return withCookies(new Response(null, {status, headers: {location: String(url)}}));}
   };
   const route = vm.runInNewContext(`(() => {${source}\nreturn {GET, POST};})()`, {
-    ...protocol, boundedJson, publicError, NextResponse, URL, AbortSignal,
+    ...protocol, boundedJson, publicError, NextResponse, URL, URLSearchParams, AbortSignal,
     crypto: webcrypto, SUPABASE_URL: 'https://fixture.supabase.invalid', SUPABASE_KEY: 'public-anon-key', ACCESS_COOKIE,
     cookies: async () => ({get(name) {return jar.has(name) ? {value: jar.get(name)} : undefined;}}),
     fetch: async (url, options) => {
@@ -112,7 +112,10 @@ test('start generates independent state, keeps verifier in a secure state-specif
   assert.equal(firstCall.options.cache, 'no-store');
   assert.equal(firstCall.options.headers.apikey, 'public-anon-key');
   const cookie = first.cookieWrites[0];
-  assert.equal(first.cookieWrites.length, 1);
+  assert.equal(first.cookieWrites.length, 2);
+  assert.equal(first.cookieWrites[1].name, cookie.name+'_tenant');
+  assert.equal(first.cookieWrites[1].value, 'demo-a');
+  assert.deepEqual(first.cookieWrites[1].options, cookie.options);
   assert.equal(cookie.name, protocol.stateCookieName(firstCall.payload.state));
   assert.notEqual(cookie.name, second.cookieWrites[0].name);
   assert.equal(protocol.pkceChallenge(cookie.value), firstCall.payload.codeChallenge);
@@ -152,7 +155,7 @@ test('callback missing session, mismatched state, malformed state or missing ver
     const request = new Request(`${CALLBACK}?state=${encodeURIComponent(state)}&code=secret-code`);
     const response = await fixture.route.GET(request, params('callback'));
     assert.equal(response.status, 303);
-    assert.equal(response.headers.get('location'), `${BASE}/?google_ads=error`);
+    assert.equal(response.headers.get('location'), `${BASE}/google-connection?google_ads=error&reason=${mode==='session'?'authentication_required':'oauth_state_invalid_or_used'}`);
     assert.equal(fixture.edgeCalls.length, 0, mode);
     assert.doesNotMatch(response.headers.get('location'), /secret-code/);
   }
@@ -166,19 +169,19 @@ test('successful callback uses only server verifier, clears that transaction and
   const request = () => new Request(`${CALLBACK}?state=${transaction.state}&code=secret-code&codeVerifier=attacker-verifier&tenantSlug=reefskills&returnPath=https://evil.invalid`);
   const response = await fixture.route.GET(request(), params('callback'));
   assert.equal(response.status, 303);
-  assert.equal(response.headers.get('location'), `${BASE}/tenant/demo-a/reports/google-ads?google_ads=connected`);
+  assert.equal(response.headers.get('location'), `${BASE}/tenant/demo-a/addons/google-kit?google_ads=connected`);
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
   assert.match(response.headers.get('cache-control'), /no-store/);
   assert.equal(fixture.edgeCalls.length, 1);
   assert.ok(fixture.edgeCalls[0].url.endsWith('/google-ads-connect/complete'));
   assert.deepEqual(fixture.edgeCalls[0].payload, {state: transaction.state, codeVerifier: transaction.verifier, code: 'secret-code', cancelled: false});
-  assert.equal(response.cookieWrites.length, 1);
+  assert.equal(response.cookieWrites.length, 2);
   assert.equal(response.cookieWrites[0].name, protocol.stateCookieName(transaction.state));
   assert.equal(response.cookieWrites[0].options.maxAge, 0);
   fixture.applyCookies(response);
   assert.equal(fixture.jar.get(protocol.stateCookieName(other.state)), other.verifier);
   const replay = await fixture.route.GET(request(), params('callback'));
-  assert.equal(replay.headers.get('location'), `${BASE}/?google_ads=error`);
+  assert.equal(replay.headers.get('location'), `${BASE}/google-connection?google_ads=error&reason=oauth_state_invalid_or_used`);
   assert.equal(fixture.edgeCalls.length, 1);
 });
 
@@ -188,7 +191,7 @@ test('callback cannot redirect to external hosts or protected tenant paths even 
     const fixture = harness({upstream: () => json({ok: true, returnPath})});
     fixture.jar.set(protocol.stateCookieName(transaction.state), transaction.verifier);
     const response = await fixture.route.GET(new Request(`${CALLBACK}?state=${transaction.state}&code=secret-code`), params('callback'));
-    assert.equal(response.headers.get('location'), `${BASE}/`, returnPath);
+    assert.equal(response.headers.get('location'), `${BASE}/google-connection?google_ads=error&reason=oauth_state_invalid`, returnPath);
     assert.equal(response.cookieWrites[0].options.maxAge, 0);
   }
 });
@@ -200,7 +203,7 @@ test('provider cancellation and upstream failure consume browser transaction wit
   const response = await fixture.route.GET(new Request(`${CALLBACK}?state=${transaction.state}&error=access_denied&error_description=provider-secret`), params('callback'));
   assert.equal(fixture.edgeCalls[0].payload.cancelled, true);
   assert.equal(fixture.edgeCalls[0].payload.code, '');
-  assert.equal(response.headers.get('location'), `${BASE}/?google_ads=error`);
+  assert.equal(response.headers.get('location'), `${BASE}/google-connection?google_ads=error&reason=request_rejected`);
   assert.equal(response.cookieWrites[0].options.maxAge, 0);
   assert.equal(JSON.stringify(fixture.edgeCalls[0].payload).includes('provider-secret'), false);
 });
@@ -226,6 +229,64 @@ test('mutation forwards only action-approved fields and sanitizes upstream failu
   const response = await failing.route.POST(postRequest('assets'), params('assets'));
   assert.equal(response.status, 500);
   assert.deepEqual(await response.json(), {ok: false, error: 'request_rejected'});
+});
+
+test('failed exchange returns to settings using only the claimed server transaction and a safe reason', async () => {
+  const transaction = protocol.newBrowserTransaction();
+  const fixture = harness({upstream: () => json({ok: false, error: 'no_eligible_ads_accounts',
+    returnPath: '/tenant/demo-a/reports/google-ads?access_token=private'}, 400)});
+  fixture.jar.set(protocol.stateCookieName(transaction.state), transaction.verifier);
+  // Older transactions without a recovery cookie still use the authenticated Edge context.
+  const response = await fixture.route.GET(new Request(`${CALLBACK}?state=${transaction.state}&code=private&reason=attacker`), params('callback'));
+  assert.equal(response.headers.get('location'), `${BASE}/tenant/demo-a/addons/google-kit?google_ads=error&reason=no_eligible_ads_accounts`);
+  assert.doesNotMatch(response.headers.get('location'), /private|attacker/);
+});
+
+test('start-to-failed-callback retains tenant recovery through a network outage and clears only that transaction', async () => {
+  let failing = false;
+  const fixture = harness({upstream: call => {
+    if (failing) throw new Error('network-error with private-token');
+    return json({ok: true, authorizeUrl: authorizeUrl(call.payload)});
+  }});
+  for (const tenantSlug of ['demo-a', 'demo-b']) {
+    fixture.applyCookies(await fixture.route.POST(postRequest('start', {tenantSlug}), params('start')));
+  }
+  const [first,second] = fixture.edgeCalls.map(call => call.payload);
+  failing = true;
+  const response = await fixture.route.GET(new Request(`${CALLBACK}?state=${first.state}&code=private`), params('callback'));
+  assert.equal(response.headers.get('location'), `${BASE}/tenant/demo-a/addons/google-kit?google_ads=error&reason=service_unavailable`);
+  fixture.applyCookies(response);
+  assert.equal(fixture.jar.has(protocol.stateCookieName(first.state)), false);
+  assert.equal(fixture.jar.has(protocol.stateCookieName(first.state)+'_tenant'), false);
+  assert.equal(fixture.jar.get(protocol.stateCookieName(second.state)+'_tenant'), 'demo-b');
+  assert.equal(protocol.validVerifier(fixture.jar.get(protocol.stateCookieName(second.state))), true);
+  const complete = fixture.edgeCalls.at(-1).payload;
+  assert.deepEqual(Object.keys(complete).sort(), ['cancelled','code','codeVerifier','state']);
+});
+
+test('recovery context cannot turn a cross-tenant or untrusted completion into success', async () => {
+  for (const returnPath of ['/tenant/demo-b/reports/google-ads?google_ads=connected',
+    'https://evil.invalid/tenant/demo-a/reports/google-ads?google_ads=connected',
+    '/tenant/demo-a/reports/google-ads?google_ads=error']) {
+    const transaction = protocol.newBrowserTransaction();
+    const fixture = harness({upstream: () => json({ok: true, returnPath})});
+    fixture.jar.set(protocol.stateCookieName(transaction.state), transaction.verifier);
+    fixture.jar.set(protocol.stateCookieName(transaction.state)+'_tenant', 'demo-a');
+    const response = await fixture.route.GET(new Request(`${CALLBACK}?state=${transaction.state}&code=private`), params('callback'));
+    assert.equal(response.headers.get('location'), `${BASE}/tenant/demo-a/addons/google-kit?google_ads=error&reason=oauth_state_invalid`);
+  }
+});
+
+test('cancellation returns to settings and unknown failure text is never reflected', async () => {
+  for (const result of [{ok:true,returnPath:'/tenant/demo-a/reports/google-ads?google_ads=cancelled'},
+    {ok:false,error:'private-token',returnPath:'/tenant/demo-a/reports/google-ads'}]) {
+    const transaction = protocol.newBrowserTransaction();
+    const fixture = harness({upstream: () => json(result)});
+    fixture.jar.set(protocol.stateCookieName(transaction.state), transaction.verifier);
+    const response = await fixture.route.GET(new Request(`${CALLBACK}?state=${transaction.state}&error=access_denied&error_description=private`), params('callback'));
+    const expected = result.ok ? 'google_ads=cancelled' : 'google_ads=error&reason=request_rejected';
+    assert.equal(response.headers.get('location'), `${BASE}/tenant/demo-a/addons/google-kit?${expected}`);
+  }
 });
 
 test('oversize or non-object JSON is rejected before Edge forwarding', async () => {

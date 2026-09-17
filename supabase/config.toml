@@ -120,3 +120,9 @@ verify_jwt = false
 # Each action validates the caller through Google-only tenant RPCs before reading
 # Vault credentials. Google OAuth returns through the authenticated Next.js route.
 verify_jwt = false
+
+
+[functions.tenant-staff-account]
+# Every action authorizes the caller JWT through exact tenant/staff RPCs before
+# privileged Auth creation. Supports current asymmetric Supabase JWTs.
+verify_jwt = false

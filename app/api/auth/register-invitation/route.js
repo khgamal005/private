@@ -84,6 +84,8 @@ function setSessionCookies(response,session){
 function invitationError(data){
   const code=String(data?.error||data?.message||data?.detail||'');
   const messages={
+    plan_limit_reached:'وصلت المنشأة إلى الحد الأقصى لحسابات الموظفين في باقتها. اطلب من مدير المنشأة زيادة السعة أو إيقاف حساب غير مستخدم ثم أعد المحاولة بنفس الدعوة.',
+    sign_in_failed:'تم إنشاء الحساب وتعذر الدخول؛ أعد المحاولة بكلمة المرور نفسها أو استخدم تسجيل الدخول.',
     invalid_invitation:'رابط الدعوة غير صالح أو تم استخدامه من قبل',
     invitation_expired:'انتهت صلاحية رابط الدعوة؛ اطلب دعوة جديدة',
     invitation_email_mismatch:'الدعوة مرتبطة ببريد مختلف',
@@ -95,3 +97,4 @@ function invitationError(data){
   };
   return messages[code]||'تعذر التحقق من الدعوة';
 }
+

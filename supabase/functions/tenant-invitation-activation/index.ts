@@ -53,45 +53,25 @@ function textValue(value: unknown) {
   return value == null ? '' : String(value).trim();
 }
 
-async function findUserByEmail(
-  supabaseUrl: string,
-  serviceRoleKey: string,
-  email: string
-) {
-  for (let page = 1; page <= 100; page += 1) {
-    const listed = await requestJson(
-      `${supabaseUrl}/auth/v1/admin/users?page=${page}&per_page=100`,
-      {headers: serviceHeaders(serviceRoleKey)}
-    );
-    if (!listed.ok) throw new Error(`list_users_${listed.status}`);
-    const users = Array.isArray(listed.data.users)
-      ? listed.data.users as JsonRecord[]
-      : [];
-    const matched = users.find(
-      user => textValue(user.email).toLowerCase() === email
-    );
-    if (matched) return matched;
-    if (users.length < 100) return null;
-  }
-  throw new Error('user_lookup_limit');
-}
-
 async function activateAuthUser(
   supabaseUrl: string,
   serviceRoleKey: string,
   invitation: JsonRecord,
-  password: string
+  password: string,
+  token: string
 ) {
   const email = textValue(invitation.email).toLowerCase();
-  const existing = await findUserByEmail(
-    supabaseUrl,
-    serviceRoleKey,
-    email
+  const lookup = await requestJson(
+    `${supabaseUrl}/rest/v1/rpc/v1_invitation_auth_user`,
+    {method: 'POST', headers: serviceHeaders(serviceRoleKey), body: JSON.stringify({p_token: token})}
   );
+  if (!lookup.ok) throw new Error('invitation_auth_lookup_failed');
+  const existing = lookup.data.id ? lookup.data : null;
 
   if (existing) {
     if (existing.email_confirmed_at || existing.confirmed_at) {
-      return {ok: false, status: 409, code: 'account_already_exists'};
+      // Resume after partial activation only by proving the existing password.
+      return {ok: true, status: 200, code: 'existing_account'};
     }
     const updated = await requestJson(
       `${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(
@@ -144,14 +124,14 @@ Deno.serve(async request => {
 
     const body = await request.json() as JsonRecord;
     const token = textValue(body.token);
-    const password = textValue(body.password);
+    const password = typeof body.password === 'string' ? body.password : '';
     if (token.length < 32) return json({error: 'invalid_invitation'}, 400);
     if (password.length < 10) {
       return json({error: 'weak_password'}, 400);
     }
 
     const preview = await requestJson(
-      `${supabaseUrl}/rest/v1/rpc/v2_invitation_preview`,
+      `${supabaseUrl}/rest/v1/rpc/v1_invitation_activation_preflight`,
       {
         method: 'POST',
         headers: publicHeaders(publishableKey),
@@ -170,7 +150,8 @@ Deno.serve(async request => {
       supabaseUrl,
       serviceRoleKey,
       preview.data,
-      password
+      password,
+      token
     );
     if (!authResult.ok) {
       return json({error: authResult.code}, authResult.status);
@@ -187,7 +168,10 @@ Deno.serve(async request => {
         })
       }
     );
-    if (!signedIn.ok) throw new Error(`sign_in_${signedIn.status}`);
+    if (!signedIn.ok) {
+      return json({error: authResult.code === 'existing_account'
+        ? 'account_already_exists' : 'sign_in_failed'}, 409);
+    }
 
     const accessToken = textValue(signedIn.data.access_token);
     const accepted = await requestJson(
@@ -223,3 +207,4 @@ Deno.serve(async request => {
     }, 500);
   }
 });
+

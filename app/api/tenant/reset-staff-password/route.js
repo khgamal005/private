@@ -78,6 +78,7 @@ function translate(payload){
     ||''
   );
   const messages={
+    shared_staff_account:'الحساب مرتبط بمنشأة أخرى؛ يجب أن يغير صاحبه كلمة مروره بنفسه.',
     forbidden:'ليس لديك صلاحية لإعادة تعيين كلمة المرور',
     tenant_not_found:'المنشأة غير موجودة',
     staff_account_not_active:'إعادة التعيين متاحة للحسابات النشطة فقط',
@@ -90,3 +91,4 @@ function translate(payload){
   };
   return messages[code]||'تعذر التحقق من صلاحية إعادة التعيين';
 }
+

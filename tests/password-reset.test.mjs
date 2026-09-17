@@ -34,7 +34,8 @@ test('invitation activation confirms new users on the server and repairs pending
 
   assert.match(route,/\/functions\/v1\/tenant-invitation-activation/);
   assert.doesNotMatch(route,/\/auth\/v1\/signup/);
-  assert.match(edge,/v2_invitation_preview/);
+  assert.match(edge,/v1_invitation_activation_preflight/);
+  assert.match(edge,/v1_invitation_auth_user/);
   assert.match(edge,/v2_accept_tenant_invitation/);
   assert.match(edge,/email_confirm: true/);
   assert.match(edge,/account_already_exists/);
@@ -75,3 +76,4 @@ test('forced password change blocks tenant and platform access until completion'
   assert.match(migration,/not s\.must_change_password/);
   assert.match(changeRoute,/v2_mark_password_changed/);
 });
+

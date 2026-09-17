@@ -168,6 +168,7 @@ export async function POST(request,{params}){
 
 function translate(value){
   const messages={
+    plan_limit_reached:'وصلت المنشأة إلى الحد الأقصى لحسابات الموظفين في باقتها. زد السعة أو أوقف حسابًا غير مستخدم ثم أعد المحاولة.',
     ...WOO_ADMISSION_ERRORS,
     forbidden:'ليس لديك صلاحية لتنفيذ العملية',
     tenant_not_found:'المنشأة غير موجودة',
@@ -391,3 +392,4 @@ function translate(value){
   };
   return messages[String(value)]||String(value);
 }
+

@@ -125,6 +125,34 @@ export default function TeamDirectory({
     setModal({type:'resetPassword',staff:staffMember});
   }
 
+  function openStaffAccount(staffMember){
+    resetModalState();
+    setModal({type:'createAccount',staff:staffMember});
+  }
+
+  async function createStaffAccount(event){
+    event.preventDefault();
+    const form=event.currentTarget;
+    const values=new FormData(form);
+    if(values.get('password')!==values.get('confirm')){setError('كلمتا المرور غير متطابقتين');return;}
+    setBusy(true);setError('');setMessage('');
+    try{
+      const data=await call('create-staff-account',{p_tenant_slug:slug,p_staff_id:modal.staff.id,password:values.get('password')});
+      form.reset();
+      setMessage(data.passwordUnchanged
+        ?'اكتمل تفعيل الحساب بكلمة المرور المحددة في المحاولة الأولى. يجب على الموظف تغييرها عند الدخول.'
+        :'تم تفعيل الحساب. سلّم كلمة المرور المؤقتة للموظف؛ سيُطلب منه تغييرها عند أول دخول.');
+      setModal(null);
+      router.refresh();
+    }catch(err){setError(err.message)}finally{setBusy(false)}
+  }
+
+  function canCreateAccount(staffMember){
+    if(!canManage||!canInvite||!canResetPasswords)return false;
+    if(!['profile_only','invited'].includes(staffMember.accountStatus)||staffMember.status==='inactive')return false;
+    return platformAccess||Math.max(0,...(viewerRoleKeys||[]).map(roleRank))>roleRank(staffMember.roleKey);
+  }
+
   function closeModal(){
     if(busy)return;
     setModal(null);
@@ -218,7 +246,12 @@ export default function TeamDirectory({
           :'تم تحديث بيانات الموظف والمشرف'
         :'تم إنشاء الملف الوظيفي وحفظ بيانات الاتصال'
       );
-      setModal(null);
+      if(!isEdit&&saved?.accountStatus!=='active'&&values.account_setup!=='profile'){
+        const member={id:staffId,name:values.full_name,email:values.email,roleKey:nextRole,accountStatus:saved?.accountStatus||'profile_only',status:'active'};
+        if(values.account_setup==='password')openStaffAccount(member);
+        else if(values.account_setup==='invite')openInvite(member);
+        else setModal(null);
+      }else setModal(null);
       router.refresh();
     }catch(err){setError(err.message)}finally{setBusy(false)}
   }
@@ -314,7 +347,7 @@ export default function TeamDirectory({
     {!managerProfiles.length&&<section className="mt-data-note warning">
       <div>
         <b>مدير المنشأة والمدير التنفيذي جاهزان للإضافة من لوحة التحكم</b>
-        <p>يمكن إنشاء الملف الآن ثم إرسال دعوة الدخول بعد مراجعة الدور والصلاحيات.</p>
+        <p>يمكن إنشاء الملف ثم تعيين كلمة مرور مؤقتة أو إنشاء دعوة الدخول بعد مراجعة الدور والصلاحيات.</p>
       </div>
       {canManage&&<div className="mt-data-note-actions">
         <button className="mt-button soft" onClick={()=>openCreate('tenant_admin')}>
@@ -392,6 +425,7 @@ export default function TeamDirectory({
                   className="mt-button"
                   onClick={()=>openInvite(item)}
                 >{item.accountStatus==='invited'?'إعادة الدعوة':'دعوة للدخول'}</button>}
+                {canCreateAccount(item)&&<button className="mt-button primary" onClick={()=>openStaffAccount(item)}>تعيين كلمة مرور وتفعيل الحساب</button>}
                 {canReset(item)&&<button
                   className="mt-button"
                   onClick={()=>openPasswordReset(item)}
@@ -422,6 +456,22 @@ export default function TeamDirectory({
           {!invitationUrl&&<button className="mt-button primary" disabled={busy}>
             {busy?'جارٍ إنشاء الدعوة…':'حفظ البريد وإنشاء الدعوة'}
           </button>}
+        </footer>
+      </form>
+    </Modal>}
+
+    {modal?.type==='createAccount'&&<Modal title={`تفعيل حساب ${modal.staff.name}`} onClose={closeModal}>
+      <form onSubmit={createStaffAccount}>
+        <div className="mt-form">
+          <div className="mt-field wide"><b>{modal.staff.email||'احفظ بريد الموظف من تعديل البيانات أولًا'}</b>
+            <p>حدد كلمة مرور مؤقتة من 12 إلى 128 حرفًا. لن تظهر بعد الحفظ، ويجب على الموظف تغييرها عند أول دخول.</p>
+          </div>
+          <label className="mt-field wide">كلمة المرور المؤقتة<input name="password" type="password" minLength={12} maxLength={128} autoComplete="new-password" required/></label>
+          <label className="mt-field wide">تأكيد كلمة المرور<input name="confirm" type="password" minLength={12} maxLength={128} autoComplete="new-password" required/></label>
+          {error&&<div role="alert" className="mt-alert mt-field wide">{error}</div>}
+        </div>
+        <footer><button type="button" className="mt-button" onClick={closeModal}>إلغاء</button>
+          <button className="mt-button primary" disabled={busy||!modal.staff.email}>{busy?'جارٍ التفعيل…':'تفعيل الحساب بكلمة المرور'}</button>
         </footer>
       </form>
     </Modal>}
@@ -536,8 +586,15 @@ export default function TeamDirectory({
               />
             </label>
           </>}
+          {modal.type==='create'&&canInvite&&<label className="mt-field wide">حساب الدخول بعد حفظ الملف
+            <select name="account_setup" defaultValue={canResetPasswords?'password':'invite'}>
+              {canResetPasswords&&<option value="password">تعيين كلمة مرور مؤقتة</option>}
+              <option value="invite">إنشاء دعوة للموظف</option>
+              <option value="profile">حفظ الملف فقط</option>
+            </select>
+          </label>}
           <div className="mt-field wide mt-inline-help">
-            إنشاء حساب الدخول يتم من زر «دعوة للدخول» بعد مراجعة الدور والبيانات.
+            يمكنك تعيين كلمة مرور مؤقتة أو إنشاء دعوة من بطاقة الموظف بعد حفظ بياناته.
           </div>
           {error&&<div className="mt-alert error mt-field wide">{error}</div>}
         </div>
@@ -593,3 +650,4 @@ function roleRank(roleKey){
     data_analyst:40
   })[roleKey]||10;
 }
+

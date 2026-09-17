@@ -21,7 +21,10 @@ test('invitation activation never relies on a public service key',async()=>{
   const config=await read('../lib/config.js');
   assert.match(registration,/tenant-invitation-activation/);
   assert.match(registration,/SUPABASE_KEY/);
-  assert.match(activation,/v2_invitation_preview/);
+  assert.match(activation,/v1_invitation_activation_preflight/);
+  const activationMigration=await read('../supabase/migrations/20260917194438_staff_account_activation_v1.sql');
+  assert.match(activationMigration,/preview:=public\.v2_invitation_preview\(p_token\)/);
+  assert.match(activationMigration,/enforce_tenant_plan_limit\(i\.tenant_id,'max_employees'\)/);
   assert.match(activation,/v2_accept_tenant_invitation/);
   assert.match(activation,/SUPABASE_SERVICE_ROLE_KEY/);
   assert.doesNotMatch(`${registration}\n${config}`,/service.role|service_role|secret.key|SUPABASE_SECRET/i);

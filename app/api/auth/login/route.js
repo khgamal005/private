@@ -166,6 +166,7 @@ async function acceptInvitation(rpcName,token,accessToken){
 function invitationError(data,scope){
   const code=String(data?.message||data?.error||data?.detail||'').split(':')[0];
   const messages={
+    plan_limit_reached:'وصلت المنشأة إلى الحد الأقصى لحسابات الموظفين في باقتها. تواصل مع مدير المنشأة لزيادة السعة أو إيقاف حساب غير مستخدم، ثم أعد قبول الدعوة.',
     invalid_invitation:'رابط الدعوة غير صالح أو تم استخدامه من قبل',
     invitation_expired:'انتهت صلاحية رابط الدعوة؛ اطلب دعوة جديدة',
     invitation_email_mismatch:'سجّلت الدخول ببريد مختلف عن البريد المدعو',
@@ -175,3 +176,4 @@ function invitationError(data,scope){
     ?'تعذر قبول دعوة فريق المنصة'
     :'تعذر قبول دعوة المنشأة');
 }
+

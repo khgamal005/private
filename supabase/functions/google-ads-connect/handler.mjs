@@ -23,7 +23,7 @@ const ERROR_ALIASES={
   google_account_mismatch:'account_not_available',google_advertiser_account_required:'account_not_available',
   google_request_aborted:'service_unavailable',google_request_timeout:'service_unavailable',google_network_error:'service_unavailable'
 };
-const SAFE_ERRORS=new Set(['ga4_consent_required','ga4_access_denied','ga4_request_failed','ga4_invalid_response','ga4_invalid_property','ga4_invalid_store','ga4_store_mismatch','ga4_property_changed','ga4_result_limit','ga4_report_changed','ga4_incomplete_report','ga4_not_configured','reporting_only','authentication_required','forbidden','protected_tenant','addon_not_enabled','configuration_missing',
+const SAFE_ERRORS=new Set(['ga4_consent_required','ga4_access_denied','ga4_admin_api_disabled','ga4_data_api_disabled','ga4_request_failed','ga4_invalid_response','ga4_invalid_property','ga4_invalid_store','ga4_store_mismatch','ga4_property_changed','ga4_result_limit','ga4_report_changed','ga4_incomplete_report','ga4_not_configured','reporting_only','authentication_required','forbidden','protected_tenant','addon_not_enabled','configuration_missing',
   'reauth_required','oauth_state_invalid','oauth_state_invalid_or_used','required_scopes_missing','account_not_available',
   'preview_stale','invalid_date_range','rate_limited','service_unavailable','sync_in_progress','sync_failed',
   'request_rejected','invalid_request','payload_too_large','not_found',

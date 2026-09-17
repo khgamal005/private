@@ -18,7 +18,7 @@ export default function GoogleGA4Report({slug,filters,canManage,connected,displa
   const controller=new AbortController();const current=++generation.current;setError('');setReport(null);setBusy('load');
   requestGoogleAction({name:'ga4-status',slug,signal:controller.signal}).then(async c=>[c,!settings&&c.configured?await requestGoogleAction({name:'ga4-report',slug,payload:{dateFrom:from,dateTo:to,asOf,page,status,campaignId},signal:controller.signal}):null])
    .then(([c,r])=>{if(controller.signal.aborted||current!==generation.current)return;setConfig(c);setReport(r);})
-   .catch(e=>{if(e.name!=='AbortError'&&current===generation.current)setError(googleErrorMessage(e.message));})
+   .catch(e=>{if(e.name!=='AbortError'&&current===generation.current)setError(e.message);})
    .finally(()=>{if(!controller.signal.aborted&&current===generation.current)setBusy('');});
   return ()=>{controller.abort();};
  },[slug,from,to,asOf,page,status,campaignId,connected,settings]);
@@ -34,7 +34,7 @@ export default function GoogleGA4Report({slug,filters,canManage,connected,displa
    if(name==='ga4-assets')setEditing(true);
    if(name==='ga4-select'){setEditing(false);setNotice('تم حفظ الخاصية والمتجر. اضغط «مزامنة GA4» لجلب الفترة المختارة.');}
    if(name==='ga4-sync')setNotice('اكتملت مزامنة GA4 والمطابقة مع أحدث سجلات أودير.');
-  }catch(e){if(current===generation.current)setError(googleErrorMessage(e.message));}
+  }catch(e){if(current===generation.current)setError(e.message);}
   finally{if(current===generation.current)setBusy('');}
  }
  function exportPage(){const blob=new Blob([ga4Csv(report.rows||[])],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`ga4-orders-${from}-page-${page}.csv`;a.click();URL.revokeObjectURL(url);}
@@ -42,9 +42,9 @@ export default function GoogleGA4Report({slug,filters,canManage,connected,displa
  const rate=s.transactions?100*s.matchedOrders/s.transactions:null;
  return <section className={styles.panel} aria-busy={Boolean(busy)} aria-labelledby="ga4-title">
   <header className={styles.sectionHead}><div><span className={styles.eyebrow}>ضمن إضافة Google Kit</span><h2 id="ga4-title">{settings?'ربط Google Analytics (GA4)':'المتجر: من الزيارة إلى التحصيل'}</h2><p>GA4 يوضح ما حدث في المتجر، وأودير يثبت الطلب والتسجيل والتحصيل.</p></div><span className={`${styles.badge} ${config?.configured&&config?.consentGranted&&connected?styles.connected:styles.pending}`}>{config?.configured?(config?.consentGranted&&connected?'GA4 متصل':'يحتاج إعادة ربط'):'موصل GA4'}</span></header>
-  {error?<p className={`${styles.feedback} ${styles.error}`} role="alert">{error}</p>:null}{notice?<p className={styles.feedback} role="status">{notice}</p>:null}
+  {error?<p className={`${styles.feedback} ${styles.error}`} role="alert">{googleErrorMessage(error)}</p>:null}{notice?<p className={styles.feedback} role="status">{notice}</p>:null}
   {settings&&canManage?<div className={styles.actions}>
-   {!config?.consentGranted?<button className={styles.primary} disabled={Boolean(busy)} onClick={()=>action('start',{includeAnalytics:true})}>ربط GA4 مع جوجل</button>:<button className={styles.secondary} disabled={Boolean(busy)||!connected} onClick={()=>action('ga4-assets')}>{config?.configured?'تغيير الخاصية أو المتجر':'اختيار الخاصية والمتجر'}</button>}
+   {!config?.consentGranted||error==='ga4_consent_required'?<button className={styles.primary} disabled={Boolean(busy)} onClick={()=>action('start',{includeAnalytics:true})}>ربط GA4 مع جوجل</button>:<button className={styles.secondary} disabled={Boolean(busy)||!connected} onClick={()=>action('ga4-assets')}>{config?.configured?'تغيير الخاصية أو المتجر':'اختيار الخاصية والمتجر'}</button>}
    {config?.configured?<><button className={styles.primary} disabled={Boolean(busy)||!connected} onClick={()=>action('ga4-sync',{dateFrom:from,dateTo:to})}>{busy==='ga4-sync'?'جارٍ جلب البيانات…':'مزامنة GA4'}</button><button className={styles.textButton} disabled={Boolean(busy)} onClick={()=>action('ga4-disable')}>إيقاف موصل GA4</button></>:null}
   </div>:null}
   {!config?.configured?<p className={styles.note}>اختر خاصية Analytics ومتجر المنشأة مرة واحدة. يعمل الموصل ضمن اشتراك Google Kit، دون شراء إضافة Analytics أخرى.</p>:<p className={styles.note}>{config.property?.name} · <span dir="ltr">{config.property?.hostname}</span> · توقيت القياس: <span dir="ltr">{config.property?.timezone}</span></p>}
@@ -79,4 +79,3 @@ export default function GoogleGA4Report({slug,filters,canManage,connected,displa
   </>:busy==='load'?<p className={styles.note}>جارٍ تحميل حالة التتبع…</p>:null}
  </section>;
 }
-

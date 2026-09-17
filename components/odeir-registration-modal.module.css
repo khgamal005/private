@@ -375,7 +375,7 @@
   line-height: 1.7;
 }
 
-.form :global(.alert.error) {
+.form :global(.alert.trial-error) {
   border: 1px solid #f0caca;
   background: #fff5f5;
   color: #983e3e;
@@ -1515,3 +1515,4 @@
     animation-iteration-count: 1;
   }
 }
+

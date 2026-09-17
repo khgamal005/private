@@ -3,12 +3,13 @@ import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import test from 'node:test';
 import ts from 'typescript';
+import {lookupInstitution} from '../lib/registration-lookup.mjs';
 import {JSDOM} from 'jsdom';
 import React, {act} from 'react';
 const require=createRequire(import.meta.url);
 const source=readFileSync(new URL('../components/free-trial-landing.js',import.meta.url),'utf8');
 const compiled=ts.transpileModule(source,{fileName:'registration.jsx',compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
-const mod={exports:{}};new Function('require','module','exports',compiled)(require,mod,mod.exports);
+const mod={exports:{}};new Function('require','module','exports',compiled)((name)=>name==='../lib/registration-lookup.mjs'?{lookupInstitution}:require(name),mod,mod.exports);
 const Component=mod.exports.default;
 const response=value=>({ok:true,json:async()=>value});
 
@@ -54,7 +55,7 @@ test('registration search displays only the latest successful response',async t=
       assert.ok(document.querySelector('.search-form'));assert.doesNotMatch(text(),/اختيار قديم/);
     });
     await t.test('failed requests display an error without claiming no matching institution',async()=>{
-      await submit();await act(async()=>requests.at(-1).reject(new Error('timeout')));
+      await submit();await act(async()=>requests.at(-1).resolve({ok:false,status:429,json:async()=>({ok:false,error:'rate_limited'})}));
       assert.ok(document.querySelector('[role="alert"]'));assert.doesNotMatch(text(),/لم نجد منشأة مطابقة/);
     });
     await t.test('malformed successful payloads are not treated as no matches',async()=>{
@@ -64,7 +65,7 @@ test('registration search displays only the latest successful response',async t=
     await t.test('moving to new registration prevents a pending search error affecting that form',async()=>{
       await submit();const pending=requests.at(-1);
       await act(async()=>document.querySelector('.new-institution').click());
-      await act(async()=>pending.reject(new Error('service_unavailable')));
+      await act(async()=>pending.resolve({ok:false,status:400,json:async()=>({ok:false,error:'invalid_session'})}));
       assert.equal(document.querySelector('[role="alert"]'),null);
       assert.equal(document.querySelector('.search-form'),null);
     });

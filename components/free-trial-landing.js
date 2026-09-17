@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { lookupInstitution } from "../lib/registration-lookup.mjs";
 const TRIAL_API = "https://jultamrxwrgzohoktbgr.supabase.co/functions/v1/marktone-free-trial";
 const REGISTRATION_API = "/api/public/registration";
 const LEGAL_POLICY = Object.freeze({
@@ -47,6 +48,9 @@ const initialForm = {
   website: ""
 };
 const ERROR_COPY = {
+  lookup_timeout: "استغرق البحث وقتًا أطول من المتوقع. اضغط بحث للمحاولة مرة أخرى.",
+  lookup_connection_failed: "تعذر الاتصال بخدمة البحث. تحقق من اتصال الإنترنت ثم اضغط بحث مرة أخرى.",
+  invalid_session: "انتهت جلسة التسجيل. أغلق النافذة وافتحها من جديد ثم أعد المحاولة.",
   query_too_short: "اكتب 3 أحرف على الأقل أو 5 أرقام من رقم السجل.",
   institution_not_found: "تعذر العثور على هذه المنشأة. جرّب البحث مرة أخرى.",
   rate_limited: "تمت محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة.",
@@ -141,6 +145,9 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
   }, [step]);
   const manualExisting = step === "success" && !confirmationRequired && !isNew;
   async function callApi(payload) {
+    if (payload.action === "search" || payload.action === "details") {
+      return lookupInstitution(TRIAL_API, payload);
+    }
     const response = await fetch(payload.action === "submit" ? REGISTRATION_API : TRIAL_API, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -440,7 +447,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
                 </div>
               </form>
 
-              {error && <div className="alert error" role="alert">{error}</div>}
+              {error && <div className="alert trial-error" role="alert">{error}</div>}
 
               {results.length > 0 && <div className="results" aria-live="polite">
                   <div className="results-head">
@@ -534,7 +541,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
                 <Field label="رقم الجوال" required value={form.contactPhone} onChange={(value) => update("contactPhone", value)} placeholder="05XXXXXXXX" inputMode="tel" autoComplete="tel" />
               </div>
               <label className="honeypot" aria-hidden="true">الموقع<input tabIndex={-1} autoComplete="off" value={form.website} onChange={(event) => update("website", event.target.value)} /></label>
-              {error && <div className="alert error" role="alert">{error}</div>}
+              {error && <div className="alert trial-error" role="alert">{error}</div>}
               <div className="form-actions">
                 <button type="button" className="secondary-button" onClick={() => setStep(isNew ? "search" : "details")}>رجوع</button>
                 <button className="primary-button">مراجعة الإقرار التنظيمي <ArrowIcon /></button>
@@ -561,7 +568,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
                   <label><input type="checkbox" checked={form.tvtcAcknowledged} onChange={(event) => update("tvtcAcknowledged", event.target.checked)} /><span>قرأت التنبيه، وأقر بصحة حالة المنشأة والبيانات المقدمة.</span></label>
                 </div>
               </div>
-              {error && <div className="alert error" role="alert">{error}</div>}
+              {error && <div className="alert trial-error" role="alert">{error}</div>}
               <div className="form-actions">
                 <button type="button" className="secondary-button" onClick={() => setStep("form")}>تعديل البيانات</button>
                 <button type="button" className="primary-button" disabled={!form.tvtcAcknowledged} onClick={continueToAgreement}>متابعة إلى الموافقة <ArrowIcon /></button>

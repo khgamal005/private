@@ -6,12 +6,12 @@ export const GOOGLE_ADS_SCOPE = 'https://www.googleapis.com/auth/adwords';
 export const GOOGLE_ADS_API_VERSION = 'v25';
 
 const ACCOUNT_QUERY = `SELECT customer.id, customer.descriptive_name,
-  customer.currency_code, customer.time_zone, customer.manager, customer.test_account
+  customer.currency_code, customer.time_zone, customer.manager, customer.test_account, customer.status
   FROM customer LIMIT 1`;
 const CHILDREN_QUERY = `SELECT customer_client.id, customer_client.client_customer,
   customer_client.descriptive_name, customer_client.currency_code,
   customer_client.time_zone, customer_client.manager, customer_client.test_account,
-  customer_client.level FROM customer_client WHERE customer_client.level = 1`;
+  customer_client.level, customer_client.status FROM customer_client WHERE customer_client.level = 1`;
 const CAMPAIGNS_QUERY = `SELECT campaign.id, campaign.name, campaign.status,
   campaign.advertising_channel_type FROM campaign ORDER BY campaign.id`;
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
@@ -98,21 +98,31 @@ function accountShape(customer, loginCustomerId = '') {
     manager, testAccount, selectable: !manager && !testAccount
   };
 }
+const inactiveAccount = customer => customer.status === 'CANCELED' || customer.status === 'CLOSED';
 function abortError(signal) { if (signal?.aborted) fail('google_request_aborted'); }
 function providerFailureCode(body) {
   // Only exact, documented enums are classified; no provider text is exposed.
   const details = record(record(body).error).details;
+  let onlyInactive = Array.isArray(details) && details.length > 0 && details.length <= 20;
+  let inactive = false;
   for (const detail of Array.isArray(details) ? details.slice(0, 20) : []) {
     const item = record(detail);
     if (item['@type'] === 'type.googleapis.com/google.rpc.ErrorInfo' && item.reason === 'SERVICE_DISABLED') return 'google_api_not_enabled';
-    if (!/^type\.googleapis\.com\/google\.ads\.googleads\.v\d+\.errors\.GoogleAdsFailure$/.test(item['@type'] || '')) continue;
+    if (!/^type\.googleapis\.com\/google\.ads\.googleads\.v\d+\.errors\.GoogleAdsFailure$/.test(item['@type'] || '')) {
+      onlyInactive = false;
+      continue;
+    }
+    if (!Array.isArray(item.errors) || !item.errors.length || item.errors.length > 100) onlyInactive = false;
     for (const error of Array.isArray(item.errors) ? item.errors.slice(0, 100) : []) {
       const code = record(record(error).errorCode);
       if (code.authorizationError === 'CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION') return 'google_cloud_project_access_required';
       if (code.authenticationError === 'NOT_ADS_USER') return 'google_ads_user_required';
+      if (Object.keys(code).length === 1 && code.authorizationError === 'CUSTOMER_NOT_ENABLED') inactive = true;
+      else onlyInactive = false;
     }
   }
-  return '';
+  // Never hide an authorization or unknown failure mixed with an inactive account.
+  return inactive && onlyInactive ? 'google_customer_not_enabled' : '';
 }
 function defaultSleep(ms, signal) {
   return new Promise((resolve, reject) => {
@@ -185,7 +195,7 @@ export function createGoogleAdsClient(config, options = {}) {
       // Never expose Google's error message, details, URLs or body: these can contain secrets.
       if (record(body).error === 'invalid_client') fail('google_oauth_configuration_invalid', response.status);
       const providerCode = providerFailureCode(body);
-      if (providerCode) fail(providerCode, response.status);
+      if (providerCode && (providerCode !== 'google_customer_not_enabled' || response.status === 403)) fail(providerCode, response.status);
       if (record(body).error === 'invalid_grant' || response.status === 401) fail('google_reconnect_required', response.status);
       if (response.status === 403) fail('google_access_denied', response.status);
       if (response.status === 429) fail('google_rate_limited', response.status);
@@ -221,9 +231,10 @@ export function createGoogleAdsClient(config, options = {}) {
   async function identity(accessToken, customerId, loginCustomerId, signal) {
     const rows = await search(accessToken, customerId, loginCustomerId, ACCOUNT_QUERY, signal);
     if (rows.length !== 1) fail('google_account_identity_missing');
-    const account = accountShape(record(rows[0]).customer || {}, loginCustomerId);
-    if (account.customerId !== normalizeGoogleCustomerId(customerId)) fail('google_account_mismatch');
-    return account;
+    const customer = record(record(rows[0]).customer);
+    if (normalizeGoogleCustomerId(customer.id) !== normalizeGoogleCustomerId(customerId)) fail('google_account_mismatch');
+    if (inactiveAccount(customer)) fail('google_customer_not_enabled');
+    return accountShape(customer, loginCustomerId);
   }
   function tokenShape(body, previousRefreshToken) {
     if (typeof body.token_type !== 'string' || body.token_type.toLowerCase() !== 'bearer') fail('google_token_type_invalid');
@@ -277,9 +288,16 @@ export function createGoogleAdsClient(config, options = {}) {
       }))];
       if (roots.length > maxAccounts) fail('google_account_limit_exceeded');
       const accounts = new Map(), queue = [], visited = new Set();
+      const seen = new Set(roots), unavailable = new Set();
+      const skipInactive = (error, customerId) => {
+        if (!(error instanceof GoogleAdsClientError) || error.code !== 'google_customer_not_enabled') throw error;
+        unavailable.add(customerId);
+      };
       // Direct access wins over manager routes for the same advertiser.
       for (const root of roots) {
-        const account = await identity(accessToken, root, '', signal);
+        let account;
+        try { account = await identity(accessToken, root, '', signal); }
+        catch (error) { skipInactive(error, root); continue; }
         accounts.set(root, account);
         if (account.manager && !account.testAccount) queue.push({customerId: root, loginCustomerId: root});
       }
@@ -287,15 +305,27 @@ export function createGoogleAdsClient(config, options = {}) {
         const route = queue.shift();
         if (visited.has(route.customerId)) continue;
         visited.add(route.customerId);
-        const rows = await search(accessToken, route.customerId, route.loginCustomerId, CHILDREN_QUERY, signal);
+        let rows;
+        try { rows = await search(accessToken, route.customerId, route.loginCustomerId, CHILDREN_QUERY, signal); }
+        catch (error) {
+          skipInactive(error, route.customerId);
+          accounts.delete(route.customerId);
+          continue;
+        }
         for (const row of rows) {
-          const child = accountShape(record(row).customerClient || {}, route.loginCustomerId);
+          const customer = record(record(row).customerClient);
+          const customerId = normalizeGoogleCustomerId(customer.id);
+          seen.add(customerId);
+          if (seen.size > maxAccounts) fail('google_account_limit_exceeded');
+          // Closed accounts may have no currency/timezone and cannot be selected.
+          if (inactiveAccount(customer)) { unavailable.add(customerId); continue; }
+          const child = accountShape(customer, route.loginCustomerId);
           if (!accounts.has(child.customerId)) accounts.set(child.customerId, child);
-          if (accounts.size > maxAccounts) fail('google_account_limit_exceeded');
           if (child.manager && !child.testAccount && !visited.has(child.customerId)) queue.push({customerId: child.customerId, loginCustomerId: route.loginCustomerId});
         }
       }
-      return {accounts: [...accounts.values()].sort((a, b) => a.customerId.localeCompare(b.customerId)), truncated: false};
+      return {accounts: [...accounts.values()].sort((a, b) => a.customerId.localeCompare(b.customerId)), truncated: false,
+        unavailableAccountCount: [...unavailable].filter(id => !accounts.has(id)).length};
     },
     async revalidateAccount({accessToken, account, signal}) {
       const result = await identity(accessToken, account.customerId, account.loginCustomerId || '', signal);

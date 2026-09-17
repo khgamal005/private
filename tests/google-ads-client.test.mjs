@@ -9,6 +9,125 @@ const account = {customerId: '1234567890', loginCustomerId: ''};
 const ok = value => new Response(JSON.stringify(value), {status: 200, headers: {'content-type': 'application/json'}});
 const errorCode = code => error => error.code === code;
 const client = (fetchImpl, extra = {}) => createGoogleAdsClient(config, {fetchImpl, now, ...extra});
+const adsFailure = (code, status=403) => new Response(JSON.stringify({error:{code:status,status:'PERMISSION_DENIED',
+  details:[{'@type':'type.googleapis.com/google.ads.googleads.v25.errors.GoogleAdsFailure',
+    errors:[{errorCode:{authorizationError:code},message:'private-provider-detail'}]}]}}), {status});
+
+test('one available advertiser still connects when the same Google user also has two cancelled accounts', async () => {
+  for (const roots of [['2222222222','1111111111','3333333333'],['1111111111','2222222222','3333333333']]) {
+    const reads=[];
+    const instance=client(async url=>{
+      if(url.endsWith(':listAccessibleCustomers'))return ok({resourceNames:roots.map(id=>'customers/'+id)});
+      const id=url.match(/customers\/(\d+)/)[1];reads.push(id);
+      return id==='1111111111'?ok({results:[{customer:customer(id)}]}):adsFailure('CUSTOMER_NOT_ENABLED');
+    });
+    const result=await instance.discoverAccounts({accessToken:'fixture-token'});
+    assert.deepEqual(result.accounts.map(row=>row.customerId),['1111111111']);
+    assert.equal(result.unavailableAccountCount,2);
+    assert.equal(result.truncated,false);
+    assert.deepEqual(reads,roots);
+  }
+});
+
+test('discovery excludes explicit closed statuses, including children without metadata, and retains readable suspended accounts', async () => {
+  const reads=[];
+  const instance=client(async(url,init)=>{
+    if(url.endsWith(':listAccessibleCustomers'))return ok({resourceNames:['customers/1111111111','customers/2222222222']});
+    const id=url.match(/customers\/(\d+)/)[1];
+    const query=JSON.parse(init.body).query;reads.push({id,query});
+    if(query.includes('FROM customer LIMIT'))return ok({results:[{customer: id==='2222222222'
+      ?{id,status:'CLOSED'}:customer(id,{manager:true,status:'ENABLED'})}]});
+    return ok({results:[
+      {customerClient:{id:'3333333333',status:'CANCELED',manager:true}},
+      {customerClient:{id:'4444444444',status:'CLOSED'}},
+      {customerClient:customer('5555555555',{status:'SUSPENDED'})}
+    ]});
+  });
+  const result=await instance.discoverAccounts({accessToken:'fixture'});
+  assert.deepEqual(result.accounts.map(row=>row.customerId),['1111111111','5555555555']);
+  assert.equal(result.accounts[1].selectable,true);
+  assert.equal(result.accounts[1].loginCustomerId,'1111111111');
+  assert.equal(result.unavailableAccountCount,3);
+  assert.equal(reads.length,3);
+  assert.ok(reads[0].query.includes('customer.status'));
+  assert.ok(reads[2].query.includes('customer_client.status'));
+});
+
+test('an inactive manager branch does not block another advertiser or manager branch', async () => {
+  const instance=client(async(url,init)=>{
+    if(url.endsWith(':listAccessibleCustomers'))return ok({resourceNames:['customers/1111111111','customers/2222222222']});
+    const id=url.match(/customers\/(\d+)/)[1];
+    if(JSON.parse(init.body).query.includes('FROM customer LIMIT'))return ok({results:[{customer:customer(id,{manager:true})}]});
+    if(id==='1111111111')return adsFailure('CUSTOMER_NOT_ENABLED');
+    return ok({results:[{customerClient:customer('3333333333')}]});
+  });
+  const result=await instance.discoverAccounts({accessToken:'fixture'});
+  assert.deepEqual(result.accounts.map(row=>row.customerId),['2222222222','3333333333']);
+  assert.equal(result.accounts[1].loginCustomerId,'2222222222');
+  assert.equal(result.unavailableAccountCount,1);
+});
+
+test('an inactive listing cannot replace an already verified direct account', async () => {
+  const instance=client(async(url,init)=>{
+    if(url.endsWith(':listAccessibleCustomers'))return ok({resourceNames:['customers/1111111111','customers/2222222222']});
+    const id=url.match(/customers\/(\d+)/)[1];
+    if(JSON.parse(init.body).query.includes('FROM customer LIMIT'))return ok({results:[{customer:customer(id,{manager:id==='2222222222'})}]});
+    return ok({results:[{customerClient:{id:'1111111111',status:'CANCELED'}}]});
+  });
+  const result=await instance.discoverAccounts({accessToken:'fixture'});
+  assert.equal(result.accounts[0].customerId,'1111111111');
+  assert.equal(result.accounts[0].loginCustomerId,'');
+  assert.equal(result.unavailableAccountCount,0);
+});
+
+test('all inactive accounts return no eligible accounts and still count towards discovery bounds', async () => {
+  const inactive=client(async url=>url.endsWith(':listAccessibleCustomers')
+    ?ok({resourceNames:['customers/1111111111','customers/2222222222']}):adsFailure('CUSTOMER_NOT_ENABLED'));
+  assert.deepEqual(await inactive.discoverAccounts({accessToken:'fixture'}),{accounts:[],truncated:false,unavailableAccountCount:2});
+  const bounded=client(async(url,init)=>{
+    if(url.endsWith(':listAccessibleCustomers'))return ok({resourceNames:['customers/1111111111','customers/2222222222']});
+    const id=url.match(/customers\/(\d+)/)[1];
+    if(id==='1111111111')return adsFailure('CUSTOMER_NOT_ENABLED');
+    if(JSON.parse(init.body).query.includes('FROM customer LIMIT'))return ok({results:[{customer:customer(id,{manager:true})}]});
+    return ok({results:[{customerClient:{id:'3333333333',status:'CLOSED'}}]});
+  },{maxAccounts:2});
+  await assert.rejects(bounded.discoverAccounts({accessToken:'fixture'}),errorCode('google_account_limit_exceeded'));
+});
+
+test('account discovery never skips real permissions, mixed errors, malformed responses or service failures', async () => {
+  const mixed=()=>Response.json({error:{details:[{'@type':'type.googleapis.com/google.ads.googleads.v25.errors.GoogleAdsFailure',
+    errors:[{errorCode:{authorizationError:'CUSTOMER_NOT_ENABLED'}},{errorCode:{authorizationError:'USER_PERMISSION_DENIED'}}]}]}},{status:403});
+  for(const [response,expected] of [
+    [()=>adsFailure('USER_PERMISSION_DENIED'),'google_access_denied'],
+    [()=>adsFailure('CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION'),'google_cloud_project_access_required'],
+    [mixed,'google_access_denied'],
+    [()=>Response.json({error:{details:[{'@type':'type.googleapis.com/google.rpc.ErrorInfo',reason:'ACCESS_TOKEN_SCOPE_INSUFFICIENT'}]}},{status:403}),'google_access_denied'],
+    [()=>adsFailure('CUSTOMER_NOT_ENABLED',401),'google_reconnect_required'],
+    [()=>adsFailure('CUSTOMER_NOT_ENABLED',429),'google_rate_limited'],
+    [()=>adsFailure('CUSTOMER_NOT_ENABLED',503),'google_api_error'],
+    [()=>ok({results:'private-invalid-response'}),'google_response_invalid'],
+    [()=>ok({results:[{customer:{id:'9999999999',status:'CANCELED'}}]}),'google_account_mismatch'],
+    [()=>{throw new Error('private-network-detail');},'google_network_error']
+  ]){
+    const instance=client(async url=>{
+      if(url.endsWith(':listAccessibleCustomers'))return ok({resourceNames:['customers/1111111111','customers/2222222222']});
+      return url.includes('/1111111111/')?ok({results:[{customer:customer('1111111111')}]}):response();
+    },{maxRetries:0});
+    await assert.rejects(instance.discoverAccounts({accessToken:'fixture'}),error=>{
+      assert.equal(error.code,expected);assert.doesNotMatch(JSON.stringify(error),/private/);return true;
+    });
+  }
+});
+
+test('selected inactive accounts fail revalidation and reports before any metrics are read', async () => {
+  for(const response of [()=>adsFailure('CUSTOMER_NOT_ENABLED'),()=>ok({results:[{customer:{id:account.customerId,status:'CLOSED'}}]})]){
+    let reads=0;
+    const instance=client(async()=>{reads++;return response();});
+    await assert.rejects(instance.revalidateAccount({accessToken:'fixture',account}),errorCode('google_customer_not_enabled'));
+    await assert.rejects(instance.fetchCampaignReport({accessToken:'fixture',account,dateFrom:'2026-09-01',dateTo:'2026-09-09'}),errorCode('google_customer_not_enabled'));
+    assert.equal(reads,2);
+  }
+});
 
 test('OAuth uses server client credentials, offline PKCE and validates granted scope', async () => {
   let sent;

@@ -15,6 +15,7 @@ const ERROR_ALIASES={
   google_ads_preview_stale:'preview_stale',google_ads_source_changed_refresh_preview:'preview_stale',google_ads_sync_in_progress:'sync_in_progress',
   google_ads_stale_lease:'request_rejected',google_ads_command_reused:'request_rejected',
   google_reconnect_required:'reauth_required',google_access_denied:'google_access_denied',
+  google_customer_not_enabled:'ads_account_inactive',
   google_cloud_project_access_required:'platform_access_required',google_ads_user_required:'no_eligible_ads_accounts',
   google_rate_limited:'rate_limited',google_oauth_configuration_invalid:'configuration_missing',
   google_scope_missing:'required_scopes_missing',google_date_range_invalid:'invalid_date_range',
@@ -26,7 +27,7 @@ const SAFE_ERRORS=new Set(['ga4_consent_required','ga4_access_denied','ga4_reque
   'reauth_required','oauth_state_invalid','oauth_state_invalid_or_used','required_scopes_missing','account_not_available',
   'preview_stale','invalid_date_range','rate_limited','service_unavailable','sync_in_progress','sync_failed',
   'request_rejected','invalid_request','payload_too_large','not_found',
-  'no_eligible_ads_accounts','google_access_denied','platform_access_required','google_api_not_enabled',
+  'no_eligible_ads_accounts','ads_account_inactive','google_access_denied','platform_access_required','google_api_not_enabled',
   'google_oauth_exchange_failed','google_accounts_unavailable','google_connection_save_failed']);
 export function publicError(error){
   const code=typeof error==='string'?error:error?.code||error?.message;

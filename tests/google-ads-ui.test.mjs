@@ -12,6 +12,7 @@ test('OAuth error copy accepts only own known codes and never reflects arbitrary
     assert.equal(googleErrorMessage(value),fallback);
   }
   assert.notEqual(googleErrorMessage('no_eligible_ads_accounts'),fallback);
+  assert.notEqual(googleErrorMessage('ads_account_inactive'),fallback);
   assert.notEqual(googleErrorMessage('google_connection_save_failed'),fallback);
 });
 

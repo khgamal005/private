@@ -1,4 +1,5 @@
 import {handleGA4} from './ga4-handler.mjs';
+import {isGA4ReportError} from '../_shared/ga4-report-errors.mjs';
 // Injectable orchestration: every Google request follows a tenant-authorized RPC.
 // Provider credentials exist only in this server and the Vault-backed service RPCs.
 const USER='v1_tenant_google_ads_';
@@ -31,7 +32,7 @@ const SAFE_ERRORS=new Set(['ga4_stream_required','ga4_consent_required','ga4_acc
   'google_oauth_exchange_failed','google_accounts_unavailable','google_connection_save_failed']);
 export function publicError(error){
   const code=typeof error==='string'?error:error?.code||error?.message;
-  return Object.hasOwn(ERROR_ALIASES,code)?ERROR_ALIASES[code]:(SAFE_ERRORS.has(code)?code:'request_rejected');
+  return Object.hasOwn(ERROR_ALIASES,code)?ERROR_ALIASES[code]:(SAFE_ERRORS.has(code)||isGA4ReportError(code)?code:'request_rejected');
 }
 function fail(code){throw Object.assign(new Error(code),{code});}
 export async function boundedJson(request){
@@ -220,4 +221,3 @@ export function createGoogleAdsHandler({env,createClient,fetchImpl=fetch,
     }
   };
 }
-

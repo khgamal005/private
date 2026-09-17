@@ -97,3 +97,21 @@ test('empty successful GA4 reports may omit proto zero rowCount and remain valid
  const c=createGA4Client({fetchImpl:async(_url,o)=>{const b=JSON.parse(o.body);return Response.json({dimensionHeaders:b.dimensions,metricHeaders:b.metrics,metadata:{currencyCode:'SAR',timeZone:'Asia/Riyadh'}});}});
  const r=await c.reports('x',property,'2026-08-01','2026-08-02');assert.deepEqual(r.transactions,[]);assert.deepEqual(r.traffic,[]);
 });
+
+test('a rejected transaction report stores an allowlisted diagnostic and never falls back to invented zeroes',async()=>{
+ let requests=0;
+ const c=createGA4Client({fetchImpl:async()=>{requests++;return Response.json({error:{status:'INVALID_ARGUMENT',message:'Please remove currencyCode. The dimensions & metrics are incompatible. PRIVATE secret'}},{status:400});}});
+ await assert.rejects(c.reports('x',property,'2026-08-01','2026-08-02'),error=>{
+  assert.equal(error.code,'ga4_transactions_incompatible_currencycode');assert.doesNotMatch(JSON.stringify(error),/PRIVATE|secret/);return true;
+ });assert.equal(requests,1);
+});
+test('traffic failure is distinct even after transaction data was fetched; no partial snapshot is returned',async()=>{
+ const c=createGA4Client({fetchImpl:async(_url,o)=>{const b=JSON.parse(o.body);return b.dimensions.some(d=>d.name==='transactionId')?Response.json(response(b)):Response.json({error:{status:'INVALID_ARGUMENT',message:'The dimensions & metrics are incompatible.'}},{status:400});}});
+ await assert.rejects(c.reports('x',property,'2026-08-01','2026-08-02'),/^Error: ga4_traffic_incompatible$/);
+});
+test('report diagnostics are byte-bounded and malformed responses remain safe',async()=>{
+ for(const body of ['PRIVATE invalid JSON',JSON.stringify({padding:'x'.repeat(65536),error:{status:'INVALID_ARGUMENT',message:'currencyCode incompatible'}})]){
+  const c=createGA4Client({fetchImpl:async()=>new Response(body,{status:400})});
+  await assert.rejects(c.reports('x',property,'2026-08-01','2026-08-02'),/^Error: ga4_transactions_invalid$/);
+ }
+});

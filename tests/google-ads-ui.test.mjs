@@ -3,8 +3,17 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import {
   finiteMetric,formatGoogleMetric,googleCampaignEconomics,googleReportFilters,googleReportHref,
-  groupGoogleSources,googleSourcePreview,requestGoogleAction,safeGoogleAuthorizeUrl
+  groupGoogleSources,googleSourcePreview,requestGoogleAction,safeGoogleAuthorizeUrl,googleErrorMessage
 } from '../lib/google-ads/ui.mjs';
+
+test('OAuth error copy accepts only own known codes and never reflects arbitrary query text',()=>{
+  const fallback=googleErrorMessage('unknown');
+  for(const value of ['toString','__proto__','constructor','private-secret',{},['configuration_missing']]){
+    assert.equal(googleErrorMessage(value),fallback);
+  }
+  assert.notEqual(googleErrorMessage('no_eligible_ads_accounts'),fallback);
+  assert.notEqual(googleErrorMessage('google_connection_save_failed'),fallback);
+});
 
 test('missing metrics remain unavailable while confirmed zero stays a number',()=>{
   for(const value of [null,undefined,'',' ',false,NaN,Infinity,{},[]]){

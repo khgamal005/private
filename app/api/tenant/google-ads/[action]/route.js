@@ -48,6 +48,9 @@ export async function POST(request,{params}){
       const authorizeUrl=trustedAuthorizeUrl(result.authorizeUrl,publicRequestOrigin(request),transaction);
       const reply=json({ok:true,authorizeUrl});
       reply.cookies.set(stateCookieName(transaction.state),transaction.verifier,{...COOKIE_OPTIONS,maxAge:600});
+      // Recovery destination only. Authorization remains bound to the server-side
+      // transaction, user and PKCE; this cookie can never select an exchange tenant.
+      reply.cookies.set(stateCookieName(transaction.state)+'_tenant',tenantSlug,{...COOKIE_OPTIONS,maxAge:600});
       return reply;
     }
     return json(result);
@@ -66,21 +69,35 @@ export async function GET(request,{params}){
   const cookieName=stateCookieName(state);
   const jar=await cookies();
   const verifier=cookieName?jar.get(cookieName)?.value:'';
+  const savedTenant=cookieName?jar.get(cookieName+'_tenant')?.value:'';
+  const recoveryPath=eligibleSlug(savedTenant)?safeCompletionPath(`/tenant/${savedTenant}/reports/google-ads`):'/google-connection';
   const accessToken=jar.get(ACCESS_COOKIE)?.value;
   function finish(path){
     const response=NextResponse.redirect(new URL(path,origin),303);
     response.headers.set('cache-control','private, no-store, max-age=0');
     response.headers.set('referrer-policy','no-referrer');
-    if(cookieName&&validVerifier(verifier))response.cookies.set(cookieName,'',{...COOKIE_OPTIONS,maxAge:0});
+    if(cookieName){
+      response.cookies.set(cookieName,'',{...COOKIE_OPTIONS,maxAge:0});
+      response.cookies.set(cookieName+'_tenant','',{...COOKIE_OPTIONS,maxAge:0});
+    }
     return response;
   }
-  if(!accessToken||!validVerifier(verifier))return finish('/?google_ads=error');
+  function failure(reason,returnPath=''){
+    const trustedPath=safeCompletionPath(returnPath).split('?')[0];
+    const destination=trustedPath!=='/'&&(!eligibleSlug(savedTenant)||trustedPath===recoveryPath)?trustedPath:recoveryPath;
+    const query=new URLSearchParams({google_ads:'error',reason:publicError(reason)});
+    return finish(`${destination}?${query}`);
+  }
+  if(!accessToken)return failure('authentication_required');
+  if(!validVerifier(verifier))return failure('oauth_state_invalid_or_used');
   try{
     const response=await edge('complete',{state,codeVerifier:verifier,code:url.searchParams.get('code')||'',
       cancelled:url.searchParams.has('error')},accessToken);
     const result=await response.json().catch(()=>({}));
-    if(!response.ok||!result.ok)return finish('/?google_ads=error');
-    return finish(safeCompletionPath(result.returnPath));
-  }catch{return finish('/?google_ads=error');}
+    if(!response.ok||result.ok!==true)return failure(result.error,result.returnPath);
+    const path=safeCompletionPath(result.returnPath);
+    if(path==='/'||!['connected','cancelled'].includes(new URL(path,origin).searchParams.get('google_ads'))
+      ||(eligibleSlug(savedTenant)&&path.split('?')[0]!==recoveryPath))return failure('oauth_state_invalid');
+    return finish(path);
+  }catch{return failure('service_unavailable');}
 }
-

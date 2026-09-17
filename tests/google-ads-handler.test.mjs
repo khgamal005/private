@@ -11,8 +11,9 @@ const env={SUPABASE_URL:'https://fixture.invalid',SUPABASE_ANON_KEY:'public-fixt
 const account={customerId:'1234567890',currency:'SAR',timezone:'Asia/Riyadh',name:'Fixture only'};
 const run={runId:TX,leaseToken:TX,status:'running',credentialVersion:1};
 function harness({rpc={},client={},customEnv={}}={}){
-  const calls=[];
+  const calls=[],failures=[];
   const handler=createGoogleAdsHandler({env:{...env,...customEnv},
+    logFailure:event=>failures.push(event),
     fetchImpl:async(url,options)=>{
       const suffix=url.split('/').at(-1).replace(/^v1_(tenant|service)_google_ads_/,'');
       calls.push({kind:'rpc',suffix,body:JSON.parse(options.body),headers:options.headers});
@@ -40,7 +41,7 @@ function harness({rpc={},client={},customEnv={}}={}){
     }));
     return {status:response.status,body:await response.json()};
   }
-  return {request,calls};
+  return {request,calls,failures};
 }
 const syncBody={tenantSlug:'demo-training',dateFrom:'2026-09-01',dateTo:'2026-09-09',commandId:TX};
 
@@ -86,6 +87,37 @@ test('missing scope or incomplete discovery cannot finalize OAuth',async()=>{
     const h=harness({client});
     assert.equal((await h.request('complete',{state:tx.state,codeVerifier:tx.verifier,code:'fixture'})).status,400);
     assert.ok(!h.calls.some(c=>c.suffix==='finalize_oauth'));
+  }
+});
+
+test('post-claim OAuth failures retain only the authorized return path and redacted diagnostic enums',async()=>{
+  const tx=newBrowserTransaction();
+  const cases=[
+    {client:{exchangeCode:new Error('private-provider-code')},stage:'token_exchange',code:'google_oauth_exchange_failed'},
+    {client:{exchangeCode:new Error('google_oauth_configuration_invalid')},stage:'token_exchange',code:'configuration_missing'},
+    {client:{discoverAccounts:new Error('private-access-token')},stage:'account_discovery',code:'google_accounts_unavailable'},
+    {rpc:{finalize_oauth:new Error('private-database-message')},stage:'connection_save',code:'google_connection_save_failed'},
+    {rpc:{finalize_oauth:new Error('google_ads_no_eligible_accounts')},stage:'connection_save',code:'no_eligible_ads_accounts'}
+  ];
+  for(const fixture of cases){
+    const h=harness(fixture);
+    const result=await h.request('complete',{state:tx.state,codeVerifier:tx.verifier,code:'private-code'});
+    assert.equal(result.body.error,fixture.code);
+    assert.equal(result.body.returnPath,'/tenant/demo-training/reports/google-ads');
+    assert.deepEqual(h.failures,[{transactionId:TX,stage:fixture.stage,error:fixture.code}]);
+    assert.doesNotMatch(JSON.stringify([result,h.failures]),/private|server-refresh|server-access|fixture-secret/);
+  }
+});
+
+test('failed claim cannot disclose a tenant destination or emit a claimed transaction diagnostic',async()=>{
+  const tx=newBrowserTransaction();
+  for(const context of [new Error('google_ads_forbidden'),new Error('google_ads_oauth_stale'),
+    {transactionId:TX,tenantSlug:'demo-training',returnPath:'https://evil.invalid'}]){
+    const h=harness({rpc:{claim_oauth:context}});
+    const result=await h.request('complete',{state:tx.state,codeVerifier:tx.verifier,code:'private-code'});
+    assert.equal('returnPath' in result.body,false);
+    assert.equal(h.failures.length,0);
+    assert.ok(!h.calls.some(call=>call.kind==='google'));
   }
 });
 test('complete report only replaces metrics after full fetch and authorized lease',async()=>{
@@ -136,6 +168,6 @@ test('browser transaction and redirect protocol reject substitution and unsafe o
   assert.throws(()=>trustedAuthorizeUrl(url.href,'https://odeir.com',other));
   assert.equal(safeCompletionPath('//evil.invalid/tenant/demo-training/reports/google-ads'),'/');
   assert.equal(safeCompletionPath('/tenant/reefskills/reports/google-ads'),'/');
-  assert.equal(safeCompletionPath('/tenant/demo-training/reports/google-ads?google_ads=connected&token=secret'),'/tenant/demo-training/reports/google-ads?google_ads=connected');
+  assert.equal(safeCompletionPath('/tenant/demo-training/reports/google-ads?google_ads=connected&token=secret'),'/tenant/demo-training/addons/google-kit?google_ads=connected');
   assert.equal(sameOriginMutation(new Request('https://odeir.com/api/tenant/google-ads/start',{headers:{origin:'https://evil.invalid','content-type':'application/json'}})),false);
 });

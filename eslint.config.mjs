@@ -13,6 +13,8 @@ export default defineConfig([
     '.next/**',
     'node_modules/**',
     'supabase/history/**',
-    'supabase/functions/**'
+    'supabase/functions/**',
+    'ops/registration-directory/marktone-free-trial/**'
   ])
 ]);
+

@@ -68,6 +68,7 @@ const ERROR_COPY = {
 function FreeTrialLanding({ registrationOnly = false } = {}) {
   const startedAt = useRef(0);
   const submitLockRef = useRef(false);
+  const lookupVersionRef = useRef(0);
   const legalPanelRef = useRef(null);
   const trialCardRef = useRef(null);
   const previousStepRef = useRef("search");
@@ -143,7 +144,8 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
     const response = await fetch(payload.action === "submit" ? REGISTRATION_API : TRIAL_API, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...payload, startedAt: startedAt.current })
+      body: JSON.stringify({ ...payload, startedAt: startedAt.current }),
+      ...(payload.action === "submit" ? {} : { signal: AbortSignal.timeout(15_000) })
     });
     const value = await response.json().catch(() => ({}));
     if (!response.ok || !value.ok) {
@@ -189,28 +191,44 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
     }
     return challengeResult.challenge;
   }
+  function updateQuery(value) {
+    lookupVersionRef.current += 1;
+    setQuery(value);
+    setResults([]);
+    setSearched(false);
+    setError("");
+    setBusy("");
+  }
   async function search(event) {
     event.preventDefault();
+    const version = ++lookupVersionRef.current;
     setBusy("search");
     setError("");
+    setResults([]);
+    setSearched(false);
     setSelected(null);
     try {
       const value = await callApi({ action: "search", query });
-      setResults(value.results || []);
+      if (version !== lookupVersionRef.current) return;
+      if (!Array.isArray(value.results)) throw new Error("service_unavailable");
+      setResults(value.results);
       setSearched(true);
     } catch (caught) {
+      if (version !== lookupVersionRef.current) return;
       setResults([]);
-      setSearched(true);
+      setSearched(false);
       setError(messageFor(caught));
     } finally {
-      setBusy("");
+      if (version === lookupVersionRef.current) setBusy("");
     }
   }
   async function choose(result) {
+    const version = ++lookupVersionRef.current;
     setBusy("details");
     setError("");
     try {
       const value = await callApi({ action: "details", accountId: result.id });
+      if (version !== lookupVersionRef.current) return;
       const institution = value.institution;
       setSelected(institution);
       setIsNew(false);
@@ -230,12 +248,15 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
         block: "center"
       });
     } catch (caught) {
+      if (version !== lookupVersionRef.current) return;
       setError(messageFor(caught));
     } finally {
-      setBusy("");
+      if (version === lookupVersionRef.current) setBusy("");
     }
   }
   function startNew() {
+    lookupVersionRef.current += 1;
+    setBusy("");
     setSelected(null);
     setIsNew(true);
     setForm(initialForm);
@@ -409,7 +430,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
                   <input
     id="institution-search"
     value={query}
-    onChange={(event) => setQuery(event.target.value)}
+    onChange={(event) => updateQuery(event.target.value)}
     placeholder="مثال: مركز الأفق للتدريب"
     autoComplete="organization"
   />
@@ -447,7 +468,7 @@ function FreeTrialLanding({ registrationOnly = false } = {}) {
 
               {searched && !results.length && !error && <div className="empty-result">
                   <span>لم نجد منشأة مطابقة</span>
-                  <p>راجع الاسم أو الرقم، أو أرسل طلب إضافة منشأة جديدة.</p>
+                  <p>جرّب كلمة مميزة من اسم المنشأة أو رقمها الرسمي الكامل، أو أرسل طلب إضافة منشأة جديدة.</p>
                 </div>}
 
               <button type="button" className="new-institution" onClick={startNew}>
@@ -923,3 +944,4 @@ const Spinner = () => <span className="spinner" aria-label="جارٍ التحم�
 export {
   FreeTrialLanding as default
 };
+

@@ -30,7 +30,8 @@ export async function handleGA4({route,body,tenantSlug,user,service,google,fetch
       // Recheck remote timezone/currency/domain: silently accepting drift corrupts money comparisons.
       const current=await ga4.property(tokens.accessToken,context.property.id,context.storeUrl,context.property.streamId);
       if(current.currency!==context.property.currency||current.timezone!==context.property.timezone||current.hostname!==context.property.hostname)fail('ga4_property_changed');
-      payload=await ga4.reports(tokens.accessToken,current,context.dateFrom,context.dateTo);
+      // Only the leased server configuration controls reconciliation, never request-body flags.
+      payload=await ga4.reports(tokens.accessToken,current,context.dateFrom,context.dateTo,{includeTransactions:context.storeUrl!==null});
     }
     return {ok:true,...await service('ga4_finish',{...lease,p_payload:payload,p_success:true,p_error:null})};
   }catch(error){

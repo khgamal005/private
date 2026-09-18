@@ -115,3 +115,18 @@ test('report diagnostics are byte-bounded and malformed responses remain safe',a
   await assert.rejects(c.reports('x',property,'2026-08-01','2026-08-02'),/^Error: ga4_transactions_invalid$/);
  }
 });
+
+test('independent analytics fetches only site activity and distinguishes unrequested transaction details from zero',async()=>{
+ const requests=[];
+ const c=createGA4Client({fetchImpl:async(url,o)=>{
+  const b=JSON.parse(o.body);requests.push(b);
+  if(b.dimensions.some(d=>d.name==='transactionId'))return Response.json({error:{status:'INVALID_ARGUMENT'}},{status:400});
+  return Response.json(response(b));
+ }});
+ const r=await c.reports('synthetic',{...property,streamId:'5678'},'2026-08-01','2026-08-02',{includeTransactions:false});
+ assert.equal(requests.length,1);assert.equal(r.traffic[0].sessions,10);assert.equal(r.traffic[0].ecommercePurchases,10);
+ assert.deepEqual(r.transactions,[]);assert.deepEqual(r.quality.transactions,{thresholded:false,otherRow:false,sampled:false,restricted:false,status:'not_requested'});
+ assert.ok(requests[0].dimensionFilter.andGroup.expressions.some(e=>e.filter.fieldName==='streamId'&&e.filter.stringFilter.value==='5678'));
+ assert.ok(requests[0].dimensionFilter.andGroup.expressions.some(e=>e.filter.fieldName==='hostName'));
+ await assert.rejects(c.reports('synthetic',property,'2026-08-01','2026-08-02',{includeTransactions:'false'}),/^Error: invalid_request$/);
+});

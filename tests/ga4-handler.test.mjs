@@ -49,3 +49,33 @@ test('failed GA4 report persists its safe diagnostic while preserving the curren
  const finish=h.calls.at(-1);assert.equal(finish.name,'ga4_finish');assert.equal(finish.p.p_success,false);assert.equal(finish.p.p_error,'ga4_transactions_incompatible_currencycode');assert.deepEqual(finish.p.p_payload,{});
  assert.doesNotMatch(JSON.stringify(finish),/PRIVATE|synthetic-secret|synthetic-access/);
 });
+
+test('sync uses leased reconciliation configuration and ignores client flags when choosing reports',async()=>{
+ for(const storeUrl of [null,'https://store.example']){
+  const h=fixture(),requests=[];h.args.route='ga4-sync';
+  h.args.body={commandId:id,dateFrom:'2026-08-01',dateTo:'2026-08-02',includeTransactions:storeUrl===null};
+  h.args.service=async(name,p)=>{h.calls.push({name,p});return name==='ga4_credentials'?{
+   refreshToken:'synthetic-secret',storeUrl,dateFrom:'2026-08-01',dateTo:'2026-08-02',
+   property:{id:'1234',currency:'SAR',timezone:'Asia/Riyadh',hostname:'store.example',streamId:'5678'}
+  }:{status:p.p_success?'success':'failed'};};
+  h.args.fetchImpl=async(url,o)=>{
+   if(!url.includes(':runReport'))return Response.json(url.includes('dataStreams')?
+    {dataStreams:[{name:'properties/1234/dataStreams/5678',type:'WEB_DATA_STREAM',webStreamData:{defaultUri:'https://store.example'}}]}:
+    {name:'properties/1234',currencyCode:'SAR',timeZone:'Asia/Riyadh'});
+   const b=JSON.parse(o.body);requests.push(b);
+   if(b.dimensions.some(d=>d.name==='transactionId'))return Response.json({error:{status:'INVALID_ARGUMENT'}},{status:400});
+   const values={date:'20260801',sessionSource:'google',sessionMedium:'cpc',sessionGoogleAdsCustomerId:'1234567890',sessionGoogleAdsCampaignId:'9001'};
+   return Response.json({dimensionHeaders:b.dimensions,metricHeaders:b.metrics,metadata:{currencyCode:'SAR',timeZone:'Asia/Riyadh'},rowCount:1,
+    rows:[{dimensionValues:b.dimensions.map(d=>({value:values[d.name]})),metricValues:b.metrics.map(()=>({value:'12'}))}]});
+  };
+  if(storeUrl===null){
+   assert.equal((await handleGA4(h.args)).status,'success');
+   const finish=h.calls.at(-1);assert.equal(finish.p.p_success,true);assert.equal(finish.p.p_payload.traffic[0].sessions,12);
+   assert.equal(finish.p.p_payload.quality.transactions.status,'not_requested');assert.deepEqual(finish.p.p_payload.transactions,[]);
+  }else{
+   await assert.rejects(handleGA4(h.args),/^Error: ga4_transactions_invalid$/);
+   assert.equal(h.calls.at(-1).p.p_success,false);assert.deepEqual(h.calls.at(-1).p.p_payload,{});
+  }
+  assert.equal(requests.length,1);
+ }
+});

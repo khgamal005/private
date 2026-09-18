@@ -159,8 +159,12 @@ export function createGA4Client({fetchImpl=fetch,signal,maxRows=20000,pageSize=1
       }
       return {id:propertyId,name:text(p.displayName||propertyId),currency:p.currencyCode,timezone:text(p.timeZone,100),hostname,...(streamId?{streamId}: {})};
     },
-    async reports(token,property,from,to) {
-      const transactions=await runReport(token,property,from,to,property.hostname,TX_DIMS,TX_METRICS,true);
+    async reports(token,property,from,to,{includeTransactions=true}={}) {
+      if(typeof includeTransactions!=='boolean')fail('invalid_request');
+      // Independent site analytics does not require the optional reconciliation report.
+      // This is selected before fetching, never a fallback after a provider rejection.
+      const transactions=includeTransactions?await runReport(token,property,from,to,property.hostname,TX_DIMS,TX_METRICS,true):
+        {rows:[],quality:{thresholded:false,otherRow:false,sampled:false,restricted:false,status:'not_requested'}};
       const traffic=await runReport(token,property,from,to,property.hostname,TRAFFIC_DIMS,TRAFFIC_METRICS);
       return {transactions:transactions.rows,traffic:traffic.rows,quality:{transactions:transactions.quality,traffic:traffic.quality}};
     }

@@ -88,3 +88,15 @@ test('standalone report leads with measured activity and hides finance, matching
  assert.equal(dom.window.document.querySelectorAll('select').length,0);
  assert.ok([...dom.window.document.querySelectorAll('td')].every(td=>td.hasAttribute('data-label')));
 });
+
+test('unrequested transaction details are displayed as unavailable without hiding measured purchases',async t=>{
+ const {dom}=await mount(t,{report:{...data,reconciliation:{enabled:false},coverage:{complete:true,missingDays:0,transactionReportAvailable:false},
+  summary:{transactions:null},traffic:{sessions:10,engagedSessions:8,pageViews:20,purchases:3}}});
+ const cards=[...dom.window.document.querySelectorAll('article')];
+ const transactions=cards.find(card=>card.querySelector('span')?.textContent==='معاملات الشراء');
+ assert.match(transactions.querySelector('strong').textContent,/غير متاح/);
+ assert.match(transactions.textContent,/تفعيل المطابقة الاختيارية/);
+ const purchases=cards.find(card=>card.querySelector('span')?.textContent==='أحداث الشراء في GA4');
+ assert.doesNotMatch(purchases.querySelector('strong').textContent,/غير متاح/);
+ assert.doesNotMatch(dom.window.document.body.textContent,/Google أعاد بيانات محدودة/);
+});

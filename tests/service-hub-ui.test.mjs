@@ -81,7 +81,8 @@ test('public application sends explicit consent once and preserves form values a
   const Application=load('components/expert-application.js').default;const original=globalThis.fetch;let attempts=0;
   globalThis.fetch=async(_url,options)=>{attempts++;const body=JSON.parse(options.body);assert.equal(body.consent,true);assert.equal(body.email,application.email);return {ok:attempts>1,json:async()=>attempts===1?{error:'خطأ اتصال اختباري'}:{success:true}};};
   try{await mounted(Application,{},async({doc,dom})=>{
-    const form=doc.querySelector('form');for(const [name,value] of Object.entries(application)){const input=form.elements.namedItem(name);if(input){if(name==='consent')input.checked=true;else input.value=String(value);}}
+    const form=doc.querySelector('form');for(const [name,value] of Object.entries(application)){const input=form.elements.namedItem(name);if(input&&!['expertise','languages'].includes(name)){if(name==='consent')input.checked=true;else input.value=String(value);}}
+    await act(async()=>doc.querySelector('input[name=expertise][value="إدارة المشروعات"]').click());
     const submit=()=>form.dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));await act(async()=>submit());assert.match(doc.body.textContent,/خطأ اتصال اختباري/);assert.equal(form.elements.name.value,application.name);
     await act(async()=>{submit();submit();});assert.equal(attempts,2);assert.match(doc.body.textContent,/تم استلام طلبك/);assert.equal(doc.querySelector('form'),null);
   });}finally{globalThis.fetch=original;}
@@ -136,4 +137,47 @@ test('admin approval reviews the application without publishing, and an offer se
       await act(async()=>form.dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true})));const offer=calls.find(c=>c.body.action==='offer');assert.equal(offer.url,'/api/platform/service-hub');assert.equal(offer.body.payload.amountMinor,250025);assert.equal(offer.body.payload.version,3);assert.equal(offer.body.payload.productId,'product');
     });
   }finally{globalThis.fetch=original;}
+});
+
+test('expert form keeps multiple selections and files after errors and reuses the upload key',async()=>{
+ const Application=load('components/expert-application.js').default;const original=globalThis.fetch,calls=[];
+ globalThis.fetch=async(_url,options)=>{calls.push(options.body);return {ok:calls.length>1,json:async()=>calls.length===1?{error:'تعذر الرفع مؤقتًا'}:{success:true}};};
+ try{await mounted(Application,{mediaAvailable:true},async({doc,dom})=>{
+  const form=doc.querySelector('form');for(const [name,value] of Object.entries(application)){const input=form.elements.namedItem(name);if(input&&!['expertise','languages'].includes(name)){if(name==='consent')input.checked=true;else input.value=String(value);}}
+  await act(async()=>{doc.querySelector('input[name=expertise][value="إدارة المشروعات"]').click();doc.querySelector('input[name=expertise][value="القيادة والإدارة"]').click();doc.querySelector('input[name=languages][value="الإنجليزية"]').click();});
+  const OriginalFormData=globalThis.FormData;
+  globalThis.FormData=class extends OriginalFormData{constructor(element){super(element);if(element)this.set('cv',new dom.window.File(['%PDF-1.7\n%%EOF'],'my-cv.pdf',{type:'application/pdf'}));}};
+  const submit=()=>form.dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
+  await act(async()=>submit());assert.match(doc.body.textContent,/تعذر الرفع مؤقتًا/);assert.equal(form.elements.name.value,application.name);
+  assert.equal(calls[0].get('cv').name,'my-cv.pdf');assert.equal(JSON.parse(calls[0].get('payload')).expertise,'إدارة المشروعات، القيادة والإدارة');
+  assert.equal(JSON.parse(calls[0].get('payload')).languages,'العربية، الإنجليزية');
+  await act(async()=>{submit();submit();});assert.equal(calls.length,2);assert.equal(calls[0].get('requestKey'),calls[1].get('requestKey'));assert.match(doc.body.textContent,/تم استلام طلبك/);
+  globalThis.FormData=OriginalFormData;
+ });}finally{globalThis.fetch=original;}
+});
+
+test('multipart API rejects untrusted origins and forwards only validated files without user credentials',async()=>{
+ const {POST}=load('app/api/experts/apply/route.js'),original=globalThis.fetch,calls=[];
+ const make=(origin='https://odeir.com')=>{const form=new FormData();form.set('payload',JSON.stringify({...application,expertise:'إدارة المشروعات'}));form.set('requestKey',crypto.randomUUID());form.set('cv',new Blob(['%PDF-1.7\n%%EOF'],{type:'application/pdf'}),'cv.pdf');return new Request('https://odeir.com/api/experts/apply',{method:'POST',headers:{origin,host:'odeir.com'},body:form});};
+ globalThis.fetch=async(url,options)=>{calls.push({url,options});return Response.json({success:true});};
+ try{assert.equal((await POST(make('https://evil.test'))).status,403);assert.equal(calls.length,0);assert.equal((await POST(make())).status,200);assert.equal(calls.length,1);assert.match(calls[0].url,/functions\/v1\/expert-application-upload$/);assert.equal(calls[0].options.headers.Authorization,undefined);assert.equal(calls[0].options.body.get('cv').name,'cv.pdf');}finally{globalThis.fetch=original;}
+});
+
+test('private download checks admin RPC before storage, public portrait is normalized, and all responses are uncached',async()=>{
+ const {expertFile}=load('lib/expert-file-http.js');const original=globalThis.fetch,calls=[],id='10000000-0000-4000-8000-000000000001';let allowed=false;
+ const pdf=new TextEncoder().encode('%PDF-1.7\n%%EOF');
+ globalThis.fetch=async(url)=>{calls.push(url);if(url.includes('/rpc/'))return allowed?Response.json({path:`${id}/cv`,mimeType:'application/pdf',size:pdf.length,name:'سيرة ذاتية.pdf'}):Response.json({message:'forbidden'},{status:403});return new Response(pdf);};
+ try{assert.equal((await expertFile({id,kind:'cv'})).status,403);assert.equal(calls.length,1);allowed=true;const file=await expertFile({id,kind:'cv'});assert.equal(file.status,200);assert.match(file.headers.get('content-disposition'),/^attachment;/);assert.equal(file.headers.get('cache-control'),'private, no-store');assert.equal(file.headers.get('x-content-type-options'),'nosniff');
+ const sharp=require('sharp');const png=await sharp({create:{width:2,height:2,channels:3,background:'#246'}}).png().toBuffer();
+ globalThis.fetch=async(url,options)=>{assert.equal(options.headers.Authorization,undefined);return url.includes('/rpc/')?Response.json({path:`${id}/photo`,mimeType:'image/png',size:png.length,name:'me.png'}):new Response(png);};
+ const photo=await expertFile({id,kind:'photo',publicPhoto:true});assert.equal(photo.status,200);assert.equal(photo.headers.get('content-type'),'image/webp');assert.equal((await sharp(Buffer.from(await photo.arrayBuffer())).metadata()).format,'webp');
+ }finally{globalThis.fetch=original;}
+});
+
+
+test('editing a published expert keeps the uploaded portrait fallback out of the external URL field',async()=>{
+ const Platform=load('components/platform-services.js').default;
+ await mounted(Platform,{initialData:{services:[],providers:[{...expert,avatarUrl:'/api/experts/photos/10000000-0000-4000-8000-000000000001'}],serviceCategories:[],hub}},async({doc,click})=>{
+  await click('مقدمو الخدمات');await click('تعديل الملف');const image=doc.querySelector('input[name=avatar_url]');assert.ok(image);assert.equal(image.value,'');assert.equal(image.validity.valid,true);
+ });
 });

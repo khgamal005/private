@@ -3,7 +3,7 @@
 
 import {useEffect,useId,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
-import {REQUEST_STATUS,safePortfolioUrl,canOrderDirectly} from '../lib/service-hub.mjs';
+import {REQUEST_STATUS,safePortfolioUrl,safeExpertImage,canOrderDirectly} from '../lib/service-hub.mjs';
 import {PaymentMethodPicker} from './payment-method-picker';
 import s from './service-hub.module.css';
 
@@ -42,7 +42,7 @@ export function HubPagination({page,total,busy,onPage}){
   return <nav className={s.pagination} aria-label="صفحات النتائج"><button type="button" data-block-reason={busy?'يجري تحميل النتائج.':'هذه هي الصفحة الأولى.'} disabled={busy||page===0} onClick={()=>onPage(page-1)}>السابق</button><span>{page+1} / {Math.ceil(total/30)}</span><button type="button" data-block-reason={busy?'يجري تحميل النتائج.':'هذه هي الصفحة الأخيرة.'} disabled={busy||(page+1)*30>=total} onClick={()=>onPage(page+1)}>التالي</button></nav>;
 }
 export function ExpertIdentity({expert}){
-  const image=safePortfolioUrl(expert.avatarUrl);
+  const image=safeExpertImage(expert.avatarUrl);
   return <div className={s.identity}>{image?<img className={s.avatar} src={image} alt="" loading="lazy" referrerPolicy="no-referrer"/>:<span className={s.avatar} aria-hidden="true">{expert.name?.trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('')}</span>}<div><h3>{expert.name}</h3><p className={s.muted}>{expert.title}</p>{expert.verified&&<span className={`${s.badge} ${s.verified}`}>✓ موثّق</span>}</div></div>;
 }
 export function ExpertProfile({expert,onClose,onRequest}){

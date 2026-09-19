@@ -126,3 +126,9 @@ verify_jwt = false
 # Every action authorizes the caller JWT through exact tenant/staff RPCs before
 # privileged Auth creation. Supports current asymmetric Supabase JWTs.
 verify_jwt = false
+
+
+# Public intake; handler explicitly validates the project publishable API key.
+# Privileged reserve/finalize RPCs remain service_role-only.
+[functions.expert-application-upload]
+verify_jwt = false

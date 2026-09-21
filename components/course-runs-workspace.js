@@ -40,6 +40,7 @@ export default function CourseRunsWorkspace({slug,data}){
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
+  const [closureReason,setClosureReason]=useState('');
 
   const shown=useMemo(()=>runs.filter(run=>{
     if(filter!=='all'&&run.status!==filter)return false;
@@ -71,6 +72,7 @@ export default function CourseRunsWorkspace({slug,data}){
   }
 
   function openEdit(run){
+    setClosureReason('');
     setDraft({
       id:run.id,
       courseId:run.courseId,
@@ -198,6 +200,18 @@ export default function CourseRunsWorkspace({slug,data}){
     }finally{
       setBusy(false);
     }
+  }
+
+  async function closeWithException(){
+    if(!draft?.id||closureReason.trim().length<3)return;
+    setBusy(true);setError('');
+    try{
+      const reopening=runs.find(run=>run.id===draft.id)?.status==='completed';
+      const response=await fetch('/api/tenant/admission-governance',{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({p_tenant_slug:slug,p_action:reopening?'reopen_run':'close_run',p_payload:{courseRunId:draft.id,reason:closureReason}})});
+      const payload=await response.json();if(!response.ok)throw new Error(payload.error||'تعذر إغلاق الدفعة');
+      setDraft(null);setNotice(reopening?'تمت إعادة فتح الدفعة للمراجعة، وتحتاج قرار إغلاق يدويًا':'تم إغلاق الدفعة وتوثيق سبب الاستثناء');router.refresh();
+    }catch(err){setError(err.message);}finally{setBusy(false);}
   }
 
   return <>
@@ -420,6 +434,11 @@ export default function CourseRunsWorkspace({slug,data}){
             </div>
           </section>
 
+          {draft.id&&data.viewer?.canApproveClosure&&['in_progress','completed'].includes(runs.find(run=>run.id===draft.id)?.status)&&<section className="mt-panel">
+            <h4>مراجعة إغلاق الدفعة</h4><p>الحضور غير المسجل يظل غير مسجل. الإغلاق والاستثناء وإعادة الفتح قرارات موثقة.</p>
+            <label className="mt-field">سبب الاستثناء<textarea value={closureReason} onChange={event=>setClosureReason(event.target.value)}/></label>
+            <button type="button" disabled={busy||closureReason.trim().length<3} onClick={closeWithException}>{runs.find(run=>run.id===draft.id)?.status==='completed'?'إعادة فتح الدفعة للمراجعة':'اعتماد الإغلاق بالسبب المدون'}</button>
+          </section>}
           {error&&<div className="mt-alert error">{error}</div>}
         </div>
 
@@ -459,6 +478,7 @@ function BatchCard({run,timezone,canManage,onEdit}){
       <div><dt>التقديم</dt><dd>{DELIVERY_LABELS[run.deliveryMode]||run.deliveryMode}</dd></div>
       <div><dt>المدرب</dt><dd>{run.instructorName||'يحدد لاحقًا'}</dd></div>
     </dl>
+    {run.closureEvidence?.dueForClosure&&<div className="mt-alert">مستحقة الإغلاق · {run.closureEvidence.missingAttendance||0} سجل حضور غير مكتمل</div>}
 
     <div className="mt-batch-capacity">
       <div><b>المقاعد</b><span>{enrolled} من {capacity||'غير محدد'}</span></div>

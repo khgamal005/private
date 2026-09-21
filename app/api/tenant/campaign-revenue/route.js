@@ -15,7 +15,7 @@ async function rpc(name,args){
     body:JSON.stringify(args),cache:'no-store',signal:AbortSignal.timeout(15000)});
   const data=await response.json();
   if(!response.ok){
-    const allowed=['forbidden','addon_not_enabled','campaign_report_not_enabled','source_changed_refresh_preview','command_id_reused','campaign_not_found','ad_not_found','invalid_review'];
+    const allowed=['forbidden','addon_not_enabled','campaign_report_not_enabled','campaign_report_filter_invalid','source_changed_refresh_preview','command_id_reused','campaign_not_found','ad_not_found','invalid_review'];
     return {error:allowed.includes(data.message)?data.message:'request_failed',status:response.status===401?401:400};
   }
   return {data};
@@ -27,10 +27,15 @@ export async function GET(request){
     const slug=tenant(q.get('tenantSlug'));
     if(!slug)return json({error:'invalid_tenant'},400);
     const mode=q.get('action');
-    if(!['sources','export'].includes(mode))return json({error:'not_found'},404);
-    const access=mode==='export'?await rpc('v1_tenant_campaign_report_access',{p_slug:slug}):null;
+    if(!['sources','export','opportunity-collections'].includes(mode))return json({error:'not_found'},404);
+    const access=mode!=='sources'?await rpc('v1_tenant_campaign_report_access',{p_slug:slug}):null;
     if(access?.error)return json({error:access.error},access.status);
     const f=campaignFilters(Object.fromEntries(q),new Date(),access?.data?.timezone||'Asia/Riyadh');
+    if(mode==='opportunity-collections'){
+      const result=await rpc('v1_tenant_opportunity_collections',{p_slug:slug,p_from:f.dateFrom,p_to:f.dateTo,
+        p_staff_id:f.staff||null,p_course_id:f.course||null,p_search:f.search||null});
+      return result.error?json({error:result.error},result.status):json(result.data);
+    }
     const result=await rpc(mode==='sources'?'v1_tenant_campaign_sources':'v1_tenant_campaign_revenue_report',
       mode==='sources'?{p_slug:slug,p_batch_id:q.get('batch')||null,p_offset:f.offset}:campaignReportArgs(slug,f));
     if(result.error)return json({error:result.error},result.status);

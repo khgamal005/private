@@ -9,8 +9,10 @@ import {
   toWhatsAppNumber
 } from '../lib/customer-phone.mjs';
 import CustomerHistoryDrawer from './customer-history-drawer';
-import {interestCourseNames} from '../lib/sales-followup-details.mjs';
+import {interestCourseNames,unscheduledOpportunityCount} from '../lib/sales-followup-details.mjs';
+import {businessDateTimeToInstant} from '../lib/task-timing.mjs';
 import CustomerEditModal from './customer-edit-modal';
+import CustomerOpportunityModal from './customer-opportunity-modal';
 import SalesFollowupModal,{
   ACTIONS,
   ActionSelect,
@@ -51,7 +53,8 @@ const QUICK_FILTERS=[
   ['closed','مغلق']
 ];
 
-const when=value=>value?new Date(value).toLocaleString('ar-SA',{
+const when=(value,timeZone='UTC')=>value?new Date(value).toLocaleString('ar-SA',{
+  timeZone,
   day:'numeric',
   month:'short',
   hour:'2-digit',
@@ -590,11 +593,13 @@ export default function SalesWorkspace({
             </header>
             <div>
               {items.map(contact=><LeadCard
+                timeZone={timeZone}
                 key={contact.id}
                 contact={contact}
                 canWrite={canWrite}
                 canReassign={canReassign}
                 onFollowup={()=>openModal('followup',contact)}
+                onOpportunity={()=>openModal('opportunity',contact)}
                 onHistory={()=>setHistoryContact(contact)}
                 onEdit={()=>openModal('edit',contact)}
               />)}
@@ -618,10 +623,12 @@ export default function SalesWorkspace({
           >إخفاء</button>
         </div>
         <LeadCard
+          timeZone={timeZone}
           contact={focusedContact}
           canWrite={canWrite}
           canReassign={canReassign}
           onFollowup={()=>openModal('followup',focusedContact)}
+          onOpportunity={()=>openModal('opportunity',focusedContact)}
           onHistory={()=>setHistoryContact(focusedContact)}
           onEdit={()=>openModal('edit',focusedContact)}
         />
@@ -635,17 +642,16 @@ export default function SalesWorkspace({
           <td><b>{interestCourseNames(contact)||'لم تحدد'}</b><small>{contact.organizationName||'عميل فردي'}</small></td>
           <td><b>{contact.source||'غير محدد'}</b><small>{contact.campaignName||contact.adName||'لا توجد حملة'}</small></td>
           <td>{contact.ownerName||'غير مسند'}</td>
-          <td><b>{contact.nextActionType?ACTIONS[contact.nextActionType]||contact.nextActionType:'لا توجد متابعة'}</b><small>{when(contact.nextActionAt)}</small></td>
+          <td><b>{contact.nextActionType?ACTIONS[contact.nextActionType]||contact.nextActionType:'لا توجد متابعة'}</b><small>{when(contact.nextActionAt,timeZone)}</small>
+            {unscheduledOpportunityCount(contact)>0&&<small className="mt-status warning">فرص تحتاج تحديد متابعة: {unscheduledOpportunityCount(contact)}</small>}
+          </td>
           <td><div className="mt-customer-row-actions">
             <button className="mt-button soft mt-followup-button" onClick={()=>setHistoryContact(contact)}>سجل العميل</button>
             {(canWrite||canReassign)&&<button className="mt-button soft mt-followup-button" onClick={()=>openModal('edit',contact)}>
               {canWrite?'تعديل البيانات':'تغيير الإسناد'}
             </button>}
-            {canWrite&&(
-              ['payment_submitted','paid'].includes(contact.leadStatus)
-                ?<span className="mt-status warning">مع التسجيل والقبول</span>
-                :<button className="mt-button soft mt-followup-button" onClick={()=>openModal('followup',contact)}>تسجيل متابعة</button>
-            )}
+            {canWrite&&<button className="mt-button soft mt-followup-button" onClick={()=>openModal('opportunity',contact)}>فرصة جديدة</button>}
+            {canWrite&&<button className="mt-button soft mt-followup-button" onClick={()=>openModal('followup',contact)}>تسجيل متابعة</button>}
           </div></td>
         </tr>)}</tbody>
       </table>{!shownContacts.length&&<div className="mt-empty">لا توجد نتائج مطابقة.</div>}</div>}
@@ -689,8 +695,8 @@ export default function SalesWorkspace({
           <div className="mt-activity-result">
             {activity.resultStatus&&<SalesStatusBadge value={activity.resultStatus}/>}
             {activity.resultQuality&&<SalesQualityBadge value={activity.resultQuality}/>}
-            <small>{when(activity.occurredAt)}</small>
-            {activity.nextActionAt&&<small>التالي: {when(activity.nextActionAt)}</small>}
+            <small>{when(activity.occurredAt,timeZone)}</small>
+            {activity.nextActionAt&&<small>التالي: {when(activity.nextActionAt,timeZone)}</small>}
           </div>
         </div>)}
         {!shownActivities.length&&<div className="mt-empty">
@@ -709,7 +715,7 @@ export default function SalesWorkspace({
           <td><b>{item.contactName}</b><small>بلاغ وارد من المبيعات</small></td>
           <td>{item.courseName}</td>
           <td><b>{item.courseRunName||'لم تحدد الدفعة'}</b><small>{dateOnly(item.preferredStartDate)}</small></td>
-          <td><b>{item.amountMinor==null?'لم يسجل المبلغ':money(item.amountMinor)}</b><small>{when(item.paidAt)}</small></td>
+          <td><b>{item.amountMinor==null?'لم يسجل المبلغ':money(item.amountMinor)}</b><small>{when(item.paidAt,timeZone)}</small></td>
           <td>{item.assignedStaffName||'قسم التسجيل والقبول'}</td>
           <td><span className="mt-status warning">{item.status==='pending'?'بانتظار التحقق':item.status==='in_review'?'قيد المراجعة':item.status==='completed'?'مكتمل':item.status}</span></td>
         </tr>)}</tbody>
@@ -740,7 +746,7 @@ export default function SalesWorkspace({
             p_interest_course_id:values.interest_course_id||null,
             p_lead_quality:values.lead_quality||'unrated',
             p_next_action_type:values.next_action_type,
-            p_next_action_at:new Date(values.next_action_at).toISOString(),
+            p_next_action_at:businessDateTimeToInstant(values.next_action_at,timeZone),
             p_notes:values.notes||null
           }),
           'تمت إضافة العميل وإنشاء أول مهمة متابعة في التقويم'
@@ -760,13 +766,18 @@ export default function SalesWorkspace({
           <label className="mt-field">الدورة<select name="interest_course_id"><option value="">غير محددة</option>{courses.map(item=><option value={item.id} key={item.id}>{item.nameAr}</option>)}</select></label>
           <label className="mt-field">مسؤول المتابعة<select name="owner_staff_id"><option value="">أنا / غير مسند</option>{staff.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
           <label className="mt-field">أول إجراء<ActionSelect name="next_action_type"/></label>
-          <label className="mt-field">موعد الإجراء<input name="next_action_at" type="datetime-local" required/></label>
+          <label className="mt-field">موعد الإجراء — بتوقيت {timeZone}<input name="next_action_at" type="datetime-local" required/></label>
           <label className="mt-field wide">ملاحظات<textarea name="notes" rows="3"/></label>
           {error&&<div className="mt-alert error mt-field wide">{error}</div>}
         </div>
         <ModalFooter busy={busy} onClose={closeModal} label="حفظ وبدء المتابعة"/>
       </form>
     </div>}
+
+    {modal?.type==='opportunity'&&<CustomerOpportunityModal
+      slug={slug} contact={modal.record} courses={courses} timeZone={timeZone} onClose={closeModal}
+      onSaved={savedMessage=>{setMessage(savedMessage);setModal(null);reloadAfterMutation();}}
+    />}
 
     {modal?.type==='edit'&&<CustomerEditModal
       slug={slug}
@@ -794,6 +805,7 @@ export default function SalesWorkspace({
 
     {modal?.type==='followup'&&<SalesFollowupModal
       slug={slug}
+      timeZone={timeZone}
       contact={modal.record}
       courses={courses}
       courseRuns={courseRuns}
@@ -821,9 +833,11 @@ export default function SalesWorkspace({
 
 function LeadCard({
   contact,
+  timeZone,
   canWrite,
   canReassign,
   onFollowup,
+  onOpportunity,
   onHistory,
   onEdit
 }){
@@ -837,17 +851,19 @@ function LeadCard({
       {(contact.whatsapp||contact.phone)&&<a target="_blank" rel="noreferrer" href={`https://wa.me/${toWhatsAppNumber(contact.whatsapp||contact.phone)}`}>واتساب</a>}
     </div>
     <LeadBadges contact={contact}/>
+    {unscheduledOpportunityCount(contact)>0&&<span className="mt-status warning">فرص تحتاج تحديد متابعة: {unscheduledOpportunityCount(contact)}</span>}
     <dl>
       <div><dt>المسؤول</dt><dd>{contact.ownerName||'غير مسند'}</dd></div>
       <div><dt>المصدر</dt><dd>{contact.source||'غير محدد'}</dd></div>
-      <div className="wide"><dt>الإجراء التالي</dt><dd>{contact.nextActionType?`${ACTIONS[contact.nextActionType]||contact.nextActionType} · ${when(contact.nextActionAt)}`:'تم إنهاء المتابعة البيعية'}</dd></div>
+      <div className="wide"><dt>الإجراء التالي</dt><dd>{contact.nextActionType?`${ACTIONS[contact.nextActionType]||contact.nextActionType} · ${when(contact.nextActionAt,timeZone)}`:'تم إنهاء المتابعة البيعية'}</dd></div>
     </dl>
     <div className="mt-lead-card-actions">
       <button className="mt-button soft mt-followup-button" onClick={onHistory}>سجل العميل</button>
       {(canWrite||canReassign)&&<button className="mt-button soft mt-followup-button" onClick={onEdit}>
         {canWrite?'تعديل البيانات':'تغيير الإسناد'}
       </button>}
-      {canWrite&&!['payment_submitted','paid'].includes(contact.leadStatus)&&<button className="mt-button primary mt-followup-button" onClick={onFollowup}>تسجيل نتيجة المتابعة</button>}
+      {canWrite&&<button className="mt-button soft mt-followup-button" onClick={onOpportunity}>فرصة جديدة</button>}
+      {canWrite&&<button className="mt-button primary mt-followup-button" onClick={onFollowup}>تسجيل نتيجة المتابعة</button>}
     </div>
   </article>;
 }

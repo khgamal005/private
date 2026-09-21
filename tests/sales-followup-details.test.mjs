@@ -23,3 +23,11 @@ test('attendance presentation uses the tenant timezone across midnight',()=>{
   assert.ok(label.includes('03')||label.includes('٣')||label.includes('3'));
   assert.equal(attendanceLabel(null),'الموعد لم يحدد بعد');
 });
+
+test('primary plus four extras includes a distinct WhatsApp and never truncates silently',()=>{
+  const phones=['0551111111','0552222222','0553333333','0554444444'].map(value=>({value}));
+  assert.equal(serializeFollowupDetails({...details(),phones}).additionalPhones.length,4);
+  assert.throws(()=>serializeFollowupDetails({...details(),phones,whatsapp:'0559999999'}),/٤ أرقام/);
+  assert.throws(()=>serializeFollowupDetails({...details(),primaryPhone:''}),/الجوال الأساسي/);
+  assert.equal(serializeFollowupDetails({...details(),phones,whatsapp:'0501111111'}).additionalPhones.length,4);
+});

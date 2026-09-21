@@ -100,6 +100,7 @@ function tenantItems(
       {key:'leadQueue',label:'توزيع العملاء',href:`${base}/lead-queue`,permission:'tenant.leads.read'}
     ]},
     {key:'admissions',label:'التسجيل والقبول',href:`${base}/admissions`,permission:'tenant.admissions.read'},
+    {key:'courses',label:'عقود الدبلومات والأقساط',href:`${base}/diplomas`,permission:'tenant.accounting.read'},
     {key:'yeastar',label:'إضافة Yeastar',visible:Boolean(
       yeastarAccess?.enabled&&yeastarAccess?.visible
     ),children:[
@@ -136,6 +137,7 @@ function tenantItems(
     ]},
     {key:'website',label:'الموقع الإلكتروني',href:`${base}/website`,permission:'tenant.website.read',visible:hasAddon('cms_pro')},
     {key:'settings',label:'الإعدادات والصلاحيات',href:`${base}/settings`,permission:'tenant.users.manage'},
+    {key:'settings',label:'جاهزية التشغيل والفروع',href:`${base}/operations`,permission:'tenant.settings.manage'},
     {key:'integrations',label:'المزامنة والترابط',href:`${base}/integrations`,permission:'tenant.users.manage',visible:hasAnyAddon(['woocommerce','salla','zid','shopify','custom_store'])},
     {key:'support',label:'الدعم الفني',href:`${base}/support`,always:true,
       badge:tenantSupportAttentionCount(supportSummary),

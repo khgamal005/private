@@ -1,7 +1,7 @@
 import CourseCatalog from '../../../../components/course-catalog';
 import {getTenant} from '../../../../lib/api';
 import {getTenantCommerceHub} from '../../../../lib/commerce-api';
-import {requireTenantPermission} from '../../../../lib/server-auth';
+import {authRpc,requireTenantPermission} from '../../../../lib/server-auth';
 
 export const dynamic='force-dynamic';
 
@@ -23,6 +23,13 @@ export default async function CoursesPage({params}){
     getTenant(slug),
     safeCommerceHub(slug)
   ]);
+  const programKinds=[];
+  const services=data.services||[];
+  for(let offset=0;offset<services.length;offset+=500){
+    programKinds.push(...await authRpc('v1_tenant_program_kinds',{
+      p_slug:slug,p_course_ids:services.slice(offset,offset+500).map(item=>item.id)
+    }));
+  }
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
   const canManage=Boolean(
     context.platformAccess
@@ -34,6 +41,7 @@ export default async function CoursesPage({params}){
   return <CourseCatalog
     slug={slug}
     initialData={data}
+    programKinds={programKinds}
     commerceData={commerceHub?.woocommerce||{}}
     canManage={canManage}
     canManageCommerce={canManageCommerce}

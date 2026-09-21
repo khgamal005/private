@@ -8,6 +8,8 @@ import {
 } from '../lib/customer-phone.mjs';
 import {
   businessDateKey,
+  businessDateTimeInput,
+  businessDateTimeToInstant,
   isCustomerFollowupTask,
   isSameBusinessDay,
   isTaskOverdue
@@ -70,14 +72,24 @@ const SALES_TASK_SOURCES=new Set([
   'sales_followup'
 ]);
 
-function monthStart(value){return new Date(value.getFullYear(),value.getMonth(),1)}
+function isSalesProjectionTask(task){
+  return Boolean(task?.contactId)&&(SALES_TASK_SOURCES.has(task.taskSource||task.metadata?.source)
+    ||task.metadata?.aggregateCustomerFollowup===true);
+}
+
+// Calendar cells represent civil dates, not instants. Keep their arithmetic
+// in UTC; only actual task timestamps are interpreted in the tenant zone.
+function calendarToday(timeZone){
+  return new Date(`${businessDateKey(new Date(),timeZone)}T00:00:00Z`);
+}
+function monthStart(value){return new Date(Date.UTC(value.getUTCFullYear(),value.getUTCMonth(),1))}
 function calendarDays(value){
   const start=monthStart(value);
   const first=new Date(start);
-  first.setDate(start.getDate()-start.getDay());
+  first.setUTCDate(start.getUTCDate()-start.getUTCDay());
   return Array.from({length:42},(_,index)=>{
     const date=new Date(first);
-    date.setDate(first.getDate()+index);
+    date.setUTCDate(first.getUTCDate()+index);
     return date;
   });
 }
@@ -108,36 +120,24 @@ function timingText(task,timeZone='UTC'){
   if(state(task,timeZone)==='today')return 'اليوم';
   return 'قادمة';
 }
-function formatDate(value){
+function formatDate(value,timeZone='UTC'){
   return new Date(value).toLocaleDateString('ar-SA',{
+    timeZone,
     weekday:'short',
     day:'numeric',
     month:'short',
     year:'numeric'
   });
 }
-function formatTime(value){
+function formatTime(value,timeZone='UTC'){
   return new Date(value).toLocaleTimeString('ar-SA',{
+    timeZone,
     hour:'2-digit',
     minute:'2-digit'
   });
 }
 function inputDate(value){
-  const date=new Date(value);
-  const year=date.getFullYear();
-  const month=String(date.getMonth()+1).padStart(2,'0');
-  const day=String(date.getDate()).padStart(2,'0');
-  return `${year}-${month}-${day}`;
-}
-function inputDateTime(value){
-  const date=new Date(value);
-  if(Number.isNaN(date.getTime()))return '';
-  const year=date.getFullYear();
-  const month=String(date.getMonth()+1).padStart(2,'0');
-  const day=String(date.getDate()).padStart(2,'0');
-  const hours=String(date.getHours()).padStart(2,'0');
-  const minutes=String(date.getMinutes()).padStart(2,'0');
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
+  return new Date(value).toISOString().slice(0,10);
 }
 function number(value){
   return new Intl.NumberFormat('ar-SA').format(Number(value)||0);
@@ -167,7 +167,7 @@ export default function TaskCalendarPage({
   const router=useRouter();
   const startsInTodayFocus=initialFocus==='today';
   const [data,setData]=useState(initialData);
-  const [month,setMonth]=useState(()=>new Date());
+  const [month,setMonth]=useState(()=>calendarToday(initialData.timezone||initialData.tenant?.timezone||'UTC'));
   const [filter,setFilter]=useState(()=>startsInTodayFocus?'today':'all');
   const [mode,setMode]=useState(()=>startsInTodayFocus?'agenda':'month');
   const [assignee,setAssignee]=useState('all');
@@ -303,7 +303,7 @@ export default function TaskCalendarPage({
     }
     return days.map(day=>({
       day,
-      tasks:tasksByDay.get(businessDateKey(day,timeZone))||EMPTY
+      tasks:tasksByDay.get(inputDate(day))||EMPTY
     }));
   },[days,filtered,filter,timeZone]);
   const agenda=useMemo(()=>[...filtered].sort(
@@ -407,14 +407,14 @@ export default function TaskCalendarPage({
 
   function focusToday(){
     completeActionRef.current+=1;
-    setMonth(new Date());
+    setMonth(calendarToday(timeZone));
     setFilter('today');
     setMode('agenda');
   }
 
   function focusDistributedToday(){
     completeActionRef.current+=1;
-    setMonth(new Date());
+    setMonth(calendarToday(timeZone));
     setFilter('distributed_today');
     setMode('agenda');
   }
@@ -431,7 +431,7 @@ export default function TaskCalendarPage({
         p_title:values.title,
         p_description:values.description||null,
         p_assigned_staff_id:values.assigned_staff_id||null,
-        p_due_at:new Date(values.due_at).toISOString(),
+        p_due_at:businessDateTimeToInstant(values.due_at,timeZone),
         p_priority:values.priority||'normal',
         p_opportunity_id:values.opportunity_id||null,
         p_contact_id:values.contact_id||null
@@ -447,6 +447,7 @@ export default function TaskCalendarPage({
   }
 
   async function updateStatus(task,status){
+    if(isSalesProjectionTask(task)){openTask(task);return;}
     if(status==='completed'&&task.taskSource==='woocommerce_order'&&!task.wooAdmissionLegacy){
       setSelected(null);setWooTarget(task);return;
     }
@@ -513,6 +514,7 @@ export default function TaskCalendarPage({
 
   async function moveTask(event,task){
     event.preventDefault();
+    if(isSalesProjectionTask(task)){openTask(task);return;}
     setSaving(true);
     setError('');
     setNotice('');
@@ -522,7 +524,7 @@ export default function TaskCalendarPage({
         p_tenant_slug:slug,
         p_task_id:task.id,
         p_status:values.status||task.status,
-        p_due_at:new Date(values.due_at).toISOString(),
+        p_due_at:businessDateTimeToInstant(values.due_at,timeZone,{originalInstant:task.dueAt}),
         p_note:values.note||null
       });
       setData(current=>({
@@ -551,7 +553,7 @@ export default function TaskCalendarPage({
       ?dailyDistributionTasks
       :tasks;
     const dayTasks=sourceTasks.filter(task=>
-      sameDay(calendarDate(task,filter),day,timeZone)
+      businessDateKey(calendarDate(task,filter),timeZone)===key
       &&(assignee==='all'||task.assignedStaffId===assignee)
     );
     setDayPanel({
@@ -644,11 +646,11 @@ export default function TaskCalendarPage({
 
     <section className="calendar-controlbar">
       <div className="calendar-month-switch">
-        <button onClick={()=>void withCompleteCalendar(()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1)))}>‹</button>
-        <button onClick={()=>void withCompleteCalendar(()=>setMonth(new Date()))}>اليوم</button>
-        <button onClick={()=>void withCompleteCalendar(()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1)))}>›</button>
+        <button onClick={()=>void withCompleteCalendar(()=>setMonth(new Date(Date.UTC(month.getUTCFullYear(),month.getUTCMonth()-1,1))))}>‹</button>
+        <button onClick={()=>void withCompleteCalendar(()=>setMonth(calendarToday(timeZone)))}>اليوم</button>
+        <button onClick={()=>void withCompleteCalendar(()=>setMonth(new Date(Date.UTC(month.getUTCFullYear(),month.getUTCMonth()+1,1))))}>›</button>
       </div>
-      <h2>{MONTHS[month.getMonth()]} {month.getFullYear()}</h2>
+      <h2>{MONTHS[month.getUTCMonth()]} {month.getUTCFullYear()} <small>بتوقيت {timeZone}</small></h2>
       <div className="calendar-view-controls">
         {viewTeam&&<select value={assignee} onChange={event=>setAssignee(event.target.value)}>
           <option value="all">كل الفريق</option>
@@ -679,10 +681,10 @@ export default function TaskCalendarPage({
       </section>
       <section className="role-calendar-grid">
         {grouped.map(({day,tasks:dayTasks})=><article
-          className={`${day.getMonth()!==month.getMonth()?'outside':''} ${sameDay(day,new Date(),timeZone)?'today':''}`}
+          className={`${day.getUTCMonth()!==month.getUTCMonth()?'outside':''} ${inputDate(day)===businessDateKey(new Date(),timeZone)?'today':''}`}
           key={day.toISOString()}
         >
-          <header><b>{day.getDate()}</b>{dayTasks.length>0&&<span>{dayTasks.length}</span>}</header>
+          <header><b>{day.getUTCDate()}</b>{dayTasks.length>0&&<span>{dayTasks.length}</span>}</header>
           <div>
             {dayTasks.slice(0,4).map(task=><button
               className={`role-calendar-task ${state(task,timeZone)} ${task.contactQuality==='excellent'?'has-excellent-quality':''}`}
@@ -690,7 +692,7 @@ export default function TaskCalendarPage({
               onClick={()=>openTask(task)}
             >
               <strong>{task.title}</strong>
-              <small>{formatTime(calendarDate(task,filter))} · {task.contactName||task.assigneeName||'مهمة تشغيلية'}</small>
+              <small>{formatTime(calendarDate(task,filter),timeZone)} · {task.contactName||task.assigneeName||'مهمة تشغيلية'}</small>
               {task.contactQuality==='excellent'&&<SalesQualityBadge value="excellent"/>}
             </button>)}
             {dayTasks.length>4&&<button
@@ -704,7 +706,7 @@ export default function TaskCalendarPage({
       </section>
     </>:<section className="role-calendar-agenda">
       {agenda.map(task=><article className={state(task,timeZone)} key={task.id} onClick={()=>openTask(task)}>
-        <time><span>{formatDate(calendarDate(task,filter))}</span><b>{formatTime(calendarDate(task,filter))}</b></time>
+        <time><span>{formatDate(calendarDate(task,filter),timeZone)}</span><b>{formatTime(calendarDate(task,filter),timeZone)}</b></time>
         <div className="agenda-main">
           <strong>{task.title}</strong>
           <p>{task.description||task.contactCourseName||'مهمة تشغيلية'}</p>
@@ -729,7 +731,7 @@ export default function TaskCalendarPage({
           className="complete-inline"
           onClick={event=>{event.stopPropagation();updateStatus(task,'completed')}}
           disabled={saving}
-        >إتمام</button>}
+        >{isSalesProjectionTask(task)?'تسجيل متابعة':'إتمام'}</button>}
       </article>)}
       {!agenda.length&&<div className="calendar-empty">لا توجد مهام مطابقة لهذا الاختيار.</div>}
     </section>}
@@ -745,7 +747,7 @@ export default function TaskCalendarPage({
           <label className="wide">عنوان المهمة<input name="title" required/></label>
           <label>المسند إليه<select name="assigned_staff_id"><option value="">أنا / غير مسند</option>{staff.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
           <label>الأولوية<select name="priority" defaultValue="normal"><option value="low">منخفضة</option><option value="normal">عادية</option><option value="high">عالية</option><option value="urgent">عاجلة</option></select></label>
-          <label>الموعد<input name="due_at" required type="datetime-local"/></label>
+          <label>الموعد — بتوقيت {timeZone}<input name="due_at" required type="datetime-local"/></label>
           <label>العميل<select name="contact_id"><option value="">غير مرتبط</option>{contacts.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
           <label className="wide">التفاصيل<textarea name="description" rows="4"/></label>
           {error&&<div className="calendar-alert error wide">{error}</div>}
@@ -766,7 +768,7 @@ export default function TaskCalendarPage({
         </header>
         <dl>
           <div><dt>المسند إليه</dt><dd>{selected.assigneeName||'—'}</dd></div>
-          <div><dt>الموعد</dt><dd>{formatDate(selected.dueAt)} · {formatTime(selected.dueAt)}</dd></div>
+          <div><dt>الموعد — {timeZone}</dt><dd>{formatDate(selected.dueAt,timeZone)} · {formatTime(selected.dueAt,timeZone)}</dd></div>
           <div><dt>الحالة</dt><dd>{selected.status==='completed'?'مكتملة':selected.status==='in_progress'?'جارية':'مفتوحة'}</dd></div>
           <div><dt>الأولوية</dt><dd>{selected.priority}</dd></div>
         </dl>
@@ -784,11 +786,14 @@ export default function TaskCalendarPage({
             <strong>آخر ملاحظة</strong>
             <p>{selected.contactLatestNote}</p>
             {selected.contactLatestNoteAt&&<time>
-              {formatDate(selected.contactLatestNoteAt)} · {formatTime(selected.contactLatestNoteAt)}
+              {formatDate(selected.contactLatestNoteAt,timeZone)} · {formatTime(selected.contactLatestNoteAt,timeZone)}
             </time>}
           </div>}
         </aside>}
-        {selected.status!=='completed'&&selected.status!=='cancelled'&&canWrite&&<form
+        {isSalesProjectionTask(selected)&&<p className="calendar-alert">تتحدث هذه المهمة من نتيجة متابعة الفرصة في المبيعات.
+          {canWriteCrm&&<a href={`/tenant/${slug}/sales?contact=${selected.contactId}`}> فتح ملف العميل وتسجيل المتابعة</a>}
+        </p>}
+        {selected.status!=='completed'&&selected.status!=='cancelled'&&canWrite&&!isSalesProjectionTask(selected)&&<form
           className="calendar-task-transition"
           onSubmit={event=>moveTask(event,selected)}
         >
@@ -796,10 +801,10 @@ export default function TaskCalendarPage({
             <b>نقل نفس المهمة</b>
             <small>يتغير الموعد الحالي فورًا، ويُحفظ الموعد السابق في السجل فقط.</small>
           </header>
-          <label>الموعد الجديد<input
+          <label>الموعد الجديد — بتوقيت {timeZone}<input
             name="due_at"
             type="datetime-local"
-            defaultValue={inputDateTime(selected.dueAt)}
+            defaultValue={businessDateTimeInput(selected.dueAt,timeZone)}
             required
           /></label>
           <label>الحالة<select name="status" defaultValue={selected.status}>
@@ -818,8 +823,8 @@ export default function TaskCalendarPage({
         </form>}
         <footer>
           <button onClick={()=>setSelected(null)}>إغلاق</button>
-          {selected.status==='todo'&&canWrite&&<button onClick={()=>updateStatus(selected,'in_progress')} disabled={saving}>بدء التنفيذ</button>}
-          {selected.status!=='completed'&&canWrite&&<button className="calendar-primary" onClick={()=>updateStatus(selected,'completed')} disabled={saving}>إتمام المهمة</button>}
+          {selected.status==='todo'&&canWrite&&!isSalesProjectionTask(selected)&&<button onClick={()=>updateStatus(selected,'in_progress')} disabled={saving}>بدء التنفيذ</button>}
+          {selected.status!=='completed'&&canWrite&&!isSalesProjectionTask(selected)&&<button className="calendar-primary" onClick={()=>updateStatus(selected,'completed')} disabled={saving}>إتمام المهمة</button>}
         </footer>
       </section>
     </div>}
@@ -827,6 +832,7 @@ export default function TaskCalendarPage({
     {dayPanel&&<CalendarDayDetails
       key={dayPanel.key}
       panel={dayPanel}
+      tenantTimeZone={timeZone}
       canWriteCrm={canWriteCrm}
       onClose={()=>setDayPanel(null)}
       onRetry={()=>openDay(dayPanel.day)}
@@ -843,6 +849,7 @@ export default function TaskCalendarPage({
     />}
     {followupTarget&&<SalesFollowupModal
       slug={slug}
+      timeZone={timeZone}
       contact={followupTarget.contact}
       task={followupTarget.task}
       courses={courses}
@@ -872,6 +879,7 @@ export default function TaskCalendarPage({
 
 function CalendarDayDetails({
   panel,
+  tenantTimeZone,
   canWriteCrm,
   onClose,
   onRetry,
@@ -885,7 +893,7 @@ function CalendarDayDetails({
   useEffect(()=>closeButtonRef.current?.focus(),[]);
   const summary=panel.insight?.summary;
   const yeastar=panel.insight?.yeastar;
-  const timeZone=panel.insight?.timezone||'UTC';
+  const timeZone=panel.insight?.timezone||tenantTimeZone||'UTC';
   const tasks=panel.tasks||EMPTY;
   const visibleTasks=useMemo(()=>{
     const needle=query.trim().toLocaleLowerCase('ar');
@@ -1104,7 +1112,7 @@ function DayTaskRow({task,timeZone,canWriteCrm,onOpen}){
       </div>
       <p>{task.contactName||task.description||'مهمة تشغيلية غير مرتبطة بعميل'}</p>
       <small>
-        {formatTime(task.dueAt)}
+        {formatTime(task.dueAt,timeZone)}
         {task.assigneeName?` · ${task.assigneeName}`:''}
         {task.contactPhone?` · ${task.contactPhone}`:''}
       </small>

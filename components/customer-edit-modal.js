@@ -49,8 +49,8 @@ export default function CustomerEditModal({
     setError('');
     const values=Object.fromEntries(new FormData(event.currentTarget).entries());
 
-    if(!String(values.phone||'').trim()&&!String(values.whatsapp||'').trim()){
-      setError('يجب إدخال رقم الجوال أو رقم واتساب على الأقل');
+    if(!String(values.phone||'').trim()){
+      setError('يجب إدخال رقم الجوال الأساسي');
       setBusy(false);
       return;
     }
@@ -162,6 +162,7 @@ export default function CustomerEditModal({
         <label className="mt-field">رقم الجوال<input
           name="phone"
           defaultValue={contact.phone||''}
+          required={canEdit}
           disabled={!canEdit}
           inputMode="tel"
           autoComplete="tel"
@@ -276,4 +277,3 @@ export default function CustomerEditModal({
     </form>
   </div>;
 }
-

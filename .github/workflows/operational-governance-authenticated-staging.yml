@@ -1,0 +1,40 @@
+name: ODEIR operational governance authenticated staging
+on:
+  push:
+    branches: ['codex/operational-governance-20260921']
+    paths:
+      - '.github/workflows/operational-governance-authenticated-staging.yml'
+      - 'scripts/releases/verify-operational-governance-staging.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: operational-governance-authenticated-staging
+  cancel-in-progress: false
+jobs:
+  staging:
+    if: github.ref == 'refs/heads/codex/operational-governance-20260921'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Verify genuine signed-in sessions and complete financial enrollment lifecycle
+        env:
+          # Prefer the staging credential; retain existing approved token aliases.
+          # The script hard-codes only platform-Staging.
+          # Apply reviewed staging migrations before pushing these workflow paths.
+          ODEIR_STAGING_MANAGEMENT_TOKEN: ${{ secrets.ODEIR_STAGING_MANAGEMENT_TOKEN || secrets.SUPABASE_ACCESS_TOKEN || secrets.PRODUCTION_SUPABASE_ACCESS_TOKEN || secrets.PROD_SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/releases/verify-operational-governance-staging.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: operational-governance-authenticated-staging-evidence
+          path: /tmp/operational-governance-staging-evidence.json
+          retention-days: 7

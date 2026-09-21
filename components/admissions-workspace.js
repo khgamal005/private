@@ -5,6 +5,7 @@ import {useRouter} from 'next/navigation';
 import CourseRunsWorkspace from './course-runs-workspace';
 import LearnerOperationsWorkspace from './learner-operations-workspace';
 import WooCommerceBeneficiaryAdmissions from './woocommerce-beneficiary-admissions';
+import AdmissionGovernancePanel,{AdmissionReadiness} from './admission-governance-panel';
 
 const EMPTY=[];
 
@@ -87,6 +88,8 @@ export default function AdmissionsWorkspace({slug,initialData}){
   const [courseRunId,setCourseRunId]=useState('');
   const [notes,setNotes]=useState('');
   const [reason,setReason]=useState('');
+  const [agreedPrice,setAgreedPrice]=useState('');
+  const [agreedCurrency,setAgreedCurrency]=useState('SAR');
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
@@ -98,9 +101,12 @@ export default function AdmissionsWorkspace({slug,initialData}){
   const courseRuns=data.courseRuns||EMPTY;
   const summary=data.summary||{};
   const canManage=Boolean(data.viewer?.canManage);
+  const canViewFinancialDetails=Boolean(data.viewer?.canViewFinancialDetails);
+  const canVerifyPayment=Boolean(data.viewer?.canVerifyPayment);
+  const governance=data.admissionGovernance;
   const optionalDocumentsPending=useMemo(()=>cases.reduce(
     (total,item)=>total+(item.documents||EMPTY).filter(
-      document=>!['approved','not_required'].includes(document.status)
+      document=>!document.required&&!['approved','not_required'].includes(document.status)
     ).length,
     0
   ),[cases]);
@@ -119,8 +125,8 @@ export default function AdmissionsWorkspace({slug,initialData}){
 
   const availableRuns=useMemo(()=>courseRuns.filter(run=>
     (!courseId||run.courseId===courseId)
-    &&(run.registrationOpen||run.id===courseRunId)
-  ),[courseRuns,courseId,courseRunId]);
+    &&(run.registrationOpen||run.id===courseRunId||governance?.enabled&&['planning','open','in_progress'].includes(run.status))
+  ),[courseRuns,courseId,courseRunId,governance?.enabled]);
 
   function openCase(item){
     setSelected(item);
@@ -128,6 +134,7 @@ export default function AdmissionsWorkspace({slug,initialData}){
     setCourseRunId(item.courseRunId||'');
     setNotes(item.notes||'');
     setReason(item.paymentRejectionReason||'');
+    setAgreedPrice('');setAgreedCurrency(item.currency||'SAR');
     setError('');
     setNotice('');
   }
@@ -159,9 +166,9 @@ export default function AdmissionsWorkspace({slug,initialData}){
         p_tenant_slug:slug,
         p_handoff_id:selected.id,
         p_action:action,
-        p_course_id:courseId||null,
-        p_course_run_id:courseRunId||null,
-        p_notes:notes||null,
+        p_course_id:canManage?courseId||null:null,
+        p_course_run_id:canManage?courseRunId||null:null,
+        p_notes:canManage?notes||null:null,
         p_reason:reason||null
       });
       setNotice(successMessage(action));
@@ -174,7 +181,7 @@ export default function AdmissionsWorkspace({slug,initialData}){
     }
   }
 
-  async function updateDocument(document,status){
+  async function updateDocument(document,status,required=document.required){
     if(!selected)return;
     if(status==='rejected'&&reason.trim().length<3){
       setError('اكتب سبب الرفض في خانة الملاحظات قبل رفض المستند');
@@ -189,7 +196,7 @@ export default function AdmissionsWorkspace({slug,initialData}){
         p_document_type:document.type,
         p_status:status,
         p_notes:reason||null,
-        p_is_required:false
+        p_is_required:Boolean(required)
       });
       setNotice(`تم تحديث ${DOCUMENTS[document.type]||document.type}`);
       setSelected(null);
@@ -199,6 +206,18 @@ export default function AdmissionsWorkspace({slug,initialData}){
     }finally{
       setBusy(false);
     }
+  }
+
+  async function governanceAction(action){
+    if(!selected)return;
+    setBusy(true);setError('');
+    try{
+      await call('admission-governance',{p_tenant_slug:slug,p_action:action,p_payload:{
+        handoffId:selected.id,courseRunId:courseRunId||null,reason,
+        ...(action==='set_agreed_price'?{amountMinor:Math.round(Number(agreedPrice)*100),currency:agreedCurrency}:{})
+      }});
+      setSelected(null);setNotice('تم حفظ القرار وإعادة تقييم متطلبات التسجيل');router.refresh();
+    }catch(err){setError(err.message);}finally{setBusy(false);}
   }
 
   return <main className="mt-admissions-page" dir="rtl">
@@ -226,6 +245,7 @@ export default function AdmissionsWorkspace({slug,initialData}){
 
     {notice&&<div className="mt-alert">{notice}</div>}
     {error&&!selected&&<div className="mt-alert error">{error}</div>}
+    {governance&&<AdmissionGovernancePanel key={`${governance.enabled}-${governance.financeBusinessDays}-${governance.placementBusinessDays}`} slug={slug} policy={governance}/>}
 
     {view==='batches'
       ?<CourseRunsWorkspace slug={slug} data={data}/>
@@ -286,6 +306,8 @@ export default function AdmissionsWorkspace({slug,initialData}){
           key={item.id}
           item={item}
           canManage={canManage}
+          canViewFinancialDetails={canViewFinancialDetails}
+          timezone={data.timezone}
           onOpen={()=>openCase(item)}
         />)}
         {!shownCases.length&&<div className="mt-empty">
@@ -308,11 +330,12 @@ export default function AdmissionsWorkspace({slug,initialData}){
         <div className="mt-customer-summary">
           <div><span>الجوال</span><b>{selected.phone||'—'}</b></div>
           <div><span>الدفع</span><b>{PAYMENT_STATUS[selected.paymentStatus]||selected.paymentStatus}</b></div>
-          <div><span>المبلغ</span><b>{money(selected.paymentAmountMinor)}</b></div>
-          <div><span>مرجع العملية</span><b>{selected.paymentReference||'غير مسجل'}</b></div>
+          {canViewFinancialDetails&&<><div><span>المبلغ</span><b>{money(selected.paymentAmountMinor)}</b></div>
+          <div><span>مرجع العملية</span><b>{selected.paymentReference||'غير مسجل'}</b></div></>}
         </div>
 
         <div className="mt-admission-modal-body">
+          <AdmissionReadiness readiness={selected.readiness} timezone={data.timezone}/>
           {selected.paymentSource==='woocommerce'&&<div className="mt-alert">
             WooCommerce #{selected.orderNumber} · تاريخ الدفع: {when(selected.sourcePaidAt)}
             <br/>تاريخ الإرسال للتسجيل: {when(selected.submittedAt)}
@@ -351,31 +374,42 @@ export default function AdmissionsWorkspace({slug,initialData}){
                 onChange={event=>setNotes(event.target.value)}
                 disabled={!canManage}
               /></label>
-              <label className="mt-field wide">سبب رفض الدفع / المستند أو الإلغاء<textarea
+              <label className="mt-field wide">سبب القرار أو الاستثناء<textarea
                 rows="3"
                 value={reason}
                 onChange={event=>setReason(event.target.value)}
-                disabled={!canManage}
+                disabled={!canManage&&!canVerifyPayment&&!governance?.canApproveExceptions&&!governance?.canApproveWaiver}
                 placeholder="يصبح إلزاميًا عند الرفض أو الإلغاء"
               /></label>
             </div>
           </section>
 
           <section className="mt-document-checklist">
-            <header><div><h4>قائمة المستندات</h4><small>كل المستندات اختيارية ويمكن إتمام التسجيل بدونها</small></div></header>
+            <header><div><h4>قائمة المستندات</h4><small>{governance?.enabled?'المستند المطلوب يمنع التسجيل حتى اعتماده أو توثيق إعفائه':'كل المستندات اختيارية ويمكن إتمام التسجيل بدونها'}</small></div></header>
             {(selected.documents||EMPTY).map(document=><article key={document.id}>
               <div>
                 <b>{DOCUMENTS[document.type]||document.type}</b>
-                <small>اختياري · {DOCUMENT_STATUS[document.status]||document.status}</small>
+                <small>{document.required?'مطلوب':'اختياري'} · {DOCUMENT_STATUS[document.status]||document.status}</small>
               </div>
               {canManage&&<div>
                 <button disabled={busy} onClick={()=>updateDocument(document,'received')}>استلم</button>
                 <button disabled={busy} onClick={()=>updateDocument(document,'approved')}>اعتمد</button>
-                <button disabled={busy} onClick={()=>updateDocument(document,'not_required')}>غير مطلوب</button>
+                <button disabled={busy||document.required&&governance?.enabled&&(!governance.canApproveExceptions||reason.trim().length<3)} onClick={()=>updateDocument(document,'not_required')}>غير مطلوب</button>
                 <button className="danger" disabled={busy} onClick={()=>updateDocument(document,'rejected')}>رفض</button>
+                {governance?.enabled&&<button disabled={busy||document.required&&(!governance.canApproveExceptions||reason.trim().length<3)} onClick={()=>updateDocument(document,document.status,!document.required)}>{document.required?'اجعله اختياريًا':'اجعله مطلوبًا'}</button>}
               </div>}
             </article>)}
           </section>
+
+          {governance?.enabled&&selected.status!=='completed'&&<section className="mt-panel">
+            <h4>قرارات استكمال التسجيل</h4>
+            {canManage&&<button disabled={busy} onClick={()=>governanceAction('reevaluate')}>إعادة تقييم المتطلبات</button>}
+            {governance.canApproveExceptions&&selected.readiness?.waitingReason==='late_enrollment_approval_required'&&<button disabled={busy||reason.trim().length<3} onClick={()=>governanceAction('approve_late_enrollment')}>اعتماد التسجيل المتأخر بالسبب المدون</button>}
+            {governance.canApproveWaiver&&<button disabled={busy||reason.trim().length<3} onClick={()=>governanceAction('approve_payment_waiver')}>اعتماد إعفاء دورة قصيرة بالسبب المدون</button>}
+            {governance.canAgreePrice&&<div className="mt-form"><label className="mt-field">القيمة المتفق عليها<input type="number" min="0" step="0.01" value={agreedPrice} onChange={e=>setAgreedPrice(e.target.value)}/></label>
+              <label className="mt-field">العملة<input value={agreedCurrency} maxLength="3" onChange={e=>setAgreedCurrency(e.target.value.toUpperCase())}/></label>
+              <button disabled={busy||agreedPrice===''||!Number.isFinite(Number(agreedPrice))||Number(agreedPrice)<0||reason.trim().length<3} onClick={()=>governanceAction('set_agreed_price')}>توثيق الاتفاق المالي</button></div>}
+          </section>}
 
           {selected.enrollment&&!selected.beneficiaries?.length&&<section className="mt-enrollment-success">
             <span>✓</span>
@@ -388,15 +422,17 @@ export default function AdmissionsWorkspace({slug,initialData}){
           {error&&<div className="mt-alert error">{error}</div>}
         </div>
 
-        {canManage&&<footer className="mt-admission-actions">
+        {(canManage||canVerifyPayment)&&<footer className="mt-admission-actions">
+          {canManage&&<>
           <button disabled={busy} onClick={()=>updateCase('save_details')}>حفظ البيانات</button>
           {selected.status==='pending'&&<button disabled={busy} onClick={()=>updateCase('start_review')}>بدء المراجعة</button>}
-          {selected.paymentStatus!=='verified'&&selected.status!=='completed'&&<>
+          </>}
+          {canVerifyPayment&&selected.paymentStatus!=='verified'&&selected.status!=='completed'&&<>
             <button className="primary" disabled={busy} onClick={()=>updateCase('verify_payment')}>تأكيد الدفع</button>
             <button className="danger" disabled={busy} onClick={()=>updateCase('reject_payment')}>رفض وإعادة للمبيعات</button>
           </>}
-          {selected.paymentStatus==='verified'&&!['accepted','completed'].includes(selected.originalStatus||selected.status)&&<button className="primary" disabled={busy} onClick={()=>updateCase('accept')}>اعتماد القبول</button>}
-          {selected.paymentStatus==='verified'&&selected.status!=='completed'&&!selected.beneficiaries?.length&&<button className="success" disabled={busy||!courseRunId} onClick={()=>updateCase('complete')}>إنشاء المتدرب وإتمام التسجيل</button>}
+          {canManage&&!governance?.enabled&&selected.paymentStatus==='verified'&&!['accepted','completed'].includes(selected.originalStatus||selected.status)&&<button className="primary" disabled={busy} onClick={()=>updateCase('accept')}>اعتماد القبول</button>}
+          {canManage&&!governance?.enabled&&selected.paymentStatus==='verified'&&selected.status!=='completed'&&!selected.beneficiaries?.length&&<button className="success" disabled={busy||!courseRunId} onClick={()=>updateCase('complete')}>إنشاء المتدرب وإتمام التسجيل</button>}
         </footer>}
       </section>
     </div>}
@@ -404,7 +440,7 @@ export default function AdmissionsWorkspace({slug,initialData}){
   </main>;
 }
 
-function AdmissionCard({item,canManage,onOpen}){
+function AdmissionCard({item,canManage,canViewFinancialDetails,timezone,onOpen}){
   const documents=item.documents||EMPTY;
   const reviewed=documents.filter(
     document=>['approved','not_required'].includes(document.status)
@@ -423,14 +459,15 @@ function AdmissionCard({item,canManage,onOpen}){
     <dl>
       <div><dt>الدورة</dt><dd>{item.courseName}</dd></div>
       <div><dt>الدفعة</dt><dd>{item.courseRunName||'لم تحدد'}</dd></div>
-      <div><dt>المبلغ</dt><dd>{money(item.paymentAmountMinor)}</dd></div>
+      {canViewFinancialDetails&&<div><dt>المبلغ</dt><dd>{money(item.paymentAmountMinor)}</dd></div>}
       <div><dt>البلاغ</dt><dd>{when(item.sourcePaidAt||item.paymentReportedAt)}{item.paymentSource==='woocommerce'&&<small>WooCommerce #{item.orderNumber}</small>}</dd></div>
     </dl>
+    <AdmissionReadiness readiness={item.readiness} timezone={timezone}/>
     {item.beneficiaries?.length>0&&<div className="mt-student-number">المستفيدون: {item.beneficiaries.filter(person=>person.enrollmentId).length} / {item.beneficiaries.length} مسجل</div>}
     <div className="mt-admission-progress">
-      <div><b>المستندات الاختيارية</b><span>{reviewed}/{documents.length}</span></div>
+      <div><b>المستندات</b><span>{reviewed}/{documents.length}</span></div>
       <progress value={reviewed} max={Math.max(documents.length,1)}/>
-      <small>{reviewed} مستند تمت مراجعته · لا تمنع التسجيل · {CASE_STATUS[item.status]||item.status}</small>
+      <small>{reviewed} مستند تمت مراجعته · {documents.some(document=>document.required)?'يشمل مستندات مطلوبة':'مستندات اختيارية'} · {CASE_STATUS[item.status]||item.status}</small>
     </div>
     {item.enrollment&&!item.beneficiaries?.length&&<div className="mt-student-number">رقم المتدرب: {item.enrollment.studentNumber}</div>}
     <button className="mt-button primary" onClick={onOpen}>

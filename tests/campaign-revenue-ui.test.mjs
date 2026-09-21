@@ -11,7 +11,7 @@ import {campaignFilters} from '../lib/campaign-revenue.mjs';
 test('review UI renders RTL, previews a group, releases errors and replays the same command safely',async()=>{
  const require=createRequire(import.meta.url);
  let source=await readFile(new URL('../components/campaign-revenue-report.js',import.meta.url),'utf8');
- source=source.replace("import CampaignRecommendations from './campaign-recommendations';","const CampaignRecommendations=()=>null;").replace("import './campaign-revenue-report.css';",'')
+ source=source.replace("import CampaignRecommendations from './campaign-recommendations';","const CampaignRecommendations=()=>null;").replace("import CampaignOpportunityCollections from './campaign-opportunity-collections';","const CampaignOpportunityCollections=()=>null;").replace("import './campaign-revenue-report.css';",'')
   .replace("import Link from 'next/link';","const Link=({href,children,...props})=><a href={href} {...props}>{children}</a>;")
   .replace("import {useRouter} from 'next/navigation';","const useRouter=()=>({refresh(){}});");
  let code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
@@ -52,4 +52,3 @@ test('review UI renders RTL, previews a group, releases errors and replays the s
   assert.equal(new URL(document.querySelector('a[href*="action=export"]').href).searchParams.get('mode'),'cohort');
  }finally{await act(()=>root.unmount());dom.window.close();delete globalThis.window;delete globalThis.document;delete globalThis.IS_REACT_ACT_ENVIRONMENT;}
 });
-

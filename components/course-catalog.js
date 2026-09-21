@@ -1,6 +1,6 @@
 'use client';
 
-import {useMemo,useState} from 'react';
+import {useMemo,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 
 const deliveryLabels={
@@ -22,6 +22,7 @@ const categoryLabels={
 export default function CourseCatalog({
   slug,
   initialData,
+  programKinds=[],
   commerceData,
   canManage
 }){
@@ -32,7 +33,9 @@ export default function CourseCatalog({
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
   const [error,setError]=useState('');
+  const pendingClassification=useRef(null);
   const courses=useMemo(()=>{
+    const kindsById=new Map(programKinds.map(item=>[item.id,item.programKind]));
     const commerceById=new Map(
       (commerceData?.courses||[]).map(item=>[
         item.id||item.courseId,
@@ -41,9 +44,10 @@ export default function CourseCatalog({
     );
     return (initialData.services||[]).map(item=>({
       ...item,
-      ...(commerceById.get(item.id)||{})
+      ...(commerceById.get(item.id)||{}),
+      programKind:kindsById.get(item.id)||null
     }));
-  },[initialData.services,commerceData?.courses]);
+  },[initialData.services,commerceData?.courses,programKinds]);
   const categories=[...new Set(courses.map(item=>item.category).filter(Boolean))];
   const shown=useMemo(()=>courses.filter(item=>{
     const matchesCategory=category==='all'||item.category===category;
@@ -54,6 +58,25 @@ export default function CourseCatalog({
   const priced=courses.filter(item=>item.priceMinor!==null&&item.priceMinor!==undefined).length;
   const onSale=courses.filter(item=>saleActive(item)).length;
   const wooConnected=Boolean(commerceData?.connection);
+
+  async function classifyProgram(item,kind){
+    setBusy(true);setError('');setMessage('');
+    const signature=JSON.stringify([item.id,kind,item.programKind]);
+    if(pendingClassification.current?.signature!==signature){
+      pendingClassification.current={signature,id:crypto.randomUUID()};
+    }
+    try{
+      const response=await fetch('/api/program-kind',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({tenantSlug:slug,courseId:item.id,kind,expectedKind:item.programKind,
+          commandId:pendingClassification.current.id})
+      });
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error||'تعذر تصنيف البرنامج');
+      pendingClassification.current=null;
+      setMessage('تم حفظ نوع البرنامج وتحديث متطلبات التسجيل المرتبطة به.');router.refresh();
+    }catch(failure){setError(failure.message)}finally{setBusy(false)}
+  }
 
   async function createCourse(event){
     event.preventDefault();
@@ -136,11 +159,16 @@ export default function CourseCatalog({
             <p>{item.description||'لم يضف وصف بعد.'}</p>
           </div>
           <dl>
+            <div><dt>نوع البرنامج</dt><dd>{item.programKind==='diploma'?'دبلوم':item.programKind==='short_course'?'دورة قصيرة':'بانتظار التصنيف'}</dd></div>
             <div><dt>طريقة التقديم</dt><dd>{deliveryLabels[item.deliveryMode]||item.deliveryMode}</dd></div>
             <div><dt>المدة</dt><dd>{durationLabel(item)}</dd></div>
             <div><dt>الاعتماد</dt><dd>{item.certificationCode||'لا يوجد كود محدد'}</dd></div>
             <div><dt>السعر</dt><dd><CoursePrice item={item}/></dd></div>
           </dl>
+          {canManage&&<div className="mt-page-actions">
+            <button className="mt-button" disabled={busy||item.programKind==='short_course'} onClick={()=>classifyProgram(item,'short_course')}>اعتماد كدورة قصيرة</button>
+            <button className="mt-button" disabled={busy||item.programKind==='diploma'} onClick={()=>classifyProgram(item,'diploma')}>اعتماد كدبلوم</button>
+          </div>}
           {item.externalUrl&&<footer className="mt-course-commerce-footer">
             <small>آخر تحديث: {shortDate(item.externalUpdatedAt)}</small>
             <a

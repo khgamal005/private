@@ -15,7 +15,7 @@ import {useState} from 'react';
 import Followup from '../../components/sales-followup-modal';
 const contact={id:'10000000-0000-4000-8000-000000000005',name:'عميل اختبار معزول',phone:'0501111111',leadStatus:'interested',leadQuality:'good',interestCourseId:'c1'};
 const courses=[{id:'c1',nameAr:'إدارة المشاريع الاحترافية PMP — عن بعد'},{id:'c2',nameAr:'تحليل البيانات باستخدام Power BI — عن بعد'},{id:'c3',nameAr:'مهارات الذكاء الاصطناعي AI — حضوري'}];
-export default function Page(){const [open,setOpen]=useState(true);return <main><h1>اختبار متابعة معزول</h1><button onClick={()=>setOpen(true)}>فتح المتابعة</button>{open&&<Followup slug='fixture' contact={contact} courses={courses} onClose={()=>setOpen(false)} onSaved={()=>setOpen(false)}/>}</main>}
+export default function Page(){const [open,setOpen]=useState(true);return <main><h1>اختبار متابعة معزول</h1><button onClick={()=>setOpen(true)}>فتح المتابعة</button>{open&&<Followup slug='fixture' contact={contact} courses={courses} timeZone='Asia/Riyadh' onClose={()=>setOpen(false)} onSaved={()=>setOpen(false)}/>}</main>}
 `);
 let serverLog='';
 const server=spawn('node',['node_modules/next/dist/bin/next','dev','--hostname','127.0.0.1','--port','4721'],{
@@ -42,7 +42,7 @@ try{
     if(!url.pathname.startsWith('/api/'))return route.continue();
     const body=request.postDataJSON()||{};
     let data;
-    if(url.pathname==='/api/tenant/sales-followup-context')data={revision:'synthetic-revision',primaryPhone:'0501111111',timezone:'Asia/Riyadh',baseContact:{name:'عميل اختبار معزول',leadStatus:'interested',leadQuality:'good'},courseInterests:saved?.p_course_interests||[{courseId:'c1'}],additionalPhones:saved?.p_additional_phones||[]};
+    if(url.pathname==='/api/tenant/sales-followup-context')data={revision:'synthetic-revision',primaryPhone:'0501111111',timezone:'Asia/Riyadh',openOpportunities:[{id:'opp-c1',title:'فرصة PMP',courseId:'c1'},{id:'opp-c2',title:'فرصة Power BI',courseId:'c2'}],baseContact:{name:'عميل اختبار معزول',leadStatus:'interested',leadQuality:'good'},courseInterests:saved?.p_course_interests||[{courseId:'c1'}],additionalPhones:saved?.p_additional_phones||[]};
     else if(url.pathname==='/api/tenant/sales-followup-options'){
       const c=body.p_course_id;
       data={courseId:c,runs:[{id:c+'-run',courseId:c,title:'دفعة اختبار '+c,startsAt:'2026-10-01T15:00:00Z',status:'open',sessions:[{id:c+'-s1',title:'محاضرة أولى',startsAt:'2026-10-01T15:00:00Z'},{id:c+'-s2',title:'محاضرة ثانية',startsAt:'2026-10-03T15:00:00Z'}]}]};
@@ -58,6 +58,7 @@ try{
   await writeFile(output+'/initial-dom.txt',await page.locator('body').ariaSnapshot());
   await page.screenshot({path:output+'/initial.png',fullPage:true});
   await page.getByRole('button',{name:'حفظ النتيجة',exact:true}).waitFor();
+  await page.getByRole('combobox',{name:'الفرصة التي تخصها المتابعة',exact:true}).selectOption('opp-c1');
   await page.getByLabel(/^الدفعة/).selectOption('c1-run');
   await page.getByLabel(/^موعد حضور الدورة/).selectOption('c1-s2');
   await page.getByRole('button',{name:'إضافة دورة',exact:true}).click();
@@ -86,17 +87,21 @@ try{
   assert.equal(writes.length,1);
   assert.deepEqual(writes[0].p_course_interests,[{courseId:'c1',courseRunId:'c1-run',attendanceSessionId:'c1-s2'},{courseId:'c2',courseRunId:'c2-run',attendanceSessionId:'c2-s1'}]);
   assert.equal(writes[0].p_additional_phones.length,2);
+  assert.equal(writes[0].p_opportunity_id,'opp-c1');
+  assert.equal(writes[0].p_next_action_at,'2026-10-01T09:00:00.000Z');
   assert(writes[0].p_command_id);
   await page.getByRole('button',{name:'فتح المتابعة',exact:true}).click();
   await page.getByLabel('رقم إضافي 2',{exact:true}).waitFor();
   assert.equal(await page.getByLabel(/^الدورة المهتم بها/).count(),2);
-  await page.getByLabel(/^حالة العميل/).selectOption('payment_submitted');
+  await page.getByRole('combobox',{name:'الفرصة التي تخصها المتابعة',exact:true}).selectOption('opp-c2');
+  await page.getByRole('combobox',{name:'حالة متابعة الفرصة',exact:true}).selectOption('payment_submitted');
   await page.getByLabel(/الدورة التي يخصها بلاغ الدفع/).selectOption('c2');
   await page.getByLabel('ما الذي حدث؟',{exact:true}).fill('اختبار بلاغ دفع تجريبي');
   await page.getByRole('button',{name:'إرسال للتحقق من الدفع',exact:true}).click();
   await page.getByRole('dialog').waitFor({state:'hidden'});
   assert.equal(writes.length,2);
   assert.equal(writes[1].p_payment_course_id,'c2');
+  assert.equal(writes[1].p_opportunity_id,'opp-c2');
   assert.equal(writes[1].p_course_interests.length,2);
   assert.deepEqual(errors,[]);
   await writeFile(output+'/browser.json',JSON.stringify({syntheticOnly:true,productionRequests:0,layouts,independentAttendance:true,saveReload:true,paymentCourseSelection:true,pageErrors:errors},null,2));

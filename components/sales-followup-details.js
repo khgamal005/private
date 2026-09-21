@@ -2,7 +2,7 @@
 
 import {useEffect,useState} from 'react';
 import {formatCustomerPhone} from '../lib/customer-phone.mjs';
-import {attendanceLabel,MAX_ADDITIONAL_PHONES,MAX_INTERESTS,requestFollowupDetails} from '../lib/sales-followup-details.mjs';
+import {attendanceLabel,availableAdditionalPhoneSlots,MAX_INTERESTS,requestFollowupDetails} from '../lib/sales-followup-details.mjs';
 import styles from './sales-followup-details.module.css';
 
 export const emptyInterest=()=>({key:crypto.randomUUID(),courseId:'',courseRunId:'',attendanceSessionId:''});
@@ -91,8 +91,8 @@ export default function SalesFollowupDetails({slug,contactId,courses,details,set
   return <>
     <section className={`wide ${styles.section}`} aria-label="أرقام العميل">
       <div className={styles.sectionHead}>
-        <div><b>أرقام العميل</b><small>كل الأرقام مرتبطة بنفس ملف العميل.</small></div>
-        <button type="button" className={styles.add} disabled={busy||details.phones.length>=MAX_ADDITIONAL_PHONES}
+        <div><b>أرقام العميل</b><small>جوال أساسي وأربعة أرقام إضافية بحد أقصى؛ واتساب المختلف ضمن الأرقام الإضافية.</small></div>
+        <button type="button" className={styles.add} disabled={busy||details.phones.length>=availableAdditionalPhoneSlots(details.primaryPhone,details.whatsapp)}
           onClick={()=>setDetails(current=>({...current,phones:[...current.phones,{key:crypto.randomUUID(),value:''}]}))}>
           <span aria-hidden="true">+</span> إضافة رقم
         </button>

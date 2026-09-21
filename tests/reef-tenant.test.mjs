@@ -135,7 +135,7 @@ test('employee tenant routes do not eagerly load administrator-only settings',as
   assert.doesNotMatch(tasks,/getTenantOperations/);
 });
 
-test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()=>{
+test('Reef daily operations retain isolated CRM/work RPCs with governed opportunity creation',async()=>{
   const migration=await read('../supabase/migrations/20260727192319_add_operational_crm_and_work_v2.sql');
   const leadPipeline=await read('../supabase/migrations/20260727211527_lead_centric_sales_pipeline.sql');
   const admissionsMigration=await read('../supabase/migrations/20260727223000_admissions_and_sales_guards_v2.sql');
@@ -146,8 +146,10 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   const trainingAutomationEdge=await read('../supabase/functions/training-automation-dispatch/index.ts');
   const supabaseConfig=await read('../supabase/config.toml');
   const api=await read('../app/api/tenant/[action]/route.js');
+  const salesGovernance=await read('../supabase/migrations/20260921125620_sales_identity_governance_v1.sql');
   const data=await read('../lib/api.js');
   const sales=await read('../components/sales-workspace.js');
+  const opportunityModal=await read('../components/customer-opportunity-modal.js');
   const admissions=await read('../components/admissions-workspace.js');
   const lms=await read('../components/lms-workspace.js');
   const lmsPage=await read('../app/tenant/[slug]/lms/page.js');
@@ -172,7 +174,10 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.doesNotMatch(migration,/service_role|SUPABASE_SECRET/i);
 
   assert.match(api,/v2_tenant_create_contact/);
-  assert.match(api,/v2_tenant_create_opportunity/);
+  assert.match(api,/'create-opportunity':'v3_tenant_create_opportunity'/);
+  assert.match(salesGovernance,/create or replace function public\.v2_tenant_create_opportunity[\s\S]+select public\.v3_tenant_create_opportunity/);
+  assert.match(salesGovernance,/has_tenant_permission\(v_tenant_id,'tenant.crm.write'\)/);
+  assert.match(salesGovernance,/where tenant_id=v_tenant_id and id=p_contact_id for update/);
   assert.match(api,/v2_tenant_log_activity/);
   assert.match(api,/v2_tenant_create_task/);
   assert.match(api,/v3_tenant_update_task_status/);
@@ -251,7 +256,10 @@ test('Reef daily operations are backed by isolated v2 CRM and work RPCs',async()
   assert.match(sales,/mt-followup-button/);
   assert.match(sales,/بانتظار الدفع/);
   assert.match(sales,/جودة الليد/);
-  assert.doesNotMatch(sales,/فرصة جديدة/);
+  assert.match(sales,/فرصة جديدة/);
+  assert.match(opportunityModal,/p_contact_id:contact\.id/);
+  assert.match(opportunityModal,/\/api\/tenant\/create-opportunity/);
+  assert.doesNotMatch(opportunityModal,/\/api\/tenant\/(create-contact|create-sales-lead)/);
   assert.match(sales,/الإجراء التالي/);
   assert.match(sales,/فترة المتابعة القادمة/);
   assert.match(sales,/7 أيام/);

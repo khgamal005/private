@@ -13,6 +13,10 @@ const ADDON_CENTER_RPC=Object.freeze({
 });
 
 const RPC={
+  'operating-foundation':'v1_tenant_operating_action',
+  'operating-snapshot':'v1_tenant_operating_snapshot',
+  'admission-governance':'v1_tenant_admission_governance_action',
+  'admission-governance-snapshot':'v1_tenant_admission_governance_snapshot',
   'create-staff':'v2_tenant_create_staff',
   'update-staff':'v2_tenant_update_staff',
   'invite-staff':'v2_tenant_invite_staff',
@@ -41,7 +45,7 @@ const RPC={
   'marketplace':'v1_tenant_marketplace_action',
   'service-marketplace':'v2_tenant_service_marketplace_action',
   'integration-hub':'v2_tenant_integration_hub_action',
-  'create-opportunity':'v2_tenant_create_opportunity',
+  'create-opportunity':'v3_tenant_create_opportunity',
   'move-opportunity':'v2_tenant_move_opportunity',
   'log-activity':'v2_tenant_log_activity',
   'create-task':'v2_tenant_create_task',
@@ -104,7 +108,7 @@ export async function POST(request,{params}){
     const body=await request.json();
     // Old open tabs keep the V5 contract; structured details always use V6 atomically.
     if(action==='record-sales-followup'&&Object.hasOwn(body,'p_course_interests')){
-      rpc='v2_tenant_record_sales_followup_v6';
+      rpc=Object.hasOwn(body,'p_opportunity_id')?'v2_tenant_record_sales_followup_v7':'v2_tenant_record_sales_followup_v6';
     }
     // Service orders share the canonical payment ledger. Route bank-transfer
     // evidence through the payment-aware V2 contract without exposing add-on
@@ -168,6 +172,44 @@ export async function POST(request,{params}){
 
 function translate(value){
   const messages={
+    commercial_terms_invoice_mismatch:'السعر المتفق عليه لا يطابق صافي الفاتورة؛ راجع الاتفاق والمستند المالي.',
+    issued_invoice_required:'اربط فاتورة صادرة وصحيحة قبل استكمال القبول.',
+    refund_invoice_allocation_required:'اربط الاسترداد بالفاتورة التي خُصصت لها الدفعة.',
+    course_run_sessions_not_completed:'أكمل حالة جلسات الدفعة قبل إغلاقها.',
+    agreed_price_required:'حدد السعر المتفق عليه واعتمده قبل استكمال القبول.',
+    payment_currency_mismatch:'عملة الدفعة لا تطابق عملة الاتفاق المالي.',
+    late_enrollment_approval_required:'الالتحاق بعد بدء الدفعة يحتاج موافقة مخولة وسببًا مسجلًا.',
+    course_run_unavailable:'الدفعة غير متاحة للتسجيل؛ راجع حالتها وسعتها.',
+    required_documents_incomplete:'استكمل المستندات المطلوبة أو سجل استثناءً مخولًا.',
+    attendance_unrecorded_blocks_closure:'يوجد حضور غير مسجل؛ استكمله أو سجل استثناء إغلاق مخولًا.',
+    course_run_sessions_not_ended:'لا يمكن إغلاق الدفعة قبل انتهاء جلساتها.',
+    recorded_session_cannot_be_removed:'لا يمكن حذف جلسة لها سجل حضور.',
+    recorded_session_schedule_locked:'لا يمكن تغيير موعد جلسة لها سجل حضور.',
+    sla_owners_required:'حدد مسؤول المالية ومسؤول التسكين ومهل المتابعة.',
+    policy_preview_required:'راجع معاينة أثر سياسة القبول قبل تأكيد التفعيل.',
+    document_exception_permission_required:'استثناء المستندات يحتاج صلاحية مخولة وسببًا مسجلًا.',
+    use_diploma_contract_waiver:'سجل استثناء القبول من عقد الدبلوم؛ الاستثناء لا يسقط المديونية.',
+    admission_governance_disabled:'فعّل سياسة القبول بعد مراجعة معاينة أثرها.',
+    invalid_enrollment_handoff:'طلب التسجيل لا يطابق الطالب أو البرنامج المحدد.',
+    operating_setup_version_conflict:'تغيرت إعدادات التشغيل. أعد تحميل الصفحة قبل الحفظ.',
+    operating_basic_data_required:'اسم المنشأة واسمها القانوني مطلوبان.',
+    operating_timezone_invalid:'اختر منطقة زمنية صحيحة.',
+    operating_intake_required:'اختر مصدر استقبال العملاء.',
+    operating_timezone_confirmation_required:'أكد تغيير المنطقة الزمنية بعد مراجعة أثره على مواعيد العمل.',
+    operating_finance_timezone_permission_required:'مزامنة توقيت الحسابات تحتاج صلاحية إدارة إعدادات الحسابات.',
+    operating_setup_required:'استكمل إعداد التشغيل أولًا.',
+    operating_preview_confirmation_required:'أعد معاينة أثر السياسة ثم أكد التفعيل.',
+    operating_enabled_required:'حدد تفعيل سياسة الورديات أو إيقافها.',
+    operating_staff_shifts_required:'أضف ورديات الموظفين النشطين قبل تفعيل التوزيع حسب التوفر.',
+    operating_primary_department_required:'اختر قسمًا أساسيًا نشطًا للموظف.',
+    operating_branch_required:'اختر فرعًا نشطًا للموظف.',
+    operating_staff_payload_invalid:'راجع بيانات الأقسام والورديات.',
+    operating_too_many_shifts:'الحد الأقصى 28 فترة عمل أسبوعية.',
+    operating_primary_department_duplicated:'القسم الأساسي لا يُكرر ضمن الأقسام الإضافية.',
+    operating_department_invalid:'القسم غير متاح ضمن هذه المنشأة.',
+    operating_cover_department_invalid:'موظف التغطية يجب أن يكون نشطًا وعضوًا في القسم نفسه.',
+    operating_absence_not_found:'سجل الغياب غير موجود.',
+    operating_assignee_unavailable:'الموظف غير متاح حاليًا بحسب الوردية أو الإجازة. اختر موظفًا متاحًا.',
     plan_limit_reached:'وصلت المنشأة إلى الحد الأقصى لحسابات الموظفين في باقتها. زد السعة أو أوقف حسابًا غير مستخدم ثم أعد المحاولة.',
     ...WOO_ADMISSION_ERRORS,
     forbidden:'ليس لديك صلاحية لتنفيذ العملية',
@@ -176,10 +218,26 @@ function translate(value){
     contact_name_required:'اسم العميل مطلوب ويجب ألا يقل عن حرفين',
     contact_name_too_long:'اسم العميل طويل جدًا؛ الحد الأقصى 150 حرفًا',
     invalid_phone:'رقم الجوال غير صالح',
+    primary_phone_required:'رقم الجوال الأساسي مطلوب. أكمل بيانات العميل أولًا.',
+    additional_phone_limit:'الحد الأقصى جوال أساسي وأربعة أرقام إضافية، ويشمل ذلك واتساب المختلف.',
+    contact_owner_required:'كل فرص العميل تتبع المسؤول نفسه. استخدم تغيير إسناد العميل مع تسجيل السبب.',
+    training_course_required:'اختر البرنامج التدريبي لهذه الفرصة.',
+    invalid_opportunity_kind:'نوع الفرصة غير صالح.',
+    next_action_pair_required:'حدد نوع الإجراء وموعده معًا، أو اتركهما معًا دون تحديد.',
+    opportunity_command_conflict:'طلب إنشاء الفرصة تغير. أغلق النافذة وأعد المحاولة.',
+    open_opportunity_exists:'توجد فرصة مفتوحة لهذا العميل والبرنامج. تابع الفرصة الحالية أولًا.',
+    ambiguous_open_opportunity:'يوجد أكثر من فرصة مفتوحة لنفس البرنامج. يحتاج المسؤول إلى مراجعتها قبل تسجيل المتابعة.',
+    invalid_attribution:'بيانات مصدر الفرصة أطول من الحد المسموح.',
+    followup_opportunity_required:'اختر الفرصة التي تخصها هذه المتابعة.',
+    invalid_followup_opportunity:'هذه الفرصة لم تعد مفتوحة لهذا العميل. حدّث البيانات.',
+    payment_opportunity_mismatch:'دورة بلاغ الدفع يجب أن تطابق برنامج الفرصة المحددة.',
+    opportunity_under_admissions:'الفرصة مرتبطة بعملية دفع أو تسجيل. عالجها من مسار التسجيل والمالية.',
+    payment_confirmation_required:'لا تُغلق الفرصة كمباعة قبل تحقق المالية من الدفعة المطلوبة.',
+    sales_task_requires_followup:'هذه متابعة مبيعات مرتبطة بفرصة. سجل نتيجة المتابعة وموعدها من شاشة المبيعات حتى تتحدث الفرصة والتقويم معًا.',
     duplicate_additional_phone:'هذا الرقم موجود بالفعل ضمن أرقام العميل',
     duplicate_or_missing_course:'اختر دورة صحيحة دون تكرار الدورة نفسها',
     invalid_attendance_session:'موعد الحضور غير متاح أو لا يتبع الدفعة المختارة؛ راجع الاختيار',
-    invalid_followup_details:'راجع الدورات والأرقام؛ الحد الأقصى ٢٠ دورة و١٠ أرقام إضافية',
+    invalid_followup_details:'راجع الدورات والأرقام؛ الحد الأقصى ٢٠ دورة وجوال أساسي وأربعة أرقام إضافية تشمل واتساب المختلف',
     payment_course_required:'حدد الدورة التي يخصها بلاغ الدفع من الدورات المختارة',
     followup_changed_reload:'تغيرت بيانات العميل في جلسة أخرى. أعد فتح المتابعة لمراجعة أحدث البيانات قبل الحفظ',
     followup_reload_required:'أعد فتح شاشة المتابعة لتحميل بيانات العميل',
@@ -392,4 +450,3 @@ function translate(value){
   };
   return messages[String(value)]||String(value);
 }
-

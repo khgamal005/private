@@ -88,11 +88,12 @@ test('calendar and follow-up dialogs show the exact latest customer note',async(
 
 
 test('the distributed lead task and sales follow-up are one calendar lifecycle',async()=>{
-  const [migration,allRolesMigration,api,followup]=await Promise.all([
+  const [migration,allRolesMigration,api,followup,governance]=await Promise.all([
     read(lifecycleMigrationPath),
     read(allRolesLifecycleMigrationPath),
     read('app/api/tenant/[action]/route.js'),
-    read('components/sales-followup-modal.js')
+    read('components/sales-followup-modal.js'),
+    read('supabase/migrations/20260921125620_sales_identity_governance_v1.sql')
   ]);
 
   assert.match(migration,/'lead_assignment'/);
@@ -109,5 +110,9 @@ test('the distributed lead task and sales follow-up are one calendar lifecycle',
   assert.match(allRolesMigration,/v_result_task_id is distinct from p_task_id/);
   assert.match(api,/record-sales-followup':'v2_tenant_record_sales_followup_v5/);
   assert.match(followup,/p_task_id:task\?\.id\|\|null/);
-  assert.match(followup,/دون إنشاء مهمة مكررة/);
+  assert.match(api,/v2_tenant_record_sales_followup_v7/);
+  assert.match(followup,/p_opportunity_id:resolvedOpportunityId\|\|null/);
+  assert.match(followup,/إغلاق متابعة الفرصة المحددة مع إبقاء متابعة الفرص الأخرى/);
+  assert.match(governance,/private_app\.sync_customer_sales_task_v1\(v_tenant_id,p_contact_id\)/);
+  assert.match(governance,/sales_task_requires_followup/);
 });

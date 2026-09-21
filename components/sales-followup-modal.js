@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import {useEffect,useRef,useState} from 'react';
 import SalesFollowupDetails,{useFollowupDetails} from './sales-followup-details';
 import {serializeFollowupDetails} from '../lib/sales-followup-details.mjs';
+import {businessDateTimeToInstant} from '../lib/task-timing.mjs';
 
 const CustomerHistoryDrawer=dynamic(
   ()=>import('./customer-history-drawer'),
@@ -63,14 +64,16 @@ export const ACTIONS={
 
 export function dateOnly(value){
   return value?new Date(value).toLocaleDateString('ar-SA',{
+    timeZone:'UTC',
     day:'numeric',
     month:'short',
     year:'numeric'
   }):'لم يحدد';
 }
 
-function dateTime(value){
+function dateTime(value,timeZone){
   return value?new Date(value).toLocaleString('ar-SA',{
+    timeZone,
     day:'numeric',
     month:'short',
     year:'numeric',
@@ -124,6 +127,7 @@ export function ActionSelect({preferred='call',...props}){
 
 export default function SalesFollowupModal({
   slug,
+  timeZone='UTC',
   contact,
   task=null,
   courses=EMPTY,
@@ -139,6 +143,7 @@ export default function SalesFollowupModal({
   const [followupQuality,setFollowupQuality]=useState(initialQuality);
   const {details,setDetails,loadError,retry}=useFollowupDetails(slug,contact.id);
   const [paymentCourseId,setPaymentCourseId]=useState('');
+  const [opportunityId,setOpportunityId]=useState('');
   const command=useRef(null);
   const [contactName,setContactName]=useState(contact?.name||'');
   const [historyOpen,setHistoryOpen]=useState(false);
@@ -152,11 +157,16 @@ export default function SalesFollowupModal({
     setFollowupQuality(quality);
     setFollowupStatus(quality==='unqualified'?'unqualified':OPEN_STATUSES.has(baseContact.leadStatus)?baseContact.leadStatus:'follow_up');
   },[baseContact]);
-  const underAdmissions=['paid','payment_submitted'].includes(baseContact?.leadStatus);
+  const openOpportunities=details?.openOpportunities||EMPTY;
+  const resolvedOpportunityId=openOpportunities.some(item=>item.id===opportunityId)
+    ?opportunityId:openOpportunities.length===1?openOpportunities[0].id:'';
+  const selectedOpportunity=openOpportunities.find(item=>item.id===resolvedOpportunityId);
+  const underAdmissions=['paid','payment_submitted'].includes(baseContact?.leadStatus)&&openOpportunities.length===0;
 
   const selectedInterests=details?.rows.filter(row=>row.courseId)||EMPTY;
-  const resolvedPaymentCourseId=selectedInterests.some(row=>row.courseId===paymentCourseId)
-    ?paymentCourseId:selectedInterests.length===1?selectedInterests[0].courseId:'';
+  const paymentInterests=selectedOpportunity?selectedInterests.filter(row=>row.courseId===selectedOpportunity.courseId):selectedInterests;
+  const resolvedPaymentCourseId=paymentInterests.some(row=>row.courseId===paymentCourseId)
+    ?paymentCourseId:paymentInterests.length===1?paymentInterests[0].courseId:'';
 
   function changeStatus(nextStatus){
     setFollowupStatus(nextStatus);
@@ -190,13 +200,15 @@ export default function SalesFollowupModal({
 
     try{
       const serialized=serializeFollowupDetails(details);
+      if(openOpportunities.length>1&&!resolvedOpportunityId)throw new Error('اختر الفرصة التي تخصها هذه المتابعة.');
       if(paymentSubmitted&&!resolvedPaymentCourseId)throw new Error('حدد الدورة التي يخصها بلاغ الدفع.');
       const body={
         p_tenant_slug:slug,p_contact_id:contact.id,p_task_id:task?.id||null,
+        p_opportunity_id:resolvedOpportunityId||null,
         p_contact_name:values.contact_name,p_activity_type:values.activity_type,p_summary:values.summary,
         p_lead_status:values.lead_status,p_lead_quality:values.lead_quality,
         p_next_action_type:open?values.next_action_type:null,
-        p_next_action_at:open?new Date(values.next_action_at).toISOString():null,
+        p_next_action_at:open?businessDateTimeToInstant(values.next_action_at,timeZone):null,
         p_course_interests:serialized.courseInterests,p_additional_phones:serialized.additionalPhones,
         p_expected_revision:details.revision,p_payment_course_id:paymentSubmitted?resolvedPaymentCourseId:null,
         p_payment_amount_minor:paymentSubmitted&&values.payment_amount?Math.round(Number(values.payment_amount)*100):null,
@@ -215,7 +227,7 @@ export default function SalesFollowupModal({
       const message=payload.data?.paymentReviewNotified
         ?'تم إرسال بلاغ الدفع إلى التسجيل والقبول للتحقق قبل التأكيد'
         :!open
-          ?'تم حفظ النتيجة وإغلاق مهمة المتابعة الحالية دون إنشاء مهمة مكررة'
+          ?'تم حفظ النتيجة وإغلاق متابعة الفرصة المحددة مع إبقاء متابعة الفرص الأخرى'
         :payload.data?.taskUpdated
           ?'تم حفظ النتيجة ونقل مهمة المتابعة نفسها إلى الموعد الجديد'
           :'تم حفظ النتيجة وإنشاء مهمة الإجراء التالي الأولى';
@@ -262,7 +274,7 @@ export default function SalesFollowupModal({
         {(contact.latestNote||contact.notes)&&<div className="mt-customer-latest-note">
           <span>آخر ملاحظة مسجلة</span>
           <b>{contact.latestNote||contact.notes}</b>
-          {contact.latestNoteAt&&<small>{dateTime(contact.latestNoteAt)}</small>}
+          {contact.latestNoteAt&&<small>{dateTime(contact.latestNoteAt,timeZone)}</small>}
         </div>}
       </div>
       <fieldset className="mt-form" disabled={busy} style={{border:0,margin:0,minWidth:0}}>
@@ -276,7 +288,8 @@ export default function SalesFollowupModal({
           autoComplete="name"
         /></label>
         <label className="mt-field">وسيلة التواصل<select name="activity_type"><option value="call">مكالمة</option><option value="whatsapp">واتساب</option><option value="meeting">اجتماع</option><option value="email">بريد إلكتروني</option><option value="note">ملاحظة</option></select></label>
-        <label className="mt-field">حالة العميل<StatusSelect
+        {openOpportunities.length>0&&<label className="mt-field">الفرصة التي تخصها المتابعة<select value={resolvedOpportunityId} required onChange={event=>setOpportunityId(event.target.value)}><option value="">اختر الفرصة</option>{openOpportunities.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select></label>}
+        <label className="mt-field">حالة متابعة الفرصة<StatusSelect
           name="lead_status"
           value={followupStatus}
           onChange={event=>changeStatus(event.target.value)}
@@ -292,13 +305,13 @@ export default function SalesFollowupModal({
 
         {OPEN_STATUSES.has(followupStatus)&&<>
           <label className="mt-field">الإجراء التالي<ActionSelect name="next_action_type" preferred={followupStatus==='awaiting_payment'?'payment_followup':'follow_up'}/></label>
-          <label className="mt-field">موعد الإجراء التالي<input name="next_action_at" type="datetime-local" required/><small>الساعة للتنظيم والترتيب فقط؛ تُعد المتابعة متأخرة بعد انتهاء اليوم كاملًا.</small></label>
+          <label className="mt-field">موعد الإجراء التالي — بتوقيت {timeZone}<input name="next_action_at" type="datetime-local" required/><small>الساعة للتنظيم والترتيب فقط؛ تُعد المتابعة متأخرة بعد انتهاء اليوم كاملًا.</small></label>
         </>}
 
         {followupStatus==='payment_submitted'&&<>
-          <div className="mt-form-section wide review"><b>بلاغ دفع بانتظار التحقق</b><small>هذا لا يؤكد الدفع. سيُرسل الطلب إلى التسجيل والقبول لمراجعة الإيصال أو بوابة الدفع.</small></div>
+          <div className="mt-form-section wide review"><b>بلاغ دفع بانتظار التحقق</b><small>هذا لا يؤكد الدفع. تتحقق المالية من الإيصال أو بوابة الدفع، ثم يستكمل التسجيل والقبول إجراءات الطالب.</small></div>
           <label className="mt-field">الدورة التي يخصها بلاغ الدفع<select required value={resolvedPaymentCourseId} onChange={event=>setPaymentCourseId(event.target.value)}>
-            <option value="">حدد دورة البلاغ</option>{selectedInterests.map(item=><option key={item.courseId} value={item.courseId}>{courses.find(course=>course.id===item.courseId)?.nameAr||item.courseName}</option>)}
+            <option value="">حدد دورة البلاغ</option>{paymentInterests.map(item=><option key={item.courseId} value={item.courseId}>{courses.find(course=>course.id===item.courseId)?.nameAr||item.courseName}</option>)}
           </select><small>تُستخدم الدفعة وموعد الحضور المختاران لهذه الدورة. باقي الدورات تظل اهتمامات محفوظة.</small></label>
           <label className="mt-field">المبلغ المبلّغ عنه<input name="payment_amount" type="number" min="0" step=".01"/></label>
           <label className="mt-field">مرجع / رقم العملية<input name="payment_reference"/></label>
@@ -306,13 +319,13 @@ export default function SalesFollowupModal({
 
         {!OPEN_STATUSES.has(followupStatus)&&followupStatus!=='payment_submitted'&&<>
           <div className="mt-form-section wide closed">
-            <b>سيتم إغلاق المتابعة البيعية</b>
-            <small>يمكن إعادة فتح العميل لاحقًا، وسيظل سبب الإغلاق والانتقال محفوظين في السجل.</small>
+            <b>سيتم إغلاق متابعة الفرصة المحددة</b>
+            <small>يُحفظ سبب الإغلاق في السجل، وتستمر متابعة أي فرص أخرى مفتوحة للعميل.</small>
           </div>
           <label className="mt-field wide">سبب الإغلاق<textarea name="closure_reason" rows="3" required placeholder="اكتب سببًا واضحًا يمكن تحليله لاحقًا"/></label>
         </>}
 
-        {underAdmissions&&<div className="mt-alert mt-field wide">انتقل العميل إلى التسجيل والقبول. حدّث الشاشة لمتابعة حالة تسجيله.</div>}
+        {underAdmissions&&<div className="mt-alert mt-field wide">التسجيل الحالي مع التسجيل والقبول. لبيع برنامج آخر، أغلق النافذة واختر «فرصة جديدة» من ملف العميل.</div>}
         {error&&<div className="mt-alert error mt-field wide" role="alert">{error}</div>}
       </fieldset>
       <footer>

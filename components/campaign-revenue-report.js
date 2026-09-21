@@ -5,6 +5,7 @@ import {useState} from 'react';
 import {campaignHref,campaignObservation,campaignEconomics,sourceGroups,suggestCampaign} from '../lib/campaign-revenue.mjs';
 import './campaign-revenue-report.css';
 import CampaignRecommendations from './campaign-recommendations';
+import CampaignOpportunityCollections from './campaign-opportunity-collections';
 
 const n=value=>new Intl.NumberFormat('ar-SA',{maximumFractionDigits:2}).format(Number(value||0));
 const money=(value,currency)=>value==null?'—':new Intl.NumberFormat('ar-SA',{style:'currency',currency:currency||'SAR'}).format(value/100);
@@ -73,9 +74,10 @@ export default function CampaignRevenueReport({slug,data,filters,meta,navigation
       <nav className="cr-pager" aria-label="صفحات العملاء">{filters.offset>0?<Link href={campaignHref(slug,filters,{offset:Math.max(0,filters.offset-50)})}>السابق</Link>:null}<span>{n(filters.offset+1)}–{n(Math.min(filters.offset+50,data.totalDetails))} من {n(data.totalDetails)}</span>{filters.offset+50<data.totalDetails?<Link href={campaignHref(slug,filters,{offset:filters.offset+50})}>التالي</Link>:null}</nav>
     </details>:null}
     {data.additionalCash?.length?<section className="cr-panel"><h2>مبيعات إضافية لعملاء موجودين</h2><p>تُنسب إلى مصدر فرصة البيع الموثق. لا نضيف هؤلاء إلى عدد العملاء الجدد.</p>{data.additionalCash.map((r,i)=><p key={i}>{r.campaign} · {n(r.customers)} عميلًا · صافي {money(r.netMinor,r.currency)}</p>)}</section>:null}
+    {data.canReadMoney?<CampaignOpportunityCollections key={[slug,filters.dateFrom,filters.dateTo,filters.staff,filters.course,filters.search].join('|')} slug={slug} filters={filters}/>:null}
     <details className="cr-panel"><summary>جودة البيانات والمطابقة</summary><p>كل الشيتات في فترة الوصول: {n(total.duplicates)} صفًا مكررًا، و{n(total.invalid)} صفًا تعذر استيراده. لا يمثل المكرر عميلًا جديدًا. هذه الأعداد لا تتغير بفلاتر الموظف أو الحملة.</p>
       <p>تظل الأرقام الخاطئة وعدم التأهيل داخل مقام التحويل عند وجود سجل عميل صالح. اختلاف كتابة اسم الحملة يحتاج مراجعة، ولا يُعتمد كتطابق تلقائي.</p>
-      {(data.unattributedCash||[]).map(m=><p key={m.currency}>تحصيل لا توجد له علاقة موثقة بمصدر فرصة البيع، لكل المنشأة في الفترة: {money(m.netMinor,m.currency)}. يظهر خارج إيرادات الحملات.</p>)}</details>
+      {(data.unattributedCash||[]).map(m=><p key={m.currency}>تحصيل غير مربوط بمصدر اكتساب عميل داخل هذا التقرير، لكل المنشأة في الفترة: {money(m.netMinor,m.currency)}. قد يظهر بمصدره الموثق في تحصيل فرص البيع أعلاه؛ ولا يضاف إلى إيرادات حملات الاكتساب دون مراجعة الربط.</p>)}</details>
     {data.canReview?<SourceReview slug={slug}/>:null}
     {children}
   </main>;
@@ -118,4 +120,3 @@ function ReviewGroup({group:g,targets,slug,onSaved}){
     <button className="cr-button" disabled={busy}>{busy?'جارٍ الحفظ…':`اعتماد ربط ${n(g.rows.length)} صفًا`}</button>{error?<p role="alert">{error}</p>:null}
   </form>;
 }
-

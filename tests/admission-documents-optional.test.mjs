@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 
-test('all admissions documents are optional in storage and UI',async()=>{
+test('legacy optional-document defaults are preserved while governed tenants expose requirements',async()=>{
   const [migration,workspace]=await Promise.all([
     read('supabase/migrations/20260808145149_make_admission_documents_optional.sql'),
     read('components/admissions-workspace.js')
@@ -17,10 +17,10 @@ test('all admissions documents are optional in storage and UI',async()=>{
   assert.match(migration,/new\.is_required := false/);
   assert.match(migration,/check \(is_required = false\)/);
 
-  assert.match(workspace,/p_is_required:false/);
+  assert.match(workspace,/p_is_required:Boolean\(required\)/);
   assert.match(workspace,/كل المستندات اختيارية ويمكن إتمام التسجيل بدونها/);
-  assert.match(workspace,/المستندات الاختيارية/);
+  assert.match(workspace,/مستندات اختيارية/);
   assert.match(workspace,/لا تمنع التسجيل/);
-  assert.doesNotMatch(workspace,/p_is_required:Boolean\(document\.required\)/);
-  assert.doesNotMatch(workspace,/document\.required\?'مطلوب':'اختياري'/);
+  assert.match(workspace,/governance\?\.enabled/);
+  assert.match(workspace,/document\.required\?'مطلوب':'اختياري'/);
 });

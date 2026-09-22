@@ -16,6 +16,10 @@ test('logout keeps the browser on the public origin',async()=>{
     const response=await exports.POST(new Request('http://0.0.0.0:3000/api/auth/logout',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({workspace})}));
     assert.equal(response.status,303);assert.equal(response.headers.Location,destination);
   }
+  const trainingResponse=await exports.POST(new Request('http://0.0.0.0:3000/api/auth/logout',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({workspace:'training',trainingWorkspace:'academy',tenant:'marktone',role:'instructor'})}));
+  assert.equal(trainingResponse.headers.Location,'/training/login?tenant=marktone&workspace=academy&role=instructor');
+  const unsafeTrainingResponse=await exports.POST(new Request('http://0.0.0.0:3000/api/auth/logout',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({workspace:'training',trainingWorkspace:'academy',tenant:'//evil.example',role:'learner'})}));
+  assert.equal(unsafeTrainingResponse.headers.Location,'/training/login?role=learner');
 });
 
 test('logout expires both authentication cookies',async()=>{

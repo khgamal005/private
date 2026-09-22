@@ -3,12 +3,16 @@ import {createRoot} from 'react-dom/client';
 import AcademyShell from '../../components/academy-shell';
 import AcademyOverviewPage from '../../app/academy/[slug]/page';
 import AcademyLoginForm from '../../components/academy-login-form';
+import AcademyAuthShell from '../../components/academy-auth-shell';
 import AcademyInvitationForm from '../../components/academy-invitation-form';
+import TrainingAccessForm from '../../components/training-access-form';
+import TrainingPortalShell from '../../components/training-portal-shell';
+import TrainingJourneyWorkspace from '../../components/training-journey-workspace';
 import AcademyCommerceWorkspace from '../../components/academy-commerce-workspace';
 import AcademyStorefront from '../../components/academy-storefront';
 import BuiltPublicPage from '../../components/built-public-page';
 import PlatformAcademyControls from '../../components/platform-academy-controls';
-import {access,commerce,storefront,site} from './academy-fixtures.mjs';
+import {access,commerce,instructorTraining,learnerTraining,storefront,site} from './academy-fixtures.mjs';
 import '../../app/globals.css';
 import '../../app/marktone-theme.css';
 import '../../app/rebuild.css';
@@ -23,7 +27,15 @@ window.fetch=async (input,options={})=>{
 };
 const route=window.location.pathname;
 let content;
-if(route==='/academy/login')content=<main className="auth-page" dir="rtl"><section className="auth-card narrow"><div className="auth-copy"><p>منصة ماركتون التدريبية</p><h1>إدارة الموقع والتدريب</h1><span>ادخل إلى مساحة منشأتك لإدارة الموقع والمتجر وتجربة التعلم.</span></div><AcademyLoginForm initialSlug="marktone"/></section></main>;
+if(route==='/academy/login')content=<AcademyAuthShell experience="manager"><AcademyLoginForm initialSlug="marktone"/></AcademyAuthShell>;
+else if(route==='/training/login'){
+ const role=new URLSearchParams(window.location.search).get('role')==='instructor'?'instructor':'learner';
+ content=<AcademyAuthShell experience={role} tenantName={access.tenant.name}><TrainingAccessForm initialRole={role} tenantSlug="marktone" workspace="academy"/></AcademyAuthShell>;
+}
+else if(route==='/training/marktone'){
+ const role=new URLSearchParams(window.location.search).get('role')==='instructor'?'instructor':'learner',snapshot=role==='instructor'?instructorTraining:learnerTraining;
+ content=<TrainingPortalShell slug="marktone" tenantName={access.tenant.name} role={role} workspace="academy"><TrainingJourneyWorkspace slug="marktone" initialData={snapshot} workspace="academy" canOpenOperations={false}/></TrainingPortalShell>;
+}
 else if(route==='/academy/accept')content=<main style={{maxWidth:480,margin:'8vh auto',padding:24}}><AcademyInvitationForm tenantSlug="marktone"/></main>;
 else if(route==='/site/marktone/courses')content=<AcademyStorefront slug="marktone" data={storefront}/>;
 else if(route==='/site/marktone')content=<BuiltPublicPage snapshot={site} content={site.homePage}/>;

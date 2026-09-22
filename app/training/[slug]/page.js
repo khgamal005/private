@@ -1,5 +1,6 @@
 import {notFound,redirect} from 'next/navigation';
 import TrainingJourneyWorkspace from '../../../components/training-journey-workspace';
+import TrainingPortalShell from '../../../components/training-portal-shell';
 import {accessToken} from '../../../lib/server-auth';
 import {getTrainingSnapshot} from '../../../lib/training-snapshot';
 import {TRAINING_PILOT_SLUG,trainingErrorMessage} from '../../../lib/training-request.mjs';
@@ -19,5 +20,5 @@ export default async function TrainingPortalPage({params,searchParams}){
     if(error?.status===401)redirect(login);
     return <main style={{maxWidth:900,margin:'5vh auto',padding:24}}><h1>منصة التدريب التفاعلي</h1><p role="alert">{trainingErrorMessage(error?.code||'forbidden')}</p><a href={login}>تسجيل الدخول بحساب التدريب</a></main>;
   }
-  return <main style={{maxWidth:1440,margin:'0 auto',padding:'20px clamp(12px,3vw,40px)'}}><TrainingJourneyWorkspace slug={slug} initialData={initialData} workspace={academy?'academy':'odeir'} canOpenOperations={false}/></main>;
+  return <TrainingPortalShell slug={slug} tenantName={initialData.tenant.name} role={initialData.role||role} workspace={academy?'academy':'odeir'}><TrainingJourneyWorkspace slug={slug} initialData={initialData} workspace={academy?'academy':'odeir'} canOpenOperations={false}/></TrainingPortalShell>;
 }

@@ -8,9 +8,17 @@ import {
 } from '../../../../lib/config';
 
 export async function POST(request){
-  let academy=false;
+  let destination='/login';
   if(request?.headers?.get('content-type')?.includes('application/x-www-form-urlencoded')){
-    const form=await request.formData().catch(()=>null);academy=form?.get('workspace')==='academy';
+    const form=await request.formData().catch(()=>null);
+    const workspace=form?.get('workspace');
+    if(workspace==='academy')destination='/academy/login';
+    if(workspace==='training'){
+      const role=form?.get('role')==='instructor'?'instructor':'learner';
+      const tenant=String(form?.get('tenant')||'');
+      const academyTraining=form?.get('trainingWorkspace')==='academy'&&/^[a-z0-9][a-z0-9-]{0,63}$/.test(tenant);
+      destination=academyTraining?`/training/login?tenant=${encodeURIComponent(tenant)}&workspace=academy&role=${role}`:`/training/login?role=${role}`;
+    }
   }
   const cookieStore=await cookies();
   const token=cookieStore.get(ACCESS_COOKIE)?.value;
@@ -30,7 +38,7 @@ export async function POST(request){
   const response=new NextResponse(null,{
     status:303,
     headers:{
-      Location:academy?'/academy/login':'/login',
+      Location:destination,
       'Cache-Control':'private, no-store'
     }
   });

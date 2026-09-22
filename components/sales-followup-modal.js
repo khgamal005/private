@@ -164,9 +164,20 @@ export default function SalesFollowupModal({
   const underAdmissions=['paid','payment_submitted'].includes(baseContact?.leadStatus)&&openOpportunities.length===0;
 
   const selectedInterests=details?.rows.filter(row=>row.courseId)||EMPTY;
-  const paymentInterests=selectedOpportunity?selectedInterests.filter(row=>row.courseId===selectedOpportunity.courseId):selectedInterests;
+  const canBindLegacyCourse=selectedOpportunity?.kind==='legacy_unclassified'&&!selectedOpportunity.courseId;
+  const paymentInterests=selectedOpportunity&&!canBindLegacyCourse
+    ?selectedInterests.filter(row=>row.courseId===selectedOpportunity.courseId):selectedInterests;
   const resolvedPaymentCourseId=paymentInterests.some(row=>row.courseId===paymentCourseId)
     ?paymentCourseId:paymentInterests.length===1?paymentInterests[0].courseId:'';
+  const paymentCourseHelp=!paymentInterests.length
+    ?selectedOpportunity&&!selectedOpportunity.courseId&&!canBindLegacyCourse
+      ?'هذه فرصة عامة؛ اختر فرصة تدريب مرتبطة بدورة، أو أنشئ فرصة تدريب من ملف العميل.'
+      :selectedOpportunity?.courseId
+        ?'أضف دورة الفرصة إلى الدورات المهتم بها، أو اختر الفرصة المطابقة للدورة التي سددها العميل.'
+        :'اختر الدورة من قسم الدورات المهتم بها أولًا.'
+    :canBindLegacyCourse
+      ?'ستُربط الدورة المختارة بهذه الفرصة القديمة عند إرسال البلاغ، مع استخدام دفعتها وموعد حضورها.'
+      :'تُستخدم الدفعة وموعد الحضور المختاران لهذه الدورة. باقي الدورات تظل اهتمامات محفوظة.';
 
   function changeStatus(nextStatus){
     setFollowupStatus(nextStatus);
@@ -312,7 +323,7 @@ export default function SalesFollowupModal({
           <div className="mt-form-section wide review"><b>بلاغ دفع بانتظار التحقق</b><small>هذا لا يؤكد الدفع. تتحقق المالية من الإيصال أو بوابة الدفع، ثم يستكمل التسجيل والقبول إجراءات الطالب.</small></div>
           <label className="mt-field">الدورة التي يخصها بلاغ الدفع<select required value={resolvedPaymentCourseId} onChange={event=>setPaymentCourseId(event.target.value)}>
             <option value="">حدد دورة البلاغ</option>{paymentInterests.map(item=><option key={item.courseId} value={item.courseId}>{courses.find(course=>course.id===item.courseId)?.nameAr||item.courseName}</option>)}
-          </select><small>تُستخدم الدفعة وموعد الحضور المختاران لهذه الدورة. باقي الدورات تظل اهتمامات محفوظة.</small></label>
+          </select><small role="status">{paymentCourseHelp}</small></label>
           <label className="mt-field">المبلغ المبلّغ عنه<input name="payment_amount" type="number" min="0" step=".01"/></label>
           <label className="mt-field">مرجع / رقم العملية<input name="payment_reference"/></label>
         </>}
@@ -330,7 +341,7 @@ export default function SalesFollowupModal({
       </fieldset>
       <footer>
         <button type="button" className="mt-button" onClick={close}>إلغاء</button>
-        <button className="mt-button primary" disabled={busy||!details||underAdmissions}>
+        <button className="mt-button primary" disabled={busy||!details||underAdmissions||(followupStatus==='payment_submitted'&&!paymentInterests.length)}>
           {busy?'جارٍ الحفظ…':followupStatus==='payment_submitted'?'إرسال للتحقق من الدفع':'حفظ النتيجة'}
         </button>
       </footer>

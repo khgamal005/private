@@ -5,11 +5,13 @@ import {PGlite} from '@electric-sql/pglite';
 
 const id=n=>`60000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const T=id(1),OTHER=id(2),ACTOR=id(3),STAFF=id(4),CONTACT=id(5),OTHER_STAFF=id(6),C1=id(10),C2=id(11),C3=id(12);
+const LEGACY=id(150),LEGACY_TASK=id(151);
+const paymentFix=new URL('../supabase/migrations/20260922141735_sales_payment_legacy_course_binding_v1.sql',import.meta.url);
 const call=async(db,name,args)=>{
   const entries=Object.entries(args);
   return (await db.query(`select public.${name}(${entries.map(([key],i)=>`${key}=>$${i+1}`).join(',')}) data`,entries.map(([,value])=>value&&typeof value==='object'?JSON.stringify(value):value))).rows[0].data;
 };
-async function fixture(){
+async function fixture({legacy=false,patched=true}={}){
   const db=new PGlite();
   await db.exec(await readFile(new URL('./fixtures/sales-followup-legacy-schema.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('./fixtures/sales-task-api-legacy.sql',import.meta.url),'utf8'));
@@ -20,8 +22,14 @@ async function fixture(){
   await db.query("insert into academy.courses(id,tenant_id,title_ar) values($1,$4,'Course A'),($2,$4,'Course B'),($3,$5,'Foreign course')",[C1,C2,C3,T,OTHER]);
   await db.query("insert into sales_core.contacts(id,tenant_id,full_name,phone,owner_staff_id,lead_status,source,campaign_name) values($1,$2,'Synthetic customer','0501111111',$3,'paid','meta','Acquisition campaign')",[CONTACT,T,STAFF]);
   for(const key of ['new_lead','contacted','qualified','proposal','lost'])await db.query('insert into sales_core.pipeline_stages(tenant_id,stage_key) values($1,$2)',[T,key]);
+  if(legacy){
+    await db.query("update sales_core.contacts set lead_status='follow_up' where id=$1",[CONTACT]);
+    await db.query("insert into sales_core.opportunities(id,tenant_id,contact_id,owner_staff_id,title,status,value_minor,metadata) values($1,$2,$3,$4,'Legacy inquiry','open',900000,'{\"historyMarker\":\"preserve\"}')",[LEGACY,T,CONTACT,STAFF]);
+    await db.query("insert into work_core.tasks(id,tenant_id,contact_id,opportunity_id,status,due_at,metadata) values($1,$2,$3,$4,'todo','2026-10-01T09:00:00Z','{\"source\":\"sales_followup\"}')",[LEGACY_TASK,T,CONTACT,LEGACY]);
+  }
   await db.exec(await readFile(new URL('../supabase/migrations/20260910143003_sales_followup_multiple_interests_v1.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260921125620_sales_identity_governance_v1.sql',import.meta.url),'utf8'));
+  if(patched)await db.exec(await readFile(paymentFix,'utf8'));
   // Production's existing one-open-task index and terminal guards are exercised.
   await db.exec(`create unique index one_open_task_fixture on work_core.tasks(tenant_id,contact_id)
     where status in ('todo','in_progress') and metadata->>'source' in ('lead_assignment','opportunity_next_action','activity_next_action','lead_next_action','sales_followup');
@@ -41,6 +49,89 @@ const followup=async(db,overrides={})=>call(db,'v2_tenant_record_sales_followup_
   p_lead_status:'interested',p_lead_quality:'good',p_course_interests:[{courseId:C1},{courseId:C2}],
   p_additional_phones:[],p_expected_revision:(await context(db)).revision,p_command_id:id(200),
   p_next_action_type:'call',p_next_action_at:'2026-10-03T08:00:00Z',...overrides
+});
+
+const paymentInput={p_opportunity_id:LEGACY,p_lead_status:'payment_submitted',p_next_action_at:null,
+  p_next_action_type:null,p_payment_course_id:C2,p_payment_amount_minor:59940,p_payment_reference:'SYNTHETIC'};
+
+test('legacy payment regression: migration changes no records and payment reuses the original opportunity',async t=>{
+  const db=await fixture({legacy:true,patched:false});t.after(()=>db.close());
+  await assert.rejects(followup(db,paymentInput),/payment_opportunity_mismatch/);
+  const before=(await db.query('select * from sales_core.opportunities where id=$1',[LEGACY])).rows[0];
+  await db.exec(await readFile(paymentFix,'utf8'));
+  assert.deepEqual((await db.query('select * from sales_core.opportunities where id=$1',[LEGACY])).rows[0],before);
+  const run=id(152),session=id(153);
+  await db.query("insert into academy.course_runs(id,tenant_id,course_id,title,status,starts_at) values($1,$2,$3,'Synthetic batch','open','2026-10-01T09:00:00Z')",[run,T,C2]);
+  await db.query("insert into academy.course_run_sessions(id,tenant_id,course_run_id,title,status,starts_at) values($1,$2,$3,'Synthetic lecture','scheduled','2026-10-02T21:30:00Z')",[session,T,run]);
+  const args={...paymentInput,p_task_id:LEGACY_TASK,p_expected_revision:(await context(db)).revision,
+    p_course_interests:[{courseId:C1},{courseId:C2,courseRunId:run,attendanceSessionId:session}]};
+  const result=await followup(db,args);
+  const opportunity=(await db.query('select * from sales_core.opportunities where id=$1',[LEGACY])).rows[0];
+  assert.equal(opportunity.course_id,C2);assert.equal(opportunity.opportunity_kind,'training');
+  assert.equal(opportunity.status,'pending_verification');assert.equal(opportunity.value_minor,before.value_minor);
+  assert.equal(opportunity.owner_staff_id,before.owner_staff_id);assert.deepEqual(opportunity.metadata,before.metadata);
+  assert.equal((await db.query('select count(*)::int n from sales_core.opportunities')).rows[0].n,1);
+  const handoff=(await db.query('select * from academy.registration_handoffs where id=$1',[result.handoffId])).rows[0];
+  assert.equal(handoff.opportunity_id,LEGACY);assert.equal(handoff.course_id,C2);assert.equal(handoff.course_run_id,run);
+  assert.equal(handoff.metadata.attendanceSessionId,session);assert.equal(handoff.preferred_start_date.toISOString().slice(0,10),'2026-10-03');
+  assert.equal(handoff.payment_status,'pending_verification');assert.equal(handoff.payment_amount_minor,59940);
+  assert.equal((await db.query('select status from work_core.tasks where id=$1',[LEGACY_TASK])).rows[0].status,'completed');
+  const replay=await followup(db,args);assert.equal(replay.replayed,true);assert.equal(replay.handoffId,result.handoffId);
+  assert.equal((await db.query('select count(*)::int n from academy.registration_handoffs')).rows[0].n,1);
+  assert.equal((await db.query('select count(*)::int n from sales_core.activities')).rows[0].n,1);
+  const audit=(await db.query("select * from private_app.audit_fixture where event='tenant.sales_opportunity_course_bound'")).rows;
+  assert.equal(audit.length,1);assert.equal(audit[0].tenant_id,T);assert.equal(audit[0].payload.courseId,C2);
+  assert.equal((await db.query("select has_function_privilege('authenticated','private_app.record_sales_followup_scoped_v1(text,uuid,text,text,text,jsonb,jsonb,text,uuid,text,text,timestamptz,uuid,bigint,text,text,text,uuid,uuid)','EXECUTE') ok")).rows[0].ok,false);
+  // Restoring the previous function never reverses successful user transactions.
+  const baseline=await readFile(new URL('../supabase/migrations/20260921125620_sales_identity_governance_v1.sql',import.meta.url),'utf8');
+  const start=baseline.indexOf('CREATE OR REPLACE FUNCTION private_app.record_sales_followup_scoped_v1(');
+  const bodyStart=baseline.indexOf('$function$',start);
+  const end=baseline.indexOf('$function$',bodyStart+10)+10;
+  await db.exec(baseline.slice(start,end)+';');
+  assert.deepEqual((await db.query('select * from sales_core.opportunities where id=$1',[LEGACY])).rows[0],opportunity);
+  assert.equal((await db.query('select count(*)::int n from academy.registration_handoffs')).rows[0].n,1);
+});
+
+test('legacy binding rolls back on invalid data, stale edits, ownership or tenant violations',async t=>{
+  const db=await fixture({legacy:true});t.after(()=>db.close());
+  const unchanged=async()=>{
+    const row=(await db.query('select course_id,opportunity_kind,status from sales_core.opportunities where id=$1',[LEGACY])).rows[0];
+    assert.deepEqual(row,{course_id:null,opportunity_kind:'legacy_unclassified',status:'open'});
+    assert.equal((await db.query('select count(*)::int n from academy.registration_handoffs')).rows[0].n,0);
+    assert.equal((await db.query("select count(*)::int n from private_app.audit_fixture where event='tenant.sales_opportunity_course_bound'")).rows[0].n,0);
+  };
+  for(const [overrides,error] of [
+    [{p_payment_course_id:null},/payment_course_required/],
+    [{p_course_interests:[{courseId:C1}]},/payment_course_required/],
+    [{p_course_interests:[{courseId:C3}],p_payment_course_id:C3},/invalid_course/],
+    [{p_summary:''},/summary_required/],
+    [{p_expected_revision:'stale'},/followup_changed_reload/],
+    [{p_opportunity_id:id(999)},/invalid_followup_opportunity/],
+    [{p_tenant_slug:'other'},/forbidden/]
+  ]){await assert.rejects(followup(db,{...paymentInput,...overrides}),error);await unchanged();}
+  await db.query("select set_config('fixture.deny','tenant.crm.write',false)");
+  await assert.rejects(followup(db,paymentInput),/forbidden/);await unchanged();
+  await db.query("select set_config('fixture.deny','',false),set_config('fixture.staff',$1,false)",[OTHER_STAFF]);
+  await assert.rejects(followup(db,paymentInput),/forbidden/);await unchanged();
+});
+
+test('legacy binding refuses an existing course opportunity and preserves the other open followup',async t=>{
+  const db=await fixture({legacy:true});t.after(()=>db.close());
+  const training=await create(db,{p_course_id:C2});
+  await assert.rejects(followup(db,paymentInput),/payment_course_has_open_opportunity/);
+  const result=await followup(db,{...paymentInput,p_opportunity_id:training.id});
+  assert.ok(result.handoffId);
+  const legacy=(await db.query('select course_id,status from sales_core.opportunities where id=$1',[LEGACY])).rows[0];
+  assert.deepEqual(legacy,{course_id:null,status:'open'});
+  assert.equal((await db.query('select count(*)::int n from sales_core.opportunities')).rows[0].n,2);
+});
+
+test('normal followup never binds a legacy opportunity and a bound course cannot be replaced by payment',async t=>{
+  const db=await fixture({legacy:true});t.after(()=>db.close());
+  await followup(db,{p_opportunity_id:LEGACY});
+  assert.equal((await db.query('select course_id from sales_core.opportunities where id=$1',[LEGACY])).rows[0].course_id,null);
+  const training=await create(db,{p_course_id:C1});
+  await assert.rejects(followup(db,{...paymentInput,p_command_id:id(202),p_opportunity_id:training.id}),/payment_opportunity_mismatch/);
 });
 
 test('sales identity: mandatory primary, global phone uniqueness and four extra numbers including WhatsApp',async t=>{

@@ -231,6 +231,7 @@ function translate(value){
     followup_opportunity_required:'اختر الفرصة التي تخصها هذه المتابعة.',
     invalid_followup_opportunity:'هذه الفرصة لم تعد مفتوحة لهذا العميل. حدّث البيانات.',
     payment_opportunity_mismatch:'دورة بلاغ الدفع يجب أن تطابق برنامج الفرصة المحددة.',
+    payment_course_has_open_opportunity:'توجد فرصة مفتوحة لهذه الدورة؛ اخترها من قائمة الفرصة التي تخصها المتابعة لإرسال بلاغ الدفع.',
     opportunity_under_admissions:'الفرصة مرتبطة بعملية دفع أو تسجيل. عالجها من مسار التسجيل والمالية.',
     payment_confirmation_required:'لا تُغلق الفرصة كمباعة قبل تحقق المالية من الدفعة المطلوبة.',
     sales_task_requires_followup:'هذه متابعة مبيعات مرتبطة بفرصة. سجل نتيجة المتابعة وموعدها من شاشة المبيعات حتى تتحدث الفرصة والتقويم معًا.',

@@ -1,0 +1,6 @@
+{
+  "releaseId": "payment-course-options-20260922",
+  "fixCommit": "5c924951951fbfff1d5df08c0a0619620a74957c",
+  "scope": "sales-payment-course-options",
+  "migration": "sales_payment_legacy_course_binding_v1"
+}

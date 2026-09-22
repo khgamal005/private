@@ -1,15 +1,18 @@
 {
   "version": "2.0.0-beta.30",
-  "releaseId": "operational-governance-20260921",
+  "releaseId": "tenant-snapshot-read-load-20260922",
   "releaseStage": "publication-candidate",
-  "preparedAt": "2026-09-21T14:07:49Z",
+  "preparedAt": "2026-09-22T14:34:00Z",
   "releasedAt": null,
   "highlights": [
+    "Scoped tenant administration loading and isolated optional manager state",
+    "Faster overdue aggregation with unchanged tenant-local metrics",
     "Free tenant readiness with branch, team, permissions and manual or file-based customer intake",
     "Unique customer phone identity, separate program opportunities and consistent sales followup ownership",
     "Verified financial eligibility, admission waiting reasons and evidence-based training completion",
     "Diploma contracts up to 30 months with seven calendar days of installment grace and independent study and debt status",
     "Auditable refunds, credits and sale attribution with preserved financial and operational history",
     "Explicit tenant activation for new automation while preserving existing Reef FULL entitlements"
-  ]
+  ],
+  "previousReleaseId": "operational-governance-20260921"
 }

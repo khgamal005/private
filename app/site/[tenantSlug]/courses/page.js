@@ -6,6 +6,6 @@ export const dynamic='force-dynamic';
 export const metadata={title:'الدورات التدريبية'};
 export default async function PublicCoursesPage({params}){
  const {tenantSlug}=await params;if(!validAcademySlug(tenantSlug))notFound();
- let data;try{data=await getAcademyStorefront(tenantSlug);}catch(error){if(error?.status===403||error?.status===404)notFound();throw error;}
+ let data;try{data=await getAcademyStorefront(tenantSlug);}catch(error){if(error?.code==='academy_store_unavailable'||error?.status===403||error?.status===404)notFound();throw error;}
  return <AcademyStorefront slug={tenantSlug} data={data}/>;
 }

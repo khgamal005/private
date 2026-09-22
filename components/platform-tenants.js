@@ -206,7 +206,7 @@ export default function PlatformTenants({initialData}){
               type="button"
               className={`mt-button ${manager.enabled?'primary':'soft'}`}
               aria-pressed={manager.enabled}
-              disabled={!odeiryControl.canManage||manager.available===false||managerBusy}
+              disabled={!odeiryControl.canManage||managerBusy||manager.available===false}
               title={!odeiryControl.canManage?'تحتاج صلاحية إدارة إعدادات المنصة':undefined}
               onClick={()=>setOdeiryConfirmation({tenant,enabled:!manager.enabled})}
             >{managerBusy?'جارٍ الحفظ…':manager.available===false?'غير متاح حاليًا':manager.enabled?'مفعّل':'متوقف'}</button>

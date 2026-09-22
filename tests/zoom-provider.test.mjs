@@ -1,12 +1,27 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {createZoomClient,instanceId,zoomUrl,connectionAccessToken,verifiedHost} from '../supabase/functions/_shared/zoom-client.mjs';
-import {createZoomHandler,meetingBody} from '../supabase/functions/zoom-connect/handler.mjs';
+import {createZoomClient,instanceId,zoomUrl,connectionAccessToken,verifiedHost,recoveredRegistrant} from '../supabase/functions/_shared/zoom-client.mjs';
+import {createZoomHandler,meetingBody,occurrenceResult} from '../supabase/functions/zoom-connect/handler.mjs';
 import {sdkDecision,sdkSignature} from '../supabase/functions/_shared/zoom-sdk.mjs';
 import {hmac} from '../supabase/functions/_shared/zoom-evidence.mjs';
 import {transcriptSegments,validateZoomDraft,generateZoomDraft} from '../lib/zoom-ai.mjs';
 const config={clientId:'synthetic-client',clientSecret:'synthetic-secret',redirectUri:'https://odeir.example.test/api/zoom/callback'};
 const env={ZOOM_V1_ENABLED:'true',ZOOM_ENVIRONMENT:'test',ZOOM_PUBLIC_ORIGIN:'https://odeir.example.test',ZOOM_CLIENT_ID:config.clientId,ZOOM_CLIENT_SECRET:config.clientSecret,ZOOM_REDIRECT_URI:config.redirectUri,ZOOM_WEBHOOK_SECRET:'synthetic-signature',ZOOM_DISPATCH_SECRET:'synthetic-dispatch-secret',SUPABASE_URL:'http://127.0.0.1:54321',SUPABASE_SERVICE_ROLE_KEY:'isolated-service',SUPABASE_ANON_KEY:'isolated-anon'};
 const response=(data,status=200,headers={})=>new Response(status===204?null:JSON.stringify(data),{status,headers:{'content-type':'application/json',...headers}});
+
+test('ZM-05 T22/59: recurring provider requests target one occurrence and preserve independent registration',async()=>{
+ const requests=[];const client=createZoomClient(config,{fetchImpl:async(url,options)=>{requests.push({url,options});return response({},options.method==='POST'?200:204);}});
+ await client.update('123','meeting',{start_time:'2027-03-14T13:00:00Z',duration:60},'access','opaque/occurrence');
+ await client.register('123','meeting',{email:'synthetic@example.test',first_name:'Synthetic'},'access','opaque/occurrence');
+ await client.cancel('123','meeting','opaque/occurrence','access');
+ assert.equal(new URL(requests[0].url).searchParams.get('occurrence_id'),'opaque/occurrence');
+ assert.equal(new URL(requests[1].url).searchParams.get('occurrence_ids'),'opaque/occurrence');
+ assert.equal(JSON.parse(requests[1].options.body).occurrence_ids,undefined);
+ assert.equal(new URL(requests[2].url).searchParams.get('occurrence_id'),'opaque/occurrence');
+ const series=meetingBody({session_id:'synthetic',revision:1,kind:'meeting',desired:{title:'Series',startsAt:'2027-03-07T14:00:00Z',endsAt:'2027-03-07T15:00:00Z',series:{timezone:'America/New_York',recurrence:{type:2,repeat_interval:1,end_times:2,weekly_days:'1'}}}});
+ assert.equal(series.type,8);assert.equal(series.settings.registration_type,2);assert.equal(series.timezone,'America/New_York');assert.equal(series.recurrence.end_times,2);
+ const parent={id:123,occurrences:[{occurrence_id:'a',start_time:'2027-03-07T14:00:00Z',duration:60},{occurrence_id:'b',start_time:'2027-03-14T13:00:00Z',duration:60}]};
+ assert.equal(occurrenceResult(parent,'b').start_time,'2027-03-14T13:00:00Z');assert.throws(()=>occurrenceResult(parent,'missing'),/zoom_invalid_provider_response/);
+});
 
 test('ZM-01/13 T06/09/20: provider contract uses fixed OAuth callback, real pagination, opaque IDs and explicit rate limit',async()=>{
  const requests=[];const client=createZoomClient(config,{fetchImpl:async(url,options)=>{requests.push({url,options});if(url.includes('/oauth/token'))return response({access_token:'a',refresh_token:'b'});return response({participants:[{id:requests.length}],next_page_token:requests.length===2?'next-page':''});}});
@@ -43,4 +58,11 @@ test('ZM-19 T56/57: AI uses canonical budget receipt, source-version contract an
  const calls=[],final=[];let generated=0;const rpc=async(name,args)=>{calls.push({name,args});if(name==='v1_zoom_ai_prepare')return {draftId:'draft-id',sourceHash:'a'.repeat(64),sourceRevision:2};if(name==='v3_tenant_odeiry_action')return {runId:'run-id',reservedUnits:80,status:'reserved'};if(name==='v1_zoom_ai_context')return {kind:'summary',transcript:text};if(name==='v1_zoom_ai_finish')return {state:'draft'};throw Error(name);};
  const result=await generateZoomDraft({slug:'synthetic',commandId:'cmd',payload:{kind:'summary',consent:true},rpc,finalize:async x=>final.push(x),generate:async args=>{generated++;assert.deepEqual(Object.keys(args).sort(),['kind','model','segments']);return {output:{title:'Addition',summary:'Source-bound draft',points:[],questions:[],sources:['s1']},usage:{inputTokens:50,outputTokens:30}};}});
  assert.equal(result.state,'draft');assert.equal(generated,1);assert.equal(final[0].payload.responseData.state,'draft');assert.ok(calls.every(x=>!x.name.includes('publish')&&!x.name.includes('attendance')));assert.equal(calls[1].args.p_payload.clientRequestId,'zoom:draft-id');
+});
+
+
+test('ZM-06/13: uncertain registration recovery requires complete unique approved identity and never guesses from partial data',()=>{
+ const known={id:'provider-registrant',status:'approved',email:'learner@example.test',join_url:'https://zoom.us/j/123?tk=synthetic'};
+ assert.equal(recoveredRegistrant({complete:true,items:[known]},'learner@example.test').registrant_id,known.id);
+ for(const page of [{complete:false,items:[known]},{complete:true,items:[known,known]},{complete:true,items:[{...known,status:'pending'}]},{complete:true,items:[{...known,email:'other@example.test'}]}])assert.throws(()=>recoveredRegistrant(page,'learner@example.test'),/zoom_registration_pending/);
 });

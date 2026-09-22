@@ -58,11 +58,11 @@ export function createZoomClient({clientId,clientSecret,redirectUri},{fetchImpl=
     meetings:(id,token)=>pages(`/users/${zoomId(id)}/meetings?type=scheduled`,'meetings',token),
     create:(host,kind,body,token)=>request(`/users/${zoomId(host)}/${resource(kind)}`,{token,method:'POST',body}),
     get:(id,kind,token)=>request(`/${resource(kind)}/${zoomId(id)}`,{token}),
-    update:(id,kind,body,token)=>request(`/${resource(kind)}/${zoomId(id)}`,{token,method:'PATCH',body}),
+    update:(id,kind,body,token,occurrence='')=>request(`/${resource(kind)}/${zoomId(id)}${occurrence?`?occurrence_id=${zoomId(occurrence)}`:''}`,{token,method:'PATCH',body}),
     cancel:(id,kind,occurrence,token)=>request(`/${resource(kind)}/${zoomId(id)}${occurrence?`?occurrence_id=${zoomId(occurrence)}`:''}`,{token,method:'DELETE'}),
-    register:(id,kind,body,token)=>request(`/${resource(kind)}/${zoomId(id)}/registrants`,{token,method:'POST',body}),
-    registrants:(id,kind,token)=>pages(`/${resource(kind)}/${zoomId(id)}/registrants`,'registrants',token),
-    revokeRegistrant:(id,kind,registrantId,token)=>request(`/${resource(kind)}/${zoomId(id)}/registrants/status`,{token,method:'PUT',body:{action:'cancel',registrants:[{id:registrantId}]}}),
+    register:(id,kind,body,token,occurrence='')=>request(`/${resource(kind)}/${zoomId(id)}/registrants${occurrence?`?occurrence_ids=${zoomId(occurrence)}`:''}`,{token,method:'POST',body}),
+    registrants:(id,kind,token,occurrence='')=>pages(`/${resource(kind)}/${zoomId(id)}/registrants?status=approved${occurrence?`&occurrence_id=${zoomId(occurrence)}`:''}`,'registrants',token),
+    revokeRegistrant:(id,kind,registrantId,token,occurrence='')=>request(`/${resource(kind)}/${zoomId(id)}/registrants/status${occurrence?`?occurrence_id=${zoomId(occurrence)}`:''}`,{token,method:'PUT',body:{action:'cancel',registrants:[{id:registrantId}]}}),
     instances:(id,token,kind='meeting')=>request(`/past_${resource(kind)}/${zoomId(id)}/instances`,{token}),
     past:(uuid,token)=>request(`/past_meetings/${instanceId(uuid)}`,{token}),
     participants:(uuid,kind,token)=>pages(kind==='webinar'?`/past_webinars/${instanceId(uuid)}/participants`:`/past_meetings/${instanceId(uuid)}/participants`,'participants',token),
@@ -71,6 +71,12 @@ export function createZoomClient({clientId,clientSecret,redirectUri},{fetchImpl=
     createPoll:(id,kind,body,token)=>request(`/${resource(kind)}/${zoomId(id)}/polls`,{token,method:'POST',body}),
     userToken:(id,type,token)=>{if(!['zak','token'].includes(type))bad('zoom_invalid_token_kind');return request(`/users/${zoomId(id)}/token?type=${type}`,{token});}
   };
+}
+
+export function recoveredRegistrant(page,email){
+ const matches=page?.complete&&Array.isArray(page.items)?page.items.filter(x=>x.status==='approved'&&x.email?.trim().toLowerCase()===email.trim().toLowerCase()):[];
+ if(matches.length!==1||!matches[0].id||!zoomUrl(matches[0].join_url))throw new ZoomError('zoom_registration_pending');
+ return {registrant_id:String(matches[0].id),join_url:matches[0].join_url};
 }
 
 export async function connectionAccessToken(rpc,client,connectionId){

@@ -3,7 +3,7 @@ import {createServer} from 'node:http';import {mkdir,writeFile,rm} from 'node:fs
 import {zoomSetup,call,login,service,T,RUN,ADMIN_AUTH,LEARNER_AUTH,INSTRUCTOR_AUTH,id} from '../tests/fixtures/zoom-database.mjs';
 import {seedZoomLesson} from '../tests/fixtures/zoom-lesson.mjs';
 import {createZoomHandler} from '../supabase/functions/zoom-connect/handler.mjs';
-const db=await zoomSetup({complete:true});const lesson=await seedZoomLesson(db);
+const db=await zoomSetup({complete:true});const lesson=await seedZoomLesson(db);await db.query("insert into access_control.role_permissions(role_id,permission_key) values($1,'tenant.zoom.reports.export') on conflict do nothing",[id(21)]);
 await db.query("update core.tenants set name='منشأة اختبار اصطناعية' where id=$1",[T]);await db.query("update academy.courses set title_ar='تدريب مهارات التواصل — بيانات اصطناعية' where tenant_id=$1",[T]);await db.query("update academy.course_runs set title='دفعة الاختبار المعزولة' where id=$1",[RUN]);
 await db.query("update academy.course_run_sessions set title='التواصل الفعال مع المتدربين',instructor_name='مدرب اختباري' where id=$1",[lesson.session]);
 await db.query("insert into academy.course_run_sessions(id,tenant_id,course_run_id,session_number,title,starts_at,ends_at,delivery_mode,status) values($1,$2,$3,2,'ورشة التطبيقات العملية',now()+interval '1 day',now()+interval '1 day 1 hour','online','scheduled')",[id(70001),T,RUN]);

@@ -4,26 +4,28 @@ Scope: [the complete supplied specification](scope-ar-v1.md), ZM-01–22 and T01
 
 Repository: `Marktonesa/marktone-platform-control`. Branch: `feat/zoom-multi-account`. Verified initial main: `dfec0b996597a310de22aa86dce177c5cf59f668`, tree `c2cfb3751883a17546c4a97780e952ebeb181f42`. The complete tree and signed commit were reconstructed from GitHub's read-only Git API and hash-verified existing local objects; no edits from other workspaces were imported without matching the exact upstream blob hash. There is no AGENTS.md in this tree or workspace ancestry.
 
-## Latest checkpoint (2026-09-22, still under implementation)
+## Latest checkpoint — 2026-09-22 23:25 UTC
 
-- Remote review branch exists: `feat/zoom-multi-account`, first checkpoint `68b65fe48041182ebe981d7b24444038af89f2b8`.
-- Real PostgreSQL 17 two-connection reservation and refresh races passed in [run 35787333617](https://github.com/Marktonesa/marktone-platform-control/actions/runs/35787333617), job 106947207450. Main stayed `dfec0b996597a310de22aa86dce177c5cf59f668`.
-- Current local Zoom suite: **22 passed, 1 skipped** (explicit real PostgreSQL URL required locally). Advanced SQL now covers canonical CRM dedupe, no academic/finance creation from webinars, restart attendance union, source-bound Odeiry draft finalization/cleanup, paginated resource synchronization and cross-account replacement retaining the old reservation until provider cancellation.
-- Full regression on first checkpoint: **1620 passed, 4 skipped, 0 failed**. Later changes need another regression run.
-- Build encountered local Turbopack symlink-root limitation before compilation. Dependencies were copied into this workspace with no changes to the other workspace. Re-run with a loopback Supabase endpoint.
-- New isolated CI load scenario creates 3,000 synthetic tenants/operators/accounts/hosts, bounded account reads and durable event receipt with duplicate delivery. Its results are pending, not a capacity claim.
-- Next actions: execute UI and gateway/SQL acceptance tests; run latest CI including load; finish coverage/evidence/Zoom setup and rollback documents; verify latest main and save a final review checkpoint. Never merge/deploy/activate.
+Implementation branch only; **nothing merged, deployed, activated, or tested with live Zoom**. Main rechecked and remains `dfec0b996597a310de22aa86dce177c5cf59f668`. Previous saved checkpoint `c5a678d2662c29054d93acde2125044aa4163ce3` passed PostgreSQL CI run 35793145534.
 
-## State
+Current code contains **20 additive, unpublished Zoom migrations**. Since c5: historical attendance after withdrawal/transfer, atomic recurring series with DST validation and occurrence mapping, background streamed CSV exports with fresh owner authorization, CRM webinar notification delivery through the existing queue, human certificate review tasks, uncertain individual registration recovery, provider evidence-change tasks, and UUID-less external update reconciliation. Account permissions now require actual tenant membership and tenant ACL; a platform control role alone cannot read tenant Zoom content.
 
-- P0: complete specification and current main/live schema discovery completed; no live data written.
-- P1: additive OAuth/resources/Vault/refresh implementation and Arabic account UI; 4 isolated database tests pass.
-- P2: reservations, provider outbox, fencing, import/update/cancel, same-account host changes and existing message queue bridge; 4 isolated scheduling tests pass. Recovery and batch/occurrence operations need expanded testing.
-- P3: canonical learner/instructor identity, financial authority, individual registration, signed events, report reconciliation, interval evidence and certificate guard; 3 evidence tests pass. Standalone Zoom portal reuses existing authentication and invitation tables.
-- P4: recording publication/access and bounded reports; lifecycle/retention SQL installs into isolated fixture. Expanded recording/retention acceptance tests pending.
-- P5: SDK identity/review decision, source-bound Odeiry generation and draft-authoring bridge implemented but not fully tested; webinar CRM workflow and advanced operator controls still under implementation.
-- P6: lint/typecheck/migration-history verification pass on current draft; full regression, browser, real Postgres races/load, review and final matrix pending. No live Zoom/OAI calls, no production mutations, no deployment.
-- External prerequisites: separate test Zoom General OAuth app/accounts, provider scopes and licenses, Meeting SDK review/identity authorization, approved AI/data and retention configuration, isolated real PostgreSQL concurrency runner. No live provider test authorization.
+Validation on this checkpoint's source code:
+- `npm test`: **1635 passed, 4 skipped, 0 failed** (1639 total). Local genuine PostgreSQL concurrency test is deliberately skipped without `ZOOM_TEST_DATABASE_URL`; it runs in isolated branch CI.
+- `npm run lint`: 0 errors / 19 existing warnings; `npm run typecheck`: passed; `npm run migration:verify`: 288 forward migrations verified; `npm run build`: passed with loopback synthetic Supabase configuration.
+- Targeted real SQL tests exercise both canonical certificate paths and direct-insert guard, complete a real authoring draft apply with separately enabled synthetic LMS/authoring gates, reject copied export tickets, recover a lost approved individual registration, and distinguish a provider echo from external schedule drift without UUID.
+- UI/HTTP/SQL evidence in `evidence/ui-http-sql.json`: passed at 360/390/768px, keyboard, creation through real Next API/SQL/worker, background CSV stream and copied learner URL denial. Provider and JWT boundaries are explicit test seams. Rerun after final UI changes.
+- Earlier real PostgreSQL 17 load/race evidence remains in `evidence/load-a1d47d2.json`; it is not evidence of simultaneous live lecture capacity.
+
+Next work, in order:
+1. Finish individual T01–64 evidence matrix, scope/capability manifest, architecture, setup/operator runbook, retention and rollback documents. `coverage.md` still contains superseded gaps until refreshed.
+2. Close remaining acceptance gaps: multiple hosts, known external busy/partial coverage, partial batch, overlapping student evidence, >100-row export, queue fairness and time boundaries. Review portal states, configurable notification origin, and periodic future drift observation.
+3. Rerun final changed paths, UI and engineering gate; verify exact main and feature SHA, inspect real PostgreSQL CI and save a reviewable draft.
+4. Keep actual OAuth/accounts/SDK audio-video, provider licensing, live messages/AI, approved derivative deletion policy and any release authorization explicitly pending.
+
+## Phase status
+
+P0 complete. P1–P5 have executable database/provider/application paths; local acceptance and gap closure continue. P6 is in progress (documentation, final exact-SHA evidence and review). Do not report all requirements complete merely because the build or local suite passes. Follow the detailed matrix and its provider-live limitations.
 
 ## Confirmed architecture / decisions
 

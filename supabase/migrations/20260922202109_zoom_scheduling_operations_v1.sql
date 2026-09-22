@@ -93,6 +93,19 @@ begin
  select * into l from zoom_core.links where tenant_id=t and session_id=s.id;
  return jsonb_build_object('revision',coalesce(l.revision,0),'candidates',coalesce((select jsonb_agg(to_jsonb(x)) from(select * from zoom_core.candidates(t,s.id,(p_payload->>'instructorId')::uuid,coalesce((p_payload->>'startsAt')::timestamptz,s.starts_at),coalesce((p_payload->>'endsAt')::timestamptz,s.ends_at),coalesce((p_payload->>'attendees')::int,1),coalesce(p_payload->>'kind','meeting'),p_payload,l.id) limit 50)x),'[]'));
 end $$;
+create function zoom_core.meeting_options(input jsonb) returns jsonb language plpgsql immutable set search_path='' as $$
+declare k text;v jsonb;result jsonb:=jsonb_build_object('waiting_room',true,'meeting_authentication',false,'host_video',false,'participant_video',false,'mute_upon_entry',true,'join_before_host',false);
+begin
+ if input is null then return result;end if;
+ if jsonb_typeof(input)<>'object' then raise exception 'zoom_invalid_meeting_options';end if;
+ for k,v in select key,value from jsonb_each(input) loop
+  if not result?k or jsonb_typeof(v)<>'boolean' then raise exception 'zoom_invalid_meeting_options';end if;
+ end loop;
+ result:=result||input;
+ if result->>'waiting_room'<>'true' and result->>'meeting_authentication'<>'true' then raise exception 'zoom_meeting_security_required';end if;
+ return result;
+end $$;
+revoke all on function zoom_core.meeting_options(jsonb) from public,anon,authenticated,service_role;
 create function public.v1_zoom_action(p_slug text,p_action text,p_command_id uuid,p_payload jsonb default '{}') returns jsonb language plpgsql security definer set search_path='' as $$
 <<operation>>
 declare t uuid:=zoom_core.tenant(p_slug);result jsonb;s academy.course_run_sessions%rowtype;l zoom_core.links%rowtype;h zoom_core.hosts%rowtype;
@@ -149,11 +162,12 @@ begin
    where (p_payload->>'hostId' is null or host_id=(p_payload->>'hostId')::uuid) limit 1;
    if candidate.host_id is null then raise exception 'zoom_schedule_conflict';end if;
    if p_action='update' and candidate.connection_id<>l.connection_id then raise exception 'zoom_replacement_required';end if;
+   if p_action='update' and l.occurrence_id<>'' and (candidate.host_id<>l.host_id or teacher<>l.instructor_subject_id or coalesce(p_payload->>'kind','meeting')<>l.kind or coalesce(p_payload->>'recording','off') is distinct from l.desired->>'recording' or (p_payload?'meetingOptions' and zoom_core.meeting_options(p_payload->'meetingOptions') is distinct from coalesce(l.desired->'meetingOptions',zoom_core.meeting_options(null)))) then raise exception 'zoom_occurrence_schedule_only';end if;
    if s.delivery_mode='hybrid' and nullif(s.venue_or_link,'') is not null and exists(select 1 from academy.course_run_sessions other_s where other_s.tenant_id=t and other_s.id<>s.id and other_s.status='scheduled' and other_s.delivery_mode in ('hybrid','onsite') and other_s.venue_or_link=s.venue_or_link and tstzrange(other_s.starts_at,other_s.ends_at,'[)')&&tstzrange(starts,ends,'[)')) then raise exception 'zoom_room_conflict';end if;
    rev:=coalesce(l.revision,0)+1;
    insert into zoom_core.links(tenant_id,session_id,connection_id,host_id,instructor_subject_id,kind,revision,desired,state,reason,management)
    values(t,s.id,candidate.connection_id,candidate.host_id,teacher,coalesce(p_payload->>'kind','meeting'),rev,
-    jsonb_build_object('startsAt',starts,'endsAt',ends,'title',s.title,'recording',coalesce(p_payload->>'recording','off'),'attendees',coalesce((p_payload->>'attendees')::int,1),'registration',true,'waitingRoom',true,'importMeetingId',p_payload->>'meetingId','occurrenceId',coalesce(p_payload->>'occurrenceId','')),
+    jsonb_build_object('startsAt',starts,'endsAt',ends,'title',(select r.title from academy.course_runs r where r.tenant_id=t and r.id=s.course_run_id)||' — '||s.title,'timezone',(select timezone from core.tenants where id=t),'meetingOptions',zoom_core.meeting_options(coalesce(p_payload->'meetingOptions',l.desired->'meetingOptions')),'recording',coalesce(p_payload->>'recording','off'),'attendees',coalesce((p_payload->>'attendees')::int,1),'registration',true,'waitingRoom',true,'importMeetingId',p_payload->>'meetingId','occurrenceId',case when p_action='update' then l.occurrence_id else coalesce(p_payload->>'occurrenceId','') end),
     case when p_action='update' then 'updating' else 'queued' end,candidate.reason,case when p_action='import' and p_payload->>'management'='read_only' then 'read_only' else 'managed' end)
    on conflict(tenant_id,session_id) do update set connection_id=excluded.connection_id,host_id=excluded.host_id,instructor_subject_id=excluded.instructor_subject_id,kind=excluded.kind,revision=excluded.revision,desired=excluded.desired,state=excluded.state,reason=excluded.reason returning * into l;
    insert into zoom_core.reservations(tenant_id,link_id,host_id,instructor_subject_id,slot,occupied_range,revision) values(t,l.id,l.host_id,teacher,candidate.slot,candidate.occupied_range,l.revision);
@@ -181,7 +195,7 @@ begin
  with ranked as (
  select o.id,row_number() over(partition by o.tenant_id order by o.due_at,o.id) tenant_rank from zoom_core.operations o join zoom_core.connections c on c.tenant_id=o.tenant_id and c.id=o.connection_id join zoom_core.settings s on s.tenant_id=o.tenant_id
  left join zoom_core.account_budgets b on b.tenant_id=o.tenant_id and b.connection_id=o.connection_id
- where o.state in ('pending','retry') and o.due_at<=now() and o.attempts<8 and s.enabled and (c.status='connected' or (c.status='paused' and o.kind not in ('create','import')))
+ where not (o.payload ? 'seriesRoot') and o.state in ('pending','retry') and o.due_at<=now() and o.attempts<8 and s.enabled and (c.status='connected' or (c.status='paused' and o.kind not in ('create','import')))
  and private_app.tenant_addon_enabled(o.tenant_id,'addon.integration.zoom') and coalesce(b.next_call_at,now())<=now()
  ), picked as (
  select o.id from zoom_core.operations o join ranked r on r.id=o.id order by r.tenant_rank,o.due_at,o.id limit p_limit for update of o skip locked
@@ -226,7 +240,7 @@ begin
   -- Never store start_url. It is fetched only after a fresh instructor check.
   if l.secret_id is null then select vault.create_secret(jsonb_build_object('join_url',p_result->>'join_url')::text,'zoom-link:'||l.id,'ODEIR Zoom attendee route',null) into secret;
   else secret:=l.secret_id;perform vault.update_secret(secret,jsonb_build_object('join_url',p_result->>'join_url')::text,null,null);end if;
-  update zoom_core.links set meeting_id=p_result->>'id',occurrence_id=coalesce(p_result->>'occurrence_id',''),secret_id=secret,state=case when management='read_only' then 'imported' else 'ready' end,last_synced_at=now(),observed=jsonb_build_object('startsAt',p_result->>'start_time','duration',p_result->'duration','hostId',p_result->>'host_id','registration',p_result->'settings'->'approval_type') where id=l.id;
+  update zoom_core.links set meeting_id=p_result->>'id',occurrence_id=coalesce(p_result->>'occurrence_id',''),secret_id=secret,state=case when management='read_only' then 'imported' else 'ready' end,last_synced_at=now(),observed=jsonb_build_object('startsAt',p_result->>'start_time','duration',p_result->'duration','hostId',p_result->>'host_id','registration',p_result->'settings'->'approval_type','registrationType',p_result->'settings'->'registration_type','meetingOptions',coalesce(p_result->'settings','{}')-'alternative_hosts'-'authentication_exception'-'breakout_room') where id=l.id;
   update zoom_core.reservations set state=case when revision=l.revision then 'confirmed' else 'released' end where tenant_id=l.tenant_id and link_id=l.id and state<>'released' and (revision=l.revision or coalesce(l.desired->>'replacementPending','false')<>'true');
   select '/training/'||slug||'/sessions/'||l.session_id into stable_path from core.tenants where id=l.tenant_id;
   update academy.course_run_sessions set starts_at=(l.desired->>'startsAt')::timestamptz,ends_at=(l.desired->>'endsAt')::timestamptz,meeting_join_url=stable_path,updated_at=now() where tenant_id=l.tenant_id and id=l.session_id;

@@ -74,11 +74,21 @@ create function zoom_core.service_only() returns void language plpgsql set searc
 begin
  if coalesce(nullif(current_setting('request.jwt.claim.role',true),''),nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'role','')<>'service_role' then raise exception 'zoom_forbidden' using errcode='42501';end if;
 end $$;
+-- The canonical helper also admits platform.control.read. Provider content
+-- requires a real tenant assignment as well; platform support is not an implicit
+-- membership in every customer. Read the same ACL tables, never a parallel role.
+create function zoom_core.tenant_permission(t uuid,key text) returns boolean language sql stable security definer set search_path='' as $$
+ select private_app.has_tenant_permission(t,key) and exists(
+  select 1 from access_control.memberships m join access_control.membership_roles mr on mr.membership_id=m.id
+  join access_control.roles r on r.id=mr.role_id and r.scope='tenant'
+  join access_control.role_permissions p on p.role_id=r.id and p.permission_key=key
+  where m.tenant_id=t and m.subject_id=private_app.current_subject_id() and m.scope='tenant' and m.status='active')
+$$;
 create function zoom_core.allowed(t uuid,operation text) returns boolean language sql stable security definer set search_path='' as $$
  select auth.uid() is not null and private_app.current_subject_id() is not null and (
- private_app.has_tenant_permission(t,'tenant.zoom.'||operation)
- or (operation in ('connections.manage','hosts.manage','retention.manage') and private_app.has_tenant_permission(t,'tenant.settings.manage'))
- or (operation in ('sessions.manage','attendance.review','attendance.override','recordings.publish') and private_app.has_tenant_permission(t,'tenant.academy.write')))
+ zoom_core.tenant_permission(t,'tenant.zoom.'||operation)
+ or (operation in ('connections.manage','hosts.manage','retention.manage') and zoom_core.tenant_permission(t,'tenant.settings.manage'))
+ or (operation in ('sessions.manage','attendance.review','attendance.override','recordings.publish') and zoom_core.tenant_permission(t,'tenant.academy.write')))
 $$;
 -- Same active staff/academy instructor authority as the canonical training helper,
 -- evaluated for the assigned subject, never a client-supplied display role.

@@ -12,6 +12,7 @@ create table zoom_core.events (
  foreign key(tenant_id,connection_id) references zoom_core.connections(tenant_id,id),unique(connection_id,dedupe)
 );
 create index zoom_events_pending on zoom_core.events(state,received_at,tenant_id);
+create index zoom_events_timeline on zoom_core.events(tenant_id,connection_id,(payload->>'meetingId'),received_at desc);
 create table zoom_core.registrations (
  id uuid primary key default gen_random_uuid(),tenant_id uuid not null,link_id uuid not null,enrollment_id uuid not null,student_id uuid not null,
  registrant_id text,verified_email text,verified_zoom_user_id text,secret_id uuid,
@@ -57,6 +58,7 @@ begin
   if not private_app.training_is_instructor_v1(t,s.course_run_id) or l.instructor_subject_id<>private_app.current_subject_id()
    or not exists(select 1 from zoom_core.host_instructors where tenant_id=t and host_id=l.host_id and subject_id=private_app.current_subject_id() and active and verified_at>now()-interval '24 hours') then raise exception 'zoom_forbidden';end if;
  else
+  if l.occurrence_id<>'' and (l.observed->>'registration' is distinct from '0' or coalesce(l.observed->>'registrationType','') not in ('2','3')) then raise exception 'zoom_registration_configuration_required';end if;
   select * into e from academy.enrollments where tenant_id=t and id=eid and course_run_id=s.course_run_id;
   if e.id is null or not private_app.training_is_learner_v1(t,e.id) then raise exception 'zoom_forbidden';end if;
   financial:=private_app.training_journey_financial_access_v1(e.id);
@@ -144,6 +146,16 @@ begin
    update zoom_core.operations set state='blocked',last_error='zoom_deauthorized' where connection_id=ev.connection_id and state in ('pending','retry');
    update zoom_core.events set state='processed' where id=ev.id;total:=total+1;continue;
   end if;
+  if ev.event_type in ('meeting.updated','meeting.deleted','webinar.updated','webinar.deleted') then
+   -- A schedule change may omit the runtime UUID. Verify the provider state
+   -- for each known occurrence; never invent an attendance instance or assume
+   -- our own PATCH echo is an external conflict.
+   for l in select * from zoom_core.links where tenant_id=ev.tenant_id and connection_id=ev.connection_id and meeting_id=ev.payload->>'meetingId' loop
+    insert into zoom_core.operations(tenant_id,connection_id,link_id,revision,kind,command_id,payload,due_at)
+    values(l.tenant_id,l.connection_id,l.id,l.revision,'reconcile',gen_random_uuid(),jsonb_build_object('checkSchedule',true,'eventId',ev.id),now()+interval '15 seconds');
+   end loop;
+   update zoom_core.events set state='processed' where id=ev.id;continue;
+  end if;
   -- A recurring ID with multiple candidate occurrences is never guessed.
   select * into l from zoom_core.links where tenant_id=ev.tenant_id and connection_id=ev.connection_id and meeting_id=ev.payload->>'meetingId'
    and (occurrence_id='' or exists(select 1 from zoom_core.instances i where i.tenant_id=ev.tenant_id and i.link_id=zoom_core.links.id and i.uuid=ev.payload->>'uuid'));
@@ -200,7 +212,7 @@ begin
  return jsonb_build_object('state',case when p_complete then 'reconciled' else 'incomplete' end);
 end $$;
 create function zoom_core.attendance(t uuid,lid uuid,eid uuid) returns jsonb language plpgsql stable security definer set search_path='' as $$
-declare w zoom_core.teaching_windows%rowtype;eligible tstzmultirange;actual tstzmultirange;required_seconds numeric;attended_seconds numeric;complete boolean;first_join timestamptz;late_seconds numeric;
+declare w zoom_core.teaching_windows%rowtype;eligible tstzmultirange;actual tstzmultirange;required_seconds numeric;attended_seconds numeric;complete boolean;first_join timestamptz;last_leave timestamptz;late_seconds numeric;
 begin
  select * into w from zoom_core.teaching_windows where tenant_id=t and link_id=lid;
  if w.link_id is null then return jsonb_build_object('quality','policy_required','percent',null);end if;
@@ -212,9 +224,12 @@ begin
  select coalesce(sum(extract(epoch from upper(x)-lower(x))),0) into attended_seconds from unnest(actual)x;
  complete:=exists(select 1 from zoom_core.instances where tenant_id=t and link_id=lid) and not exists(select 1 from zoom_core.instances where tenant_id=t and link_id=lid and evidence_state<>'complete')
   and not exists(select 1 from zoom_core.intervals v join zoom_core.instances i on i.tenant_id=v.tenant_id and i.id=v.instance_id where v.tenant_id=t and i.link_id=lid and v.source='report' and (v.quality in ('unmatched','ambiguous','incomplete') or v.joined_at is null or v.left_at is null or v.left_at<=v.joined_at));
- select min(lower(x)) into first_join from unnest(actual)x;late_seconds:=greatest(0,extract(epoch from first_join-lower(w.approved_range)));
- return jsonb_build_object('firstJoinedAt',first_join,'minutesLate',case when late_seconds>coalesce((w.policy->>'lateMinutes')::int,0)*60 then ceil(late_seconds/60) else 0 end,'attendedSeconds',attended_seconds,'requiredSeconds',required_seconds,'percent',case when required_seconds>0 then least(100,attended_seconds*100/required_seconds) end,'quality',case when complete and required_seconds>0 then 'complete' else 'incomplete' end,'policyRevision',w.revision);
+ select min(lower(x)),max(upper(x)) into first_join,last_leave from unnest(actual)x;late_seconds:=greatest(0,extract(epoch from first_join-lower(w.approved_range)));
+ return jsonb_build_object('firstJoinedAt',first_join,'lastLeftAt',last_leave,'minutesLate',case when late_seconds>coalesce((w.policy->>'lateMinutes')::int,0)*60 then ceil(late_seconds/60) else 0 end,'attendedSeconds',attended_seconds,'requiredSeconds',required_seconds,'percent',case when required_seconds>0 then least(100,attended_seconds*100/required_seconds) end,'quality',case when complete and required_seconds>0 then 'complete' else 'incomplete' end,'policyRevision',w.revision);
 end $$;
+create function zoom_core.historical_enrollment(t uuid,lid uuid,eid uuid) returns boolean language sql stable security definer set search_path='' as $$
+ select exists(select 1 from zoom_core.roster r join zoom_core.links l on l.tenant_id=r.tenant_id and l.id=r.link_id join academy.course_run_sessions s on s.tenant_id=l.tenant_id and s.id=l.session_id join academy.enrollments e on e.tenant_id=r.tenant_id and e.id=r.enrollment_id where r.tenant_id=t and r.link_id=lid and r.enrollment_id=eid and s.starts_at<=now() and e.enrolled_at<=s.starts_at and r.source in ('canonical_enrollment_transition','start_event','reconciled_provider_start'))
+$$;
 create function public.v1_zoom_review(p_slug text,p_action text,p_command_id uuid,p_payload jsonb) returns jsonb language plpgsql security definer set search_path='' as $$
 <<operation>>
 declare t uuid:=zoom_core.tenant(p_slug);l zoom_core.links%rowtype;e academy.enrollments%rowtype;s academy.course_run_sessions%rowtype;result jsonb;summary jsonb;range_value tstzrange;break_values tstzmultirange;state_key text;record_id uuid;reason text:=trim(p_payload->>'reason');
@@ -235,12 +250,12 @@ begin
    on conflict(tenant_id,link_id) do update set approved_range=excluded.approved_range,breaks=excluded.breaks,policy=excluded.policy,approved_by=excluded.approved_by,reason=excluded.reason,revision=zoom_core.teaching_windows.revision+1;
   result:=jsonb_build_object('status','approved');
  elsif p_action='match' then
-  select * into e from academy.enrollments where tenant_id=t and id=(p_payload->>'enrollmentId')::uuid and course_run_id=s.course_run_id;
+  select * into e from academy.enrollments where tenant_id=t and id=(p_payload->>'enrollmentId')::uuid and (course_run_id=s.course_run_id or zoom_core.historical_enrollment(t,l.id,id));
   if e.id is null then raise exception 'zoom_not_found';end if;
   update zoom_core.intervals v set enrollment_id=e.id,quality='manual',reviewed_by=private_app.current_subject_id(),review_reason=reason where v.tenant_id=t and v.id=(p_payload->>'intervalId')::uuid and exists(select 1 from zoom_core.instances i where i.tenant_id=t and i.id=v.instance_id and i.link_id=l.id) returning v.id into record_id;
   if record_id is null then raise exception 'zoom_not_found';end if;result:=jsonb_build_object('status','matched');
  elsif p_action in ('approve_attendance','override_attendance') then
-  select * into e from academy.enrollments where tenant_id=t and id=(p_payload->>'enrollmentId')::uuid and course_run_id=s.course_run_id;
+  select * into e from academy.enrollments where tenant_id=t and id=(p_payload->>'enrollmentId')::uuid and (course_run_id=s.course_run_id or zoom_core.historical_enrollment(t,l.id,id));
   if e.id is null or not exists(select 1 from zoom_core.roster where tenant_id=t and link_id=l.id and enrollment_id=e.id) then raise exception 'zoom_not_found';end if;
   summary:=zoom_core.attendance(t,l.id,e.id);
   if p_action='approve_attendance' and summary->>'quality'<>'complete' then raise exception 'zoom_evidence_incomplete';end if;

@@ -59,7 +59,7 @@ begin
  elsif r.state='registering' or r.state='uncertain' then return jsonb_build_object('status','uncertain');
  elsif r.state='new' then update zoom_core.webinar_registrations set state='registering',lease_id=p_lease_id,lease_until=now()+interval '45 seconds',actor_subject_id=private_app.current_subject_id(),auth_user_id=auth.uid() where id=r.id;
  else raise exception 'zoom_not_found';end if;
- return jsonb_build_object('status','register','registrationId',r.id,'connectionId',l.connection_id,'meetingId',l.meeting_id,'name',c.full_name,'email',c.email);
+ return jsonb_build_object('status','register','registrationId',r.id,'connectionId',l.connection_id,'meetingId',l.meeting_id,'occurrenceId',l.occurrence_id,'name',c.full_name,'email',c.email);
 end $$;
 create function public.v1_zoom_webinar_complete(p_registration_id uuid,p_lease_id uuid,p_generation integer,p_result jsonb) returns jsonb language plpgsql security definer set search_path='' as $$
 declare r zoom_core.webinar_registrations%rowtype;l zoom_core.links%rowtype;secret uuid;w zoom_core.webinars%rowtype;

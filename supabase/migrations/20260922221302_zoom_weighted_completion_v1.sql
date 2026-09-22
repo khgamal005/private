@@ -16,12 +16,12 @@ begin
    -- silently converted to 100%. Explicit credit needs attendance.override.
    if a.metadata->'zoom'->>'override'='true' and a.metadata->'zoom'->>'manualSeconds' is not null and a.metadata->'zoom'->>'policyRevision'=summary->>'policyRevision' then
     credit:=(a.metadata->'zoom'->>'manualSeconds')::numeric;
-   elsif summary->>'quality'<>'complete' or a.id is null or a.metadata->'zoom'->>'policyRevision' is distinct from summary->>'policyRevision' then quality:='incomplete';
+   elsif summary->>'quality'<>'complete' or a.id is null or a.metadata->'zoom'->>'policyRevision' is distinct from summary->>'policyRevision' then quality:=case when quality='policy_required' then quality else 'incomplete' end;
    end if;
   else
    seconds:=extract(epoch from s.ends_at-s.starts_at);
    credit:=case when a.status in ('present','late') then seconds else 0 end;
-   if a.id is null then quality:='incomplete';end if;
+   if a.id is null then quality:=case when quality='policy_required' then quality else 'incomplete' end;end if;
   end if;
   if seconds is null or seconds<=0 then quality:='policy_required';else required_total:=required_total+seconds;attended_total:=attended_total+least(seconds,greatest(0,coalesce(credit,0)));end if;
  end loop;

@@ -1,9 +1,9 @@
-import {createZoomClient,connectionAccessToken,verifiedHost,ZoomError,zoomUrl,retryDelay} from '../_shared/zoom-client.mjs';
+import {createZoomClient,connectionAccessToken,verifiedHost,recoveredRegistrant,ZoomError,zoomUrl,retryDelay} from '../_shared/zoom-client.mjs';
 import {sdkDecision,sdkSignature,ZOOM_SDK_VERSION} from '../_shared/zoom-sdk.mjs';
 import {sha256,hmac,verifyWebhook,eventProjection} from '../_shared/zoom-evidence.mjs';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SAFE_ERRORS=new Set(['zoom_not_enabled','zoom_forbidden','zoom_not_found','zoom_invalid_state','zoom_account_mismatch','zoom_account_unavailable','zoom_revision_conflict','zoom_configuration_missing','zoom_scope_or_license_required','zoom_reauth_required','zoom_rate_limited','zoom_provider_unavailable','zoom_network_error','zoom_refresh_busy','zoom_access_expired','zoom_not_entitled','zoom_outside_join_window','zoom_verified_email_required','zoom_session_unavailable','zoom_host_identity_unverified','zoom_invalid_instructor','zoom_invalid_provider_response','zoom_result_incomplete','zoom_stale_lease','zoom_stale_operation','zoom_provider_review_required','zoom_transcript_unavailable','zoom_registration_pending','zoom_occurrence_required','zoom_schedule_mismatch']);
+const SAFE_ERRORS=new Set(['zoom_not_enabled','zoom_forbidden','zoom_not_found','zoom_invalid_state','zoom_account_mismatch','zoom_account_unavailable','zoom_revision_conflict','zoom_configuration_missing','zoom_scope_or_license_required','zoom_reauth_required','zoom_rate_limited','zoom_provider_unavailable','zoom_network_error','zoom_refresh_busy','zoom_access_expired','zoom_not_entitled','zoom_outside_join_window','zoom_verified_email_required','zoom_session_unavailable','zoom_host_identity_unverified','zoom_invalid_instructor','zoom_invalid_provider_response','zoom_result_incomplete','zoom_stale_lease','zoom_stale_operation','zoom_provider_review_required','zoom_transcript_unavailable','zoom_registration_pending','zoom_occurrence_required','zoom_schedule_mismatch','zoom_registration_configuration_required']);
 async function verifyDispatch(expected,received){if(typeof received!=='string'||received.length>512)return false;const a=await sha256(expected),b=await sha256(received);let difference=0;for(let i=0;i<a.length;i++)difference|=a.charCodeAt(i)^b.charCodeAt(i);return difference===0;}
 function failure(code,status=409){return Object.assign(new Error(code),{code,status});}
 function publicCode(error){return SAFE_ERRORS.has(error?.code||error?.message)?error.code||error.message:'zoom_request_failed';}
@@ -19,10 +19,17 @@ export function meetingBody(link,{alternativeHosts=''}={}){
  const desired=link.desired;const minutes=Math.ceil((Date.parse(desired.endsAt)-Date.parse(desired.startsAt))/60000);
  if(!Number.isFinite(minutes)||minutes<1||minutes>1440)throw failure('zoom_invalid_schedule');
  const settings={host_video:false,participant_video:false,join_before_host:false,mute_upon_entry:true,waiting_room:true,
-  approval_type:0,registration_type:1,auto_recording:desired.recording==='cloud'?'cloud':'none',registrants_email_notification:false};
+  ...(desired.meetingOptions||{}),auto_start_meeting_summary:false,auto_start_ai_companion_questions:false,approval_type:0,registration_type:1,auto_recording:desired.recording==='cloud'?'cloud':'none',registrants_email_notification:false};
  if(alternativeHosts)settings.alternative_hosts=alternativeHosts;
- return {topic:desired.title,type:link.kind==='webinar'?5:2,start_time:new Date(desired.startsAt).toISOString(),duration:minutes,timezone:'UTC',
+ if(desired.series)settings.registration_type=2;
+ return {...(desired.series?{recurrence:desired.series.recurrence}:{}),topic:desired.title,type:desired.series?(link.kind==='webinar'?9:8):(link.kind==='webinar'?5:2),start_time:new Date(desired.startsAt).toISOString(),duration:minutes,timezone:desired.series?.timezone||desired.timezone||'UTC',
   agenda:`ODEIR session ${link.session_id}; revision ${link.revision}`,settings};
+}
+export function occurrenceResult(meeting,occurrenceId){
+ if(!occurrenceId)return meeting;
+ const occurrence=meeting.occurrences?.find(x=>String(x.occurrence_id)===occurrenceId&&x.status!=='deleted');
+ if(!occurrence)throw new ZoomError('zoom_invalid_provider_response');
+ return {...meeting,...occurrence};
 }
 
 export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomClient,now=Date.now}){
@@ -77,15 +84,22 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
       if(job.kind==='create')result=await zoom.create(ctx.host.userId,link.kind,meetingBody(link,ctx),token.accessToken);
       else if(job.kind==='poll')result=await zoom.createPoll(link.meeting_id,link.kind,ctx.operation.payload,token.accessToken);
       else if(job.kind==='update'){
-       await zoom.update(link.meeting_id,link.kind,{...meetingBody(link,ctx),schedule_for:ctx.host.userId},token.accessToken);
-       result=await zoom.get(link.meeting_id,link.kind,token.accessToken);
+       const body=meetingBody(link,ctx);
+       // Single-occurrence changes must never patch host, recurrence or global settings.
+       await zoom.update(link.meeting_id,link.kind,link.occurrence_id?{start_time:body.start_time,duration:body.duration}:{...body,schedule_for:ctx.host.userId},token.accessToken,link.occurrence_id);
+       result=occurrenceResult(await zoom.get(link.meeting_id,link.kind,token.accessToken),link.occurrence_id);
       }else if(job.kind==='cancel')await zoom.cancel(link.meeting_id,link.kind,link.occurrence_id,token.accessToken);
       else if(job.kind==='import'){
        result=await zoom.get(link.desired.importMeetingId,link.kind,token.accessToken);
        if(result.host_id!==ctx.host.userId)throw new ZoomError('zoom_account_mismatch');
        if([3,6].includes(result.type)||[8,9].includes(result.type)&&!link.desired.occurrenceId)throw new ZoomError('zoom_occurrence_required');
-       if(link.desired.occurrenceId){const occurrence=result.occurrences?.find(x=>String(x.occurrence_id)===link.desired.occurrenceId);if(!occurrence)throw new ZoomError('zoom_invalid_provider_response');result={...result,...occurrence};}
+       result=occurrenceResult(result,link.desired.occurrenceId);
+       if(link.management!=='read_only'&&(result.settings?.approval_type!==0||(link.desired.occurrenceId&&![2,3].includes(result.settings?.registration_type))))throw new ZoomError('zoom_registration_configuration_required');
        if(Date.parse(result.start_time)!==Date.parse(link.desired.startsAt)||Number(result.duration)!==Math.ceil((Date.parse(link.desired.endsAt)-Date.parse(link.desired.startsAt))/60000))throw new ZoomError('zoom_schedule_mismatch');
+      }else if(job.kind==='reconcile'&&ctx.operation.payload.checkSchedule===true){
+       let observed;try{observed=occurrenceResult(await zoom.get(link.meeting_id,link.kind,token.accessToken),link.occurrence_id);}
+       catch(error){if(error.status!==404)throw error;observed={missing:true};}
+       result=await service('v1_zoom_schedule_observe',{...identity,p_result:{...observed,id:observed.id==null?null:String(observed.id)}});
       }else if(job.kind==='reconcile'){
        {
         const instances=await zoom.instances(link.meeting_id,token.accessToken,link.kind);
@@ -127,9 +141,9 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
      else{await zoom.cancel(replaced.meetingId,replaced.kind,replaced.occurrenceId,token.accessToken);await service('v1_zoom_replaced_complete',{p_id:replaced.id,p_lease_id:replacedLease,p_fence:replaced.fence,p_generation:token.generation,p_cancelled:true});}
     }catch(error){outcomes.push({kind:'replacement_cleanup',state:'pending',code:publicCode(error)});}}
     const revocations=await service('v1_zoom_revocations',{p_limit:3});
-    for(const registration of revocations){try{const token=await connectionAccessToken(service,zoom,registration.connection_id);await zoom.revokeRegistrant(registration.meeting_id,registration.kind,registration.registrant_id,token.accessToken);await service('v1_zoom_revocation_complete',{p_registration_id:registration.id,p_generation:token.generation});}catch(error){if(error.code==='zoom_rate_limited')await service('v1_zoom_provider_defer',{p_connection_id:registration.connection_id,p_retry_seconds:Math.ceil(retryDelay(error,2))}).catch(()=>{});outcomes.push({kind:'revoke_registrant',state:'pending',code:publicCode(error)});}}
+    for(const registration of revocations){try{const token=await connectionAccessToken(service,zoom,registration.connection_id);await zoom.revokeRegistrant(registration.meeting_id,registration.kind,registration.registrant_id,token.accessToken,registration.occurrence_id);await service('v1_zoom_revocation_complete',{p_registration_id:registration.id,p_generation:token.generation});}catch(error){if(error.code==='zoom_rate_limited')await service('v1_zoom_provider_defer',{p_connection_id:registration.connection_id,p_retry_seconds:Math.ceil(retryDelay(error,2))}).catch(()=>{});outcomes.push({kind:'revoke_registrant',state:'pending',code:publicCode(error)});}}
     const bindings=await service('v1_zoom_bindings_due',{});for(const binding of bindings){try{const token=await connectionAccessToken(service,zoom,binding.connection_id);const identity=await zoom.user(binding.email,token.accessToken);await service('v1_zoom_host_identity_save',{p_host_id:binding.host_id,p_subject_id:binding.subject_id,p_identity:identity,p_generation:token.generation});}catch(error){if(error.code==='zoom_rate_limited')await service('v1_zoom_provider_defer',{p_connection_id:binding.connection_id,p_retry_seconds:Math.ceil(retryDelay(error,2))}).catch(()=>{});outcomes.push({kind:'host_identity',state:'review',code:publicCode(error)});}}
-    await service('v1_zoom_operational_tasks',{});return json({outcomes});
+    await service('v1_zoom_operational_tasks',{});await service('v1_zoom_reports_work',{p_limit:2});return json({outcomes});
    }
    const authorization=request.headers.get('authorization')||'';
    if(!/^Bearer [^\s]+$/.test(authorization))throw failure('zoom_forbidden',401);
@@ -176,7 +190,8 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
     try{
      const ctx=await service('v1_zoom_operation_context',identity);const zoom=client();const token=await connectionAccessToken(service,zoom,ctx.link.connection_id);
      if(ctx.operation.kind==='cancel')throw failure('zoom_provider_review_required');
-     const meeting=await zoom.get(body.meetingId||ctx.link.meeting_id,ctx.link.kind,token.accessToken);
+     let meeting=occurrenceResult(await zoom.get(body.meetingId||ctx.link.meeting_id,ctx.link.kind,token.accessToken),ctx.link.occurrence_id||ctx.link.desired.occurrenceId);
+     if(ctx.link.desired.series){const first=meeting.occurrences?.find(x=>Date.parse(x.start_time)===Date.parse(ctx.link.desired.startsAt));if(!first)throw failure('zoom_provider_review_required');meeting={...meeting,...first};}
      const exact=meeting.host_id===ctx.host.userId&&Date.parse(meeting.start_time)===Date.parse(ctx.link.desired.startsAt)&&Number(meeting.duration)===Math.ceil((Date.parse(ctx.link.desired.endsAt)-Date.parse(ctx.link.desired.startsAt))/60000);
      if(!exact||ctx.operation.kind==='create'&&!String(meeting.agenda||'').includes(`ODEIR session ${ctx.link.session_id}; revision ${ctx.link.revision}`))throw failure('zoom_provider_review_required');
      return json(await service('v1_zoom_operation_complete',{...identity,p_generation:token.generation,p_outcome:'complete',p_result:{...meeting,id:String(meeting.id)}}));
@@ -185,7 +200,7 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
    if(action==='webinar_register'){
     if(!UUID.test(body.registrationId))throw failure('zoom_invalid_request',400);const lease=crypto.randomUUID();
     const ctx=await user('v1_zoom_webinar_registration',{p_slug:slug,p_registration_id:body.registrationId,p_lease_id:lease});if(ctx.status!=='register')return json(ctx,ctx.status==='registered'?200:409);
-    const zoom=client();const token=await connectionAccessToken(service,zoom,ctx.connectionId);const registered=await zoom.register(ctx.meetingId,'webinar',{email:ctx.email,first_name:ctx.name},token.accessToken);
+    const zoom=client();const token=await connectionAccessToken(service,zoom,ctx.connectionId);const registered=await zoom.register(ctx.meetingId,'webinar',{email:ctx.email,first_name:ctx.name},token.accessToken,ctx.occurrenceId);
     await user('v1_zoom_webinar_registration',{p_slug:slug,p_registration_id:body.registrationId,p_lease_id:lease});
     return json(await service('v1_zoom_webinar_complete',{p_registration_id:body.registrationId,p_lease_id:lease,p_generation:token.generation,p_result:registered}));
    }
@@ -209,7 +224,7 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
     let personal=null;try{const person=await zoom.user(ctx.email,token.accessToken);if(person.account_id===ctx.accountId&&person.email?.toLowerCase()===ctx.email&&person.status==='active'&&(ctx.role===0||person.id===ctx.providerUserId))personal=person;}catch(error){if(!['zoom_provider_rejected','zoom_scope_or_license_required'].includes(error.code))throw error;}
     const decision=sdkDecision({enabled:true,reviewed:review,appAccountId,accountId:ctx.accountId,role:ctx.role,personalIdentity:!!personal});if(!decision.available)return json(decision);
     const meeting=await zoom.get(ctx.meetingId,ctx.kind,token.accessToken);let registration=null;
-    if(ctx.role===0){registration=await service('v1_zoom_access_context',{p_grant_id:grant.grantId,p_lease:lease});if(registration.status==='register'){const record=await zoom.register(ctx.meetingId,ctx.kind,{email:registration.email,first_name:registration.name,occurrence_ids:registration.occurrenceId||undefined},token.accessToken);registration=await service('v1_zoom_registration_complete',{p_grant_id:grant.grantId,p_lease:lease,p_result:record});}if(!registration.url)throw failure('zoom_registration_pending');}
+    if(ctx.role===0){registration=await service('v1_zoom_access_context',{p_grant_id:grant.grantId,p_lease:lease});if(registration.status==='register'){const record=await zoom.register(ctx.meetingId,ctx.kind,{email:registration.email,first_name:registration.name},token.accessToken,registration.occurrenceId);registration=await service('v1_zoom_registration_complete',{p_grant_id:grant.grantId,p_lease:lease,p_result:record});}if(!registration.url)throw failure('zoom_registration_pending');}
     const zak=decision.requiresZak?(await zoom.userToken(personal.id,'zak',token.accessToken)).token:null;
     await service('v1_zoom_sdk_context',{p_grant_id:grant.grantId,p_lease:lease});
     const clientId=value('ZOOM_SDK_CLIENT_ID'),secret=value('ZOOM_SDK_CLIENT_SECRET');
@@ -228,7 +243,14 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
     const grant=await user('v1_zoom_access',{p_slug:slug,p_session_id:body.sessionId,p_enrollment_id:body.enrollmentId||null,p_action:action==='join'?'join':'start'});
     const lease=crypto.randomUUID();let ctx=await service('v1_zoom_access_context',{p_grant_id:grant.grantId,p_lease:lease});
     if(ctx.status==='ready'){if(!zoomUrl(ctx.url))throw failure('zoom_invalid_provider_response');return json({url:ctx.url});}
-    if(ctx.status==='busy'||ctx.status==='uncertain')return json({status:ctx.status},409);
+    if(ctx.status==='busy')return json({status:ctx.status},409);
+    if(ctx.status==='uncertain'){
+     const recovery=await service('v1_zoom_registration_recover',{p_grant_id:grant.grantId,p_lease:lease});
+     try{const zoom=client(),token=await connectionAccessToken(service,zoom,recovery.connectionId);
+      const found=recoveredRegistrant(await zoom.registrants(recovery.meetingId,recovery.kind,token.accessToken,recovery.occurrenceId),recovery.email);
+      return json(await service('v1_zoom_registration_complete',{p_grant_id:grant.grantId,p_lease:lease,p_result:found}));
+     }catch(error){await service('v1_zoom_registration_recover',{p_grant_id:grant.grantId,p_lease:lease,p_action:'release'}).catch(()=>{});throw error;}
+    }
     const zoom=client();const token=await connectionAccessToken(service,zoom,ctx.connectionId);
     if(ctx.action==='start'){
      const meeting=await zoom.get(ctx.meetingId,ctx.kind,token.accessToken);
@@ -238,7 +260,7 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
      await service('v1_zoom_access_context',{p_grant_id:grant.grantId,p_lease:lease});
      if(!zoomUrl(url))throw failure('zoom_invalid_provider_response');return json({url,requiresZoomLogin:ctx.authorizationKind!=='host'});
     }
-    const registered=await zoom.register(ctx.meetingId,ctx.kind,{email:ctx.email,first_name:ctx.name,occurrence_ids:ctx.occurrenceId||undefined},token.accessToken);
+    const registered=await zoom.register(ctx.meetingId,ctx.kind,{email:ctx.email,first_name:ctx.name},token.accessToken,ctx.occurrenceId);
     const result=await service('v1_zoom_registration_complete',{p_grant_id:grant.grantId,p_lease:lease,p_result:registered});
     if(!zoomUrl(result.url))throw failure('zoom_invalid_provider_response');return json(result);
    }

@@ -19,6 +19,7 @@ begin
  if l.id is null or l.revision<>p_revision or l.state not in ('uncertain','failed') then raise exception 'zoom_revision_conflict';end if;
  select * into o from zoom_core.operations where tenant_id=t and link_id=l.id and revision=l.revision and kind in ('create','update','cancel','import') and state in ('uncertain','blocked','dead') order by created_at desc limit 1 for update;
  if o.id is null then raise exception 'zoom_operation_in_progress';end if;
+ if o.payload ? 'seriesRoot' then raise exception 'zoom_series_recovery_root';end if;
  update zoom_core.operations set state='processing',lease_id=p_lease_id,lease_until=now()+interval '90 seconds',fence=fence+1 where id=o.id returning * into o;
  perform private_app.write_audit('zoom.recovery','zoom_operation',o.id::text,t,jsonb_build_object('reason',left(p_reason,500)));
  return jsonb_build_object('operationId',o.id,'fence',o.fence);

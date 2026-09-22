@@ -27,3 +27,15 @@ test('ZM-05/07/08 T35/37/40: old end cannot end restart, manual identity cannot 
  assert.equal(result.reasons.includes('assessment_missing'),true);
  }finally{await db.close();}
 });
+
+test('ZM-07/20 T25/29/39: withdrawal preserves authorized historical review without restoring future access',async()=>{
+ const {seedZoomLesson,grant}=await import('./fixtures/zoom-lesson.mjs');const {login,LEARNER_AUTH,ADMIN_AUTH}=await import('./fixtures/zoom-database.mjs');const db=await zoomSetup({complete:true});try{
+ const lesson=await seedZoomLesson(db);await db.query("update academy.enrollments set enrolled_at=now()-interval '2 days' where id=$1",[ENROLLMENT]);await db.query("update zoom_core.links set state='ended' where id=$1",[lesson.link]);
+ await db.query("insert into academy.course_run_rules(tenant_id,course_run_id) values($1,$2) on conflict do nothing",[T,RUN]);
+ await db.query("update academy.enrollments set status='withdrawn' where id=$1",[ENROLLMENT]);assert.equal((await db.query('select count(*)::int n from zoom_core.roster where enrollment_id=$1',[ENROLLMENT])).rows[0].n,1);
+ const reviewed=await call(db,'public.v1_zoom_review',{p_slug:'marktone',p_action:'override_attendance',p_command_id:id(73501),p_payload:{linkId:lesson.link,enrollmentId:ENROLLMENT,status:'excused',reason:'Reviewed historical withdrawal record'}});assert.equal(reviewed.status,'excused');
+ await login(db,LEARNER_AUTH);await assert.rejects(grant(db,lesson.session),/zoom_not_entitled|zoom_outside_join_window/);await login(db,ADMIN_AUTH);
+ await assert.rejects(db.query("insert into academy.attendance_records(tenant_id,course_run_id,session_id,enrollment_id,status) values($1,$2,$3,$4,'present')",[T,RUN,lesson.session,ENROLLMENT]),/enrollment_inactive/);
+ assert.equal((await db.query('select status from academy.enrollments where id=$1',[ENROLLMENT])).rows[0].status,'withdrawn');
+ }finally{await db.close();}
+});

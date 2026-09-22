@@ -4,7 +4,8 @@ import {academySetup} from './academy-platform-database.mjs';
 export * from './training-journey-database.mjs';
 export const zoomMigration='20260922201432_zoom_accounts_resources_v1.sql';
 export const migration=name=>readFile(new URL(`../../supabase/migrations/${name}`,import.meta.url),'utf8');
-export async function zoomSetup({database=null,scheduling=false,evidence=false,recordings=false,bridges=false,lifecycle=false,recovery=false,advanced=false,webinars=false}={}){
+export async function zoomSetup({database=null,scheduling=false,evidence=false,recordings=false,bridges=false,lifecycle=false,recovery=false,advanced=false,webinars=false,complete=false}={}){
+ if(complete)webinars=true;
  const db=await academySetup({governance:true,database});
  try{
   // Vault encryption is a platform seam. This fixture is deliberately plaintext
@@ -37,9 +38,18 @@ export async function zoomSetup({database=null,scheduling=false,evidence=false,r
    await db.exec(await migration('20260922210714_zoom_advanced_learning_v1.sql'));
   }
   if(webinars){
+   async function fn(file,name){const source=await migration(file);const start=source.search(new RegExp('create (?:or replace )?function '+name.replaceAll('.','\\.')));if(start<0)throw Error(name);return source.slice(start,source.indexOf('$$;',start)+3).replace(/^create function/,'create or replace function');}
+   const crm='20260727192319_add_operational_crm_and_work_v2.sql',identity='20260806190000_customer_identity_integrity_v1.sql';
+   await db.exec(await fn(crm,'private_app.can_view_tenant_team'));
+   for(const name of ['normalize_lead_phone','find_contact_by_identity','prepare_contact_identity_fields','sync_contact_identities'])await db.exec(await fn(identity,'private_app.'+name));
+   await db.exec((await fn(crm,'public.v2_tenant_create_contact')).replace('public.v2_tenant_create_contact(','public.v2_tenant_create_contact_unhardened_20260806('));
+   await db.exec(await fn('20260806190100_customer_identity_entrypoint_guards_v1.sql','public.v2_tenant_create_contact'));
+   await db.exec(await fn('20260910143003_sales_followup_multiple_interests_v1.sql','private_app.sales_followup_contact'));
+   await db.exec('create trigger zoom_fixture_contacts_prepare before insert or update of phone,whatsapp,email on sales_core.contacts for each row execute function private_app.prepare_contact_identity_fields();create trigger zoom_fixture_contacts_sync after insert or update of tenant_id,phone,whatsapp,email on sales_core.contacts for each row execute function private_app.sync_contact_identities();');
    await db.exec('create schema marketing_hub;create table marketing_hub.campaigns(id uuid primary key,tenant_id uuid not null references core.tenants(id),name text);');
    await db.exec(await migration('20260922211521_zoom_webinar_crm_v1.sql'));
   }
+  if(complete){await db.exec(await migration('20260922213755_zoom_operational_completion_v1.sql'));await db.exec(await migration('20260922215415_zoom_account_replacement_v1.sql'));}
   await db.query("insert into zoom_core.settings(tenant_id,enabled,environment) values($1,true,'test'),($2,true,'test')",[T,OTHER]);
   await login(db,ADMIN_AUTH);return db;
  }catch(error){await db.close();delete error.query;throw error;}

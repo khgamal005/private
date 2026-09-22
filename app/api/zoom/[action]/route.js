@@ -12,8 +12,9 @@ export async function POST(request,{params}){
   const body=await readTrainingBody(request,{maxBytes:32768});const tenantSlug=body.tenantSlug;
   if(typeof tenantSlug!=='string'||!/^[a-z0-9][a-z0-9-]{1,79}$/.test(tenantSlug))return trainingJson({error:'راجع بيانات الطلب.'},400);
   const payload=zoomPayload(body.payload||{});
-  if(action==='snapshot')return trainingJson(await trainingRpc('v1_zoom_snapshot',{p_slug:tenantSlug,p_view:payload.view||'sessions',p_options:payload}));
+  if(action==='snapshot'){const data=await trainingRpc('v1_zoom_snapshot',{p_slug:tenantSlug,p_view:payload.view||'sessions',p_options:payload});if(data.permissions?.sessions)data.replacements=await trainingRpc('v1_zoom_replacement_snapshot',{p_slug:tenantSlug});return trainingJson(data);}
   if(action==='webinar_snapshot')return trainingJson(await trainingRpc('v1_zoom_webinar_snapshot',{p_slug:tenantSlug,p_link_id:payload.linkId,p_offset:payload.offset||0}));
+  if(action==='ai_snapshot')return trainingJson(await trainingRpc('v1_zoom_ai_snapshot',{p_slug:tenantSlug,p_recording_id:payload.recordingId}));
   if(action==='preview')return trainingJson(await trainingRpc('v1_zoom_assignment_preview',{p_slug:tenantSlug,p_session_id:payload.sessionId,p_payload:payload}));
   if(action==='recording_access')return trainingJson(await trainingRpc('v1_zoom_recording_access',{p_slug:tenantSlug,p_recording_id:payload.recordingId,p_enrollment_id:payload.enrollmentId||null}));
   if(action==='export'){
@@ -29,6 +30,9 @@ export async function POST(request,{params}){
    return trainingJson(await generateZoomDraft({slug:tenantSlug,commandId:body.commandId,payload,rpc:trainingRpc,finalize:finalizeOdeiryRun,generate:runZoomLearningAgent,configured:!!process.env.OPENAI_API_KEY&&hasOdeiryServiceCredential()}));
   }
   if(action==='ai_apply'||action==='ai_policy')return trainingJson(await trainingRpc(action==='ai_apply'?'v1_zoom_ai_apply':'v1_zoom_ai_policy',{p_slug:tenantSlug,p_command_id:body.commandId,p_payload:payload}));
+  if(action==='replacement_retry')return trainingJson(await trainingRpc('v1_zoom_replacement_retry',{p_slug:tenantSlug,p_command_id:body.commandId,p_payload:payload}));
+  if(action==='replace')return trainingJson(await trainingRpc('v1_zoom_replace',{p_slug:tenantSlug,p_command_id:body.commandId,p_payload:payload}));
+  if(action==='poll')return trainingJson(await trainingRpc('v1_zoom_poll',{p_slug:tenantSlug,p_command_id:body.commandId,p_payload:payload}));
   if(action==='batch')return trainingJson(await trainingRpc('v1_zoom_batch',{p_slug:tenantSlug,p_command_id:body.commandId,p_sessions:payload.sessions}));
   if(action==='map_instance'||action==='retention_policy')return trainingJson(await trainingRpc(action==='map_instance'?'v1_zoom_map_instance':'v1_zoom_retention_policy',{p_slug:tenantSlug,p_command_id:body.commandId,p_payload:payload}));
   if(action==='issue_invitation'){

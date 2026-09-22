@@ -30,7 +30,7 @@ begin
  delete from zoom_core.access_grants where expires_at<now()-interval '1 hour';
  delete from zoom_core.oauth_attempts where expires_at<now()-interval '1 day';
  -- A missing webhook is a reason to query the provider, never proof of absence.
- for l in select x.* from zoom_core.links x join zoom_core.settings cfg on cfg.tenant_id=x.tenant_id and cfg.enabled join zoom_core.connections c on c.tenant_id=x.tenant_id and c.id=x.connection_id and c.status='connected'
+ for l in select x.* from zoom_core.links x join zoom_core.settings cfg on cfg.tenant_id=x.tenant_id and cfg.enabled join zoom_core.connections c on c.tenant_id=x.tenant_id and c.id=x.connection_id and c.status in ('connected','paused')
  where x.meeting_id is not null and x.state in ('ready','imported','live','ended') and (x.desired->>'endsAt')::timestamptz<now()-interval '5 minutes' and (x.desired->>'endsAt')::timestamptz>now()-interval '30 days'
  and private_app.tenant_addon_enabled(x.tenant_id,'addon.integration.zoom') and not exists(select 1 from zoom_core.operations o where o.tenant_id=x.tenant_id and o.link_id=x.id and o.kind='reconcile' and (o.state in ('pending','retry','processing') or o.created_at>now()-interval '6 hours'))
  and not exists(select 1 from zoom_core.instances i where i.tenant_id=x.tenant_id and i.link_id=x.id and i.evidence_state='complete') order by x.last_synced_at nulls first,x.id limit p_limit for update of x skip locked loop
@@ -53,7 +53,7 @@ begin
    select r.secret_id from zoom_core.registrations r join zoom_core.links l on l.tenant_id=r.tenant_id and l.id=r.link_id where l.tenant_id=req.tenant_id and l.connection_id=req.connection_id union all
    select r.secret_id from zoom_core.recordings r join zoom_core.instances i on i.tenant_id=r.tenant_id and i.id=r.instance_id where i.tenant_id=req.tenant_id and i.connection_id=req.connection_id
   );
-  update zoom_core.connections set vault_secret_id=null,scopes='[]',label='اتصال أُلغي تفويضه',last_error='zoom_deauthorized' where tenant_id=req.tenant_id and id=req.connection_id;
+  update zoom_core.connections set vault_secret_id=null,scopes='[]',account_id='purged:'||id,grant_user_id='purged',label='اتصال أُلغي تفويضه',last_error='zoom_deauthorized' where tenant_id=req.tenant_id and id=req.connection_id;
   update zoom_core.operations set state='blocked',payload='{}',result=null,last_error='zoom_deauthorized',lease_id=null,lease_until=null where tenant_id=req.tenant_id and connection_id=req.connection_id and state<>'cancelled';
   delete from zoom_core.access_grants where tenant_id=req.tenant_id and link_id in(select id from zoom_core.links where tenant_id=req.tenant_id and connection_id=req.connection_id);
   update zoom_core.registrations set registrant_id=null,verified_email=null,verified_zoom_user_id=null,secret_id=null,state='revoked',lease=null,lease_until=null where tenant_id=req.tenant_id and link_id in(select id from zoom_core.links where tenant_id=req.tenant_id and connection_id=req.connection_id);

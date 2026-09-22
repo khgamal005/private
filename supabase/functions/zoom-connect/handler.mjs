@@ -75,6 +75,7 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
      try{
       const ctx=await service('v1_zoom_reconcile_context',identity);const token=await connectionAccessToken(service,zoom,job.connection_id);const link=ctx.link;let result={};
       if(job.kind==='create')result=await zoom.create(ctx.host.userId,link.kind,meetingBody(link,ctx),token.accessToken);
+      else if(job.kind==='poll')result=await zoom.createPoll(link.meeting_id,link.kind,ctx.operation.payload,token.accessToken);
       else if(job.kind==='update'){
        await zoom.update(link.meeting_id,link.kind,{...meetingBody(link,ctx),schedule_for:ctx.host.userId},token.accessToken);
        result=await zoom.get(link.meeting_id,link.kind,token.accessToken);
@@ -104,7 +105,7 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
       }else throw new ZoomError('zoom_unsupported_operation');
       // Failure after a mutating provider call is uncertain. Do not retry create.
       try{await service('v1_zoom_operation_complete',{...identity,p_generation:token.generation,p_outcome:'complete',p_result:{...result,id:result.id==null?null:String(result.id)}});}
-      catch{throw new ZoomError('zoom_local_commit_unknown',{uncertain:['create','update','cancel','import'].includes(job.kind)});}
+      catch{throw new ZoomError('zoom_local_commit_unknown',{uncertain:['create','update','cancel','import','poll'].includes(job.kind)});}
       outcomes.push({id:job.id,state:'complete'});
      }catch(error){
       const uncertain=error.uncertain===true;const retryable=['zoom_rate_limited','zoom_provider_unavailable','zoom_network_error','zoom_refresh_busy','zoom_result_incomplete'].includes(error.code);
@@ -113,6 +114,19 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
       outcomes.push({id:job.id,state:outcome});
      }
     }
+    const syncLease=crypto.randomUUID();const sync=await service('v1_zoom_resources_claim',{p_lease_id:syncLease});
+    if(sync){try{const token=await connectionAccessToken(service,zoom,sync.connectionId);let page,coverage='complete';try{page=await zoom.usersPage(token.accessToken,sync.cursor);}catch(error){if(error.code!=='zoom_scope_or_license_required')throw error;page={users:[await zoom.identity(token.accessToken)]};coverage='user_only';}
+     if(!Array.isArray(page.users)||page.users.length>5)throw new ZoomError('zoom_invalid_provider_response');
+     const hosts=await Promise.all(page.users.map(async user=>{const person=await zoom.user(String(user.id),token.accessToken);let settings={};try{settings=await zoom.settings(String(user.id),token.accessToken);}catch(error){if(error.code!=='zoom_scope_or_license_required')throw error;coverage='partial';}return verifiedHost(person,settings,sync.accountId);}));
+     await service('v1_zoom_resources_page',{p_connection_id:sync.connectionId,p_lease_id:syncLease,p_fence:sync.fence,p_generation:token.generation,p_hosts:hosts,p_next:page.next_page_token||'',p_coverage:coverage});
+    }catch(error){outcomes.push({kind:'hosts',state:'retry',code:publicCode(error)});}}
+    const replacedLease=crypto.randomUUID();const replaced=await service('v1_zoom_replaced_claim',{p_lease_id:replacedLease});
+    if(replaced){try{const token=await connectionAccessToken(service,zoom,replaced.connectionId);const previous=await zoom.get(replaced.meetingId,replaced.kind,token.accessToken);
+     if(previous.status==='started')await service('v1_zoom_replaced_complete',{p_id:replaced.id,p_lease_id:replacedLease,p_fence:replaced.fence,p_generation:token.generation,p_cancelled:false});
+     else{await zoom.cancel(replaced.meetingId,replaced.kind,replaced.occurrenceId,token.accessToken);await service('v1_zoom_replaced_complete',{p_id:replaced.id,p_lease_id:replacedLease,p_fence:replaced.fence,p_generation:token.generation,p_cancelled:true});}
+    }catch(error){outcomes.push({kind:'replacement_cleanup',state:'pending',code:publicCode(error)});}}
+    const revocations=await service('v1_zoom_revocations',{p_limit:3});
+    for(const registration of revocations){try{const token=await connectionAccessToken(service,zoom,registration.connection_id);await zoom.revokeRegistrant(registration.meeting_id,registration.kind,registration.registrant_id,token.accessToken);await service('v1_zoom_revocation_complete',{p_registration_id:registration.id,p_generation:token.generation});}catch(error){outcomes.push({kind:'revoke_registrant',state:'pending',code:publicCode(error)});}}
     await service('v1_zoom_operational_tasks',{});return json({outcomes});
    }
    const authorization=request.headers.get('authorization')||'';
@@ -141,17 +155,17 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
    }
    if(action==='sync_hosts'){
     if(!UUID.test(body.connectionId))throw failure('zoom_invalid_request',400);
-    const ctx=await user('v1_zoom_connection_authorize',{p_slug:slug,p_connection_id:body.connectionId});
-    const zoom=client();const token=await connectionAccessToken(service,zoom,ctx.connectionId);
-    let discovered;try{discovered=await zoom.users(token.accessToken);}catch(error){if(error.code!=='zoom_scope_or_license_required')throw error;discovered={items:[await zoom.identity(token.accessToken)],complete:false};}
-    const hosts=[];
-    for(const userInfo of discovered.items.slice(0,500)){
-     const identity=await zoom.user(String(userInfo.id),token.accessToken);let settings={};
-     try{settings=await zoom.settings(String(userInfo.id),token.accessToken);}catch(error){if(error.code!=='zoom_scope_or_license_required')throw error;}
-     hosts.push(verifiedHost(identity,settings,ctx.accountId));
-    }
-    await user('v1_zoom_connection_authorize',{p_slug:slug,p_connection_id:body.connectionId});
-    return json(await service('v1_zoom_sync_hosts',{p_connection_id:ctx.connectionId,p_generation:token.generation,p_hosts:hosts,p_coverage:discovered.complete?'complete':'partial'}));
+    return json(await user('v1_zoom_resources_request',{p_slug:slug,p_connection_id:body.connectionId}));
+   }
+   if(action==='sync_busy'){
+    if(!UUID.test(body.hostId))throw failure('zoom_invalid_request',400);
+    const ctx=await user('v1_zoom_busy_authorize',{p_slug:slug,p_host_id:body.hostId});const zoom=client();const token=await connectionAccessToken(service,zoom,ctx.connectionId);let meetings={items:[],complete:false};
+    try{meetings=await zoom.meetings(ctx.userId,token.accessToken);}catch(error){if(error.code!=='zoom_scope_or_license_required')throw error;}
+    // No fixed-time recurrence may be expanded by guessing. Its coverage remains
+    // partial until the provider exposes individual occurrences.
+    const coverage=meetings.complete&&!meetings.items.some(m=>[3,8].includes(m.type));
+    await user('v1_zoom_busy_authorize',{p_slug:slug,p_host_id:body.hostId});
+    return json(await service('v1_zoom_busy_store',{p_connection_id:ctx.connectionId,p_generation:token.generation,p_host_id:body.hostId,p_meetings:meetings.items.filter(m=>m.type===2).map(m=>({...m,id:String(m.id)})),p_complete:coverage}));
    }
    if(action==='resolve'){
     if(!UUID.test(body.sessionId)||typeof body.reason!=='string')throw failure('zoom_invalid_request',400);

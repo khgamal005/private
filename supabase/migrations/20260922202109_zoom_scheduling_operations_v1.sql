@@ -196,12 +196,13 @@ begin
  perform zoom_core.service_only();
  select * into o from zoom_core.operations where id=p_operation_id and lease_id=p_lease_id and fence=p_fence and state='processing' and lease_until>now();
  if o.id is null then raise exception 'zoom_stale_lease';end if;
+ update zoom_core.operations set lease_until=now()+interval '90 seconds' where id=o.id;
  select * into l from zoom_core.links where tenant_id=o.tenant_id and id=o.link_id;
  select * into c from zoom_core.connections where tenant_id=o.tenant_id and id=o.connection_id;
  select * into h from zoom_core.hosts where tenant_id=o.tenant_id and id=l.host_id and connection_id=o.connection_id;
  select * into s from academy.course_run_sessions where tenant_id=o.tenant_id and id=l.session_id;
  if l.id is null or h.id is null or s.id is null or l.revision<>o.revision or c.status not in ('connected','paused') or (c.status='paused' and o.kind in ('create','import')) or not exists(select 1 from zoom_core.settings where tenant_id=o.tenant_id and enabled) or not private_app.tenant_addon_enabled(o.tenant_id,'addon.integration.zoom') then raise exception 'zoom_stale_operation';end if;
- if o.kind in ('create','update','cancel','import') then
+ if o.kind in ('create','update','cancel','import','poll') then
   select a.* into actor from zoom_core.commands cmd join access_control.subjects a on a.id=cmd.actor_subject_id where cmd.tenant_id=o.tenant_id and cmd.id=o.command_id;
   if actor.id is null then raise exception 'zoom_forbidden';end if;
   perform zoom_core.assert_actor(o.tenant_id,actor.auth_user_id,actor.id,'sessions.manage');
@@ -226,7 +227,7 @@ begin
   if l.secret_id is null then select vault.create_secret(jsonb_build_object('join_url',p_result->>'join_url')::text,'zoom-link:'||l.id,'ODEIR Zoom attendee route',null) into secret;
   else secret:=l.secret_id;perform vault.update_secret(secret,jsonb_build_object('join_url',p_result->>'join_url')::text,null,null);end if;
   update zoom_core.links set meeting_id=p_result->>'id',occurrence_id=coalesce(p_result->>'occurrence_id',''),secret_id=secret,state=case when management='read_only' then 'imported' else 'ready' end,last_synced_at=now(),observed=jsonb_build_object('startsAt',p_result->>'start_time','duration',p_result->'duration','hostId',p_result->>'host_id','registration',p_result->'settings'->'approval_type') where id=l.id;
-  update zoom_core.reservations set state=case when revision=l.revision then 'confirmed' else 'released' end where tenant_id=l.tenant_id and link_id=l.id and state<>'released';
+  update zoom_core.reservations set state=case when revision=l.revision then 'confirmed' else 'released' end where tenant_id=l.tenant_id and link_id=l.id and state<>'released' and (revision=l.revision or coalesce(l.desired->>'replacementPending','false')<>'true');
   select '/training/'||slug||'/sessions/'||l.session_id into stable_path from core.tenants where id=l.tenant_id;
   update academy.course_run_sessions set starts_at=(l.desired->>'startsAt')::timestamptz,ends_at=(l.desired->>'endsAt')::timestamptz,meeting_join_url=stable_path,updated_at=now() where tenant_id=l.tenant_id and id=l.session_id;
  elsif p_outcome='complete' and o.kind='cancel' then

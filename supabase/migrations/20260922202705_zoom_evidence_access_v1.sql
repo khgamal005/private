@@ -244,7 +244,7 @@ begin
   summary:=zoom_core.attendance(t,l.id,e.id);
   if p_action='approve_attendance' and summary->>'quality'<>'complete' then raise exception 'zoom_evidence_incomplete';end if;
   select case when (summary->>'percent')::numeric>=r.min_attendance_percent then case when coalesce((summary->>'minutesLate')::int,0)>0 then 'late' else 'present' end else 'absent' end into state_key from academy.course_run_rules r where r.tenant_id=t and r.course_run_id=s.course_run_id;
-  if p_action='override_attendance' then state_key:=p_payload->>'status';end if;
+  if p_action='override_attendance' then if not zoom_core.allowed(t,'attendance.override') then raise exception 'zoom_forbidden';end if;state_key:=p_payload->>'status';end if;
   if state_key is null or state_key not in ('present','late','absent','excused') then raise exception 'zoom_policy_required';end if;
   -- Existing canonical table/triggers remain the final attendance authority.
   if p_action='approve_attendance' and exists(select 1 from academy.attendance_records where tenant_id=t and enrollment_id=e.id and session_id=s.id and metadata->'zoom'->>'override'='true') then raise exception 'zoom_manual_override_preserved';end if;
@@ -265,7 +265,7 @@ begin
  for l in select x.* from zoom_core.links x join academy.course_run_sessions s on s.tenant_id=x.tenant_id and s.id=x.session_id join zoom_core.roster r on r.tenant_id=x.tenant_id and r.link_id=x.id and r.enrollment_id=new.enrollment_id where x.tenant_id=new.tenant_id and s.status<>'cancelled' loop
   summary:=zoom_core.attendance(new.tenant_id,l.id,new.enrollment_id);
   select * into a from academy.attendance_records where tenant_id=new.tenant_id and session_id=l.session_id and enrollment_id=new.enrollment_id;
-  if summary->>'quality'<>'complete' or a.metadata->'zoom'->>'policyRevision' is distinct from summary->>'policyRevision' then raise exception 'zoom_certificate_evidence_incomplete';end if;
+  if (summary->>'quality'<>'complete' and coalesce(a.metadata->'zoom'->>'override','false')<>'true') or a.metadata->'zoom'->>'policyRevision' is distinct from summary->>'policyRevision' then raise exception 'zoom_certificate_evidence_incomplete';end if;
   if (summary->>'requiredSeconds')::numeric<(select coalesce(sum(extract(epoch from upper(x)-lower(x))),0) from academy.course_run_sessions s join zoom_core.teaching_windows w on w.tenant_id=s.tenant_id and w.link_id=l.id cross join lateral unnest(tstzmultirange(tstzrange(s.starts_at,s.ends_at,'[)'))-w.breaks)x where s.tenant_id=new.tenant_id and s.id=l.session_id) and not exists(select 1 from zoom_core.teaching_windows where tenant_id=new.tenant_id and link_id=l.id and policy->>'shortfallApproved'='true') then raise exception 'zoom_teaching_hours_shortfall';end if;
  end loop;return new;
 end $$;

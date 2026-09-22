@@ -51,6 +51,7 @@ export function createZoomClient({clientId,clientSecret,redirectUri},{fetchImpl=
     exchangeCode:code=>request('',{method:'POST',form:true,body:{grant_type:'authorization_code',code,redirect_uri:redirectUri}}),
     refresh:refreshToken=>request('',{method:'POST',form:true,body:{grant_type:'refresh_token',refresh_token:refreshToken}}),
     identity:token=>request('/users/me',{token}),
+    usersPage:(token,cursor='')=>request(`/users?status=active&page_size=5${cursor?`&next_page_token=${encodeURIComponent(cursor)}`:''}`,{token}),
     users:token=>pages('/users?status=active','users',token),
     user:(id,token)=>request(`/users/${zoomId(id)}`,{token}),
     settings:(id,token)=>request(`/users/${zoomId(id)}/settings`,{token}),
@@ -94,5 +95,5 @@ export function verifiedHost(user,settings,accountId){
   return {id:String(user.id),account_id:accountId,display_name:user.display_name||`${user.first_name||''} ${user.last_name||''}`.trim(),status:user.status,type:user.type,
     capacity:Number.isInteger(capacity)&&capacity>0?capacity:null,
     capabilities:{meeting:Number.isInteger(capacity)&&capacity>0,cloud_recording:settings?.recording?.cloud_recording===true,
-      webinar:feature.webinar===true,webinar_capacity:Number(feature.webinar_capacity)||null,registration:true,externalBusyCoverage:'unknown'}};
+      webinar:feature.webinar===true,webinar_capacity:Number(feature.webinar_capacity)||null,registration:true,polls:settings?.in_meeting?.meeting_polling?.enable===true,webinar_polls:settings?.in_meeting?.webinar_polling?.enable===true,breakout:settings?.in_meeting?.breakout_room===true&&settings?.in_meeting?.breakout_room_schedule===true,externalBusyCoverage:'unknown'}};
 }

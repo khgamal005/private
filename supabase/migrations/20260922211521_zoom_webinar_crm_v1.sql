@@ -39,9 +39,9 @@ begin
    end if;
   end if;
   c:=private_app.sales_followup_contact(p_slug,cid,true);
-  if c.tenant_id<>t or c.email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then raise exception 'zoom_verified_email_required';end if;
+  if c.tenant_id<>t or coalesce(c.email,'') !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then raise exception 'zoom_verified_email_required';end if;
   insert into zoom_core.webinar_registrations(tenant_id,link_id,contact_id,registration_consent,marketing_consent,consent_version,actor_subject_id,auth_user_id)
-  values(t,l.id,c.id,true,p_payload->>'marketingConsent'='true',w.consent_version,private_app.current_subject_id(),auth.uid()) on conflict(tenant_id,link_id,contact_id) do update set registration_consent=true returning id into rid;
+  values(t,l.id,c.id,true,coalesce(p_payload->>'marketingConsent'='true',false),w.consent_version,private_app.current_subject_id(),auth.uid()) on conflict(tenant_id,link_id,contact_id) do update set registration_consent=true returning id into rid;
   result:=jsonb_build_object('registrationId',rid);
  else raise exception 'zoom_invalid_action';end if;
  update zoom_core.commands set result=operation.result where tenant_id=t and id=p_command_id;
@@ -92,7 +92,7 @@ create function public.v1_zoom_webinar_snapshot(p_slug text,p_link_id uuid,p_off
 declare t uuid:=zoom_core.tenant(p_slug);
 begin
  if not zoom_core.allowed(t,'webinars.manage') or not private_app.has_tenant_permission(t,'tenant.crm.read') or p_offset not between 0 and 100000 then raise exception 'zoom_forbidden';end if;
- return jsonb_build_object('campaign',(select to_jsonb(w)-'updated_by' from zoom_core.webinars w where tenant_id=t and link_id=p_link_id),'registrations',coalesce((select jsonb_agg(to_jsonb(x)) from(select r.id,c.id contact_id,c.full_name,r.state,r.marketing_consent,r.attended_seconds,r.quality from zoom_core.webinar_registrations r join sales_core.contacts c on c.tenant_id=r.tenant_id and c.id=r.contact_id where r.tenant_id=t and r.link_id=p_link_id and (private_app.can_view_tenant_team(t) or c.owner_staff_id=private_app.current_staff_id(t)) order by r.created_at,r.id limit 50 offset p_offset)x),'[]'),'revenue',null,'revenueReason','use_canonical_campaign_accounting_report');
+ return jsonb_build_object('campaigns',coalesce((select jsonb_agg(jsonb_build_object('id',id,'name',name)) from (select id,name from marketing_hub.campaigns where tenant_id=t order by name limit 100)x),'[]'),'campaign',(select to_jsonb(w)-'updated_by' from zoom_core.webinars w where tenant_id=t and link_id=p_link_id),'registrations',coalesce((select jsonb_agg(to_jsonb(x)) from(select r.id,c.id contact_id,c.full_name,r.state,r.marketing_consent,r.attended_seconds,r.quality from zoom_core.webinar_registrations r join sales_core.contacts c on c.tenant_id=r.tenant_id and c.id=r.contact_id where r.tenant_id=t and r.link_id=p_link_id and (private_app.can_view_tenant_team(t) or c.owner_staff_id=private_app.current_staff_id(t)) order by r.created_at,r.id limit 50 offset p_offset)x),'[]'),'revenue',null,'revenueReason','use_canonical_campaign_accounting_report');
 end $$;
 do $$declare r record;begin
  for r in select tablename from pg_tables where schemaname='zoom_core' loop execute format('alter table zoom_core.%I enable row level security',r.tablename);execute format('revoke all on zoom_core.%I from public,anon,authenticated,service_role',r.tablename);end loop;

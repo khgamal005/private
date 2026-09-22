@@ -36,7 +36,7 @@ end $$;
 create function zoom_core.notify_link() returns trigger language plpgsql security definer set search_path='' as $$
 begin
  if new.state in ('ready','imported','cancelled') and new.state is distinct from old.state then
-  perform zoom_core.enqueue_messages(new.id,case when new.state='cancelled' then 'cancelled' when old.state='updating' then 'changed' else 'ready' end);
+  perform zoom_core.enqueue_messages(new.id,case when new.state='cancelled' then 'cancelled' when old.state='updating' or new.desired->>'replacementPending'='true' then 'changed' else 'ready' end);
  end if;return new;
 end $$;
 create trigger zoom_link_messages after update of state on zoom_core.links for each row execute function zoom_core.notify_link();
@@ -64,9 +64,10 @@ begin
  elsif j.job_type='zoom_recording' then
   if not exists(select 1 from zoom_core.recordings where tenant_id=j.tenant_id and id=(j.metadata->>'recordingId')::uuid and state='published' and expires_at>now()) then return jsonb_build_object('managed',true,'allowed',false,'reason','zoom_recording_unavailable');end if;
  elsif s.status='cancelled' or l.state not in ('ready','live','imported') then return jsonb_build_object('managed',true,'allowed',false,'reason','zoom_message_not_ready');end if;
+ if (j.channel='email' and lower(trim(j.recipient)) is distinct from lower(trim(st.email))) or (j.channel='whatsapp' and j.recipient is distinct from private_app.normalize_training_phone(st.phone,(select whatsapp_country_code from academy.training_automation_settings where tenant_id=j.tenant_id))) then return jsonb_build_object('managed',true,'allowed',false,'reason','zoom_recipient_changed');end if;
  url_value:='https://odeir.com/training/'||ten.slug||'/sessions/'||s.id;
  when_value:=to_char(s.starts_at at time zone ten.timezone,'YYYY-MM-DD HH24:MI')||' ('||ten.timezone||')';
- heading:=case j.job_type when 'zoom_cancelled' then 'أُلغيت المحاضرة' when 'zoom_changed' then 'تغير موعد المحاضرة' when 'zoom_recording' then 'أصبح تسجيل المحاضرة متاحًا' when 'zoom_joining' then 'محاضرتك جاهزة' else 'تذكير بموعد المحاضرة' end;
+ heading:=case j.job_type when 'zoom_cancelled' then 'أُلغيت المحاضرة' when 'zoom_changed' then 'حُدّثت بيانات المحاضرة' when 'zoom_recording' then 'أصبح تسجيل المحاضرة متاحًا' when 'zoom_joining' then 'محاضرتك جاهزة' else 'تذكير بموعد المحاضرة' end;
  message_value:=heading||': '||s.title||E'\n'||when_value||E'\n'||url_value;
  return jsonb_build_object('managed',true,'allowed',true,'url',url_value,'revision',l.revision,'job',jsonb_build_object('type',j.job_type,'subject',heading,'messageText',message_value,'metadata',jsonb_build_object('studentName',st.full_name,'courseName',(select title_ar from academy.courses where tenant_id=j.tenant_id and id=r.course_id),'runName',r.title,'sessionTitle',s.title,'startDate',when_value,'venueOrLink',url_value)));
 end $$;
@@ -80,13 +81,20 @@ begin
  return jsonb_build_object('slug',p_slug,'role',p_role,'lmsEnabled',private_app.academy_platform_enabled_v1(t,'lms'));
 end $$;
 -- Each batch uses the identical transactional candidate/reservation path. A single
--- conflict rolls back the batch; the caller can preview and choose a smaller set.
+-- conflict is isolated to that session; the batch receipt preserves each outcome.
 create function public.v1_zoom_batch(p_slug text,p_command_id uuid,p_sessions jsonb) returns jsonb language plpgsql security definer set search_path='' as $$
 declare t uuid:=zoom_core.tenant(p_slug);item jsonb;result jsonb;rows jsonb:='[]';
 begin
  if not zoom_core.allowed(t,'sessions.manage') or jsonb_typeof(p_sessions)<>'array' or jsonb_array_length(p_sessions) not between 1 and 100 then raise exception 'zoom_invalid_request';end if;
  result:=zoom_core.command(t,p_command_id,'batch',p_sessions);if result is not null then return result;end if;
- for item in select value from jsonb_array_elements(p_sessions) loop rows:=rows||jsonb_build_array(public.v1_zoom_action(p_slug,'assign',gen_random_uuid(),item));end loop;
+ for item in select value from jsonb_array_elements(p_sessions) loop
+  begin
+   result:=public.v1_zoom_action(p_slug,'assign',gen_random_uuid(),item);
+   rows:=rows||jsonb_build_array(jsonb_build_object('sessionId',item->>'sessionId','ok',true,'result',result));
+  exception when others then
+   rows:=rows||jsonb_build_array(jsonb_build_object('sessionId',item->>'sessionId','ok',false,'code',case when sqlerrm ~ '^zoom_[a-z_]+$' then sqlerrm else 'zoom_invalid_request' end));
+  end;
+ end loop;
  update zoom_core.commands set result=jsonb_build_object('sessions',rows) where tenant_id=t and id=p_command_id;return jsonb_build_object('sessions',rows);
 end $$;
 -- Explicit human mapping for provider occurrences whose API omits occurrence IDs.

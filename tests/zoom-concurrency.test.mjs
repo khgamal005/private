@@ -57,13 +57,13 @@ async function race(controller, workers, lock, operations) {
 }
 
 
-test('ZM-03/13 T08/14: independent PostgreSQL connections compete for the final slot and rotating token',{skip:!databaseUrl&&'Requires explicit disposable loopback ZOOM_TEST_DATABASE_URL',timeout:90000},async t=>{
+test('ZM-03/13 T08/14: independent PostgreSQL connections compete for the final slot and rotating token',{skip:!databaseUrl&&'Requires explicit disposable loopback ZOOM_TEST_DATABASE_URL',timeout:240000},async t=>{
  const {Client}=await import('pg');const clients=[];t.after(()=>Promise.allSettled(clients.map(c=>c.end())));
  for(const label of ['controller','a','b']){const c=new Client({connectionString:localTestUrl(databaseUrl),application_name:`zoom-race-${label}`,statement_timeout:15000,lock_timeout:10000});clients.push(c);await c.connect();}
  const [controller,...workers]=clients;
  assert.equal((await controller.query("select count(*)::int n from pg_namespace where nspname in ('zoom_core','academy','core')")).rows[0].n,0,'Refuse non-empty database');
  const db={query:(s,p)=>controller.query(s,p),exec:s=>controller.query(s),close:async()=>{}};
- await zoomSetup({database:db,scheduling:true});const connection=(await connect(db)).connectionId;await syncHost(db,connection);
+ await zoomSetup({database:db,complete:true});const connection=(await connect(db)).connectionId;await syncHost(db,connection);
  const host=(await db.query('select id from zoom_core.hosts')).rows[0].id;
  await db.query('update zoom_core.hosts set allowed=true,instructor_subject_id=$1 where id=$2',[INSTRUCTOR,host]);
  await db.query("insert into zoom_core.host_instructors(tenant_id,host_id,subject_id,provider_user_id,authorization_kind,verified_at) values($1,$2,$3,'host-A','host',now()),($1,$2,$4,'teacher-B','alternative_host',now())",[T,host,INSTRUCTOR,ADMIN]);
@@ -76,5 +76,6 @@ test('ZM-03/13 T08/14: independent PostgreSQL connections compete for the final 
  await db.query("update zoom_core.connections set expires_at=now()-interval '1 minute' where id=$1",[connection]);for(const c of workers)await service(c);
  const tokens=await race(controller,workers,c=>c.query('select id from zoom_core.connections where id=$1 for update',[connection]),workers.map((_,n)=>c=>call(c,'public.v1_zoom_token_lease',{p_connection_id:connection,p_lease_id:id(4520+n),p_action:'claim'})));
  assert.equal(tokens.filter(r=>r.ok&&r.value.status==='refresh').length,1);assert.equal(tokens.filter(r=>r.ok&&r.value.status==='busy').length,1);
+ const {zoomLoadBenchmark}=await import('./fixtures/zoom-load-benchmark.mjs');await zoomLoadBenchmark(controller,workers,message=>t.diagnostic(message));
  t.diagnostic('Two backend PIDs observed blocked at the controlled lock barrier before release; one reservation and one refresh claim committed.');
 });

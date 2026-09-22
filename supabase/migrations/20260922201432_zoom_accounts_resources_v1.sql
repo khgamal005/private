@@ -65,7 +65,7 @@ create table zoom_core.commands (
 insert into access_control.permissions(permission_key,module_key,name_ar)
 select 'tenant.zoom.'||k,'academy',label from(values
  ('connections.manage','إدارة حسابات زووم'),('hosts.manage','إدارة مضيفي زووم'),
- ('sessions.manage','إدارة محاضرات زووم'),('attendance.review','مراجعة أدلة حضور زووم'),
+ ('sessions.manage','إدارة محاضرات زووم'),('attendance.review','مراجعة أدلة حضور زووم'),('attendance.override','اعتماد استثناء حضور زووم'),
  ('recordings.publish','نشر تسجيلات زووم'),('reports.export','تصدير تقارير زووم'),
  ('retention.manage','إدارة احتفاظ بيانات زووم'),('ai.generate','إنشاء مسودات زووم بالذكاء الاصطناعي')
 )v(k,label) on conflict(permission_key) do nothing;
@@ -78,7 +78,7 @@ create function zoom_core.allowed(t uuid,operation text) returns boolean languag
  select auth.uid() is not null and private_app.current_subject_id() is not null and (
  private_app.has_tenant_permission(t,'tenant.zoom.'||operation)
  or (operation in ('connections.manage','hosts.manage','retention.manage') and private_app.has_tenant_permission(t,'tenant.settings.manage'))
- or (operation in ('sessions.manage','attendance.review','recordings.publish') and private_app.has_tenant_permission(t,'tenant.academy.write')))
+ or (operation in ('sessions.manage','attendance.review','attendance.override','recordings.publish') and private_app.has_tenant_permission(t,'tenant.academy.write')))
 $$;
 -- Same active staff/academy instructor authority as the canonical training helper,
 -- evaluated for the assigned subject, never a client-supplied display role.

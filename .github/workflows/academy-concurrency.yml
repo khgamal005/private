@@ -1,0 +1,52 @@
+name: Academy transaction concurrency
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/academy-concurrency.yml'
+      - 'supabase/migrations/**'
+      - 'tests/academy-*.test.mjs'
+      - 'tests/fixtures/academy-*'
+      - 'tests/fixtures/training-journey-*'
+      - 'tests/fixtures/operational-governance-*'
+      - 'tests/fixtures/financial-governance-*'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: academy_ci
+          POSTGRES_PASSWORD: academy_ci_disposable
+          POSTGRES_DB: academy_concurrency
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U academy_ci -d academy_concurrency"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # Synthetic credentials for this fresh loopback service, never production.
+      ACADEMY_TEST_DATABASE_URL: postgres://academy_ci:academy_ci_disposable@127.0.0.1:5432/academy_concurrency
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Install isolated PostgreSQL test driver
+        run: npm install --no-save --package-lock=false --ignore-scripts pg@8.16.3
+      - name: Verify dependency manifests remain unchanged
+        run: git diff --exit-code -- package.json package-lock.json
+      - name: Exercise actual concurrent academy transactions
+        run: node --test tests/academy-concurrency.test.mjs

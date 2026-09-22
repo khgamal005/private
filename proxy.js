@@ -23,6 +23,14 @@ function expiresAt(token){
 }
 
 function isProtected(pathname){
+  const academyPage=(pathname==='/academy'||pathname.startsWith('/academy/'))
+    &&!['/academy/login','/academy/accept','/academy/confirmed'].includes(pathname);
+  const trainingPage=pathname.startsWith('/training/')
+    &&!['/training/login','/training/accept'].includes(pathname);
+  const academyCommerce=pathname.startsWith('/api/academy-commerce/')
+    &&!['create_order','view_order','report_transfer'].includes(pathname.split('/')[3]);
+  const cmsApi=pathname.startsWith('/api/cms/')
+    &&!['/api/cms/public-contact','/api/cms/templates/runtime','/api/cms/templates/native'].includes(pathname);
   return pathname.startsWith('/control')
     ||pathname.startsWith('/tenant')
     ||pathname.startsWith('/change-password')
@@ -33,8 +41,12 @@ function isProtected(pathname){
     ||pathname.startsWith('/api/commerce')
     ||pathname.startsWith('/api/marketing')
     ||pathname.startsWith('/api/accounting')
-    ||pathname==='/training/marktone'
-    ||pathname.startsWith('/training/marktone/')
+    ||academyPage
+    ||trainingPage
+    ||academyCommerce
+    ||pathname.startsWith('/api/academy-schedule/')
+    ||cmsApi
+    ||pathname.startsWith('/cms-preview/')
     ||pathname.startsWith('/api/training/')
     ||pathname==='/api/training-auth/accept';
 }
@@ -100,9 +112,27 @@ export async function proxy(req){
     );
   }
   const loginUrl=req.nextUrl.clone();
-  loginUrl.pathname=pathname.startsWith('/training/')?'/training/login':'/login';
+  loginUrl.pathname=pathname.startsWith('/academy/')?'/academy/login':pathname.startsWith('/training/')?'/training/login':'/login';
   loginUrl.search='';
   loginUrl.searchParams.set('next',`${pathname}${req.nextUrl.search}`);
+  if(pathname.startsWith('/academy/')){
+    const slug=pathname.split('/')[2];
+    if(/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug||''))loginUrl.searchParams.set('tenant',slug);
+  }
+  if(pathname.startsWith('/training/')){
+    const slug=pathname.split('/')[2];
+    if(/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug||''))loginUrl.searchParams.set('tenant',slug);
+    const source=new URLSearchParams(req.nextUrl.search);
+    if(source.get('workspace')==='academy')loginUrl.searchParams.set('workspace','academy');
+    if(source.get('role')==='instructor')loginUrl.searchParams.set('role','instructor');
+  }
+  if(pathname.startsWith('/cms-preview/')&&req.nextUrl.searchParams.get('workspace')==='academy'){
+    let siteKey='';try{siteKey=decodeURIComponent(pathname.split('/')[2]);}catch{}
+    const slug=siteKey.startsWith('tenant:')?siteKey.slice(7):'';
+    if(/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug)){
+      loginUrl.pathname='/academy/login';loginUrl.searchParams.set('tenant',slug);
+    }
+  }
   return NextResponse.redirect(loginUrl);
 }
 
@@ -119,6 +149,12 @@ export const config={
     '/api/marketing/:path*',
     '/api/accounting/:path*',
     '/training/marktone/:path*',
+    '/training/:path*',
+    '/academy/:path*',
+    '/api/academy-commerce/:path*',
+    '/api/academy-schedule/:path*',
+    '/api/cms/:path*',
+    '/cms-preview/:path*',
     '/api/training/:path*',
     '/api/training-auth/accept'
   ]

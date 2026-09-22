@@ -108,7 +108,7 @@ test('all session-changing forms use a fresh document without an RSC refresh',as
     ['components/invitation-activation-form.js',/replaceDocument\(data\.next,\{/],
     ['components/platform-invitation-activation-form.js',/replaceDocument\(data\.next,\{fallback:'\/control'\}\)/],
     ['components/change-password-form.js',/replaceDocument\(data\.next,\{fallback:'\/control'\}\)/],
-    ['components/reset-password-form.js',/replaceDocument\('\/login\?reset=success',\{fallback:'\/login'\}\)/]
+    ['components/reset-password-form.js',/replaceDocument\(`\$\{loginPath\}[\s\S]*reset=success`,\{fallback:loginPath\}\)/]
   ];
   for(const [path,pattern] of expectations){
     const content=await source(path);

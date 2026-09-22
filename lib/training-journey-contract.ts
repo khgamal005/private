@@ -62,10 +62,12 @@ export interface TrainingViewer {
 }
 export interface TrainingJourneySnapshot {
   role: TrainingRole;
+  workspace?: 'academy'; mode?: 'standalone' | 'connected'; permissions?: Record<string,boolean>;
   tenant: { id: string; slug: string; name: string; timezone?: string; currency?: string };
   viewer: TrainingViewer;
   learning: TrainingLearningSnapshot | null;
   operations?: TrainingOperationsSnapshot | null;
+  requestQueue?: {requests:TrainingRequest[];runs:Array<{id:string;courseId:string;title:string}>;canManage:boolean;offset?:number;pageSize?:number;hasMore?:boolean} | null;
 }
 export const TRAINING_ROLE_LABELS: Record<TrainingRole, string> = {
   manager: 'إدارة التدريب', instructor: 'المحاضر', learner: 'المتدرب',
@@ -84,7 +86,7 @@ export function safeTrainingExternalUrl(value: unknown): string | null {
 export type TrainingFinance = TrainingFinancialAccess;
 export interface TrainingHandoff { id: string; contactId: string; contactName: string; courseId: string; courseTitle: string; courseRunId?: string; status: string; paymentStatus: string; enrollmentId?: string; financial?: TrainingFinance }
 export interface TrainingOperationEnrollment { id: string; handoffId?: string; studentId: string; studentName: string; studentEmail?: string; courseId: string; courseTitle: string; courseRunId?: string; runTitle?: string; status: string; financial?: TrainingFinance }
-export interface TrainingRequest { id: string; enrollmentId: string; kind: 'transfer' | 'defer' | 'withdraw' | 'access_exception' | 'resume'; status: string; reason: string; assignedStaffId?: string; dueAt?: string; targetRunId?: string }
+export interface TrainingRequest { id: string; enrollmentId: string; kind: 'transfer' | 'defer' | 'withdraw' | 'access_exception' | 'resume'; status: string; reason: string; assignedStaffId?: string; dueAt?: string; targetRunId?: string; studentName?: string; courseTitle?: string }
 export interface TrainingOperationsSnapshot {
   offset?: number; pageSize?: number; hasMore?: boolean;
   enabled: boolean; settings: { graceDays: number; timezone: string };

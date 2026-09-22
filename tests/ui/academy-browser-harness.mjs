@@ -1,0 +1,18 @@
+// Run: node tests/ui/academy-browser-harness.mjs /workspace/scratch/academy-ui-preview
+// Output is isolated, synthetic and never copied into the application routes.
+import {createRequire} from 'node:module';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {dirname,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const require=createRequire(import.meta.url),root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
+const target=resolve(process.argv[2]||'/workspace/scratch/academy-ui-preview');
+if(target===root||target.startsWith(`${root}/`)||!target.startsWith('/workspace/'))throw Error('Use an isolated preview directory under /workspace, outside the application repository.');
+await mkdir(target,{recursive:true});
+const {webpack}=require('next/dist/compiled/webpack/webpack');
+const config={mode:'development',devtool:false,entry:resolve(root,'tests/ui/academy-browser-entry.jsx'),output:{path:target,filename:'bundle.js'},optimization:{minimize:false},resolve:{extensions:['.js','.jsx','.ts','.tsx','.mjs'],alias:{'next/link$':resolve(root,'tests/ui/academy-next-stub.jsx'),'next/navigation$':resolve(root,'tests/ui/academy-next-stub.jsx'),'next/image$':resolve(root,'tests/ui/academy-image-stub.jsx')}},module:{rules:[{test:/\.[jt]sx?$/,exclude:/node_modules/,use:resolve(root,'tests/ui/academy-js-loader.cjs')},{test:/\.css$/,use:resolve(root,'tests/ui/academy-css-loader.cjs')}]},plugins:[new webpack.NormalModuleReplacementPlugin(/academy-server$/,resource=>{resource.request=resolve(root,'tests/ui/academy-next-stub.jsx');})]};
+await new Promise((done,reject)=>webpack(config,(error,stats)=>{if(error||stats.hasErrors())reject(error||Error(stats.toString({all:false,errors:true})));else done();}));
+await writeFile(resolve(target,'package.json'),JSON.stringify({name:'academy-synthetic-ui-verification',private:true,scripts:{dev:'node server.mjs'}},null,2));
+await writeFile(resolve(target,'server.mjs'),`import http from 'node:http';import fs from 'node:fs/promises';
+const server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://terminal.local:4173');res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');if(url.pathname==='/bundle.js'){res.setHeader('Content-Type','text/javascript');res.end(await fs.readFile(new URL('./bundle.js',import.meta.url)));return;}res.setHeader('Content-Type','text/html; charset=utf-8');const mobile=url.searchParams.get('device')==='mobile';let body;if(mobile){const safe=url.searchParams.get('screen')||'/academy/marktone';if(!/^\\/(?:academy|site|control)\\//.test(safe)){res.statusCode=400;res.end('invalid fixture');return;}body='<body style="margin:0;background:#e5ebee;padding:25px;font:14px Arial"><p>390px visual fixture · synthetic data only</p><iframe title="390px mobile fixture" src="'+safe.replaceAll('&','&amp;').replaceAll('"','&quot;')+'" style="width:390px;height:844px;border:1px solid #bacacd;background:#fff"></iframe></body>';}else{body='<body style="margin:0;--font-arabic:Tahoma,Arial,sans-serif;--font-latin:Arial,sans-serif;font-family:var(--font-arabic)"><div id="root"></div><script src="/bundle.js"></script></body>';}res.end('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Academy synthetic UI verification</title></head>'+body+'</html>');});server.listen(4173,'0.0.0.0',()=>console.log('Synthetic academy UI ready on port 4173'));
+`);
+console.log(`Synthetic browser fixture prepared: ${target}`);

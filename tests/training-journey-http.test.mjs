@@ -6,6 +6,7 @@ import {createHash} from 'node:crypto';
 import vm from 'node:vm';
 import ts from 'typescript';
 import * as policy from '../lib/training-request.mjs';
+import * as academyPolicy from '../lib/academy-policy.mjs';
 
 const require=createRequire(import.meta.url);
 const commandId='652bc8b2-ef69-4f21-a4e9-2ce2b49c1269';
@@ -16,6 +17,7 @@ function harness(path,stubs){
   const exports={};const source=readFileSync(new URL('../'+path,import.meta.url),'utf8');
   const output=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
   vm.runInThisContext(`(function(require,module,exports){${output}\n})`,{filename:path})(name=>{
+    if(name.endsWith('/academy-policy.mjs'))return academyPolicy;
     const key=Object.keys(stubs).find(k=>name.endsWith(k));
     return key?stubs[key]:require(name);
   },{exports},exports);

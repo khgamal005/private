@@ -122,6 +122,7 @@ function routeHarness(path,input,{addonError,journeyEnabled=false}={}){
     if(name.endsWith('/training-navigation.mjs'))return {isTrainingJourneyView,TRAINING_JOURNEY_VIEWS,trainingJourneyHref};
     if(name.endsWith('/training-journey-workspace'))return {__esModule:true,default:Journey};
     if(name.endsWith('/training-snapshot'))return {getTrainingSnapshot:async()=>({operations:{enabled:journeyEnabled}})};
+    if(name.endsWith('/academy-legacy'))return {redirectLegacyAcademy:async()=>{}};
     if(name.endsWith('/lms-workspace'))return {__esModule:true,default:Legacy};
     if(name.endsWith('/interactive-training-access.mjs'))return {INTERACTIVE_TRAINING_PILOT,interactiveTrainingAccess,isInteractiveTrainingView};
     if(name.endsWith('/server-auth'))return {requireTenantAddon:async(...args)=>{calls.push(['requireTenantAddon',...args]);if(addonError)throw addonError;return context;}};

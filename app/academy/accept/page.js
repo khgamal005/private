@@ -1,0 +1,11 @@
+import AcademyInvitationForm from '../../../components/academy-invitation-form';
+import {validAcademySlug} from '../../../lib/academy-policy.mjs';
+
+export const metadata={title:'قبول دعوة المنصة التدريبية | ماركتون',robots:{index:false,follow:false},referrer:'no-referrer'};
+export const dynamic='force-dynamic';
+
+export default async function AcceptAcademyInvitationPage({searchParams}){
+  const query=await searchParams;
+  const tenantSlug=validAcademySlug(query?.tenant)?query.tenant:'';
+  return <main dir="rtl" style={{maxWidth:480,margin:'8vh auto',padding:24}}><AcademyInvitationForm tenantSlug={tenantSlug}/></main>;
+}

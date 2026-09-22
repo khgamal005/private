@@ -5,11 +5,13 @@ import {getTrainingSnapshot} from '../../../../lib/training-snapshot';
 import {getTenantLms} from '../../../../lib/api';
 import {requireTenantAddon} from '../../../../lib/server-auth';
 import {interactiveTrainingAccess} from '../../../../lib/interactive-training-access.mjs';
+import {redirectLegacyAcademy} from '../../../../lib/academy-legacy';
 
 export const dynamic='force-dynamic';
 
 export default async function LmsPage({params}){
   const {slug}=await params;
+  await redirectLegacyAcademy(slug);
   const context=await requireTenantAddon(slug,'lms',{
     permission:'tenant.academy.read'
   });

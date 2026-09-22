@@ -5,12 +5,14 @@ import {getTrainingSnapshot} from '../../../../../lib/training-snapshot';
 import {requireTenantAddon} from '../../../../../lib/server-auth';
 import {INTERACTIVE_TRAINING_PILOT,interactiveTrainingAccess,isInteractiveTrainingView} from '../../../../../lib/interactive-training-access.mjs';
 import {isTrainingJourneyView} from '../../../../../lib/training-navigation.mjs';
+import {redirectLegacyAcademy} from '../../../../../lib/academy-legacy';
 
 export const dynamic='force-dynamic';
 
 export default async function InteractiveTrainingViewPage({params}){
   const {slug,view}=await params;
   if(slug!==INTERACTIVE_TRAINING_PILOT.slug||(!isInteractiveTrainingView(view)&&!isTrainingJourneyView(view)))notFound();
+  await redirectLegacyAcademy(slug,{view});
   const context=await requireTenantAddon(slug,'lms',{
     permission:'tenant.academy.read'
   });

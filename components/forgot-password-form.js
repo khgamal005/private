@@ -1,6 +1,7 @@
 'use client';
 
 import {useState} from 'react';
+import {recoveryLoginPath} from '../lib/academy-policy.mjs';
 
 const linkStyle={
   color:'#315769',
@@ -11,7 +12,8 @@ const linkStyle={
   textDecoration:'none'
 };
 
-export default function ForgotPasswordForm(){
+export default function ForgotPasswordForm({recovery=null}){
+  const loginPath=recoveryLoginPath(recovery);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [sent,setSent]=useState(false);
@@ -25,7 +27,7 @@ export default function ForgotPasswordForm(){
       const response=await fetch('/api/auth/request-password-reset',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({email:form.get('email')}),
+        body:JSON.stringify({email:form.get('email'),...(recovery?{recovery}:{})}),
         cache:'no-store'
       });
       const data=await response.json().catch(()=>({}));
@@ -47,7 +49,7 @@ export default function ForgotPasswordForm(){
       <div className="form-success">
         إذا كان البريد مسجلًا فسيصل إليه رابط آمن لتعيين كلمة مرور جديدة. افحص البريد غير المرغوب أيضًا.
       </div>
-      <a href="/login" style={linkStyle}>العودة إلى تسجيل الدخول</a>
+      <a href={loginPath} style={linkStyle}>العودة إلى تسجيل الدخول</a>
     </div>;
   }
 
@@ -64,6 +66,6 @@ export default function ForgotPasswordForm(){
     <button disabled={loading}>
       {loading?'جارٍ إرسال الرابط...':'إرسال رابط الاستعادة'}
     </button>
-    <a href="/login" style={linkStyle}>العودة إلى تسجيل الدخول</a>
+    <a href={loginPath} style={linkStyle}>العودة إلى تسجيل الدخول</a>
   </form>;
 }

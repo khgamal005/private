@@ -5,6 +5,7 @@ import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import TenantDeletionDialog from './tenant-deletion-dialog';
 import PlatformTenantControls from './platform-tenant-controls';
+import PlatformAcademyControls from './platform-academy-controls';
 
 export default function PlatformTenants({initialData}){
   const router=useRouter();
@@ -17,6 +18,7 @@ export default function PlatformTenants({initialData}){
   const [provisioned,setProvisioned]=useState(null);
   const [deletionTenant,setDeletionTenant]=useState(null);
   const [controlTenant,setControlTenant]=useState(null);
+  const [academyTenant,setAcademyTenant]=useState(null);
   const [tenantUpdates,setTenantUpdates]=useState({});
   const [deletedIds,setDeletedIds]=useState(()=>new Set());
   const [odeiryStates,setOdeiryStates]=useState({});
@@ -208,6 +210,7 @@ export default function PlatformTenants({initialData}){
             <small>{manager.effectiveEnabled?'متاح داخل المنشأة':manager.enabled?'بانتظار البوابة العامة':'لا يظهر للمديرين'}</small></td>
             <td><div className="mt-tenant-row-actions">
               <button type="button" className="mt-button primary" disabled={busy} onClick={()=>setControlTenant(tenant)} aria-label={`إدارة ${tenant.name}`}>إدارة المنشأة</button>
+              <button type="button" className="mt-button soft" disabled={busy} onClick={()=>setAcademyTenant(tenant)}>المنصة التدريبية</button>
               <Link prefetch={false} className="mt-button soft" href={`/tenant/${tenant.slug}`}>فتح</Link>
               <button type="button" className="mt-button danger-outline" disabled={busy||tenant.slug==='reef-skills'||!initialData.adminPermissions?.canDelete} onClick={()=>setDeletionTenant({id:tenant.id,name:tenant.name,slug:tenant.slug})}>حذف نهائي</button>
             </div></td>
@@ -216,6 +219,7 @@ export default function PlatformTenants({initialData}){
       </table>{!shown.length&&<div className="mt-empty">لا توجد منشآت مطابقة.</div>}</div>
     </section>
 
+    {academyTenant&&<PlatformAcademyControls tenant={academyTenant} onClose={()=>setAcademyTenant(null)}/>}
     {controlTenant&&<PlatformTenantControls
       tenant={controlTenant}
       onClose={()=>setControlTenant(null)}

@@ -7,7 +7,11 @@ import {
   REFRESH_COOKIE
 } from '../../../../lib/config';
 
-export async function POST(){
+export async function POST(request){
+  let academy=false;
+  if(request?.headers?.get('content-type')?.includes('application/x-www-form-urlencoded')){
+    const form=await request.formData().catch(()=>null);academy=form?.get('workspace')==='academy';
+  }
   const cookieStore=await cookies();
   const token=cookieStore.get(ACCESS_COOKIE)?.value;
 
@@ -26,7 +30,7 @@ export async function POST(){
   const response=new NextResponse(null,{
     status:303,
     headers:{
-      Location:'/login',
+      Location:academy?'/academy/login':'/login',
       'Cache-Control':'private, no-store'
     }
   });

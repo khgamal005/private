@@ -12,6 +12,7 @@ import {interactiveTrainingAccess} from '../../../lib/interactive-training-acces
 import {trainingOperationsAccess} from '../../../lib/training-navigation.mjs';
 import WorkspaceShell from '../../../components/workspace-shell';
 import MyRoleGuide from '../../../components/my-role-guide';
+import {readAcademyAccess} from '../../../lib/academy-server';
 
 export const dynamic='force-dynamic';
 
@@ -21,7 +22,7 @@ export default async function TenantLayout({children,params}){
   const odeiryManagerGloballyEnabled=process.env.ODEIRY_MANAGER_ENABLED==='true';
   const context=await requireTenant(slug);
   const membership=context.memberships?.find(item=>item.tenantSlug===slug);
-  const [live,yeastarAccess,addonAccess,tenantSupport,odeirySnapshot]=await Promise.all([
+  const [live,yeastarAccess,addonAccess,tenantSupport,odeirySnapshot,academyAccess]=await Promise.all([
     optionalServerRead(
       'tenant-shell-live',
       ()=>getTenantDashboardLive(slug),
@@ -51,7 +52,10 @@ export default async function TenantLayout({children,params}){
           allowed:false,enabled:false,available:false,reviewAvailable:false
         }}
       )
-      :Promise.resolve(null)
+      :Promise.resolve(null),
+    // The separate academy is initially available only to the reviewed pilot.
+    // Other tenants do not gain an extra database read or changed navigation.
+    slug==='marktone'?readAcademyAccess(slug):Promise.resolve(null)
   ]);
   const odeiryEnabled=Boolean(
     odeiryGloballyEnabled
@@ -116,6 +120,7 @@ export default async function TenantLayout({children,params}){
     yeastarAccess={yeastarAccess}
     addonAccess={addonAccess}
     interactiveTraining={interactiveTraining}
+    academyAccess={academyAccess}
     odeiryEnabled={odeiryEnabled}
     odeiryAccessMode={odeiryAccessMode}
     odeiryManagerEnabled={odeiryManagerEnabled}

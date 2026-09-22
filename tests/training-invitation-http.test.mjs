@@ -5,6 +5,8 @@ import {webcrypto,createHash} from 'node:crypto';
 import vm from 'node:vm';
 import ts from 'typescript';
 import * as requestHelpers from '../lib/training-request.mjs';
+import * as academyPolicy from '../lib/academy-policy.mjs';
+import * as recoveryPolicy from '../lib/password-recovery.mjs';
 
 const TOKEN='a'.repeat(64);
 const TOKEN_HASH=createHash('sha256').update(TOKEN).digest('hex');
@@ -135,7 +137,7 @@ test('upstream account-creation timeout releases its claim and never returns ups
 function authRouteHarness({upstream=[],rpcResult={ok:true},rpcError=null,cookieToken=null}={}){
   const calls=[],rpcCalls=[],cookieWrites=[];
   const context=vm.createContext({
-    Request,Response,Headers,AbortSignal,Buffer,process:{env:{NODE_ENV:'production'}},
+    Request,Response,Headers,URL,AbortSignal,Buffer,process:{env:{NODE_ENV:'production'}},
     fetch:async(url,init)=>{calls.push({url,headers:init.headers,body:JSON.parse(init.body)});const step=upstream[calls.length-1];assert.ok(step,'Unexpected Auth call');return json(step.data,step.status||200);}
   });
   const cookieStore={get:key=>key==='mt_access'&&cookieToken?{value:cookieToken}:undefined};
@@ -145,9 +147,11 @@ function authRouteHarness({upstream=[],rpcResult={ok:true},rpcError=null,cookieT
     if(name==='next/headers')return {cookies:async()=>cookieStore};
     if(name.endsWith('/config'))return {ACCESS_COOKIE:'mt_access',REFRESH_COOKIE:'mt_refresh',SUPABASE_KEY:PUBLIC,SUPABASE_URL:SUPABASE};
     if(name.endsWith('/training-request.mjs'))return requestHelpers;
+    if(name.endsWith('/academy-policy.mjs'))return academyPolicy;
+    if(name.endsWith('/password-recovery.mjs'))return recoveryPolicy;
     if(name.endsWith('/training-server'))return {
       trainingJson:response,trainingFailure:error=>response({error:error.code},error.status||503),
-      trainingRpc:async(...args)=>{rpcCalls.push(JSON.parse(JSON.stringify(args)));if(rpcError)throw rpcError;return rpcResult;}
+      trainingRpc:async(...args)=>{rpcCalls.push(JSON.parse(JSON.stringify(args)));if(rpcError)throw rpcError;return typeof rpcResult==='function'?rpcResult(...args):rpcResult;}
     };
     throw Error(`Unexpected import ${name}`);
   });
@@ -223,4 +227,30 @@ test('registration only returns navigation JSON and transfers edge session into 
   const response=await h.request('register',{token:TOKEN,commandId:CLAIM,password:PASSWORD});
   assert.equal(response.status,200);assert.deepEqual(await response.json(),{success:true,next:'/training/marktone'});
   assert.equal(h.cookieWrites.length,2);assert.equal(h.rpcCalls.length,0);
+});
+
+
+test('academy instructor login authorizes only scoped academy snapshot and preserves tenant destination',async()=>{
+  const h=authRouteHarness({upstream:[{data:SESSION}]});
+  const response=await h.request('login',{tenantSlug:'marktone',workspace:'academy',email:'teacher@example.test',password:PASSWORD,role:'instructor',next:'/control'});
+  assert.equal(response.status,200);assert.equal((await response.json()).next,'/training/marktone?workspace=academy&role=instructor');
+  assert.deepEqual(h.rpcCalls,[['v1_academy_training_snapshot',{p_slug:'marktone',p_role:'instructor'},{token:SESSION.access_token}]]);
+});
+
+test('academy learner signup uses invitation email only and awaits confirmation without creating a session',async()=>{
+  const h=authRouteHarness({upstream:[{data:{id:'auth-learner',identities:[{id:'identity'}]}}],rpcResult:{slug:'marktone',email:'invited@example.test'}});
+  const response=await h.request('register',{tenantSlug:'marktone',workspace:'academy',token:TOKEN,commandId:CLAIM,email:'attacker@example.test',password:PASSWORD});
+  assert.equal(response.status,200);assert.deepEqual(await response.json(),{success:true,confirmationRequired:true});assert.equal(h.cookieWrites.length,0);
+  assert.deepEqual(h.rpcCalls,[['v1_academy_learning_invitation_preview',{p_slug:'marktone',p_token_hash:TOKEN_HASH},{publicAccess:true}]]);
+  assert.equal(new URL(h.calls[0].url).pathname,'/auth/v1/signup');assert.equal(h.calls[0].body.email,'invited@example.test');assert.equal(h.calls[0].body.data,undefined);
+  assert.equal(h.calls[0].url.includes(TOKEN),false);
+});
+
+test('academy learner invitation mismatch fails before auth signup and acceptance failure issues no cookies',async()=>{
+  const invalid=authRouteHarness({rpcResult:{slug:'reef',email:'invited@example.test'}});
+  const denied=await invalid.request('register',{tenantSlug:'marktone',workspace:'academy',token:TOKEN,commandId:CLAIM,password:PASSWORD});
+  assert.equal(denied.status,400);assert.equal(invalid.calls.length,0);
+  const h=authRouteHarness({upstream:[{data:SESSION}],rpcResult:name=>{if(name==='v1_academy_learning_invitation_preview')return {slug:'marktone',email:'invited@example.test'};throw requestHelpers.trainingProblem('training_invitation_invalid',403);}});
+  const result=await h.request('register',{tenantSlug:'marktone',workspace:'academy',token:TOKEN,commandId:CLAIM,password:PASSWORD});
+  assert.equal(result.status,403);assert.equal(h.cookieWrites.length,0);assert.equal(h.rpcCalls[1][0],'v1_academy_training_action');assert.equal(h.rpcCalls[1][2].token,SESSION.access_token);
 });

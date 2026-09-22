@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import {useMemo,useState} from 'react';
+import {useState} from 'react';
 import PageDocumentRenderer from './page-document-renderer';
 import OdeirBrand from './odeir-brand';
 import {OdeirSiteFooter,OdeirSiteHeader} from './odeir-site-chrome';
 import {buildMenuTree,formatCmsDate} from '../lib/cms';
+import {academyPublicLinks,academyPublicMenu} from '../lib/academy-public-navigation.mjs';
 import publicStyles from './public-site.module.css';
 import styles from './built-public-page.module.css';
 
@@ -57,17 +58,25 @@ export function CmsArticlesIndex({snapshot}){
 function Header({menu,settings,site}){
   const [open,setOpen]=useState(false);
   const [expanded,setExpanded]=useState('');
-  const tree=useMemo(()=>buildMenuTree(menu),[menu]);
+  const academy=academyPublicLinks(site);
+  const tree=buildMenuTree(academyPublicMenu(menu,academy));
   const tenantPrefix=sitePrefix(site);
   return <header className={`${publicStyles.header} ${styles.smartHeader}`}>
     <div className={publicStyles.headerInner}>
       <SiteBrand site={site} settings={settings}/>
       <nav className={`${publicStyles.nav} ${styles.smartNav} ${open?publicStyles.navOpen:''}`} aria-label="القائمة الرئيسية">
         {tree.map(item=><MenuNode key={item.id||`${item.label}-${item.href}`} item={item} tenantPrefix={tenantPrefix} expanded={expanded} setExpanded={setExpanded} close={()=>setOpen(false)}/>)}
+        {academy?.catalog&&!menu.some(item=>item.href===academy.catalog)&&<SmartLink href={academy.catalog} onClick={()=>setOpen(false)}>الدورات التدريبية</SmartLink>}
+        {academy?.instructor&&<SmartLink href={academy.instructor} onClick={()=>setOpen(false)} className={styles.mobileAcademyLink}>دخول المحاضر</SmartLink>}
       </nav>
       <div className={publicStyles.headerActions}>
-        <SmartLink href={settings.customerLoginUrl||'/login'} className={publicStyles.loginButton}>{settings.customerLoginLabel||'تسجيل دخول المنشآت'}</SmartLink>
-        <SmartLink href={settings.contactCtaUrl||'/free-trial/apply'} className={publicStyles.primaryButton}>{settings.contactCtaLabel||'سجّل منشأتك مجانًا'}<span>↗</span></SmartLink>
+        {academy?<>
+          <SmartLink href={academy.learner||academy.manager} className={publicStyles.loginButton}>{academy.learner?'دخول المتدرب':'إدارة المنصة'}</SmartLink>
+          {academy.instructor?<SmartLink href={academy.instructor} className={publicStyles.primaryButton}>دخول المحاضر</SmartLink>:settings.contactCtaUrl&&<SmartLink href={settings.contactCtaUrl} className={publicStyles.primaryButton}>{settings.contactCtaLabel||'تواصل معنا'}</SmartLink>}
+        </>:<>
+          <SmartLink href={settings.customerLoginUrl||'/login'} className={publicStyles.loginButton}>{settings.customerLoginLabel||'تسجيل دخول المنشآت'}</SmartLink>
+          <SmartLink href={settings.contactCtaUrl||'/free-trial/apply'} className={publicStyles.primaryButton}>{settings.contactCtaLabel||'سجّل منشأتك مجانًا'}<span>↗</span></SmartLink>
+        </>}
       </div>
       <button type="button" className={publicStyles.menuToggle} aria-expanded={open} aria-label={open?'إغلاق القائمة':'فتح القائمة'} onClick={()=>setOpen(value=>!value)}><span/><span/><span/></button>
     </div>
@@ -110,15 +119,21 @@ function MegaItem({item,tenantPrefix,close}){
 }
 
 function Footer({menu,settings,site}){
-  const tree=useMemo(()=>buildMenuTree(menu),[menu]);
+  const academy=academyPublicLinks(site);
+  const tree=buildMenuTree(academyPublicMenu(menu,academy));
   const prefix=sitePrefix(site);
   return <footer className={publicStyles.footer}>
     <div className={publicStyles.footerTop}>
       <div><SiteLogo site={site} settings={settings}/><p>{settings.footerText||`${site.nameAr||'الموقع'} — تجربة رقمية متكاملة.`}</p></div>
-      <nav aria-label="روابط الموقع">{tree.slice(0,10).map(item=><SmartLink key={item.id} href={rewriteHref(item.href,prefix)}>{item.label}</SmartLink>)}<SmartLink href={settings.customerLoginUrl||'/login'}>تسجيل دخول المنشآت</SmartLink></nav>
+      <nav aria-label="روابط الموقع">{tree.slice(0,10).map(item=><SmartLink key={item.id} href={rewriteHref(item.href,prefix)}>{item.label}</SmartLink>)}{academy?<>
+        {academy.catalog&&<SmartLink href={academy.catalog}>الدورات التدريبية</SmartLink>}
+        {academy.learner&&<SmartLink href={academy.learner}>دخول المتدرب</SmartLink>}
+        {academy.instructor&&<SmartLink href={academy.instructor}>دخول المحاضر</SmartLink>}
+        <SmartLink href={academy.manager}>إدارة المنصة</SmartLink>
+      </>:<SmartLink href={settings.customerLoginUrl||'/login'}>تسجيل دخول المنشآت</SmartLink>}</nav>
       <div className={publicStyles.footerContact}><strong>تواصل معنا</strong>{settings.contactEmail&&<a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a>}{settings.contactPhone&&<a href={`tel:${settings.contactPhone}`}>{settings.contactPhone}</a>}{settings.country&&<span>{settings.country}</span>}</div>
     </div>
-    <div className={publicStyles.footerBottom}><span>© {new Date().getFullYear()} {site.nameAr||'أودير'}. جميع الحقوق محفوظة.</span><span>ODEIR — تشغيل أوضح للمنشآت.</span></div>
+    <div className={publicStyles.footerBottom}><span>© {new Date().getFullYear()} {site.nameAr||'أودير'}. جميع الحقوق محفوظة.</span><span>{academy?'منصة تدريب مقدّمة من ماركتون':'ODEIR — تشغيل أوضح للمنشآت.'}</span></div>
   </footer>;
 }
 
@@ -126,7 +141,7 @@ function SiteBrand({site,settings}){const prefix=sitePrefix(site);return <Link h
 function SiteLogo({site,settings}){
   if(settings.logoUrl)return <img src={safeImage(settings.logoUrl)} alt={site.nameAr||site.nameEn||'Logo'} className={styles.customLogo}/>;
   if(site.key==='marktone-main'||settings.brandKey==='odeir')return <OdeirBrand subtitle="منصة إدارة المنشآت"/>;
-  return <span className={styles.textLogo}><b>{site.nameAr||'الموقع'}</b><small>Powered by ODEIR</small></span>;
+  return <span className={styles.textLogo}><b>{site.nameAr||'الموقع'}</b><small>{academyPublicLinks(site)?'Powered by Marktone':'Powered by ODEIR'}</small></span>;
 }
 function ArticleCard({article,site}){const prefix=sitePrefix(site);return <Link href={`${prefix}/articles/${encodeURIComponent(article.slug)}`} className={styles.articleCard}><div className={styles.articleCover} style={article.coverUrl?{backgroundImage:`url(${safeImage(article.coverUrl)})`}:undefined}><span>{article.category||'مقال'}</span>{article.featured&&<b>مميز</b>}</div><div><small>{formatCmsDate(article.publishedAt,{time:false})}{article.readingMinutes?` · ${article.readingMinutes} دقائق`:''}</small><h2>{article.title}</h2><p>{article.excerpt||'اقرأ المقال الكامل واكتشف التفاصيل.'}</p><strong>قراءة المقال ←</strong></div></Link>}
 function SmartLink({href='#',children,className='',newTab=false,onClick}){const target=safeHref(href)||'#';const external=/^https?:\/\//i.test(target);if(external||target.startsWith('#')||target.startsWith('mailto:')||target.startsWith('tel:'))return <a href={target} className={className} target={newTab?'_blank':undefined} rel={newTab?'noreferrer':undefined} onClick={onClick}>{children}</a>;return <Link href={target} className={className} target={newTab?'_blank':undefined} rel={newTab?'noreferrer':undefined} onClick={onClick}>{children}</Link>}

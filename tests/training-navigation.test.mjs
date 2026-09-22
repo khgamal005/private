@@ -52,6 +52,7 @@ test('the operations route validates the requested view against actual staff acc
   '../../../../../components/training-journey-workspace':{default:'workspace'},
   '../../../../../lib/server-auth':{requireTenantAddon:async()=>({...current.context,addonAccess:current.addonAccess})},
   '../../../../../lib/training-snapshot':{getTrainingSnapshot:async()=>{reads++;return {role:'manager'};}},
+  '../../../../../lib/academy-legacy':{redirectLegacyAcademy:async()=>{}},
   '../../../../../lib/training-request.mjs':{TRAINING_PILOT_SLUG:'marktone'},
   '../../../../../lib/training-navigation.mjs':{trainingOperationsAccess,isTrainingJourneyView:key=>TRAINING_JOURNEY_VIEWS.some(v=>v.key===key)},
   '../../../../../lib/interactive-training-access.mjs':{interactiveTrainingAccess},

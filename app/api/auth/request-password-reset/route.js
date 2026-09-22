@@ -5,21 +5,27 @@ import {
   recoveryRedirectUrl
 } from '../../../../lib/password-recovery.mjs';
 
+import {recoveryContext} from '../../../../lib/academy-policy.mjs';
+
 export const dynamic='force-dynamic';
 
 export async function POST(request){
   try{
-    const {email:input}=await request.json();
+    const {email:input,recovery:inputRecovery}=await request.json();
+    const recovery=recoveryContext(inputRecovery);
     const email=normalizeRecoveryEmail(input);
     if(!email){
       return json({error:'أدخل بريدًا إلكترونيًا صحيحًا'},{status:400});
     }
 
-    const redirectTo=recoveryRedirectUrl(
+    const recoveryTarget=recoveryRedirectUrl(
       process.env.NEXT_PUBLIC_APP_URL
       ||process.env.APP_URL
       ||process.env.NEXT_PUBLIC_SITE_URL
     );
+    const target=new URL(recoveryTarget);
+    if(recovery){target.searchParams.set('workspace',recovery.workspace);target.searchParams.set('tenant',recovery.tenantSlug);if(recovery.role)target.searchParams.set('role',recovery.role);}
+    const redirectTo=target.href;
     const response=await fetch(
       `${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`,
       {

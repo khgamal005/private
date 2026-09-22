@@ -2,6 +2,7 @@
 
 import {useEffect,useRef,useState} from 'react';
 import {replaceDocument} from '../lib/full-document-navigation.mjs';
+import {recoveryContext,recoveryLoginPath} from '../lib/academy-policy.mjs';
 
 const linkStyle={
   color:'#315769',
@@ -15,6 +16,9 @@ const linkStyle={
 export default function ResetPasswordForm(){
   const initialized=useRef(false);
   const [credential,setCredential]=useState(null);
+  const [context,setContext]=useState(null);
+  const loginPath=recoveryLoginPath(context);
+  const recoveryPath=context?`/forgot-password?workspace=${context.workspace}&tenant=${encodeURIComponent(context.tenantSlug)}${context.role?`&role=${context.role}`:''}`:'/forgot-password';
   const [ready,setReady]=useState(false);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
@@ -25,6 +29,7 @@ export default function ResetPasswordForm(){
 
     const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
     const query=new URLSearchParams(window.location.search);
+    setContext(recoveryContext({workspace:query.get('workspace'),tenantSlug:query.get('tenant'),role:query.get('role')}));
     const accessToken=hash.get('access_token');
     const tokenHash=query.get('token_hash');
     const flowType=hash.get('type')||query.get('type');
@@ -70,7 +75,7 @@ export default function ResetPasswordForm(){
         setError(data.error||'تعذر تعيين كلمة المرور');
         return;
       }
-      replaceDocument('/login?reset=success',{fallback:'/login'});
+      replaceDocument(`${loginPath}${loginPath.includes('?')?'&':'?'}reset=success`,{fallback:loginPath});
     }catch{
       setLoading(false);
       setError('تعذر الاتصال بالخادم. تحقق من الشبكة ثم أعد المحاولة.');
@@ -84,8 +89,8 @@ export default function ResetPasswordForm(){
   if(!credential){
     return <div className="auth-form">
       {error&&<div className="form-error">{error}</div>}
-      <a href="/forgot-password" style={linkStyle}>طلب رابط استعادة جديد</a>
-      <a href="/login" style={linkStyle}>العودة إلى تسجيل الدخول</a>
+      <a href={recoveryPath} style={linkStyle}>طلب رابط استعادة جديد</a>
+      <a href={loginPath} style={linkStyle}>العودة إلى تسجيل الدخول</a>
     </div>;
   }
 

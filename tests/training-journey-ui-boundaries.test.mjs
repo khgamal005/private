@@ -27,14 +27,14 @@ function load(path){
 const unit={id:'unit-1',title:'الدرس الحقيقي',kind:'text',required:true,minimumSeconds:0,position:1};
 const enrollment={id:'enrollment-1',studentId:'student-1',studentName:'متدرب الاختبار',courseId:'course-1',courseTitle:'الدورة الحقيقية',runId:'run-1',runTitle:'الدفعة الأولى',status:'confirmed',versionId:'version-1',units:[unit],financialAccess:{trainingAllowed:true,certificationAllowed:false,financialStatus:'settled',reasonCodes:[],currency:'SAR'},progress:{completedUnits:0,totalUnits:1,percent:0},sessions:[{id:'session-1',title:'اللقاء المباشر',startsAt:'2026-09-20T10:00Z',joinUrl:'https://example.test/meeting'}]};
 const learner={role:'learner',tenant:{id:'3d185482-b916-49cc-b868-b6dfdb93eba8',slug:'marktone',name:'مركز الاختبار',timezone:'Asia/Riyadh'},viewer:{},learning:{role:'learner',courses:[],enrollments:[enrollment],submissions:[],requests:[]}};
-async function mounted(data,fn,{view='learning',respond=()=>({ok:true,json:async()=>({data:{unit:{...unit,body:'محتوى خاص مسموح لهذا المتدرب'}}})})}={}){
+async function mounted(data,fn,{view='learning',workspace='odeir',respond=()=>({ok:true,json:async()=>({data:{unit:{...unit,body:'محتوى خاص مسموح لهذا المتدرب'}}})})}={}){
   const dom=new JSDOM('<!doctype html><html><body><div id="app"></div></body></html>',{url:'https://odeir.com/learn/marktone'}),previous=new Map();
   for(const [key,value] of Object.entries({window:dom.window,document:dom.window.document,navigator:dom.window.navigator,HTMLElement:dom.window.HTMLElement,HTMLInputElement:dom.window.HTMLInputElement,HTMLTextAreaElement:dom.window.HTMLTextAreaElement,localStorage:dom.window.localStorage,sessionStorage:dom.window.sessionStorage,IS_REACT_ACT_ENVIRONMENT:true})){
     previous.set(key,Object.getOwnPropertyDescriptor(globalThis,key));Object.defineProperty(globalThis,key,{value,writable:true,configurable:true});
   }
   const originalFetch=globalThis.fetch,calls=[];globalThis.fetch=async(url,options)=>{calls.push({url,body:JSON.parse(options.body)});return respond(calls.length,calls.at(-1));};
   const {createRoot}=await import('react-dom/client'),app=createRoot(document.getElementById('app')),Component=load('components/training-journey-workspace.tsx').default;
-  const render=async(initialData)=>act(async()=>app.render(React.createElement(Component,{slug:'marktone',initialData,initialView:view})));
+  const render=async(initialData)=>act(async()=>app.render(React.createElement(Component,{slug:'marktone',initialData,initialView:view,workspace,canOpenOperations:false})));
   const button=text=>[...document.querySelectorAll('button')].find(x=>x.textContent.includes(text));
   const click=async text=>{const b=button(text);assert.ok(b,`button ${text}`);assert.equal(b.disabled,false,`enabled ${text}`);await act(async()=>b.click());};
   try{await render(data);await fn({doc:document,dom,render,button,click,calls});assert.equal(localStorage.length,0);assert.equal(sessionStorage.length,0);}
@@ -76,4 +76,30 @@ test('empty production data renders an actionable empty state without demonstrat
   await mounted({...learner,learning:{...learner.learning,enrollments:[]}},async({doc,calls})=>{
     assert.match(doc.body.textContent,/رحلتك التدريبية ستبدأ هنا/);assert.equal(doc.body.textContent.includes('الدورة الحقيقية'),false);assert.equal(calls.length,0);
   });
+});
+
+
+test('standalone academy workspace uses its own request context and exposes no Odeir dashboard links',async()=>{
+  const manager={...learner,workspace:'academy',mode:'standalone',role:'manager',viewer:{canManageLearning:true,canReadAdmissions:true,canReadAccounting:true,canManageCourses:true},learning:{...learner.learning,role:'manager'}};
+  await mounted(manager,async({doc,button})=>{
+    assert.equal(doc.querySelector('a[href^="/tenant/"]'),null);
+    assert.ok(doc.querySelector('a[href="/academy/marktone/store"]'));
+    assert.equal(button('مهام التشغيل'),undefined);
+    assert.equal(button('القبول والسداد'),undefined);
+  },{workspace:'academy',view:'overview'});
+  await mounted({...learner,workspace:'academy',mode:'standalone'},async({click,calls})=>{
+    await click('الدرس الحقيقي');assert.equal(calls[0].body.workspace,'academy');assert.equal(calls[0].body.tenantSlug,'marktone');
+  },{workspace:'academy'});
+});
+
+
+test('standalone request reviewer sees learner and course labels without staff assignment or Odeir links',async()=>{
+  const manager={...learner,role:'manager',workspace:'academy',mode:'standalone',viewer:{canManageLearning:false},learning:null,requestQueue:{canManage:true,runs:[],requests:[{id:'request-1',enrollmentId:'enrollment-1',kind:'withdraw',status:'pending',reason:'أرغب في الانسحاب',studentName:'متدرب القبول',courseTitle:'دورة القبول'}]}};
+  await mounted(manager,async({doc,button})=>{
+    assert.match(doc.body.textContent,/متدرب القبول/);assert.match(doc.body.textContent,/دورة القبول/);assert.match(doc.body.textContent,/تراجع الطلب إدارة المنصة/);
+    assert.equal(doc.querySelector('a[href^="/tenant/"]'),null);
+    assert.equal(button('الدورات والمحتوى'),undefined);
+    assert.equal([...doc.querySelectorAll('label')].some(item=>item.textContent.includes('الموظف المسؤول')),false);
+    assert.ok([...doc.querySelectorAll('summary')].some(item=>item.textContent.includes('مراجعة الطلب واتخاذ القرار')));
+  },{workspace:'academy',view:'requests'});
 });

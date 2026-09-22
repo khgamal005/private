@@ -132,7 +132,7 @@ async function transitionFixture(fn){
     insert into core.fixture_staff(tenant_id) select '${O}' from generate_series(1,7);
     insert into core.fixture_staff(tenant_id) select '${T}' from generate_series(1,2);
     insert into catalog.subscriptions(tenant_id,plan_id,status,period_start,period_end)
-    select '${T}',id,'trialing','2026-08-01','2027-08-01' from catalog.plans where plan_key='free';
+    select '${T}',id,'trialing','2026-08-01T00:00:00Z','2027-08-01T00:00:00Z' from catalog.plans where plan_key='free';
     insert into catalog.subscriptions(tenant_id,plan_id,status,period_start,period_end)
     select '${O}',id,'active','2026-08-01',null from catalog.plans where plan_key='full';`);
   const before=(await db.query(`select to_jsonb(s) row from catalog.subscriptions s where tenant_id=$1`,[R])).rows[0].row;

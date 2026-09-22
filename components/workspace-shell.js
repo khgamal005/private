@@ -11,6 +11,7 @@ import {WORKSPACE_KINDS} from '../lib/workspaces';
 import {tenantRolePolicy} from '../lib/tenant-role-policy';
 import {INTERACTIVE_TRAINING_VIEWS,interactiveTrainingHref} from '../lib/interactive-training-access.mjs';
 import {TRAINING_JOURNEY_VIEWS,trainingOperationsHref} from '../lib/training-navigation.mjs';
+import {canManageAcademy} from '../lib/academy-navigation.mjs';
 
 const OdeiryAssistant=dynamic(()=>import('./odeiry-assistant'),{ssr:false});
 
@@ -72,7 +73,8 @@ function tenantItems(
   yeastarAccess,
   addonAccess,
   supportSummary,
-  interactiveTraining
+  interactiveTraining,
+  academyAccess
 ){
   const base=`/tenant/${encodeURIComponent(slug)}`;
   const policy=tenantRolePolicy(roleKey,{platformAccess});
@@ -151,6 +153,7 @@ function tenantItems(
   };
   return items
     .map(item=>item.children?{...item,children:item.children.filter(child=>child.visible!==false&&(child.always||canUse(child.permission)))}:item)
+    .filter(item=>!(academyAccess?.enabled===true&&['interactive','website'].includes(item.key)))
     .filter(item=>item.visible!==false&&(item.always||item.children?.length||canUse(item.permission)));
 }
 
@@ -297,7 +300,7 @@ function odeiryContext(pathname){
   return {module:'other',pathClass:'workspace.other'};
 }
 
-export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,supportSummary=null,yeastarAccess=null,addonAccess=null,interactiveTraining=null,odeiryEnabled=false,odeiryAccessMode=null,odeiryManagerEnabled=false,odeiryManagerReviewEnabled=false}){
+export default function WorkspaceShell({kind,slug,title,email,userName='',children,permissions=[],platformAccess=false,roleKey='member',roleLabel='',notificationSummary=null,platformRegistrationSummary=null,supportSummary=null,yeastarAccess=null,addonAccess=null,interactiveTraining=null,academyAccess=null,odeiryEnabled=false,odeiryAccessMode=null,odeiryManagerEnabled=false,odeiryManagerReviewEnabled=false}){
   const pathname=usePathname();
   const searchParams=useSearchParams();
   const [mobileOpen,setMobileOpen]=useState(false);
@@ -323,7 +326,8 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       yeastarAccess,
       addonAccess,
       supportSummary,
-      interactiveTraining
+      interactiveTraining,
+      academyAccess
     )
     :platformItems(permissions,platformRegistrationSummary,supportSummary),[
       kind,
@@ -334,6 +338,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
       yeastarAccess,
       addonAccess,
       interactiveTraining,
+      academyAccess,
       platformRegistrationSummary,
       supportSummary
     ]);
@@ -399,6 +404,7 @@ export default function WorkspaceShell({kind,slug,title,email,userName='',childr
         <div className="mt-topbar-identity"><button className="mt-menu-toggle" onClick={()=>setMobileOpen(true)} aria-label="فتح القائمة"><span/><span/><span/></button><div><small>{areaLabel}</small><h1>{title}</h1></div></div>
         {canSearch&&<Link className="mt-global-search" href={`/tenant/${encodeURIComponent(slug)}/customer-search`}><ShellIcon name="search"/><span>ابحث برقم الجوال أو اسم العميل…</span></Link>}
         <div className="mt-topbar-tools">
+          {kind===WORKSPACE_KINDS.tenant&&academyAccess?.tenant?.slug===slug&&canManageAcademy(academyAccess)&&<Link className="mt-quick-link" href={`/academy/${encodeURIComponent(slug)}`}>إدارة المنصة التدريبية</Link>}
           {kind===WORKSPACE_KINDS.tenant&&canCreateTask&&<Link className="mt-quick-link" href={`/tenant/${encodeURIComponent(slug)}/tasks`}>+ مهمة جديدة</Link>}
           {kind===WORKSPACE_KINDS.platform&&canManageTenants&&<Link className="mt-quick-link" href="/control/tenants">إدارة المنشآت</Link>}
           {kind===WORKSPACE_KINDS.platform&&(canOpenPlatformInbox||platformNotifications.length>0)&&<NotificationCenter

@@ -7,10 +7,13 @@ import {
   matches,newArticle,newPage
 } from './cms-studio-ui';
 import styles from './cms-studio.module.css';
+import {pagePublication,sitePublication} from '../lib/cms-publication.mjs';
 
 export function Overview({data,context,pages,articles,home,setSection,setEditor}){
   const stats=data.stats||{};
   const checklist=[
+    ['الموقع متاح للزوار',sitePublication(data.site,home).live],
+    ['الصفحة الرئيسية منشورة',home?.status==='published'],
     ['الصفحة الرئيسية مصممة',Boolean(home?.builder?.blockCount)],
     ['قائمة رئيسية جاهزة',Number(stats.menus)>0],
     ['هوية الموقع مضبوطة',Boolean(data.site?.settings?.siteTitle)],
@@ -45,7 +48,7 @@ export function Overview({data,context,pages,articles,home,setSection,setEditor}
   </div>;
 }
 
-export function PagesPanel({context,pages,query,setQuery,setEditor,call,archive}){
+export function PagesPanel({data,context,pages,query,setQuery,setEditor,call,archive,busy,publishPage}){
   const rows=pages.filter(page=>matches(query,page.title,page.slug,page.excerpt));
   const isTenant=context.scope==='tenant';
   const missingCore=isTenant?[]:[
@@ -70,15 +73,18 @@ export function PagesPanel({context,pages,query,setQuery,setEditor,call,archive}
       <div className={styles.pageGrid}>{rows.map(page=>{
         const isFreeTrial=page.slug==='free-trial';
         const pagePath=cmsPublicPath(context,'page',page);
+        const publication=pagePublication(data.site,page);
         return <article key={page.id} className={`${styles.pageCard} ${page.isHome?styles.homePageCard:isFreeTrial?styles.corePageCard:''}`}>
           <div className={styles.pageCardTop}><span>{page.isHome?'⌂':isFreeTrial?'↗':page.pageKind==='landing'?'↗':'P'}</span><div><Status value={page.status}/>{page.isHome&&<b>الرئيسية</b>}{isFreeTrial&&<b>جرّب الآن</b>}</div></div>
           <small dir="ltr">{pagePath}</small><h2>{page.title}</h2><p>{page.excerpt||'أضف وصفًا مختصرًا يساعد فريقك ومحركات البحث.'}</p>
-          <div className={styles.builderState}><span>{page.builder?.blockCount||0} عنصر</span><span>{page.builder?.hasUnpublishedChanges?'تعديلات غير منشورة':page.builder?.hasPublished?'متزامنة مع الموقع':'مسودة جديدة'}</span><span>تخطيط الموقع موحّد</span></div>
+          <div className={styles.pagePublication}><strong>{publication.label}</strong><small>{page.builder?.publishedAt?`آخر نشر: ${formatCmsDate(page.builder.publishedAt)}`:'لم تُنشر نسخة من التصميم بعد'}{page.builder?.hasUnpublishedChanges?' · توجد مسودة لم تُنشر':''}</small></div>
+          <div className={styles.builderState}><span>{page.builder?.blockCount||0} عنصر</span><span>{page.builder?.hasUnpublishedChanges?'تعديلات غير منشورة':page.builder?.hasPublished?'آخر تصميم محفوظ منشور':'مسودة جديدة'}</span><span>تخطيط الموقع موحّد</span></div>
           <footer>
             <Link prefetch={false} href={cmsBuilderPath(context,'page',page.id)} className={styles.designButton}>تصميم الصفحة</Link>
             <button type="button" onClick={()=>setEditor({type:'page',value:page})}>البيانات</button>
             <Link prefetch={false} href={cmsPreviewPath(context,'page',page.id)} target="_blank">معاينة المسودة</Link>
-            <Link prefetch={false} href={pagePath} target="_blank">فتح المنشور</Link>
+            {context.canPublish&&<button type="button" disabled={Boolean(busy)||!page.builder?.hasDraft||(page.status==='published'&&!page.builder?.hasUnpublishedChanges)} onClick={()=>publishPage(page)}>{page.status!=='published'?'نشر الصفحة':page.builder?.hasUnpublishedChanges?'نشر التعديلات':'منشورة'}</button>}
+            {publication.visible&&<Link prefetch={false} href={pagePath} target="_blank">فتح المنشور</Link>}
             <MenuActions items={[
               !page.isHome&&{label:'تعيين كرئيسية',onClick:()=>window.confirm('تعيين هذه الصفحة كرئيسية ونشرها؟')&&call('set-home-page',{id:page.id},{message:'تم تعيين الصفحة الرئيسية'})},
               {label:'إنشاء نسخة',onClick:()=>call('duplicate-page',{id:page.id},{message:'تم إنشاء نسخة كمسودة'})},

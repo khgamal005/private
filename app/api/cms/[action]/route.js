@@ -3,7 +3,7 @@ import {NextResponse} from 'next/server';
 import {ACCESS_COOKIE,SUPABASE_KEY,SUPABASE_URL} from '../../../../lib/config';
 
 const ACTIONS=new Set([
-  'save-site',
+  'save-site','publish-site','publish-saved-page',
   'create-page','update-page','duplicate-page','archive-page','set-home-page',
   'create-menu','update-menu','archive-menu','save-menu-item','archive-menu-item','move-menu-item',
   'create-article','update-article','archive-article',
@@ -21,7 +21,8 @@ export async function POST(request,{params}){
     const siteKey=String(body?.siteKey||'marktone-main').trim();
     const tenantSlug=body?.tenantSlug?String(body.tenantSlug).trim():null;
     const payload=body?.payload&&typeof body.payload==='object'?body.payload:{};
-    const response=await fetch(`${SUPABASE_URL}/rest/v1/rpc/v3_cms_action`,{
+    const rpc=['publish-site','publish-saved-page'].includes(action)?'v3_cms_publication_action':'v3_cms_action';
+    const response=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${rpc}`,{
       method:'POST',
       headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
       body:JSON.stringify({p_site_key:siteKey,p_tenant_slug:tenantSlug,p_action:action,p_payload:payload}),
@@ -44,6 +45,10 @@ async function parseResponse(response){
 function translate(data){
   const text=String(data?.message||data?.error||data?.detail||'');
   const messages={
+    cms_publication_conflict:'تغيرت حالة الموقع أو المسودة. حدّث الصفحة وراجع آخر نسخة قبل النشر.',
+    cms_home_publish_required:'انشر الصفحة الرئيسية أولًا وتأكد أن الوصول إليها عام أو عبر الرابط.',
+    cms_saved_draft_required:'احفظ تصميم الصفحة في المصمم أولًا، ثم انشره من هنا.',
+    cms_entity_not_found:'الصفحة غير موجودة في هذا الموقع.',
     authentication_required:'يجب تسجيل الدخول أولًا',forbidden:'ليس لديك الصلاحية المطلوبة',
     cms_addon_required:'إضافة الموقع الاحترافي غير مفعلة لهذه المنشأة',
     cms_unique_value_conflict:'الرابط أو المفتاح مستخدم بالفعل',

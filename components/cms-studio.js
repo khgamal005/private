@@ -13,6 +13,7 @@ import {ArticlesPanel,MediaPanel,MessagesPanel,SettingsPanel} from './cms-studio
 import {EditorModal} from './cms-studio-editor';
 import {Status,cleanPayload} from './cms-studio-ui';
 import styles from './cms-studio.module.css';
+import {pagePublication,sitePublication} from '../lib/cms-publication.mjs';
 
 export default function CmsStudio({initialData}){
   const router=useRouter();
@@ -36,6 +37,7 @@ export default function CmsStudio({initialData}){
   const categories=Array.isArray(data.categories)?data.categories:[];
   const submissions=Array.isArray(data.submissions)?data.submissions:[];
   const home=pages.find(page=>page.isHome);
+  const publication=sitePublication(data.site,home);
   const activeMenu=menus.find(menu=>menu.id===activeMenuId)||menus[0];
   const activeTree=buildMenuTree(menuItems,activeMenu?.id);
 
@@ -48,6 +50,7 @@ export default function CmsStudio({initialData}){
   }
 
   async function call(action,payload,{refresh=true,close=true,message='تم حفظ التعديلات'}={}){
+    if(busy)return null;
     setBusy(action);setNotice(null);
     try{
       const response=await fetch(`/api/cms/${action}`,{
@@ -64,6 +67,18 @@ export default function CmsStudio({initialData}){
       setNotice({type:'error',text:error instanceof Error?error.message:String(error)});
       return null;
     }finally{setBusy('');}
+  }
+
+  async function publishPage(page){
+    if(busy||!context.canPublish)return;
+    if(!window.confirm(`نشر آخر مسودة محفوظة لصفحة «${page.title}»؟${data.site?.status!=='published'?' الموقع نفسه غير منشور؛ يمكنك نشره من أعلى اللوحة بعد ذلك.':''}`))return;
+    await call('publish-saved-page',{id:page.id,expectedDraftUpdatedAt:page.builder?.draftUpdatedAt},{message:data.site?.status==='published'?'تم نشر الصفحة المحفوظة':'تم نشر الصفحة. اضغط «نشر الموقع» لإتاحتها للزوار.'});
+  }
+
+  async function publishSite(){
+    if(busy||!context.canPublish)return;
+    if(!window.confirm('إتاحة الموقع وصفحاته المنشورة للزوار الآن؟ المسودات لن تُنشر.'))return;
+    await call('publish-site',{expectedStatus:data.site?.status},{message:'تم نشر الموقع وإتاحته للزوار'});
   }
 
   async function submitEditor(type,payload){
@@ -125,7 +140,7 @@ export default function CmsStudio({initialData}){
     if(success){setNotice({type:'success',text:`تم رفع ${success} صورة إلى المكتبة`});router.refresh();}
   }
 
-  const panelProps={data,context,base,pages,articles,menus,menuItems,assets,categories,submissions,query,setQuery,setEditor,call,archive,busy};
+  const panelProps={data,context,base,pages,articles,menus,menuItems,assets,categories,submissions,query,setQuery,setEditor,call,archive,busy,publishPage};
   return <div className={styles.studio} dir="rtl">
     <header className={styles.hero}>
       <div className={styles.heroCopy}>
@@ -135,10 +150,19 @@ export default function CmsStudio({initialData}){
         <div className={styles.contextPills}><b>{data.site?.nameAr}</b><Status value={data.site?.status}/><small>CMS v{context.cmsVersion||2}</small>{context.scope==='tenant'&&<small>إضافة {context.addonStatus==='active'?'مفعلة':'تجريبية'}</small>}</div>
       </div>
       <div className={styles.heroActions}>
-        <Link href={cmsPublicPath(context,'page',home||{isHome:true})} target="_blank" className={styles.outlineButton}>فتح الموقع ↗</Link>
+        {publication.live&&<Link href={cmsPublicPath(context,'page',home)} target="_blank" className={styles.outlineButton}>فتح الموقع ↗</Link>}
         {home&&<Link href={cmsBuilderPath(context,'page',home.id)} className={styles.primaryButton}>تصميم الصفحة الرئيسية</Link>}
       </div>
     </header>
+
+    <section className={`${styles.publicationBanner} ${publication.live?styles.publicationLive:styles.publicationPending}`} aria-label="حالة نشر الموقع">
+      <div><strong>{publication.label}</strong><p>{publication.detail}</p></div>
+      <div className={styles.publicationActions}>
+        {context.canPublish&&home&&(home.status!=='published'||home.builder?.hasUnpublishedChanges)&&<button type="button" disabled={Boolean(busy)||!home.builder?.hasDraft} onClick={()=>publishPage(home)}>{busy==='publish-saved-page'?'جارٍ النشر…':'نشر الصفحة الرئيسية'}</button>}
+        {context.canPublish&&data.site?.status!=='published'&&<button type="button" disabled={Boolean(busy)||!pagePublication({...data.site,status:'published'},home).visible} onClick={publishSite}>{busy==='publish-site'?'جارٍ النشر…':'نشر الموقع'}</button>}
+        {!context.canPublish&&!publication.live&&<span>يتطلب النشر حسابًا لديه صلاحية نشر الموقع.</span>}
+      </div>
+    </section>
 
     {notice&&<div className={`${styles.notice} ${notice.type==='error'?styles.noticeError:styles.noticeSuccess}`}><span>{notice.text}</span><button type="button" onClick={()=>setNotice(null)}>×</button></div>}
 

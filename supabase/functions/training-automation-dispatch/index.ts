@@ -291,7 +291,7 @@ function tenantTemplate(
 ) {
   const template = provider.templates?.[job.type] || {};
   const publicConfig = provider.publicConfig || {};
-  const fallbackName = job.type === 'joining_instructions'
+  const fallbackName = job.type.startsWith('zoom_') ? '' : job.type === 'joining_instructions'
     ? textValue(publicConfig, 'joiningTemplate')
     : textValue(publicConfig, 'reminderTemplate');
   return {
@@ -439,6 +439,7 @@ async function sendResend(
     method: 'POST',
     headers: {
       authorization: `Bearer ${apiKey}`,
+      'Idempotency-Key': `odeir-training-${job.tenantId}-${job.id}`,
       'content-type': 'application/json'
     },
     body: JSON.stringify(body)
@@ -884,6 +885,13 @@ async function deliver(
   serviceRoleKey: string,
   legacy: ReturnType<typeof legacyProviderConfiguration>
 ) {
+  let managedZoom = false;
+  if (job.queue !== 'automation' && job.sessionId) {
+    const check = await rpc(supabaseUrl, serviceRoleKey, 'v1_zoom_message_check', {p_job_id: job.id}) as {managed?: boolean; allowed?: boolean; reason?: string; job?: Partial<AutomationJob>};
+    managedZoom = check.managed === true;
+    if (managedZoom && !check.allowed) throw new ProviderConfigurationError(check.reason || 'zoom_message_not_eligible');
+    if (managedZoom && check.job) job = {...job, ...check.job};
+  }
   if (job.channel === 'zoom') {
     return await createZoomMeeting(job, legacy.zoom);
   }
@@ -895,6 +903,7 @@ async function deliver(
     job.channel
   );
   if (!provider) {
+    if (managedZoom) throw new ProviderConfigurationError('tenant_provider_required');
     return job.channel === 'whatsapp'
       ? await sendLegacyWhatsApp(job, legacy.whatsapp)
       : await sendLegacyEmail(job, legacy.email);

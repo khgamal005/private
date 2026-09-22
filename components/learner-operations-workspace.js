@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import ZoomWorkspace from './zoom-workspace';
 
 const EMPTY=[];
 
@@ -536,6 +537,8 @@ export default function LearnerOperationsWorkspace({slug,data,automation}){
           </div>}
         </div>
       </section>
+
+      {selectedSession&&<details><summary>إدارة زووم: الحسابات والتوزيع وأدلة الحضور</summary><ZoomWorkspace slug={slug} sessionId={selectedSession.id} compact/></details>}
 
       {selectedSession&&<SessionMeeting
         session={selectedSession}

@@ -6,7 +6,7 @@ import {academyTrainingPath} from '../lib/academy-policy.mjs';
 import AcademyIcon from './academy-icon';
 import styles from './academy-auth.module.css';
 
-export default function TrainingAccessForm({invitation=false,initialRole='learner',tenantSlug='marktone',workspace='odeir',resetSuccess=false}:{invitation?:boolean;initialRole?:'learner'|'instructor';tenantSlug?:string;workspace?:'academy'|'odeir';resetSuccess?:boolean}){
+export default function TrainingAccessForm({invitation=false,initialRole='learner',tenantSlug='marktone',workspace='odeir',resetSuccess=false}:{invitation?:boolean;initialRole?:'learner'|'instructor';tenantSlug?:string;workspace?:'academy'|'odeir'|'zoom';resetSuccess?:boolean}){
   const [token,setToken]=useState('');
   const [ready,setReady]=useState(!invitation);
   const [mode,setMode]=useState<'register'|'login'>(invitation?'register':'login');
@@ -15,7 +15,7 @@ export default function TrainingAccessForm({invitation=false,initialRole='learne
   const [error,setError]=useState('');
   const [confirmation,setConfirmation]=useState(false);
   const [showPassword,setShowPassword]=useState(false);
-  const academy=workspace==='academy';
+  const academy=workspace==='academy',zoom=workspace==='zoom';
   const command=useRef('');
   const invitationRead=useRef(false);
   useEffect(()=>{
@@ -35,7 +35,7 @@ export default function TrainingAccessForm({invitation=false,initialRole='learne
     if(!command.current)command.current=crypto.randomUUID();
     const form=new FormData(event.currentTarget);
     try{
-      const response=await fetch(`/api/training-auth/${mode}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:form.get('email'),password:form.get('password'),role,...(academy?{workspace:'academy',tenantSlug}:{}),...(token?{token,commandId:command.current}:{})}),cache:'no-store',credentials:'same-origin'});
+      const response=await fetch(`/api/training-auth/${mode}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:form.get('email'),password:form.get('password'),role,...(academy||zoom?{workspace,tenantSlug}:{}),...(token?{token,commandId:command.current}:{})}),cache:'no-store',credentials:'same-origin'});
       const result=await response.json();
       if(!response.ok){setError(result.error||'تعذر الدخول الآن. حاول مرة أخرى.');return;}
       if(result.confirmationRequired){setConfirmation(true);setMode('login');return;}

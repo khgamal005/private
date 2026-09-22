@@ -59,7 +59,8 @@ function Header({menu,settings,site}){
   const [open,setOpen]=useState(false);
   const [expanded,setExpanded]=useState('');
   const academy=academyPublicLinks(site);
-  const tree=buildMenuTree(academyPublicMenu(menu,academy));
+  const publicMenu=academyPublicMenu(menu,academy);
+  const tree=buildMenuTree(publicMenu);
   const tenantPrefix=sitePrefix(site);
   return <header className={`${publicStyles.header} ${styles.smartHeader}`}>
     <div className={publicStyles.headerInner}>
@@ -67,6 +68,7 @@ function Header({menu,settings,site}){
       <nav className={`${publicStyles.nav} ${styles.smartNav} ${open?publicStyles.navOpen:''}`} aria-label="القائمة الرئيسية">
         {tree.map(item=><MenuNode key={item.id||`${item.label}-${item.href}`} item={item} tenantPrefix={tenantPrefix} expanded={expanded} setExpanded={setExpanded} close={()=>setOpen(false)}/>)}
         {academy?.catalog&&!menu.some(item=>item.href===academy.catalog)&&<SmartLink href={academy.catalog} onClick={()=>setOpen(false)}>الدورات التدريبية</SmartLink>}
+        {academy&&!publicMenu.some(item=>item.href===(academy.learner||academy.manager))&&<SmartLink href={academy.learner||academy.manager} onClick={()=>setOpen(false)} className={styles.compactAcademyLogin}>{academy.learner?'دخول المتدرب':'إدارة المنصة'}</SmartLink>}
         {academy?.instructor&&<SmartLink href={academy.instructor} onClick={()=>setOpen(false)} className={styles.mobileAcademyLink}>دخول المحاضر</SmartLink>}
       </nav>
       <div className={publicStyles.headerActions}>

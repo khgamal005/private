@@ -147,7 +147,10 @@ export default function PlatformTenants({initialData}){
     </header>
     {message&&<div className="mt-alert">{message}</div>}
     {error&&!modal&&<div className="mt-alert error">{error}</div>}
-    {!odeiryControl.globalEnabled&&<div className="mt-alert error">
+    {odeiryControl.available===false&&<div className="mt-alert" role="status">
+      تعذر تحميل حالة أوديري المدير حاليًا. إدارة المنشآت متاحة؛ أعد تحميل الصفحة لتحديث حالة أوديري.
+    </div>}
+    {odeiryControl.available!==false&&!odeiryControl.globalEnabled&&<div className="mt-alert error">
       البوابة العامة لأوديري المدير متوقفة؛ يمكنك حفظ حالة كل منشأة، لكنها لن تصبح فعالة قبل تشغيل البوابة العامة.
     </div>}
 
@@ -170,7 +173,7 @@ export default function PlatformTenants({initialData}){
     <section className="mt-kpis">
       <article className="mt-kpi"><span>كل المنشآت</span><b>{tenants.length}</b><small>مساحات مستقلة</small></article>
       <article className="mt-kpi"><span>النشطة</span><b>{tenants.filter(item=>item.status==='active').length}</b><small>تعمل بصورة طبيعية</small></article>
-      <article className="mt-kpi"><span>أوديري المدير</span><b>{tenants.filter(item=>odeiryState(item).enabled).length}</b><small>منشآت مفعّل لها</small></article>
+      <article className="mt-kpi"><span>أوديري المدير</span><b>{odeiryControl.available===false?'—':tenants.filter(item=>odeiryState(item).enabled).length}</b><small>{odeiryControl.available===false?'تعذر تحميل الحالة':'منشآت مفعّل لها'}</small></article>
       <article className="mt-kpi"><span>دعوات معلقة</span><b>{initialData.pendingInvitations||0}</b><small>بانتظار تفعيل المستخدم</small></article>
     </section>
 
@@ -203,11 +206,11 @@ export default function PlatformTenants({initialData}){
               type="button"
               className={`mt-button ${manager.enabled?'primary':'soft'}`}
               aria-pressed={manager.enabled}
-              disabled={!odeiryControl.canManage||managerBusy}
+              disabled={!odeiryControl.canManage||manager.available===false||managerBusy}
               title={!odeiryControl.canManage?'تحتاج صلاحية إدارة إعدادات المنصة':undefined}
               onClick={()=>setOdeiryConfirmation({tenant,enabled:!manager.enabled})}
-            >{managerBusy?'جارٍ الحفظ…':manager.enabled?'مفعّل':'متوقف'}</button>
-            <small>{manager.effectiveEnabled?'متاح داخل المنشأة':manager.enabled?'بانتظار البوابة العامة':'لا يظهر للمديرين'}</small></td>
+            >{managerBusy?'جارٍ الحفظ…':manager.available===false?'غير متاح حاليًا':manager.enabled?'مفعّل':'متوقف'}</button>
+            <small>{manager.available===false?'أعد تحميل الصفحة لتحديث الحالة':manager.effectiveEnabled?'متاح داخل المنشأة':manager.enabled?'بانتظار البوابة العامة':'لا يظهر للمديرين'}</small></td>
             <td><div className="mt-tenant-row-actions">
               <button type="button" className="mt-button primary" disabled={busy} onClick={()=>setControlTenant(tenant)} aria-label={`إدارة ${tenant.name}`}>إدارة المنشأة</button>
               <button type="button" className="mt-button soft" disabled={busy} onClick={()=>setAcademyTenant(tenant)}>المنصة التدريبية</button>

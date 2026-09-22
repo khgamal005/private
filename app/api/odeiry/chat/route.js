@@ -184,6 +184,7 @@ export async function POST(request){
         }
       ),
       readCampaignReport:input.reportContext?()=>readCampaignDecisionReport({rpc:(name,args)=>supportRpc(token,name,args),slug:input.slug,context:input.reportContext}):undefined,
+      readZoomOperations:input.assistantMode==='manager_v1'&&!input.reportContext?({period})=>supportRpc(token,'v1_zoom_odeiry_context',{p_slug:input.slug,p_run_id:started.runId,p_period:period}):undefined,
       readManagerAnalytics:({period})=>supportRpc(
         token,
         'v1_tenant_odeiry_manager_analytics',
@@ -519,4 +520,3 @@ function persistableOutput(output){
     memoryProposals:[]
   };
 }
-

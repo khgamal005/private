@@ -771,6 +771,7 @@ async function sendSandbox(
 }
 
 let zoomToken: string | null = null;
+let zoomTokenExpiresAt = 0;
 
 async function zoomAccessToken(
   config: ReturnType<typeof legacyProviderConfiguration>['zoom']
@@ -778,7 +779,7 @@ async function zoomAccessToken(
   if (!config.ready) {
     throw new ProviderConfigurationError('zoom_not_configured');
   }
-  if (zoomToken) return zoomToken;
+  if (zoomToken && Date.now() < zoomTokenExpiresAt) return zoomToken;
   const basic = btoa(`${config.clientId}:${config.clientSecret}`);
   const tokenUrl = new URL('https://zoom.us/oauth/token');
   tokenUrl.searchParams.set('grant_type', 'account_credentials');
@@ -795,6 +796,7 @@ async function zoomAccessToken(
     throw new Error('zoom_oauth_response_missing_token');
   }
   zoomToken = payload.access_token;
+  zoomTokenExpiresAt = Date.now() + Math.max(0, Number(payload.expires_in || 0) - 90) * 1000;
   return zoomToken;
 }
 

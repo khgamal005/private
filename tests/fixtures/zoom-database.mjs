@@ -49,7 +49,7 @@ export async function zoomSetup({database=null,scheduling=false,evidence=false,r
    await db.exec('create schema marketing_hub;create table marketing_hub.campaigns(id uuid primary key,tenant_id uuid not null references core.tenants(id),name text);');
    await db.exec(await migration('20260922211521_zoom_webinar_crm_v1.sql'));
   }
-  if(complete){await db.exec(await migration('20260922213755_zoom_operational_completion_v1.sql'));await db.exec(await migration('20260922215415_zoom_account_replacement_v1.sql'));}
+  if(complete){await db.exec(await migration('20260922213755_zoom_operational_completion_v1.sql'));await db.exec(await migration('20260922215415_zoom_account_replacement_v1.sql'));await db.exec(await migration('20260922221302_zoom_weighted_completion_v1.sql'));await db.exec(await migration('20260922222039_zoom_insights_followup_v1.sql'));}
   await db.query("insert into zoom_core.settings(tenant_id,enabled,environment) values($1,true,'test'),($2,true,'test')",[T,OTHER]);
   await login(db,ADMIN_AUTH);return db;
  }catch(error){await db.close();delete error.query;throw error;}

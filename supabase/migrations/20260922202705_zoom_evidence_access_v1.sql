@@ -157,7 +157,8 @@ begin
    insert into zoom_core.roster(tenant_id,link_id,enrollment_id,source) select ev.tenant_id,l.id,e.id,'start_event' from academy.enrollments e join academy.course_run_sessions s on s.tenant_id=e.tenant_id and s.course_run_id=e.course_run_id where s.id=l.session_id and e.tenant_id=ev.tenant_id and e.status in ('confirmed','active','completed') and e.enrolled_at<=ev.source_at on conflict do nothing;
   elsif ev.event_type in ('meeting.ended','webinar.ended') then
    update zoom_core.instances set ended_at=coalesce((ev.payload->>'endTime')::timestamptz,ev.source_at) where id=inst.id;
-   update zoom_core.links set state='ended',last_synced_at=now() where id=l.id and state not in ('cancelled','drift');
+   -- An old occurrence may end after a newer restart's start was delivered.
+   update zoom_core.links set state=case when exists(select 1 from zoom_core.instances newer where newer.tenant_id=ev.tenant_id and newer.link_id=l.id and newer.id<>inst.id and newer.started_at is not null and newer.ended_at is null) then 'live' else 'ended' end,last_synced_at=now() where id=l.id and state not in ('cancelled','drift');
    insert into zoom_core.operations(tenant_id,connection_id,link_id,revision,kind,command_id,due_at) values(ev.tenant_id,ev.connection_id,l.id,l.revision,'reconcile',ev.id,now()+interval '3 minutes') on conflict do nothing;
   elsif ev.event_type in ('meeting.updated','meeting.deleted','webinar.updated','webinar.deleted') then
    update zoom_core.links set state='drift',reason='provider_changed',last_synced_at=now() where id=l.id;
@@ -195,7 +196,7 @@ begin
    case when matches>1 then 'ambiguous' when eid is null then 'unmatched' when nullif(p->>'join_time','') is null or nullif(p->>'leave_time','') is null then 'incomplete' else 'matched' end)
   on conflict(instance_id,source,source_key) do update set joined_at=excluded.joined_at,left_at=excluded.left_at,quality=case when zoom_core.intervals.quality='manual' then 'manual' else excluded.quality end,enrollment_id=case when zoom_core.intervals.quality='manual' then zoom_core.intervals.enrollment_id else excluded.enrollment_id end;
  end loop;
- update zoom_core.instances set evidence_state=case when p_complete and jsonb_array_length(p_participants)>0 and not exists(select 1 from zoom_core.intervals where instance_id=i.id and source='report' and quality='incomplete') then 'complete' else 'incomplete' end where id=i.id;
+ update zoom_core.instances set evidence_state=case when p_complete and jsonb_array_length(p_participants)>0 and not exists(select 1 from zoom_core.intervals where instance_id=i.id and source='report' and (quality='incomplete' or joined_at is null or left_at is null or left_at<=joined_at)) then 'complete' else 'incomplete' end where id=i.id;
  return jsonb_build_object('state',case when p_complete then 'reconciled' else 'incomplete' end);
 end $$;
 create function zoom_core.attendance(t uuid,lid uuid,eid uuid) returns jsonb language plpgsql stable security definer set search_path='' as $$
@@ -210,7 +211,7 @@ begin
  actual:=coalesce(actual,'{}'::tstzmultirange)*eligible;
  select coalesce(sum(extract(epoch from upper(x)-lower(x))),0) into attended_seconds from unnest(actual)x;
  complete:=exists(select 1 from zoom_core.instances where tenant_id=t and link_id=lid) and not exists(select 1 from zoom_core.instances where tenant_id=t and link_id=lid and evidence_state<>'complete')
-  and not exists(select 1 from zoom_core.intervals v join zoom_core.instances i on i.tenant_id=v.tenant_id and i.id=v.instance_id where v.tenant_id=t and i.link_id=lid and v.source='report' and v.quality in ('unmatched','ambiguous','incomplete'));
+  and not exists(select 1 from zoom_core.intervals v join zoom_core.instances i on i.tenant_id=v.tenant_id and i.id=v.instance_id where v.tenant_id=t and i.link_id=lid and v.source='report' and (v.quality in ('unmatched','ambiguous','incomplete') or v.joined_at is null or v.left_at is null or v.left_at<=v.joined_at));
  select min(lower(x)) into first_join from unnest(actual)x;late_seconds:=greatest(0,extract(epoch from first_join-lower(w.approved_range)));
  return jsonb_build_object('firstJoinedAt',first_join,'minutesLate',case when late_seconds>coalesce((w.policy->>'lateMinutes')::int,0)*60 then ceil(late_seconds/60) else 0 end,'attendedSeconds',attended_seconds,'requiredSeconds',required_seconds,'percent',case when required_seconds>0 then least(100,attended_seconds*100/required_seconds) end,'quality',case when complete and required_seconds>0 then 'complete' else 'incomplete' end,'policyRevision',w.revision);
 end $$;
@@ -244,7 +245,13 @@ begin
   summary:=zoom_core.attendance(t,l.id,e.id);
   if p_action='approve_attendance' and summary->>'quality'<>'complete' then raise exception 'zoom_evidence_incomplete';end if;
   select case when (summary->>'percent')::numeric>=r.min_attendance_percent then case when coalesce((summary->>'minutesLate')::int,0)>0 then 'late' else 'present' end else 'absent' end into state_key from academy.course_run_rules r where r.tenant_id=t and r.course_run_id=s.course_run_id;
-  if p_action='override_attendance' then if not zoom_core.allowed(t,'attendance.override') then raise exception 'zoom_forbidden';end if;state_key:=p_payload->>'status';end if;
+  if p_action='override_attendance' then
+   if not zoom_core.allowed(t,'attendance.override') then raise exception 'zoom_forbidden';end if;state_key:=p_payload->>'status';
+   if p_payload->>'manualSeconds' is not null then
+    if (summary->>'requiredSeconds') is null or (p_payload->>'manualSeconds')::numeric<0 or (p_payload->>'manualSeconds')::numeric>(summary->>'requiredSeconds')::numeric then raise exception 'zoom_invalid_request';end if;
+    summary:=summary||jsonb_build_object('manualSeconds',(p_payload->>'manualSeconds')::numeric);
+   end if;
+  end if;
   if state_key is null or state_key not in ('present','late','absent','excused') then raise exception 'zoom_policy_required';end if;
   -- Existing canonical table/triggers remain the final attendance authority.
   if p_action='approve_attendance' and exists(select 1 from academy.attendance_records where tenant_id=t and enrollment_id=e.id and session_id=s.id and metadata->'zoom'->>'override'='true') then raise exception 'zoom_manual_override_preserved';end if;

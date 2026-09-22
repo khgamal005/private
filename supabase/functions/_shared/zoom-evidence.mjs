@@ -9,7 +9,7 @@ export function subtractIntervals(intervals,breaks){
 export function attendanceEvidence(intervals,teachingWindow,breaks=[],{complete=false}={}){
  const base=subtractIntervals([teachingWindow],breaks);const seconds=parts=>parts.reduce((sum,[a,b])=>sum+(b-a)/1000,0);
  const denominator=seconds(base);
- const incomplete=intervals.some(x=>x.leftAt==null||x.joinedAt==null);
+ const incomplete=intervals.some(x=>x.kind!=='waiting_room'&&(x.leftAt==null||x.joinedAt==null||ms(x.leftAt)<=ms(x.joinedAt)));
  const present=intervals.filter(x=>x.kind!=='waiting_room'&&x.leftAt!=null&&x.joinedAt!=null).map(x=>[ms(x.joinedAt),ms(x.leftAt)]);
  const clipped=[];for(const [a,b] of present)for(const [x,y] of base){if(Math.max(a,x)<Math.min(b,y))clipped.push([Math.max(a,x),Math.min(b,y)]);}
  const merged=unionIntervals(clipped);const attendedSeconds=seconds(merged);
@@ -20,8 +20,8 @@ export function matchParticipant(participant,registrations){
  const by=(predicate)=>registrations.filter(predicate);
  let candidates=[];
  if(participant.registrant_id)candidates=by(r=>r.registrantId===participant.registrant_id);
- if(!candidates.length&&participant.user_id)candidates=by(r=>r.verifiedZoomUserId===participant.user_id);
- if(!candidates.length&&participant.user_email)candidates=by(r=>r.emailVerified&&r.email?.toLowerCase()===participant.user_email.toLowerCase());
+ if(participant.user_id){const ids=by(r=>r.verifiedZoomUserId===participant.user_id);if(ids.length)candidates=[...new Set([...candidates,...ids])];}
+ if(participant.user_email){const emails=by(r=>r.emailVerified&&r.email?.toLowerCase()===participant.user_email.toLowerCase());if(emails.length)candidates=[...new Set([...candidates,...emails])];}
  return candidates.length===1?{enrollmentId:candidates[0].enrollmentId,quality:'matched'}:{enrollmentId:null,quality:candidates.length?'ambiguous':'unmatched'};
 }
 export function csvCell(value){const text=String(value??'');return `"${(/^[\s]*[=+@\-\t\r]/u.test(text)?"'":'')+text.replaceAll('"','""')}"`;}

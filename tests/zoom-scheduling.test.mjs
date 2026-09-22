@@ -23,7 +23,8 @@ test('ZM-03 T10/13: deterministic preview, atomic reservation and manual overrid
  await assert.rejects(action('assign',{...payload,sessionId:id(2202),hostId:id(8888)}),/zoom_schedule_conflict/);
 });
 test('ZM-03 T11/12: proven second slot works for a different teacher; human overlap still rejected',async()=>{
- await db.query('update zoom_core.hosts set provider_concurrency=2,concurrency_limit=2 where id=$1',[host]);
+ const {verifiedHost}=await import('../supabase/functions/_shared/zoom-client.mjs');const proof=verifiedHost({id:'host-A',type:2,status:'active'}, {feature:{meeting_capacity:100,concurrent_meeting:'Basic',webinar:true,webinar_capacity:100}},'account-A');await service(db);await call(db,'public.v1_zoom_sync_hosts',{p_connection_id:connection,p_generation:1,p_hosts:[proof],p_coverage:'complete'});await service(db,false);await action('configure_host',{hostId:host,expectedVersion:2,concurrency:2});
+ await assert.rejects(action('assign',{sessionId:id(2202),instructorId:ADMIN,expectedVersion:0,attendees:20,kind:'webinar'}),/zoom_schedule_conflict/);
  await assert.rejects(action('assign',{sessionId:id(2202),instructorId:INSTRUCTOR,expectedVersion:0,attendees:20}),/zoom_schedule_conflict/);
  const second=await action('assign',{sessionId:id(2202),instructorId:ADMIN,expectedVersion:0,attendees:20});assert.equal(second.state,'queued');
  const slots=(await db.query('select slot from zoom_core.reservations order by slot')).rows.map(r=>r.slot);assert.deepEqual(slots,[1,2]);

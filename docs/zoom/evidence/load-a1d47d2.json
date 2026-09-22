@@ -1,0 +1,64 @@
+{
+  "recordedAt": "2026-09-22T22:06:11.435Z",
+  "runtime": {
+    "node": "v24.20.0",
+    "os": "linux",
+    "arch": "x64",
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "logicalCpus": 2,
+    "memoryBytes": 8323973120,
+    "postgres": "PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit"
+  },
+  "dataset": {
+    "tenants": 3000,
+    "operators": 3000,
+    "accounts": 3000,
+    "hosts": 3000,
+    "events": 4100
+  },
+  "measurements": [
+    {
+      "activeTenants": 100,
+      "requests": 225,
+      "workers": 2,
+      "durationMs": 3072,
+      "requestsPerSecond": 73.24,
+      "readP95Ms": 69.99,
+      "webhookDatabaseP95Ms": 2.12,
+      "errors": 0,
+      "uniqueEvents": 100,
+      "duplicates": 25
+    },
+    {
+      "activeTenants": 1000,
+      "requests": 2250,
+      "workers": 2,
+      "durationMs": 29612,
+      "requestsPerSecond": 75.98,
+      "readP95Ms": 61.73,
+      "webhookDatabaseP95Ms": 1.7,
+      "errors": 0,
+      "uniqueEvents": 1000,
+      "duplicates": 250
+    },
+    {
+      "activeTenants": 3000,
+      "requests": 6750,
+      "workers": 2,
+      "durationMs": 86120,
+      "requestsPerSecond": 78.38,
+      "readP95Ms": 57.79,
+      "webhookDatabaseP95Ms": 1.38,
+      "errors": 0,
+      "uniqueEvents": 3000,
+      "duplicates": 750
+    }
+  ],
+  "limitations": [
+    "Synthetic local PostgreSQL; no live Zoom, external HTTP, production encryption or messaging.",
+    "Webhook metric covers durable database receipt; it excludes network and signature verification.",
+    "Bounded account snapshots and signed-event equivalents only; this does not prove 3000 simultaneous lectures."
+  ],
+  "commit": "a1d47d2a9f1c1e6def4a4839796db21f6bb71eb0",
+  "runUrl": "https://github.com/Marktonesa/marktone-platform-control/actions/runs/35790160139"
+}

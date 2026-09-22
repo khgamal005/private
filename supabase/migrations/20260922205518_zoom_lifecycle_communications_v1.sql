@@ -50,7 +50,13 @@ declare j academy.training_automation_jobs%rowtype;l zoom_core.links%rowtype;f j
 begin
  perform zoom_core.service_only();select * into j from academy.training_automation_jobs where id=p_job_id;
  select * into l from zoom_core.links where tenant_id=j.tenant_id and session_id=j.session_id;
- if l.id is null then return jsonb_build_object('managed',false);end if;
+ if l.id is null then
+  -- Existing legacy use is recognized from pre-project provider evidence only.
+  -- New tenants, or tenants explicitly using the new engine, cannot fall back
+  -- to the shared S2S account. No tenant/data backfill is performed here.
+  if j.channel='zoom' and (exists(select 1 from zoom_core.settings where tenant_id=j.tenant_id and enabled) or not exists(select 1 from academy.course_run_sessions where tenant_id=j.tenant_id and meeting_provider='zoom' and external_meeting_id is not null and meeting_created_at<'2026-09-22T00:00:00Z'::timestamptz)) then return jsonb_build_object('managed',true,'allowed',false,'reason','zoom_new_engine_required');end if;
+  return jsonb_build_object('managed',false);
+ end if;
  if j.channel='zoom' then return jsonb_build_object('managed',true,'allowed',false,'reason','zoom_new_engine_required');end if;
  if j.status<>'processing' or j.metadata->>'zoomRevision' is distinct from l.revision::text then return jsonb_build_object('managed',true,'allowed',false,'reason','zoom_message_superseded');end if;
  select * into s from academy.course_run_sessions where tenant_id=j.tenant_id and id=j.session_id;

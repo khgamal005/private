@@ -23,7 +23,7 @@ Cross-tenant forged IDs: composite references and server permission checks. OAut
 
 ## Schema/release policy
 
-No existing migration is edited; new schemas have RLS and no direct client grants. All provider functions are service-only and independently validate tenant/entity relationships. Rollout defaults closed and does not activate LMS, change pricing, provision licenses, or touch Reef rows. Live tables/functions were inspected through pg_catalog only. Full production host configuration is not proven by a repository default; record it as an open release gate.
+No migration published in the main baseline is edited; new schemas have RLS and no direct client grants. All provider functions are service-only and independently validate tenant/entity relationships. Rollout defaults closed and does not activate LMS, change pricing, provision licenses, or touch Reef rows. Live tables/functions were inspected through pg_catalog only. Full production host configuration is not proven by a repository default; record it as an open release gate.
 
 ## Provider sources checked
 
@@ -33,4 +33,4 @@ No existing migration is edited; new schemas have RLS and no direct client grant
 - Rate limits: https://developers.zoom.us/docs/api/rate-limits/
 - Supabase RLS and security-definer permissions: https://supabase.com/docs/guides/database/postgres/row-level-security
 
-The support KB URL Z1 in the supplied spec resolved to an unrelated Google Workspace help article in this retrieval. Do not use it as evidence of concurrency capacity; verify actual plan/capabilities conservatively.
+An early Z1 retrieval was inconsistent. Reverification on 22 September 2026 resolved the official article correctly: https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0068522. It prohibits overlapping webinars or a webinar plus meeting on one host. The implementation enforces this regardless of meeting slots. Users API settings can prove a Concurrent Meeting add-on; the initial implementation uses a conservative lower bound of two. An unverified base plan remains one slot.

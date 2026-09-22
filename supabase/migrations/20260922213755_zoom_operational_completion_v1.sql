@@ -66,7 +66,7 @@ end $$;
 create function public.v1_zoom_revocations(p_limit integer default 10) returns jsonb language plpgsql security definer set search_path='' as $$
 begin
  perform zoom_core.service_only();if p_limit not between 1 and 20 then raise exception 'zoom_invalid_request';end if;
- return coalesce((select jsonb_agg(to_jsonb(x)) from(select r.id,l.connection_id,l.meeting_id,l.kind,r.registrant_id from zoom_core.registrations r join zoom_core.links l on l.tenant_id=r.tenant_id and l.id=r.link_id join zoom_core.connections c on c.tenant_id=l.tenant_id and c.id=l.connection_id join academy.enrollments e on e.tenant_id=r.tenant_id and e.id=r.enrollment_id join academy.students s on s.tenant_id=e.tenant_id and s.id=e.student_id where r.state='registered' and c.status in ('connected','paused') and (l.state='cancelled' or e.status not in ('confirmed','active','completed') or lower(s.email) is distinct from r.verified_email or not exists(select 1 from academy.training_learner_accounts a where a.tenant_id=e.tenant_id and a.student_id=e.student_id and a.status='active') or not coalesce((private_app.training_journey_financial_access_v1(e.id)->>'trainingAllowed')::boolean,false)) order by r.created_at,r.id limit p_limit)x),'[]');
+ return coalesce((select jsonb_agg(to_jsonb(x)) from(select r.id,l.connection_id,l.meeting_id,l.kind,r.registrant_id from zoom_core.registrations r join zoom_core.links l on l.tenant_id=r.tenant_id and l.id=r.link_id join zoom_core.connections c on c.tenant_id=l.tenant_id and c.id=l.connection_id join academy.enrollments e on e.tenant_id=r.tenant_id and e.id=r.enrollment_id join academy.students s on s.tenant_id=e.tenant_id and s.id=e.student_id where r.state='registered' and not exists(select 1 from zoom_core.account_budgets b where b.connection_id=c.id and b.next_call_at>now()) and c.status in ('connected','paused') and (l.state='cancelled' or e.status not in ('confirmed','active','completed') or lower(s.email) is distinct from r.verified_email or not exists(select 1 from academy.training_learner_accounts a where a.tenant_id=e.tenant_id and a.student_id=e.student_id and a.status='active') or not coalesce((private_app.training_journey_financial_access_v1(e.id)->>'trainingAllowed')::boolean,false)) order by r.created_at,r.id limit p_limit)x),'[]');
 end $$;
 create function public.v1_zoom_revocation_complete(p_registration_id uuid,p_generation integer) returns jsonb language plpgsql security definer set search_path='' as $$
 declare r zoom_core.registrations%rowtype;l zoom_core.links%rowtype;
@@ -98,7 +98,7 @@ begin
 end $$;
 create table zoom_core.resource_syncs (
  connection_id uuid primary key,tenant_id uuid not null,cursor_value text not null default '',seen_users jsonb not null default '[]',coverage text not null default 'complete',
- state text not null default 'pending' check(state in ('pending','processing','complete','partial','failed')),lease_id uuid,lease_until timestamptz,fence int not null default 0,
+ next_attempt_at timestamptz not null default now(),attempts integer not null default 0,last_error text,state text not null default 'pending' check(state in ('pending','processing','complete','partial','failed')),lease_id uuid,lease_until timestamptz,fence int not null default 0,
  actor_subject_id uuid not null references access_control.subjects(id),auth_user_id uuid not null references auth.users(id),updated_at timestamptz not null default now(),
  foreign key(tenant_id,connection_id) references zoom_core.connections(tenant_id,id)
 );
@@ -106,17 +106,19 @@ create function public.v1_zoom_resources_request(p_slug text,p_connection_id uui
 declare ctx jsonb;t uuid:=zoom_core.tenant(p_slug);
 begin
  ctx:=public.v1_zoom_connection_authorize(p_slug,p_connection_id);
- insert into zoom_core.resource_syncs(tenant_id,connection_id,actor_subject_id,auth_user_id) values(t,p_connection_id,private_app.current_subject_id(),auth.uid()) on conflict(connection_id) do update set state='pending',cursor_value='',seen_users='[]',coverage='complete',actor_subject_id=excluded.actor_subject_id,auth_user_id=excluded.auth_user_id,updated_at=now() where zoom_core.resource_syncs.state in ('complete','partial','failed');
+ insert into zoom_core.resource_syncs(tenant_id,connection_id,actor_subject_id,auth_user_id) values(t,p_connection_id,private_app.current_subject_id(),auth.uid()) on conflict(connection_id) do update set state='pending',attempts=0,next_attempt_at=now(),cursor_value='',seen_users='[]',coverage='complete',actor_subject_id=excluded.actor_subject_id,auth_user_id=excluded.auth_user_id,updated_at=now() where zoom_core.resource_syncs.state in ('complete','partial','failed');
  return '{"status":"queued"}';
 end $$;
 create function public.v1_zoom_resources_claim(p_lease_id uuid) returns jsonb language plpgsql security definer set search_path='' as $$
 declare r zoom_core.resource_syncs%rowtype;c zoom_core.connections%rowtype;
 begin
  perform zoom_core.service_only();
- select s.* into r from zoom_core.resource_syncs s join zoom_core.connections conn on conn.tenant_id=s.tenant_id and conn.id=s.connection_id and conn.status='connected' join zoom_core.settings cfg on cfg.tenant_id=s.tenant_id and cfg.enabled where (s.state='pending' or (s.state='processing' and s.lease_until<=now())) and private_app.tenant_addon_enabled(s.tenant_id,'addon.integration.zoom') order by s.updated_at limit 1 for update of s skip locked;
+ update zoom_core.resource_syncs set state='pending',attempts=0,cursor_value='',seen_users='[]',coverage='complete',next_attempt_at=now(),updated_at=now() where connection_id in (select connection_id from zoom_core.resource_syncs where state in ('complete','partial') and updated_at<now()-interval '6 hours' order by updated_at limit 20);
+
+ select s.* into r from zoom_core.resource_syncs s join zoom_core.connections conn on conn.tenant_id=s.tenant_id and conn.id=s.connection_id and conn.status in ('connected','paused') join zoom_core.settings cfg on cfg.tenant_id=s.tenant_id and cfg.enabled where s.next_attempt_at<=now() and not exists(select 1 from zoom_core.account_budgets b where b.connection_id=s.connection_id and b.next_call_at>now()) and (s.state='pending' or (s.state='processing' and s.lease_until<=now())) and private_app.tenant_addon_enabled(s.tenant_id,'addon.integration.zoom') order by s.updated_at limit 1 for update of s skip locked;
  if r.connection_id is null then return null;end if;
  begin perform zoom_core.assert_actor(r.tenant_id,r.auth_user_id,r.actor_subject_id,'connections.manage');exception when others then update zoom_core.resource_syncs set state='failed' where connection_id=r.connection_id;return null;end;
- update zoom_core.resource_syncs set state='processing',lease_id=p_lease_id,lease_until=now()+interval '90 seconds',fence=fence+1,updated_at=now() where connection_id=r.connection_id returning * into r;
+ update zoom_core.resource_syncs set state='processing',lease_id=p_lease_id,lease_until=now()+interval '90 seconds',fence=fence+1,attempts=attempts+1,updated_at=now() where connection_id=r.connection_id returning * into r;
  select * into c from zoom_core.connections where id=r.connection_id;
  return jsonb_build_object('connectionId',r.connection_id,'accountId',c.account_id,'cursor',r.cursor_value,'fence',r.fence);
 end $$;
@@ -154,4 +156,29 @@ revoke all on all functions in schema zoom_core from public,anon,authenticated,s
 do $$declare r record;begin
  for r in select p.oid::regprocedure sig,p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('v1_zoom_resources_request','v1_zoom_resources_claim','v1_zoom_resources_page','v1_zoom_busy_authorize','v1_zoom_poll','v1_zoom_ai_snapshot','v1_zoom_revocations','v1_zoom_revocation_complete','v1_zoom_purge') loop execute format('revoke all on function %s from public,anon,authenticated,service_role',r.sig);execute format('grant execute on function %s to %I',r.sig,case when r.proname in ('v1_zoom_resources_request','v1_zoom_busy_authorize','v1_zoom_poll','v1_zoom_ai_snapshot') then 'authenticated' else 'service_role' end);end loop;
 end $$;
+
+create function public.v1_zoom_provider_defer(p_connection_id uuid,p_retry_seconds integer) returns void language plpgsql security definer set search_path='' as $$
+begin
+ perform zoom_core.service_only();if p_retry_seconds not between 1 and 86400 then raise exception 'zoom_invalid_request';end if;
+ insert into zoom_core.account_budgets(tenant_id,connection_id,next_call_at) select tenant_id,id,now()+make_interval(secs=>p_retry_seconds) from zoom_core.connections where id=p_connection_id on conflict(tenant_id,connection_id) do update set next_call_at=greatest(zoom_core.account_budgets.next_call_at,excluded.next_call_at);
+end $$;
+create function public.v1_zoom_resources_fail(p_connection_id uuid,p_lease_id uuid,p_fence integer,p_code text,p_retry_seconds integer) returns void language plpgsql security definer set search_path='' as $$
+begin
+ perform zoom_core.service_only();if p_retry_seconds not between 1 and 86400 or p_code !~ '^zoom_[a-z_]{1,80}$' then raise exception 'zoom_invalid_request';end if;
+ update zoom_core.resource_syncs set state=case when p_code in ('zoom_reauth_required','zoom_forbidden') or attempts>=12 then 'failed' else 'pending' end,lease_id=null,lease_until=null,last_error=p_code,next_attempt_at=now()+make_interval(secs=>p_retry_seconds),updated_at=now() where connection_id=p_connection_id and lease_id=p_lease_id and fence=p_fence and state='processing';
+ if not found then raise exception 'zoom_stale_lease';end if;
+ if p_code='zoom_rate_limited' then perform public.v1_zoom_provider_defer(p_connection_id,p_retry_seconds);end if;
+end $$;
+revoke all on function public.v1_zoom_provider_defer(uuid,integer),public.v1_zoom_resources_fail(uuid,uuid,integer,text,integer) from public,anon,authenticated;
+grant execute on function public.v1_zoom_provider_defer(uuid,integer),public.v1_zoom_resources_fail(uuid,uuid,integer,text,integer) to service_role;
+
+
+create function public.v1_zoom_bindings_due() returns jsonb language plpgsql security definer set search_path='' as $$
+begin
+ perform zoom_core.service_only();
+ return coalesce((select jsonb_agg(to_jsonb(x)) from(select hi.host_id,hi.subject_id,h.connection_id,lower(u.email) email from zoom_core.host_instructors hi join zoom_core.hosts h on h.tenant_id=hi.tenant_id and h.id=hi.host_id join zoom_core.connections c on c.tenant_id=h.tenant_id and c.id=h.connection_id and c.status in ('connected','paused') join zoom_core.settings cfg on cfg.tenant_id=h.tenant_id and cfg.enabled join access_control.subjects actor on actor.id=hi.subject_id join auth.users u on u.id=actor.auth_user_id and u.email_confirmed_at is not null where hi.active and hi.verified_at<now()-interval '6 hours' and zoom_core.active_instructor(hi.tenant_id,hi.subject_id) and private_app.tenant_addon_enabled(hi.tenant_id,'addon.integration.zoom') and not exists(select 1 from zoom_core.account_budgets b where b.connection_id=c.id and b.next_call_at>now()) order by hi.verified_at limit 3)x),'[]');
+end $$;
+revoke all on function public.v1_zoom_bindings_due() from public,anon,authenticated;
+grant execute on function public.v1_zoom_bindings_due() to service_role;
+
 commit;

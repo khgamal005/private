@@ -61,7 +61,7 @@ begin
  select concurrency_limit into max_slots from zoom_core.hosts where tenant_id=new.tenant_id and id=new.host_id;
  if new.slot>max_slots then raise exception 'zoom_capacity_conflict';end if;
  if exists(select 1 from zoom_core.reservations r where r.tenant_id=new.tenant_id and r.state<>'released' and r.id<>new.id and r.link_id<>new.link_id
-  and r.occupied_range && new.occupied_range and ((r.host_id=new.host_id and r.slot=new.slot) or r.instructor_subject_id=new.instructor_subject_id)) then raise exception 'zoom_schedule_conflict';end if;
+  and r.occupied_range && new.occupied_range and ((r.host_id=new.host_id and (r.slot=new.slot or r.slot>max_slots or exists(select 1 from zoom_core.links l where l.tenant_id=new.tenant_id and l.id in (r.link_id,new.link_id) and l.kind='webinar'))) or r.instructor_subject_id=new.instructor_subject_id)) then raise exception 'zoom_schedule_conflict';end if;
  return new;
 end $$;
 create trigger zoom_reservation_guard before insert or update on zoom_core.reservations for each row execute function zoom_core.reservation_guard();
@@ -78,7 +78,7 @@ create function zoom_core.candidates(t uuid,sid uuid,teacher uuid,starts timesta
  and exists(select 1 from academy.course_run_sessions s join academy.training_run_instructors i on i.tenant_id=s.tenant_id and i.run_id=s.course_run_id and i.active join access_control.subjects a on a.id=i.subject_id and a.status='active' where s.tenant_id=t and s.id=sid and i.subject_id=teacher)
  ), available as (
  select e.*,n slot_number from eligible e cross join lateral generate_series(1,e.concurrency_limit)n
- where not exists(select 1 from zoom_core.reservations r where r.tenant_id=t and r.state<>'released' and r.link_id is distinct from exclude_link and r.occupied_range&&e.w and ((r.host_id=e.id and r.slot=n)or r.instructor_subject_id=teacher))
+ where not exists(select 1 from zoom_core.reservations r where r.tenant_id=t and r.state<>'released' and r.link_id is distinct from exclude_link and r.occupied_range&&e.w and ((r.host_id=e.id and (r.slot=n or r.slot>e.concurrency_limit or kind_key='webinar' or exists(select 1 from zoom_core.links existing where existing.tenant_id=t and existing.id=r.link_id and existing.kind='webinar')))or r.instructor_subject_id=teacher))
  and not exists(select 1 from zoom_core.busy_windows b where b.tenant_id=t and b.host_id=e.id and b.occupied_range&&e.w)
  ) select a.id,a.connection_id,a.slot_number,a.w,
  case when a.instructor_subject_id=teacher then 'instructor_host' else 'least_utilized_eligible_host' end
@@ -103,7 +103,7 @@ begin
  result:=zoom_core.command(t,p_command_id,p_action,p_payload);if result is not null then return result;end if;
  if p_action in ('disconnect','pause','resume') then
   update zoom_core.connections set status=case p_action when 'disconnect' then 'disconnected' when 'pause' then 'paused' else 'connected' end,generation=generation+case when p_action='disconnect' then 1 else 0 end,refresh_lease=case when p_action='disconnect' then null else refresh_lease end,refresh_until=case when p_action='disconnect' then null else refresh_until end
-   where tenant_id=t and id=(p_payload->>'connectionId')::uuid and generation=(p_payload->>'expectedVersion')::int and status in ('connected','paused') returning id into entity;
+   where tenant_id=t and id=(p_payload->>'connectionId')::uuid and generation=(p_payload->>'expectedVersion')::int and (status in ('connected','paused') or (p_action='disconnect' and status in ('reauth_required','missing_scope'))) returning id into entity;
   if entity is null then raise exception 'zoom_revision_conflict';end if;
   if p_action='disconnect' then
    delete from vault.secrets where id=(select vault_secret_id from zoom_core.connections where id=entity);
@@ -207,7 +207,7 @@ begin
   if actor.id is null then raise exception 'zoom_forbidden';end if;
   perform zoom_core.assert_actor(o.tenant_id,actor.auth_user_id,actor.id,'sessions.manage');
  end if;
- if o.kind in ('create','update','import') and (not h.allowed or not h.provider_active or not h.licensed or h.verified_at<=now()-interval '24 hours' or not zoom_core.active_instructor(o.tenant_id,l.instructor_subject_id) or not exists(select 1 from academy.training_run_instructors where tenant_id=o.tenant_id and run_id=s.course_run_id and subject_id=l.instructor_subject_id and active)) then raise exception 'zoom_host_identity_unverified';end if;
+ if o.kind in ('create','update','import') and (exists(select 1 from zoom_core.reservations r where r.tenant_id=o.tenant_id and r.link_id=l.id and r.revision=l.revision and r.state<>'released' and r.slot>h.concurrency_limit) or not h.allowed or not h.provider_active or not h.licensed or h.verified_at<=now()-interval '24 hours' or not zoom_core.active_instructor(o.tenant_id,l.instructor_subject_id) or not exists(select 1 from academy.training_run_instructors where tenant_id=o.tenant_id and run_id=s.course_run_id and subject_id=l.instructor_subject_id and active)) then raise exception 'zoom_host_identity_unverified';end if;
  return jsonb_build_object('operation',to_jsonb(o),'link',to_jsonb(l)-'secret_id','host',jsonb_build_object('id',h.id,'userId',h.user_id,'accountId',h.account_id),'session',jsonb_build_object('id',s.id,'title',s.title,'startsAt',s.starts_at,'endsAt',s.ends_at),'connectionGeneration',c.generation);
 end $$;
 create function public.v1_zoom_operation_complete(p_operation_id uuid,p_lease_id uuid,p_fence integer,p_outcome text,p_result jsonb default '{}',p_retry_seconds integer default 60,p_generation integer default null) returns jsonb language plpgsql security definer set search_path='' as $$

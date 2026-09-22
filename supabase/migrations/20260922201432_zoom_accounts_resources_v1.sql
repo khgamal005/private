@@ -208,13 +208,13 @@ declare c zoom_core.connections%rowtype;u jsonb;total integer:=0;
 begin
  perform zoom_core.service_only();
  select * into c from zoom_core.connections where id=p_connection_id for update;
- if c.id is null or c.generation<>p_generation or c.status<>'connected' then raise exception 'zoom_stale_lease';end if;
+ if c.id is null or c.generation<>p_generation or c.status not in ('connected','paused') then raise exception 'zoom_stale_lease';end if;
  if jsonb_typeof(p_hosts)<>'array' or jsonb_array_length(p_hosts)>500 or p_coverage not in ('complete','partial','user_only') then raise exception 'zoom_invalid_provider_response';end if;
  for u in select value from jsonb_array_elements(p_hosts) loop
   if nullif(u->>'id','') is null or u->>'account_id' is distinct from c.account_id then raise exception 'zoom_account_mismatch';end if;
-  insert into zoom_core.hosts(tenant_id,connection_id,account_id,user_id,name,provider_active,licensed,capacity,capabilities,verified_at,verification_source)
-  values(c.tenant_id,c.id,c.account_id,u->>'id',left(coalesce(u->>'display_name',u->>'first_name','Zoom host'),120),u->>'status'='active',u->>'type' in ('2','3'),(u->>'capacity')::integer,coalesce(u->'capabilities','{}'),case when u->>'capacity' is not null then now() end,'zoom_api')
-  on conflict(connection_id,user_id) do update set name=excluded.name,provider_active=excluded.provider_active,licensed=excluded.licensed,capacity=excluded.capacity,capabilities=excluded.capabilities,verified_at=excluded.verified_at,verification_source=excluded.verification_source,revision=zoom_core.hosts.revision+1;
+  insert into zoom_core.hosts(tenant_id,connection_id,account_id,user_id,name,provider_active,licensed,capacity,provider_concurrency,capabilities,verified_at,verification_source)
+  values(c.tenant_id,c.id,c.account_id,u->>'id',left(coalesce(u->>'display_name',u->>'first_name','Zoom host'),120),u->>'status'='active',u->>'type' in ('2','3'),(u->>'capacity')::integer,case when u->>'providerConcurrency'='2' then 2 else 1 end,coalesce(u->'capabilities','{}'),case when u->>'capacity' is not null then now() end,'zoom_api')
+  on conflict(connection_id,user_id) do update set name=excluded.name,provider_active=excluded.provider_active,licensed=excluded.licensed,capacity=excluded.capacity,provider_concurrency=excluded.provider_concurrency,concurrency_limit=least(zoom_core.hosts.concurrency_limit,excluded.provider_concurrency),capabilities=excluded.capabilities,verified_at=excluded.verified_at,verification_source=excluded.verification_source,revision=zoom_core.hosts.revision+1;
   total:=total+1;
  end loop;
  if p_coverage='complete' then update zoom_core.hosts h set provider_active=false where h.connection_id=c.id and not exists(select 1 from jsonb_array_elements(p_hosts) item where item->>'id'=h.user_id);end if;

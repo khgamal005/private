@@ -17,7 +17,7 @@ begin
  select * into h from zoom_core.hosts where id=p_host_id;
  select * into c from zoom_core.connections where tenant_id=h.tenant_id and id=h.connection_id;
  select lower(u.email) into email_value from access_control.subjects a join auth.users u on u.id=a.auth_user_id and u.email_confirmed_at is not null where a.id=p_subject_id and a.status='active' and not a.must_change_password and zoom_core.active_instructor(h.tenant_id,a.id);
- if h.id is null or c.generation is distinct from p_generation or c.status<>'connected' or email_value is null or lower(p_identity->>'email') is distinct from email_value or p_identity->>'account_id' is distinct from c.account_id or p_identity->>'status' is distinct from 'active' or coalesce(p_identity->>'type','') not in ('2','3') then raise exception 'zoom_host_identity_unverified';end if;
+ if h.id is null or c.generation is distinct from p_generation or c.status not in ('connected','paused') or email_value is null or lower(p_identity->>'email') is distinct from email_value or p_identity->>'account_id' is distinct from c.account_id or p_identity->>'status' is distinct from 'active' or coalesce(p_identity->>'type','') not in ('2','3') then raise exception 'zoom_host_identity_unverified';end if;
  insert into zoom_core.host_instructors(tenant_id,host_id,subject_id,provider_user_id,provider_email,authorization_kind,verified_at)
  values(h.tenant_id,h.id,p_subject_id,p_identity->>'id',email_value,case when p_identity->>'id'=h.user_id then 'host' else 'alternative_host' end,now())
  on conflict(tenant_id,host_id,subject_id) do update set provider_user_id=excluded.provider_user_id,provider_email=excluded.provider_email,authorization_kind=excluded.authorization_kind,verified_at=now(),active=true;

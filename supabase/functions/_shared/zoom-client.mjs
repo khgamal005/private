@@ -94,6 +94,9 @@ export function verifiedHost(user,settings,accountId){
   const feature=settings?.feature||{};const capacity=Number(feature.meeting_capacity);
   return {id:String(user.id),account_id:accountId,display_name:user.display_name||`${user.first_name||''} ${user.last_name||''}`.trim(),status:user.status,type:user.type,
     capacity:Number.isInteger(capacity)&&capacity>0?capacity:null,
-    capabilities:{meeting:Number.isInteger(capacity)&&capacity>0,cloud_recording:settings?.recording?.cloud_recording===true,
+    // A returned Concurrent Meeting add-on proves at least two slots. Do not
+    // guess higher product limits or infer a Business plan from capacity.
+    providerConcurrency:Number(user.type)===2&&['Basic','Plus'].includes(feature.concurrent_meeting)?2:1,
+    capabilities:{meeting:Number.isInteger(capacity)&&capacity>0,concurrencySource:['Basic','Plus'].includes(feature.concurrent_meeting)?'user_settings_concurrent_addon_lower_bound':'conservative_unverified_plan',cloud_recording:settings?.recording?.cloud_recording===true,
       webinar:feature.webinar===true,webinar_capacity:Number(feature.webinar_capacity)||null,registration:true,polls:settings?.in_meeting?.meeting_polling?.enable===true,webinar_polls:settings?.in_meeting?.webinar_polling?.enable===true,breakout:settings?.in_meeting?.breakout_room===true&&settings?.in_meeting?.breakout_room_schedule===true,externalBusyCoverage:'unknown'}};
 }

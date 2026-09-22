@@ -34,6 +34,9 @@ test('ZM-19/14 T56/57/62: source versions, real Odeiry run authority, draft-only
  await assert.rejects(command(db,'public.v1_zoom_ai_prepare',{recordingId:rec,sourceRevision:2,kind:'summary',consent:true},60104),/zoom_source_revision_conflict/);
  const draft=await command(db,'public.v1_zoom_ai_prepare',{recordingId:rec,sourceRevision:1,kind:'summary',consent:true},60105);await assert.rejects(call(db,'public.v1_zoom_ai_context',{p_slug:'marktone',p_draft_id:draft.draftId,p_run_id:id(60106)}),/zoom_ai_budget_required/);
  const thread=id(60107),run=id(60108);await db.query("insert into core.odeiry_threads(id,tenant_id,created_by_subject_id,title) values($1,$2,$3,'Synthetic Zoom draft')",[thread,T,ADMIN]);await db.query("insert into core.odeiry_runs(id,tenant_id,thread_id,requested_by_subject_id,client_request_id,request_hash,estimated_business_units) values($1,$2,$3,$4,$5,$6,80)",[run,T,thread,ADMIN,`zoom:${draft.draftId}`,'a'.repeat(64)]);
+ await db.query("update core.odeiry_runs set request_context='{\"assistantMode\":\"manager_v1\"}' where id=$1",[run]);
+ const analytical=await call(db,'public.v1_zoom_odeiry_context',{p_slug:'marktone',p_run_id:run});assert.equal(analytical.available,true);assert.equal(analytical.sourceId,'manager.zoom_operations.live');assert.equal(analytical.hosts,undefined);assert.ok(!JSON.stringify(analytical).includes('example.test'));
+ await login(db,LEARNER_AUTH);await assert.rejects(call(db,'public.v1_zoom_odeiry_context',{p_slug:'marktone',p_run_id:run}),/zoom_forbidden/);await login(db,ADMIN_AUTH);
  const ctx=await call(db,'public.v1_zoom_ai_context',{p_slug:'marktone',p_draft_id:draft.draftId,p_run_id:run});assert.equal(ctx.sourceRevision,1);
  await db.query("update core.odeiry_runs set status='completed',completed_at=now(),finalization_hash=$2,response_data=$3,actual_model='synthetic-contract',input_tokens=100,output_tokens=30,settled_business_units=2 where id=$1",[run,'b'.repeat(64),{title:'Synthetic draft',summary:'Test material',sources:['s1']}]);
  const finished=await call(db,'public.v1_zoom_ai_finish',{p_slug:'marktone',p_draft_id:draft.draftId});assert.equal(finished.state,'draft');assert.equal((await db.query('select count(*)::int n from academy.course_authoring')).rows[0].n,0);
@@ -65,4 +68,14 @@ test('ZM-04/20: replacing an unstarted meeting keeps old capacity until provider
  assert.equal((await db.query("select count(*)::int n from zoom_core.reservations where state<>'released'")).rows[0].n,2);
  const lease=id(60304),retired=await call(db,'public.v1_zoom_replaced_claim',{p_lease_id:lease});assert.equal(retired.connectionId,connection);assert.equal(retired.meetingId,'12345678901');await call(db,'public.v1_zoom_replaced_complete',{p_id:retired.id,p_lease_id:lease,p_fence:retired.fence,p_generation:1,p_cancelled:true});
  assert.equal((await db.query("select count(*)::int n from zoom_core.reservations where state<>'released'")).rows[0].n,1);assert.equal((await db.query('select meeting_id from zoom_core.replaced_meetings')).rows[0].meeting_id,'12345678901');assert.equal((await db.query('select connection_id from zoom_core.links where id=$1',[link])).rows[0].connection_id,other);
+});
+
+test('ZM-10/12/20: operational follow-up is deduplicated in canonical tasks, reports are scoped and unverified costs stay unknown',async t=>{
+ const {STAFF}=await import('./fixtures/zoom-database.mjs');const db=await zoomSetup({complete:true});t.after(()=>db.close());const{link,session}=await seedZoomLesson(db);
+ await command(db,'public.v1_zoom_settings',{expectedVersion:1,ownerStaffId:STAFF},60401);
+ await db.query('update zoom_core.settings set operating_policy=operating_policy||\'{"lateStartMinutes":5}\'::jsonb where tenant_id=$1',[T]);
+ await service(db);await call(db,'public.v1_zoom_operational_tasks',{});await call(db,'public.v1_zoom_operational_tasks',{});
+ assert.equal((await db.query("select count(*)::int n from work_core.tasks where task_key=$1",['zoom:followup:late:'+link])).rows[0].n,1);
+ await service(db,false);const report=await call(db,'public.v1_zoom_snapshot',{p_slug:'marktone',p_view:'reports'});assert.equal(report.insights.licenseCost,null);assert.equal(report.insights.ai.costVerified,false);assert.equal(report.insights.recordings.watchSeconds,null);
+ await login(db,LEARNER_AUTH);await assert.rejects(call(db,'public.v1_zoom_insights',{p_slug:'marktone',p_from:new Date(Date.now()-86400000).toISOString(),p_to:new Date().toISOString()}),/zoom_forbidden/);
 });

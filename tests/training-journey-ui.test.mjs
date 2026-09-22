@@ -27,6 +27,20 @@ function load(path){
 const unit={id:'unit-1',title:'الدرس الحقيقي',kind:'text',required:true,minimumSeconds:0,position:1};
 const enrollment={id:'enrollment-1',studentId:'student-1',studentName:'متدرب الاختبار',courseId:'course-1',courseTitle:'الدورة الحقيقية',runId:'run-1',runTitle:'الدفعة الأولى',status:'confirmed',versionId:'version-1',units:[unit],financialAccess:{trainingAllowed:true,certificationAllowed:false,financialStatus:'settled',reasonCodes:[],currency:'SAR'},progress:{completedUnits:0,totalUnits:1,percent:0},sessions:[{id:'session-1',title:'اللقاء المباشر',startsAt:'2026-09-20T10:00Z',joinUrl:'https://example.test/meeting'}]};
 const learner={role:'learner',tenant:{id:'3d185482-b916-49cc-b868-b6dfdb93eba8',slug:'marktone',name:'مركز الاختبار',timezone:'Asia/Riyadh'},viewer:{},learning:{role:'learner',courses:[],enrollments:[enrollment],submissions:[],requests:[]}};
+test('published curriculum headings preserve activity order and financial access in the learner view',async()=>{
+ const grouped={...enrollment,units:[unit,{...unit,id:'unit-2',position:2,title:'الواجب النهائي',kind:'assignment'}],policy:{curriculumTopics:[{id:'topic-1',title:'أساسيات الدورة',startPosition:1,unitCount:1},{id:'topic-2',title:'التطبيق العملي',startPosition:2,unitCount:1}]}};
+ await mounted({...learner,learning:{...learner.learning,enrollments:[grouped]}},async({doc,calls})=>{
+   assert.deepEqual([...doc.querySelectorAll('[aria-label="أنشطة الدورة"] h3')].map(item=>item.textContent),['أساسيات الدورة','التطبيق العملي']);
+   assert.deepEqual([...doc.querySelectorAll('[aria-label="أنشطة الدورة"] button strong')].map(item=>item.textContent.replace(/^\S+\s/,'')),['الدرس الحقيقي','الواجب النهائي']);
+   assert.equal(calls.length,0);
+ });
+});
+test('learner sees published path order and personal progress without enrollment bypass links',async()=>{
+ const paths={offset:0,hasMore:false,paths:[{id:'path-1',title:'مسار مهارات الإدارة',description:'دورات متتابعة',courses:[{id:'course-1',title:'إدارة الوقت',enrolled:true,completed:false,progressPercent:35},{id:'course-2',title:'قيادة الفريق',enrolled:false,completed:false,progressPercent:null}]}]};
+ await mounted({...learner,learningPaths:paths},async({doc,calls})=>{
+   const section=doc.querySelector('[aria-label="مساراتي التدريبية"]');assert.ok(section);assert.match(section.textContent,/٣٥|35/);assert.match(section.textContent,/تحتاج إلى التسجيل/);assert.equal(section.querySelectorAll('a').length,0);assert.equal(calls.length,0);
+ },{view:'overview'});
+});
 async function mounted(data,fn,{view='learning',respond=()=>({ok:true,json:async()=>({data:{unit:{...unit,body:'محتوى خاص مسموح لهذا المتدرب'}}})})}={}){
   const dom=new JSDOM('<!doctype html><html><body><div id="app"></div></body></html>',{url:'https://odeir.com/learn/marktone'}),previous=new Map();
   for(const [key,value] of Object.entries({window:dom.window,document:dom.window.document,navigator:dom.window.navigator,HTMLElement:dom.window.HTMLElement,HTMLInputElement:dom.window.HTMLInputElement,HTMLTextAreaElement:dom.window.HTMLTextAreaElement,localStorage:dom.window.localStorage,sessionStorage:dom.window.sessionStorage,IS_REACT_ACT_ENVIRONMENT:true})){

@@ -48,5 +48,5 @@ jobs:
         run: npm install --no-save --package-lock=false --ignore-scripts pg@8.16.3
       - name: Verify dependency manifests remain unchanged
         run: git diff --exit-code -- package.json package-lock.json
-      - name: Exercise actual concurrent academy transactions
+      - name: Exercise actual concurrent checkout, authoring and path transactions
         run: node --test tests/academy-concurrency.test.mjs

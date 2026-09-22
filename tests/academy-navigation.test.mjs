@@ -57,6 +57,12 @@ test('training links stay inside the tenant academy and reject arbitrary view na
     assert.equal(academyTrainingHref('training-center',view),null);
   }
 });
+test('learning paths appear only for the pilot learning manager and legacy links resolve inside academy',()=>{
+ const pilot={...access,tenant:{...access.tenant,slug:'marktone'}};
+ assert.equal(academyNavigation(pilot).find(item=>item.key==='training-paths').href,'/academy/marktone/lms/paths');
+ assert.ok(!academyNavigation(access).some(item=>item.key==='training-paths'));
+ assert.ok(!academyNavigation({...pilot,permissions:{verifyPayments:true}}).some(item=>item.key==='training-paths'));
+});
 
 test('CMS academy workspace keeps studio and builder links in the academy without changing the site identity',async()=>{
   const source=await readFile(new URL('../lib/cms.js',import.meta.url),'utf8');

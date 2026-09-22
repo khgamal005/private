@@ -40,7 +40,7 @@ test('academy learner/instructor snapshots cannot query manager permissions or f
   for(const role of ['learner','instructor']){
     const h=rpcHarness('lib/training-snapshot.js',()=>({role,tenant:access.tenant,courses:[],enrollments:[]}));
     const result=await h.getTrainingSnapshot('marktone',{workspace:'academy',role});assert.deepEqual(result.tenant,access.tenant);
-    assert.deepEqual(h.calls.map(call=>call[0]),['v1_academy_training_snapshot']);assert.equal(h.calls[0][1].p_role,role);
+    assert.deepEqual(h.calls.map(call=>call[0]),role==='learner'?['v1_academy_training_snapshot','v1_academy_learner_paths']:['v1_academy_training_snapshot']);assert.equal(h.calls[0][1].p_role,role);
   }
   const denied=rpcHarness('lib/training-snapshot.js',()=>({tenant:{...access.tenant,slug:'reef'}}));
   await assert.rejects(denied.getTrainingSnapshot('marktone',{workspace:'academy',role:'learner'}),error=>error.status===404);

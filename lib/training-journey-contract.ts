@@ -6,6 +6,7 @@ export type TrainingPayload = Record<string, unknown>;
 export type TrainingMutationResult = Record<string, unknown>;
 export type TrainingMutation = (action: string, payload: TrainingPayload, success: string) => Promise<TrainingMutationResult | null>;
 export interface TrainingPolicy {
+  curriculumTopics?: Array<{id:string;title:string;summary?:string;startPosition:number;unitCount:number}>;
   minAttendancePercent: number;
   minAssessmentPercent: number;
   requireCompletedRun: boolean;
@@ -61,6 +62,7 @@ export interface TrainingViewer {
   [key: string]: unknown;
 }
 export interface TrainingJourneySnapshot {
+  learningPaths?: {paths:Array<{id:string;title:string;description:string;courses:Array<{id:string;title:string;enrolled:boolean;completed:boolean;progressPercent:number|null}>}>;offset:number;pageSize?:number;hasMore:boolean}|null;
   role: TrainingRole;
   workspace?: 'academy'; mode?: 'standalone' | 'connected'; permissions?: Record<string,boolean>;
   tenant: { id: string; slug: string; name: string; timezone?: string; currency?: string };

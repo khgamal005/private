@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {readFile} from 'node:fs/promises';
 import {setImmediate as yieldTurn} from 'node:timers/promises';
-import {checkoutSetup,checkoutOffer,checkoutOrder,verificationPayload,storeAction,requestAction,nextCommand,login,id,T,MANAGER,MANAGER_AUTH} from './fixtures/academy-concurrency-database.mjs';
+import {checkoutSetup,checkoutOffer,checkoutOrder,verificationPayload,storeAction,requestAction,nextCommand,login,id,T,MANAGER,MANAGER_AUTH,call} from './fixtures/academy-concurrency-database.mjs';
 
 const databaseUrl=process.env.ACADEMY_TEST_DATABASE_URL;
 function localTestUrl(value){
@@ -124,5 +125,56 @@ test('real PostgreSQL serializes academy checkout and request transfers',{
     assert.equal(links.length,2);assert.equal(links[0].invoice_id,links[1].invoice_id);assert.equal(links[0].version_id,links[1].version_id);
     assert.equal((await db.query('select status from academy.platform_requests where id=$1',[requests[1-winner].requestId])).rows[0].status,'pending');
     assert.equal((await db.query('select status from academy.enrollments where id=$1',[sourceEnrollments[1-winner]])).rows[0].status,'confirmed');
+  });
+
+  await db.exec(await readFile(new URL('../supabase/migrations/20260922192706_academy_course_authoring_v1.sql',import.meta.url),'utf8'));
+  await db.query('insert into academy.authoring_settings(tenant_id,enabled) values($1,true)',[T]);
+  const author=(client,p_action,p_payload,p_command_id=nextCommand())=>call(client,'public.v1_academy_authoring_action',{p_slug:'marktone',p_action,p_payload,p_command_id});
+  const courseLock=courseId=>client=>client.query('select id from academy.courses where tenant_id=$1 and id=$2 for update',[T,courseId]);
+  const doc=title=>({title,description:'Synthetic concurrent authoring',category:'Training',level:'all',language:'ar',learningMode:'self_paced',policy:{minAttendancePercent:0,minAssessmentPercent:70,requireCompletedRun:false,certificateEnabled:false,termsVersion:'2026',supportEmail:'support@example.test'},topics:[{id:'assessment',title:'Assessment',summary:'',units:[{id:'quiz',title:'Final quiz',kind:'quiz',required:true,questions:[{id:'q1',prompt:'Choose the valid answer',options:['Correct','Wrong'],correctOptionIndex:0}]}]}]});
+  let authored;
+
+  await t.test('simultaneous identical authoring commands create one canonical course and one audit event',async()=>{
+    const commandId=nextCommand(),payload={title:'Concurrent authoring course'};
+    const before=(await db.query("select count(*)::int n from academy.training_learning_events where event_type='authoring_create_course'")).rows[0].n;
+    const results=await race(controller,workers,
+      client=>client.query('select pg_advisory_xact_lock(hashtextextended($1,91216))',[`${T}:${commandId}`]),
+      workers.map(()=>client=>author(client,'create_course',payload,commandId)));
+    assert.equal(results.filter(result=>result.ok).length,2,JSON.stringify(results));
+    assert.deepEqual(results[0].value,results[1].value);authored=results[0].value;
+    assert.equal((await db.query('select count(*)::int n from academy.courses where tenant_id=$1 and id=$2',[T,authored.courseId])).rows[0].n,1);
+    assert.equal((await db.query("select count(*)::int n from academy.training_learning_events where event_type='authoring_create_course'")).rows[0].n,before+1);
+  });
+
+  await t.test('two editors saving the same revision preserve one winner and reject the stale writer',async()=>{
+    const commandIds=workers.map(()=>nextCommand());
+    const results=await race(controller,workers,courseLock(authored.courseId),workers.map((_,index)=>client=>author(client,'save_course',{courseId:authored.courseId,expectedRevision:1,document:doc(`Concurrent draft ${index}`)},commandIds[index])));
+    assert.equal(results.filter(result=>result.ok).length,1,JSON.stringify(results));
+    assert.equal(results.filter(result=>!result.ok&&result.error.message==='academy_authoring_revision_conflict').length,1,JSON.stringify(results));
+    const winner=results.findIndex(result=>result.ok);
+    assert.deepEqual((await db.query("select revision,document->>'title' title from academy.course_authoring where tenant_id=$1 and course_id=$2",[T,authored.courseId])).rows[0],{revision:2,title:`Concurrent draft ${winner}`});
+    assert.equal((await db.query('select count(*)::int n from academy.training_journey_commands where tenant_id=$1 and command_id=any($2::uuid[])',[T,commandIds])).rows[0].n,1);
+  });
+
+  await t.test('distinct concurrent publish commands create one immutable version and no financial changes',async()=>{
+    const before=await counters(db),payload={courseId:authored.courseId,expectedRevision:2,humanReviewed:true};
+    const results=await race(controller,workers,courseLock(authored.courseId),workers.map(()=>client=>author(client,'publish_course',payload)));
+    assert.equal(results.filter(result=>result.ok).length,2,JSON.stringify(results));
+    assert.deepEqual(results[0].value,results[1].value);
+    assert.equal((await db.query('select count(*)::int n from academy.training_course_versions where tenant_id=$1 and course_id=$2',[T,authored.courseId])).rows[0].n,1);
+    assert.equal((await db.query('select count(*)::int n from academy.course_authoring_releases where tenant_id=$1 and course_id=$2',[T,authored.courseId])).rows[0].n,1);
+    assert.deepEqual(await counters(db),before);
+  });
+
+  await t.test('concurrent path edits and publication preserve revision and one immutable release',async()=>{
+    const path=await author(db,'save_path',{expectedRevision:0,document:{title:'Concurrent path',courseIds:[authored.courseId]}});
+    const pathLock=client=>client.query('select id from academy.learning_paths where tenant_id=$1 and id=$2 for update',[T,path.pathId]);
+    const edits=await race(controller,workers,pathLock,workers.map((_,index)=>client=>author(client,'save_path',{pathId:path.pathId,expectedRevision:1,document:{title:`Concurrent path edit ${index}`,courseIds:[authored.courseId]}})));
+    assert.equal(edits.filter(result=>result.ok).length,1,JSON.stringify(edits));
+    assert.equal(edits.filter(result=>!result.ok&&result.error.message==='academy_authoring_revision_conflict').length,1,JSON.stringify(edits));
+    const results=await race(controller,workers,pathLock,workers.map(()=>client=>author(client,'publish_path',{pathId:path.pathId,expectedRevision:2,humanReviewed:true})));
+    assert.equal(results.filter(result=>result.ok).length,2,JSON.stringify(results));assert.deepEqual(results[0].value,results[1].value);
+    assert.equal((await db.query('select count(*)::int n from academy.learning_path_releases where tenant_id=$1 and path_id=$2',[T,path.pathId])).rows[0].n,1);
+    assert.equal((await db.query('select count(*)::int n from academy.learning_path_release_courses where tenant_id=$1 and path_id=$2',[T,path.pathId])).rows[0].n,1);
   });
 });

@@ -40,7 +40,9 @@ export async function POST(request, {params}) {
     const url = new URL(signed.url, `${SUPABASE_URL}/storage/v1/`);
     const signature = url.searchParams.get('token');
     if (!signature || url.origin !== new URL(SUPABASE_URL).origin || !url.pathname.includes(`/object/upload/sign/${ACADEMY_MEDIA_BUCKET}/`)) throw trainingProblem('request_failed', 502);
-    const endpoint = new URL('/storage/v1/upload/resumable', SUPABASE_URL);
+    // Object-scoped signatures use the signed TUS route; the regular route
+    // requires a user JWT that must never be exposed to the upload client.
+    const endpoint = new URL('/storage/v1/upload/resumable/sign', SUPABASE_URL);
     if (endpoint.hostname.endsWith('.supabase.co')) endpoint.hostname = endpoint.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co');
     return trainingJson({...ticket, endpoint:endpoint.toString(), token:signature});
   } catch (error) { return failure(error); }

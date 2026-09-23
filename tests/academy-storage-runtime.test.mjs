@@ -49,7 +49,7 @@ test('real Storage uploads a 64 MiB MP4 with pause/resume and enforces private o
  await new Promise((resolve,reject)=>{
   const timeout=setTimeout(()=>reject(new Error('Real resumable upload timed out')),90000);
   const success=()=>{clearTimeout(timeout);resolve();},failure=error=>{clearTimeout(timeout);reject(error);};
-  startAcademyVideoUpload({file,ticket:{...ticket,endpoint:`${endpoint}/upload/resumable`,token},autoStart:false,onSuccess:success,onError:failure,onProgress:percent=>{
+  startAcademyVideoUpload({file,ticket:{...ticket,endpoint:`${endpoint}/upload/resumable/sign`,token},autoStart:false,onSuccess:success,onError:failure,onProgress:percent=>{
    if(!paused&&percent>=10&&percent<90){paused=true;void upload.abort(false).then(()=>upload.start()).catch(failure);}
   }}).then(value=>{upload=value;upload.start();}).catch(failure);
  });

@@ -46,7 +46,7 @@ test('upload signing uses only the server session and returns an object-scoped T
  const r=route('academy-media',async()=>({assetId:uuid,objectPath:path,bucket:media.ACADEMY_MEDIA_BUCKET,state:'pending'})),calls=[],original=globalThis.fetch;t.after(()=>globalThis.fetch=original);
  globalThis.fetch=async(target,options)=>{calls.push({target,options});return Response.json({url:`/object/upload/sign/academy-course-media/${path}?token=scoped-upload-ticket`});};
  const result=await post(r,'create_upload',body({courseId:uuid,fileName:'lesson.mp4',mimeType:'video/mp4',sizeBytes:100,tenantId:'foreign',actorSubjectId:uuid}));
- assert.equal(result.status,200);assert.equal(result.body.token,'scoped-upload-ticket');assert.equal(result.body.endpoint,'https://fixture.storage.supabase.co/storage/v1/upload/resumable');
+ assert.equal(result.status,200);assert.equal(result.body.token,'scoped-upload-ticket');assert.equal(result.body.endpoint,'https://fixture.storage.supabase.co/storage/v1/upload/resumable/sign');
  assert.equal(calls[0].options.headers.Authorization,'Bearer server-only-session');assert.equal(calls[0].options.redirect,'error');
  assert.ok(!JSON.stringify(result.body).includes('server-only-session'));assert.equal(r.calls[0][1].p_payload.actorSubjectId,undefined);
  globalThis.fetch=async()=>Response.json({url:'https://foreign.test/object/upload/sign/academy-course-media/path?token=bad'});
@@ -65,12 +65,12 @@ test('private playback authorizes first, bounds URL lifetime, and cannot create 
 
 test('resumable upload isolates fingerprints and ignores a foreign resume URL',async()=>{
  let options,started=0,resumed=null;
- class Upload {constructor(_file,input){options=input;}async findPreviousUploads(){return [{uploadUrl:'https://foreign.test/stolen'},{uploadUrl:'https://fixture.storage.supabase.co/storage/v1/upload/resumable/id'}];}resumeFromPreviousUpload(value){resumed=value;}start(){started++;}}
- const file={size:100,lastModified:42,type:'video/mp4'},ticket={endpoint:'https://fixture.storage.supabase.co/storage/v1/upload/resumable',token:'scoped',bucket:'academy-course-media',objectPath:path};
+ class Upload {constructor(_file,input){options=input;}async findPreviousUploads(){return [{uploadUrl:'https://foreign.test/stolen'},{uploadUrl:'https://fixture.storage.supabase.co/storage/v1/upload/resumable/old-jwt-route'},{uploadUrl:'https://fixture.storage.supabase.co/storage/v1/upload/resumable/sign/id'}];}resumeFromPreviousUpload(value){resumed=value;}start(){started++;}}
+ const file={size:100,lastModified:42,type:'video/mp4'},ticket={endpoint:'https://fixture.storage.supabase.co/storage/v1/upload/resumable/sign',token:'scoped',bucket:'academy-course-media',objectPath:path};
  const client=await startAcademyVideoUpload({file,ticket,UploadClass:Upload,autoStart:false});assert.equal(started,0);client.start();assert.equal(started,1);
  assert.equal(options.chunkSize,6*1024*1024);assert.equal(options.headers['x-signature'],'scoped');assert.equal(options.headers.Authorization,undefined);assert.equal(options.removeFingerprintOnSuccess,true);
  assert.equal(options.metadata.cacheControl,'0','TUS cache lifetime uses seconds so private playback is revalidated');
- assert.match(await options.fingerprint(),new RegExp(uuid));assert.match(resumed.uploadUrl,/fixture.storage/);
+ assert.match(await options.fingerprint(),new RegExp(uuid));assert.match(resumed.uploadUrl,/\/upload\/resumable\/sign\/id$/);
  let progress;options.onProgress=undefined;
  await startAcademyVideoUpload({file,ticket,UploadClass:Upload,onProgress:value=>progress=value});options.onProgress(50,100);assert.equal(progress,50);
 });

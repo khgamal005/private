@@ -10,7 +10,7 @@ permissions:
 jobs:
   postgres-concurrency:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17
@@ -33,4 +33,14 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm install --no-save --package-lock=false --ignore-scripts pg@8.16.3
       - run: git diff --exit-code -- package.json package-lock.json
-      - run: node --test tests/zoom-*.test.mjs
+      # Keep the PR closed while preview integrations are under review. Run the
+      # whole ODEIR quality gate on this protected feature branch, without deploy.
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run migration:verify
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: synthetic-build-only
+          SUPABASE_URL: http://127.0.0.1:54321

@@ -12,7 +12,7 @@
 | ZM-06 | [استحقاق][m03]، [استرداد تسجيل][m18]، [حالة بوابة][m21]، [واجهة المحاضرة][lecture] | lifecycle/recovery/acceptance/HTTP؛ سياسة المال ودور مضيف | أثر إبطال رابط Zoom سبق كشفه يحتاج تجربة مزود؛ لا ضمان منع مشاركة مطلق |
 | ZM-07 | m03، [التاريخ][m14]، [المتابعة][m19]؛ union/window/breaks/quality/manualSeconds | evidence/completion/acceptance؛35+55،جهازان،ناقص،تداخل،تاريخ | انتظار المزود للتقرير النهائي ومراجعة بشرية عند الغموض |
 | ZM-08 | [إكمال موزون][m12]، m03/m17/m19؛ السلطة الأكاديمية القائمة | certificates؛RPC قديم/جديد/direct guard وقرار بعد شهادة | سياسات نقص الساعات/التعويض المعتمدة؛ لا تغيير قانوني أو شهادة تلقائية |
-| ZM-09 | [تسجيلات][m04]، [حذف][m07]، m10؛ Vault ونشر/سحب وopened_only | lifecycle/advanced؛تنظيف محلي واستحقاق حديث | أصل Zoom وحدود الإبطال، مساحة/ملفات حية، backup ومشتقات منشورة |
+| ZM-09 | [تسجيلات][m04]، [حذف][m07]، m10؛ Vault ونشر/سحب وopened_only | lifecycle/advanced؛تنظيف محلي واستحقاق حديث | أصل Zoom وحدود الإبطال، مساحة/ملفات حية، سياسة backup والمشتقات المختلطة؛ [النسخ المعروفة والاستعادة المحلية](retention-implementation.md) منفذة |
 | ZM-10 | m06، [رسائل ندوة][m17]، عامل الرسائل الحالي + zoom-message | lifecycle/acceptance/advanced؛version/recipient/consent/queue | قنوات وcron وإذن إرسال؛ قبول المزود ليس إثبات تسليم |
 | ZM-11 | [workspace][ui] داخل learner-operations، lecture وtraining portal | UI/HTTP/SQL ومتدرب بلا LMS | SDK وسائط حية؛ قارئ شاشة شامل غير مختبر |
 | ZM-12 | m04، [insights][m13]، [exports][m16]، m22؛فلاتر ومقارنة ودرجات وتكلفة معلومة المصدر | reports/acceptance/HTTP؛205صف/3chunks/TTL/سحب صلاحية | رأي الطلاب في المدرب لا مصدر قائم متحقق له؛ تكلفة Zoom/ROI غير متاحة دون مصدر |
@@ -22,7 +22,7 @@
 | ZM-16 | meetingOptions آمنة، binding بديل، polls حقيقية؛ الغرف من عميل Zoom عند دعمها | provider/advanced وواجهة إعداد فعلية | اختبار قدرات ورخص حية؛ Q&A/poll results ليست درجات معتمدة تلقائيًا |
 | ZM-17 | [SDK browser][sdk] وedge؛قرار مراجعة/هوية ودور وتوقيع وفallback | provider عقد role/signature؛بدون anonymous external مضمون | T55 صوت/فيديو/مشاركة/جوال وموافقة التطبيق؛ لا تجربة حية |
 | ZM-18 | [CRM webinar][m09] وm17؛عميل/مصدر/حملة/موافقة/إسناد/رابط شخصي | advanced؛dedupe، restart union، لا مال/طالب جديد | رخصة Webinar واختبار تسجيل وتسليم وحضور حي |
-| ZM-19 | [Odeiry source drafts][m08] وm10/m13؛ميزانية فعلية وhuman apply وقراءة تحليلية | advanced/provider؛apply بمحرر المسودة مع gates مستقلة | مزود AI حي وميزانية وموافقة بيانات؛ تنظيف مشتق تأليف مختلط يحتاج سياسة |
+| ZM-19 | [Odeiry source drafts][m08] وm10/m13؛ميزانية فعلية وhuman apply وقراءة تحليلية | advanced/provider؛apply بمحرر المسودة مع gates مستقلة | مزود AI حي وميزانية وموافقة بيانات؛ حذف النسخ المعروفة وإعادة التطبيق وحجز الحجم في SQL23/24؛ المختلط يحتاج سياسة |
 | ZM-20 | pause/disconnect/reauth/recovery/replace/followup | accounts/lifecycle/advanced/recovery/acceptance | حسم الحالات الغامضة لدى المزود والتشغيل الفعلي للمتابعة |
 | ZM-21 | RTL/components/CSS الحالية،360/390/768،intro قابل للتخطي | UI/screenshots/HTTP/keyboard | فحص وصول شامل وقارئ شاشة وSDK media حي |
 | ZM-22 |22ترحيلًا إضافيًا، CI مع PG17، docs/runbooks/matrices، rollout مغلق | lint/types/migrations/build/regression checkpoints، UI،load | بوابة التسليم الأخيرة، بيئة مطابقة كاملة/تجربة مزود،سياسة حذف،وجهة نشر وإذن منفصل |
@@ -61,3 +61,5 @@
 [ui]: ../../components/zoom-workspace.jsx
 [lecture]: ../../components/zoom-lecture.jsx
 [sdk]: ../../lib/zoom-sdk-browser.mjs
+
+استكمال SQL23/24 وT56/57/62 وروابط الكود والأدلة وحدود الاستعادة في [المصفوفة التفصيلية](retention-implementation.md).

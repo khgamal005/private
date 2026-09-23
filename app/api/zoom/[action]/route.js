@@ -15,6 +15,8 @@ export async function POST(request,{params}){
   if(action==='snapshot'){const data=await trainingRpc('v1_zoom_snapshot',{p_slug:tenantSlug,p_view:payload.view||'sessions',p_options:payload});if(data.permissions?.sessions)data.replacements=await trainingRpc('v1_zoom_replacement_snapshot',{p_slug:tenantSlug});return trainingJson(data);}
   if(action==='report_ticket'){const token=randomBytes(32).toString('hex');const result=await trainingRpc('v1_zoom_report_ticket',{p_slug:tenantSlug,p_export_id:payload.exportId,p_token_hash:createHash('sha256').update(token).digest('hex')});return trainingJson({...result,path:`/api/zoom/reports/${payload.exportId}?tenant=${encodeURIComponent(tenantSlug)}&token=${token}`});}
   if(action==='webinar_snapshot')return trainingJson(await trainingRpc('v1_zoom_webinar_snapshot',{p_slug:tenantSlug,p_link_id:payload.linkId,p_offset:payload.offset||0}));
+  if(action==='derivative_snapshot')return trainingJson(await trainingRpc('v1_zoom_derivative_snapshot',{p_slug:tenantSlug,p_offset:payload.offset||0}));
+  if(action==='derivative_preview')return trainingJson(await trainingRpc('v1_zoom_derivative_preview',{p_slug:tenantSlug,p_draft_id:payload.draftId}));
   if(action==='ai_snapshot')return trainingJson(await trainingRpc('v1_zoom_ai_snapshot',{p_slug:tenantSlug,p_recording_id:payload.recordingId}));
   if(action==='preview')return trainingJson(await trainingRpc('v1_zoom_assignment_preview',{p_slug:tenantSlug,p_session_id:payload.sessionId,p_payload:payload}));
   if(action==='recording_access')return trainingJson(await trainingRpc('v1_zoom_recording_access',{p_slug:tenantSlug,p_recording_id:payload.recordingId,p_enrollment_id:payload.enrollmentId||null}));
@@ -30,6 +32,7 @@ export async function POST(request,{params}){
    const {generateZoomDraft}=await import('../../../../lib/zoom-ai.mjs');const {runZoomLearningAgent}=await import('../../../../lib/zoom-ai-agent.js');const {finalizeOdeiryRun,hasOdeiryServiceCredential}=await import('../../../../lib/odeiry-service-rpc.js');
    return trainingJson(await generateZoomDraft({slug:tenantSlug,commandId:body.commandId,payload,rpc:trainingRpc,finalize:finalizeOdeiryRun,generate:runZoomLearningAgent,configured:!!process.env.OPENAI_API_KEY&&hasOdeiryServiceCredential()}));
   }
+  if(action==='derivative_delete')return trainingJson(await trainingRpc('v1_zoom_derivative_delete',{p_slug:tenantSlug,p_command_id:body.commandId,p_payload:payload}));
   if(action==='ai_apply'||action==='ai_policy')return trainingJson(await trainingRpc(action==='ai_apply'?'v1_zoom_ai_apply':'v1_zoom_ai_policy',{p_slug:tenantSlug,p_command_id:body.commandId,p_payload:payload}));
   if(action==='replacement_retry')return trainingJson(await trainingRpc('v1_zoom_replacement_retry',{p_slug:tenantSlug,p_command_id:body.commandId,p_payload:payload}));
   if(action==='replace')return trainingJson(await trainingRpc('v1_zoom_replace',{p_slug:tenantSlug,p_command_id:body.commandId,p_payload:payload}));

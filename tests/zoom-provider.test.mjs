@@ -5,7 +5,7 @@ import {sdkDecision,sdkSignature} from '../supabase/functions/_shared/zoom-sdk.m
 import {hmac} from '../supabase/functions/_shared/zoom-evidence.mjs';
 import {transcriptSegments,validateZoomDraft,generateZoomDraft,zoomDraftReservation} from '../lib/zoom-ai.mjs';
 const config={clientId:'synthetic-client',clientSecret:'synthetic-secret',redirectUri:'https://odeir.example.test/api/zoom/callback'};
-const env={ZOOM_V1_ENABLED:'true',ZOOM_ENVIRONMENT:'test',ZOOM_PUBLIC_ORIGIN:'https://odeir.example.test',ZOOM_CLIENT_ID:config.clientId,ZOOM_CLIENT_SECRET:config.clientSecret,ZOOM_REDIRECT_URI:config.redirectUri,ZOOM_WEBHOOK_SECRET:'synthetic-signature',ZOOM_DISPATCH_SECRET:'synthetic-dispatch-secret',SUPABASE_URL:'http://127.0.0.1:54321',SUPABASE_SERVICE_ROLE_KEY:'isolated-service',SUPABASE_ANON_KEY:'isolated-anon'};
+const env={ZOOM_RUNTIME_ENABLED:'true',ZOOM_V1_ENABLED:'true',ZOOM_ENVIRONMENT:'test',ZOOM_PUBLIC_ORIGIN:'https://odeir.example.test',ZOOM_CLIENT_ID:config.clientId,ZOOM_CLIENT_SECRET:config.clientSecret,ZOOM_REDIRECT_URI:config.redirectUri,ZOOM_WEBHOOK_SECRET:'synthetic-signature',ZOOM_DISPATCH_SECRET:'synthetic-dispatch-secret',SUPABASE_URL:'http://127.0.0.1:54321',SUPABASE_SERVICE_ROLE_KEY:'isolated-service',SUPABASE_ANON_KEY:'isolated-anon'};
 const response=(data,status=200,headers={})=>new Response(status===204?null:JSON.stringify(data),{status,headers:{'content-type':'application/json',...headers}});
 
 test('ZM-05 T22/59: recurring provider requests target one occurrence and preserve independent registration',async()=>{

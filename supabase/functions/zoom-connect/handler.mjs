@@ -55,6 +55,9 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
   const service=(name,args)=>rpc(name,args,'',true);
   let correlationId=crypto.randomUUID();
   try{
+   // Deployment gate: blocks every ingress before database or provider work.
+   // Separate from V1 pause, which allows retention/event processing after activation.
+   if(value('ZOOM_RUNTIME_ENABLED')!=='true')throw failure('zoom_not_enabled',503);
    if(value('ZOOM_V1_ENABLED')!=='true'&&!['webhook','dispatch'].includes(action))throw failure('zoom_not_enabled',503);
    if(!['test','production'].includes(value('ZOOM_ENVIRONMENT')))throw failure('zoom_configuration_missing',503);
    if(action==='webhook'){

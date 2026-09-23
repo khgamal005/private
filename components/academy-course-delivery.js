@@ -2,7 +2,7 @@
 import {useEffect,useRef,useState} from 'react';
 import Link from 'next/link';
 import {businessDateTimeToInstant} from '../lib/task-timing.mjs';
-import {safeTrainingExternalUrl} from '../lib/training-journey-contract';
+import {safeTrainingSessionUrl} from '../lib/training-journey-contract';
 import {installmentIssues} from '../lib/academy-delivery.mjs';
 import styles from './academy-authoring.module.css';
 const money=(value,currency)=>new Intl.NumberFormat('ar-SA',{style:'currency',currency}).format(value/100);
@@ -50,7 +50,7 @@ export default function AcademyCourseDelivery({slug,courseId,learningMode}) {
     {mode==='cohort'&&data.canManageStore&&<CreateRun courseId={courseId} data={data} busy={busy} act={act}/>}
     {(mode==='self_paced'||run)&&<SellingForm key={`${run?.id||'new'}:${offer?.version||0}`} courseId={courseId} run={run} offer={offer} data={data} mode={mode} busy={busy} act={act}/>}
     {run&&data.canManageInstructors&&<InstructorAssignment key={run.id} courseId={courseId} run={run} data={data} busy={busy} act={act} slug={slug}/>}
-    {run?.sessions?.length>0&&<details className={styles.deliverySessions}><summary>لقاءات هذه الدفعة وروابطها ({run.sessions.length})</summary><ul>{run.sessions.map(session=><li key={session.id}><div><strong>{session.title}</strong><p>{date(session.startsAt,data.timezone)}</p></div>{session.status==='cancelled'?<span className={styles.badge}>ملغى</span>:safeTrainingExternalUrl(session.joinUrl)?<a href={safeTrainingExternalUrl(session.joinUrl)} className={styles.secondary} target="_blank" rel="noopener noreferrer">فتح اللقاء ↗</a>:<span className={styles.muted}>الرابط لم يُجهز بعد</span>}</li>)}</ul></details>}
+    {run?.sessions?.length>0&&<details className={styles.deliverySessions}><summary>لقاءات هذه الدفعة وروابطها ({run.sessions.length})</summary><ul>{run.sessions.map(session=><li key={session.id}><div><strong>{session.title}</strong><p>{date(session.startsAt,data.timezone)}</p></div>{session.status==='cancelled'?<span className={styles.badge}>ملغى</span>:safeTrainingSessionUrl(session.joinUrl,slug,session.id)?<a href={safeTrainingSessionUrl(session.joinUrl,slug,session.id)} className={styles.secondary} target="_blank" rel="noopener noreferrer">فتح اللقاء ↗</a>:<span className={styles.muted}>الرابط لم يُجهز بعد</span>}</li>)}</ul></details>}
   </section>;
 }
 

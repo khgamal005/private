@@ -1,3 +1,4 @@
+import {resolveZoomTrainingMessage} from '../_shared/zoom-message.mjs';
 type JobChannel = 'whatsapp' | 'email' | 'zoom';
 type JobType = string;
 
@@ -291,7 +292,7 @@ function tenantTemplate(
 ) {
   const template = provider.templates?.[job.type] || {};
   const publicConfig = provider.publicConfig || {};
-  const fallbackName = job.type === 'joining_instructions'
+  const fallbackName = job.type.startsWith('zoom_') ? '' : job.type === 'joining_instructions'
     ? textValue(publicConfig, 'joiningTemplate')
     : textValue(publicConfig, 'reminderTemplate');
   return {
@@ -439,6 +440,7 @@ async function sendResend(
     method: 'POST',
     headers: {
       authorization: `Bearer ${apiKey}`,
+      'Idempotency-Key': `odeir-training-${job.tenantId}-${job.id}`,
       'content-type': 'application/json'
     },
     body: JSON.stringify(body)
@@ -770,6 +772,7 @@ async function sendSandbox(
 }
 
 let zoomToken: string | null = null;
+let zoomTokenExpiresAt = 0;
 
 async function zoomAccessToken(
   config: ReturnType<typeof legacyProviderConfiguration>['zoom']
@@ -777,7 +780,7 @@ async function zoomAccessToken(
   if (!config.ready) {
     throw new ProviderConfigurationError('zoom_not_configured');
   }
-  if (zoomToken) return zoomToken;
+  if (zoomToken && Date.now() < zoomTokenExpiresAt) return zoomToken;
   const basic = btoa(`${config.clientId}:${config.clientSecret}`);
   const tokenUrl = new URL('https://zoom.us/oauth/token');
   tokenUrl.searchParams.set('grant_type', 'account_credentials');
@@ -794,6 +797,7 @@ async function zoomAccessToken(
     throw new Error('zoom_oauth_response_missing_token');
   }
   zoomToken = payload.access_token;
+  zoomTokenExpiresAt = Date.now() + Math.max(0, Number(payload.expires_in || 0) - 90) * 1000;
   return zoomToken;
 }
 
@@ -884,6 +888,16 @@ async function deliver(
   serviceRoleKey: string,
   legacy: ReturnType<typeof legacyProviderConfiguration>
 ) {
+  let managedZoom = false;
+  if (job.queue !== 'automation' && job.sessionId) {
+    const check = await rpc(supabaseUrl, serviceRoleKey, 'v1_zoom_message_check', {p_job_id: job.id}) as {managed?: boolean; allowed?: boolean; reason?: string; url?: string; job?: Partial<AutomationJob>};
+    managedZoom = check.managed === true;
+    if (managedZoom && !check.allowed) throw new ProviderConfigurationError(check.reason || 'zoom_message_not_eligible');
+    if (managedZoom && check.job) {
+      try { job = {...job, ...resolveZoomTrainingMessage(check.job, check.url, env('ZOOM_PUBLIC_ORIGIN'))}; }
+      catch { throw new ProviderConfigurationError('zoom_public_origin_required'); }
+    }
+  }
   if (job.channel === 'zoom') {
     return await createZoomMeeting(job, legacy.zoom);
   }
@@ -895,6 +909,7 @@ async function deliver(
     job.channel
   );
   if (!provider) {
+    if (managedZoom) throw new ProviderConfigurationError('tenant_provider_required');
     return job.channel === 'whatsapp'
       ? await sendLegacyWhatsApp(job, legacy.whatsapp)
       : await sendLegacyEmail(job, legacy.email);

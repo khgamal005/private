@@ -1,0 +1,193 @@
+{
+  "runtime": "Chromium + Next dev + real migration SQL via PGlite",
+  "provider": "Synthetic adapter; no live Zoom/messaging/AI",
+  "auth": "Synthetic local JWT seam; SQL authorization and canonical financial functions execute",
+  "checks": [
+    "Real Arabic account/session snapshot loaded, no runtime overlay",
+    "Account/host controls render actual SQL data",
+    "UI assignment -> Next API -> real SQL reservation -> edge dispatch -> provider adapter -> SQL ready",
+    "390px mobile has no document overflow; keyboard Tab reaches actionable control",
+    "360px mobile and 768px tablet have no document overflow",
+    "Report and server-authorized CSV export work",
+    "Background report request -> real worker -> owner ticket -> streamed CSV succeeds",
+    "Learner role/asHost tampering denied by SQL with no host URL",
+    "Learner cannot export staff reports",
+    "Copied staff report URL is denied to learner",
+    "Standalone authorized learner lecture page renders without LMS activation"
+  ],
+  "blockedExternal": [
+    "fonts.googleapis.com",
+    "fonts.googleapis.com"
+  ],
+  "consoleErrors": [],
+  "expectedResourceErrors": [
+    {
+      "text": "Failed to load resource: net::ERR_FAILED",
+      "url": "https://fonts.googleapis.com/css2?family=Alexandria:wght@700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 409 (Conflict)",
+      "url": "http://127.0.0.1:47898/api/zoom/instructor_start"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://127.0.0.1:47898/api/zoom/export"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "url": "http://127.0.0.1:47898/api/zoom/reports/73662bcc-7fb2-4168-83c3-5548336c6ab8?tenant=marktone&token=dd8f15f48e3bac2e037a53e7e8ff592e5982939ea2794d020c56a2fd4bc2deb2"
+    },
+    {
+      "text": "Failed to load resource: net::ERR_FAILED",
+      "url": "https://fonts.googleapis.com/css2?family=Alexandria:wght@700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+    }
+  ],
+  "dispatch": {
+    "outcomes": [
+      {
+        "id": "74cde55e-cb2a-4844-9033-e4087a160862",
+        "state": "complete"
+      }
+    ]
+  },
+  "sql": {
+    "calls": [
+      {
+        "name": "v1_zoom_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_replacement_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_replacement_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_replacement_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_replacement_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_assignment_preview",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_replacement_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_action",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_process_events",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_purge",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_sweep",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_claim",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_reconcile_context",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_token_lease",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_operation_complete",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_resources_claim",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_replaced_claim",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_revocations",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_bindings_due",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_operational_tasks",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_reports_work",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_replacement_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_replacement_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_snapshot",
+        "ok": true
+      },
+      {
+        "name": "v1_zoom_replacement_snapshot",
+        "ok": true
+      }
+    ],
+    "reservations": 1,
+    "links": [
+      {
+        "state": "ready",
+        "meeting_id": "12345678901"
+      },
+      {
+        "state": "ready",
+        "meeting_id": "77777777701"
+      }
+    ]
+  },
+  "status": "passed"
+}

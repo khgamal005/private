@@ -16,7 +16,7 @@ const CORE_TABS=[
 const ADDON_TABS=[
   ['automation','الأتمتة الذكية',['automation']],
   ['delivery','التسليم والتحليلات',['delivery_analytics']],
-  ['integrations','الربط وواجهات API',['whatsapp','email','api']],
+  ['integrations','الربط وواجهات API',['whatsapp','email','api','zoom']],
   ['templates','قوالب الرسائل',['templates']]
 ];
 

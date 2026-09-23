@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import ZoomWorkspace from './zoom-workspace';
 
 const EMPTY=[];
 
@@ -537,7 +538,9 @@ export default function LearnerOperationsWorkspace({slug,data,automation}){
         </div>
       </section>
 
-      {selectedSession&&<SessionMeeting
+      {selectedSession&&<details><summary>إدارة زووم: الحسابات والتوزيع وأدلة الحضور</summary><ZoomWorkspace slug={slug} sessionId={selectedSession.id} compact/></details>}
+
+      {selectedSession&&selectedMeeting&&<SessionMeeting
         session={selectedSession}
         meeting={selectedMeeting}
         canManage={canManage}
@@ -704,7 +707,7 @@ function AutomationOverview({
           )}
           disabled={!canManage}
         />
-        إنشاء Zoom تلقائيًا
+        إنشاء Zoom تلقائيًا للحساب المهيأ سابقًا
       </label>
       <label className="mt-automation-channel">
         القناة الأساسية

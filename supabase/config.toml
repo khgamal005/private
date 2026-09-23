@@ -1,5 +1,10 @@
 project_id = "marktone-platform-control"
 
+[functions.zoom-connect]
+# User RPCs validate JWT and tenant permission; signed raw webhooks and the
+# independently configured dispatcher secret have their own narrow boundaries.
+verify_jwt = false
+
 [api]
 enabled = true
 schemas = ["public", "graphql_public"]

@@ -85,6 +85,18 @@ export function safeTrainingExternalUrl(value: unknown): string | null {
   try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password ? url.href : null; }
   catch { return null; }
 }
+/** Managed Zoom sessions use a canonical ODEIR route, scoped to this tenant and session. */
+export function safeTrainingSessionUrl(value: unknown, tenantSlug: string, sessionId: string): string | null {
+  const external = safeTrainingExternalUrl(value);
+  if (external) {
+    const url = new URL(external);
+    if (url.origin !== 'https://odeir.com' || !url.pathname.startsWith('/training/')) return external;
+    value = url.pathname + url.search + url.hash;
+  }
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(tenantSlug) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)) return null;
+  const expected = `/training/${tenantSlug}/sessions/${sessionId}`;
+  return value === expected ? expected : null;
+}
 export type TrainingFinance = TrainingFinancialAccess;
 export interface TrainingHandoff { id: string; contactId: string; contactName: string; courseId: string; courseTitle: string; courseRunId?: string; status: string; paymentStatus: string; enrollmentId?: string; financial?: TrainingFinance }
 export interface TrainingOperationEnrollment { id: string; handoffId?: string; studentId: string; studentName: string; studentEmail?: string; courseId: string; courseTitle: string; courseRunId?: string; runTitle?: string; status: string; financial?: TrainingFinance }

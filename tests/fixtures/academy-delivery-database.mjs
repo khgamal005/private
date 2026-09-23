@@ -10,12 +10,12 @@ export async function deliverySetup({enabled=true,database=null}={}) {
  const db=await checkoutSetup({database});
  return applyDeliveryMigrations(db,{enabled});
 }
-export async function applyDeliveryMigrations(db,{enabled=true}={}) {
+export async function applyDeliveryMigrations(db,{enabled=true,externalStorage=false}={}) {
  let migrationName='storage fixture';
  try {
   // Storage service tables are the external seam. Authorization and object policy
   // functions are the actual migration, using the same verified Auth claims.
-  await db.exec(`create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+  if(!externalStorage)await db.exec(`create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb,unique(bucket_id,name));
    alter table storage.objects enable row level security;grant usage on schema storage to authenticated;grant insert,select on storage.objects to authenticated;`);
   for(const name of ['20260922192706_academy_course_authoring_v1.sql','20260923090741_academy_connected_delivery_v1.sql','20260923091646_academy_course_commerce_bridge_v1.sql','20260923092103_academy_people_management_v1.sql']) {

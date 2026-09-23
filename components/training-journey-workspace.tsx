@@ -7,7 +7,7 @@ import type {FormEvent,ReactNode} from 'react';
 import {useRouter} from 'next/navigation';
 import Link from 'next/link';
 import {
-  LEARNING_MODE_LABELS,TRAINING_ROLE_LABELS,TRAINING_UNIT_LABELS,safeTrainingExternalUrl,
+  LEARNING_MODE_LABELS,TRAINING_ROLE_LABELS,TRAINING_UNIT_LABELS,safeTrainingExternalUrl,safeTrainingSessionUrl,
 } from '../lib/training-journey-contract';
 import type {
   LearningMode,TrainingCourse,TrainingEnrollment,TrainingFinance,TrainingHandoff,
@@ -114,7 +114,7 @@ export default function TrainingJourneyWorkspace({slug,initialData,initialView='
     {view==='grading'&&role!=='learner'&&<Grading submissions={learning.submissions||[]} busy={busy} mutate={mutate}/>}
     {view==='attendance'&&role!=='learner'&&<Attendance enrollments={learning.enrollments} busy={busy} mutate={mutate}/>}
     {view==='readiness'&&isManager&&<Readiness courses={learning.courses}/>}
-    {view==='learning'&&role==='learner'&&<LearningSpace enrollments={learning.enrollments} courses={learning.courses} busy={busy} mutate={mutate}/>}
+    {view==='learning'&&role==='learner'&&<LearningSpace slug={data.tenant.slug} enrollments={learning.enrollments} courses={learning.courses} busy={busy} mutate={mutate}/>}
     {showPagination&&<nav className={styles.pagination} aria-label="صفحات البيانات"><Button disabled={busy||pageOffset===0} reason="هذه أول صفحة." onClick={()=>void loadSnapshot({offset:Math.max(0,pageOffset-pageSize),...(activeFocusedCourseId?{courseId:activeFocusedCourseId}:{})})}>الصفحة السابقة</Button><span>صفحة {number(Math.floor(pageOffset/pageSize)+1)}</span><Button disabled={busy||!pageHasMore||pageOffset+pageSize>100000} reason="لا توجد نتائج إضافية في هذا العرض." onClick={()=>void loadSnapshot({offset:pageOffset+pageSize,...(activeFocusedCourseId?{courseId:activeFocusedCourseId}:{})})}>الصفحة التالية</Button></nav>}
   </main>;
 }
@@ -242,12 +242,12 @@ function EnrollmentEditor({enrollment,data,busy,mutate}:{enrollment:TrainingEnro
   </div>;
 }
 
-function LearningSpace({enrollments,courses,busy,mutate}:{enrollments:TrainingEnrollment[];courses:TrainingCourse[];busy:boolean;mutate:TrainingMutation}){
+function LearningSpace({slug,enrollments,courses,busy,mutate}:{slug:string;enrollments:TrainingEnrollment[];courses:TrainingCourse[];busy:boolean;mutate:TrainingMutation}){
   const [selected,setSelected]=useState(enrollments[0]?.id||'');
   const enrollment=enrollments.find(item=>item.id===selected)||enrollments[0];
-  return <Panel title="مساحة التعلم" description="ابدأ بالأنشطة المطلوبة، ثم تابع نتيجتك وملاحظات المحاضر.">{!enrollment?<Empty title="رحلتك التدريبية ستبدأ هنا">تظهر الدورة بعد اكتمال التسجيل وإسناد المحتوى.</Empty>:<><Field label="الدورة"><select value={enrollment.id} onChange={event=>setSelected(event.target.value)}>{enrollments.map(item=><option key={item.id} value={item.id}>{item.courseTitle} · {item.runTitle||'تعلم ذاتي'}</option>)}</select></Field><LearnerCourse key={enrollment.id} enrollment={enrollment} course={courses.find(item=>item.id===enrollment.courseId)} busy={busy} mutate={mutate}/></>}</Panel>;
+  return <Panel title="مساحة التعلم" description="ابدأ بالأنشطة المطلوبة، ثم تابع نتيجتك وملاحظات المحاضر.">{!enrollment?<Empty title="رحلتك التدريبية ستبدأ هنا">تظهر الدورة بعد اكتمال التسجيل وإسناد المحتوى.</Empty>:<><Field label="الدورة"><select value={enrollment.id} onChange={event=>setSelected(event.target.value)}>{enrollments.map(item=><option key={item.id} value={item.id}>{item.courseTitle} · {item.runTitle||'تعلم ذاتي'}</option>)}</select></Field><LearnerCourse slug={slug} key={enrollment.id} enrollment={enrollment} course={courses.find(item=>item.id===enrollment.courseId)} busy={busy} mutate={mutate}/></>}</Panel>;
 }
-function LearnerCourse({enrollment,course,busy,mutate}:{enrollment:TrainingEnrollment;course?:TrainingCourse;busy:boolean;mutate:TrainingMutation}){
+function LearnerCourse({slug,enrollment,course,busy,mutate}:{slug:string;enrollment:TrainingEnrollment;course?:TrainingCourse;busy:boolean;mutate:TrainingMutation}){
   const [opened,setOpened]=useState<TrainingUnit|null>(null);
   const units=enrollment.units||course?.versions.find(item=>item.id===enrollment.versionId)?.units||[];
   const allowed=enrollment.financialAccess?.trainingAllowed===true;
@@ -257,7 +257,7 @@ function LearnerCourse({enrollment,course,busy,mutate}:{enrollment:TrainingEnrol
   async function openUnit(unitId:string){setOpened(null);const result=await mutate('open_unit',{enrollmentId:enrollment.id,unitId},'تم فتح النشاط.');if(result?.unit&&typeof result.unit==='object')setOpened(result.unit as TrainingUnit);}
   return <div className={styles.stack}><Progress percent={enrollment.progress?.percent||0}/><div className={styles.row}><strong>{enrollment.courseTitle}</strong><span>{number(enrollment.progress?.completedUnits)} / {number(enrollment.progress?.totalUnits)} نشاط</span></div>{!allowed&&<div className={styles.info}><strong>دخول المحتوى بانتظار استيفاء السداد</strong><p>{reasonList(enrollment.financialAccess)||'تواصل مع القبول أو الحسابات لمتابعة تسجيلك. تقدمك ونتائجك محفوظان.'}</p></div>}
     {!units.length?<Empty title="المحتوى قيد التجهيز">سيظهر تسلسل الدروس بعد إسناد إصدار منشور لتسجيلك.</Empty>:<div className={styles.split}><aside className={styles.unitList} aria-label="أنشطة الدورة">{units.map((unit,index)=>{const topic=topics.find(item=>item.startPosition===(unit.position||index+1));return <Fragment key={unit.id}>{topic&&<div className={styles.curriculumTopic}><h3>{topic.title}</h3>{topic.summary&&<p>{topic.summary}</p>}</div>}<button type="button" className={styles.unit} aria-current={opened?.id===unit.id} disabled={busy||(!allowed&&!unit.completedAt)} data-block-reason={!allowed&&!unit.completedAt?'يُفتح النشاط بعد استيفاء شروط السداد.':undefined} onClick={()=>void openUnit(unit.id)}><strong>{number(index+1)}. {unit.title}</strong><small>{TRAINING_UNIT_LABELS[unit.kind]} · {unit.completedAt?'مكتمل':unit.required?'مطلوب':'إثرائي'}</small></button></Fragment>;})}</aside><section className={styles.card}>{opened&&(allowed||units.some(unit=>unit.id===opened.id&&unit.completedAt))?<UnitActivity key={opened.id} unit={opened} enrollmentId={enrollment.id} busy={busy} mutate={mutate}/>:<Empty title={allowed?'اختر نشاطًا للبدء':'تقدمك محفوظ'}>{allowed?'كل نشاط يوضح المطلوب منك، ونتيجتك تظهر بعد التسليم أو التصحيح.':'يمكنك مراجعة تقدمك والشهادات والطلبات أثناء متابعة السداد.'}</Empty>}</section></div>}
-    {!!sessions.length&&<section className={styles.card}><h3>اللقاءات المباشرة</h3><div className={styles.stack}>{sessions.map(session=>{const url=allowed?safeTrainingExternalUrl(session.joinUrl):null;return <div key={session.id} className={styles.row}><div><strong>{session.title}</strong><p>{date(session.startsAt)}</p></div>{url?<a className={styles.button} href={url} target="_blank" rel="noopener noreferrer">الدخول للقاء</a>:<Badge value={session.status||'موعد مسجل'}/>}</div>;})}</div></section>}
+    {!!sessions.length&&<section className={styles.card}><h3>اللقاءات المباشرة</h3><div className={styles.stack}>{sessions.map(session=>{const url=allowed&&session.status!=='cancelled'?safeTrainingSessionUrl(session.joinUrl,slug,session.id):null;return <div key={session.id} className={styles.row}><div><strong>{session.title}</strong><p>{date(session.startsAt)}</p></div>{url?<a className={styles.button} href={url} target="_blank" rel="noopener noreferrer">الدخول للقاء</a>:<Badge value={session.status||'موعد مسجل'}/>}</div>;})}</div></section>}
     {enrollment.policy?.supportEmail&&<p className={styles.secondaryText}>الدعم التعليمي: <a href={`mailto:${encodeURIComponent(enrollment.policy.supportEmail)}`}>{enrollment.policy.supportEmail}</a></p>}
   </div>;
 }

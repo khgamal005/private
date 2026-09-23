@@ -1,0 +1,193 @@
+{
+  "capturedAt": "2026-09-23T12:49:23.796Z",
+  "repository": "Marktonesa/marktone-platform-control",
+  "codeCommit": "faf3b1d0b4a194b2c8fb60b6855495780ac0f0ac",
+  "codeTree": "2dfac44e6d81d2f22f6388f396f8bfbe39c3a4f0",
+  "baseCommit": "dfec0b996597a310de22aa86dce177c5cf59f668",
+  "check": {
+    "name": "Zoom isolated verification / postgres-concurrency",
+    "runId": 35848578656,
+    "jobId": 107140569886,
+    "url": "https://github.com/Marktonesa/marktone-platform-control/actions/runs/35848578656",
+    "conclusion": "success",
+    "tests": {
+      "total": 1655,
+      "passed": 1652,
+      "failed": 0,
+      "skipped": 3,
+      "cancelled": 0
+    },
+    "zoomTests": {
+      "passed": 50,
+      "failed": 0,
+      "skipped": 0
+    },
+    "lint": {
+      "errors": 0,
+      "warnings": 19
+    },
+    "typecheck": "passed",
+    "forwardMigrations": 292,
+    "zoomMigrations": 24,
+    "build": "passed",
+    "node": "v24.20.0",
+    "postgres": "17.11"
+  },
+  "skipped": [
+    "academy PostgreSQL concurrency requires ACADEMY_TEST_DATABASE_URL",
+    "governance PostgreSQL concurrency requires GOVERNANCE_TEST_DATABASE_URL",
+    "training PostgreSQL concurrency requires TRAINING_TEST_DATABASE_URL"
+  ],
+  "loadReport": {
+    "recordedAt": "2026-09-23T10:38:25.615Z",
+    "runtime": {
+      "node": "v24.20.0",
+      "os": "linux",
+      "arch": "x64",
+      "cpuModel": "AMD EPYC 7763 64-Core Processor",
+      "logicalCpus": 2,
+      "memoryBytes": 8323973120,
+      "postgres": "PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit"
+    },
+    "dataset": {
+      "tenants": 3000,
+      "operators": 3000,
+      "accounts": 3000,
+      "hosts": 3000,
+      "events": 4100
+    },
+    "measurements": [
+      {
+        "activeTenants": 100,
+        "requests": 225,
+        "workers": 2,
+        "durationMs": 3807,
+        "requestsPerSecond": 59.1,
+        "readP95Ms": 81.05,
+        "webhookDatabaseP95Ms": 2.57,
+        "errors": 0,
+        "uniqueEvents": 100,
+        "duplicates": 25
+      },
+      {
+        "activeTenants": 1000,
+        "requests": 2250,
+        "workers": 2,
+        "durationMs": 36888,
+        "requestsPerSecond": 60.99,
+        "readP95Ms": 75.83,
+        "webhookDatabaseP95Ms": 1.41,
+        "errors": 0,
+        "uniqueEvents": 1000,
+        "duplicates": 250
+      },
+      {
+        "activeTenants": 3000,
+        "requests": 6750,
+        "workers": 2,
+        "durationMs": 111629,
+        "requestsPerSecond": 60.47,
+        "readP95Ms": 76.73,
+        "webhookDatabaseP95Ms": 1.4,
+        "errors": 0,
+        "uniqueEvents": 3000,
+        "duplicates": 750
+      }
+    ],
+    "limitations": [
+      "Synthetic local PostgreSQL; no live Zoom, external HTTP, production encryption or messaging.",
+      "Webhook metric covers durable database receipt; it excludes network and signature verification.",
+      "Bounded account snapshots and signed-event equivalents only; this does not prove 3000 simultaneous lectures."
+    ]
+  },
+  "zoomTestNames": [
+    "ZM-02/03/04 T02/15/16/21: three hosts, known external busy, incomplete coverage and independent batch results",
+    "ZM-06/13 T25/59: portal status follows current access and future sweep is bounded and deduplicated",
+    "ZM-10: messages use only configured HTTPS origin and preserve personal webinar delivery",
+    "ZM-07: overlapping complete student evidence creates one review task without changing attendance",
+    "ZM-02/03/12: existing branches scope hosts, reject foreign IDs, and report comparison uses canonical assessments",
+    "ZM-06 T26/27/28: Zoom follows canonical first-payment and day 7/8 governance; sponsor amounts never leave access",
+    "ZM-10 T24: stale reminders cannot send; a revision creates one change message despite repeated enqueue",
+    "ZM-13 T47: bounded queue claim serves both tenants; cooling account does not block another tenant",
+    "ZM-06/07/09 T29: one student has independent course enrollments, participant grants and recording access",
+    "ZM-01/02 T01/03: two accounts persist, reconnect preserves unique hosts and capacity",
+    "ZM-01/14 T04–07: mismatch, cross-tenant account, expired/replayed state and revoked membership fail",
+    "ZM-13 T08: refresh lease serializes rotation, fences stale worker and treats lost refresh as uncertain",
+    "ZM-14/15 T49/50: service credentials cannot be requested by a learner; addon checked without LMS activation",
+    "ZM-18 T52/53: webinar uses canonical deduplication/assignment and leaves enrollments and finance untouched",
+    "ZM-19/14 T56/57/62: source versions, real Odeiry run authority, draft-only output and derivative cleanup",
+    "ZM-02/16: bounded host synchronization preserves all pages, scopes and poll command idempotency",
+    "ZM-04/20: replacing an unstarted meeting keeps old capacity until provider cancellation is confirmed",
+    "ZM-10/12/20: operational follow-up is deduplicated in canonical tasks, reports are scoped and unverified costs stay unknown",
+    "ZM-08 T40/41: both canonical certificate RPCs and direct insertion enforce reviewed weighted evidence",
+    "ZM-05/07/08 T35/37/40: old end cannot end restart, manual identity cannot fill unknown duration, course eligibility weights seconds",
+    "ZM-07/20 T25/29/39: withdrawal preserves authorized historical review without restoring future access",
+    "ZM-03/13 T08/14: independent PostgreSQL connections compete for the final slot and rotating token",
+    "T62: reviewed deletion redacts all canonical authoring copies and leaves independent academic/financial records unchanged",
+    "T62/14: changed previews and mixed human edits stop deletion atomically; tenant and role spoofing never authorize it",
+    "T62: a separately signed ledger removes resurfaced derivatives from a real isolated database backup",
+    "ZM-07 T32–36: duration union, breaks, unknown exits and conflicting identities",
+    "ZM-13/14 T38/58: raw signed body, timestamp and formula-safe exports",
+    "ZM-07/08/09/14: executable evidence schema, canonical review, duplicate events and cross-tenant denial",
+    "ZM-06/15 T25–31/50: learner and instructor paths use canonical identity, fresh entitlement and no LMS dependency",
+    "ZM-09/10/14 T41–46: publish/revoke, current message revision, retention and deauthorization preserve independent money",
+    "ZM-05 T22/59: recurring provider requests target one occurrence and preserve independent registration",
+    "ZM-01/13 T06/09/20: provider contract uses fixed OAuth callback, real pagination, opaque IDs and explicit rate limit",
+    "ZM-13 T17–20: ambiguous mutation is never retried and rotating refresh has a durable continuation",
+    "ZM-13/14 T38–40: edge webhook validates raw bytes, acknowledges durable receipt, derives tenant by account",
+    "ZM-17 T54 (token contract only; T55 live media pending): SDK tokens are meeting/role-bound; external anonymous and unreviewed cases fall back",
+    "ZM-19 T56/57: AI uses canonical budget receipt, source-version contract and never publishes or receives tools",
+    "T56/57: long transcript reservations use source size and refuse a capped budget before provider consumption",
+    "ZM-06/13: uncertain registration recovery requires complete unique approved identity and never guesses from partial data",
+    "ZM-04/13 T20: UUID-less update verifies provider state; own echo is not drift and external schedule is not silently adopted",
+    "ZM-06/13 T18/25: lost individual registration is recovered with a fresh scoped grant, no duplicate registration",
+    "ZM-14 T62: advanced purge drains beyond a full batch and completed entries cannot starve newer cleanup",
+    "ZM-12/14 T43/58: background report is owner-bound, expires, respects filters and rechecks revoked export permission",
+    "ZM-12: export spans 205 canonical sessions in three bounded chunks with no duplicates",
+    "T62: review UI -> real Next handler -> authorized SQL deletion, with explicit confirmation and no provider call",
+    "ZM-03 T10/13: deterministic preview, atomic reservation and manual override cannot bypass overlap",
+    "ZM-03 T11/12: proven second slot works for a different teacher; human overlap still rejected",
+    "ZM-13 T17/18/19: worker fence rejects stale completion, uncertain creation retains reservation",
+    "ZM-14 T13/49: tenant composite references and addon revocation deny operations",
+    "ZM-05 T22/59: atomic recurring creation spans DST; one provider operation maps separate occurrences and reservations",
+    "ZM-05: irregular series rolls back every reservation; conflicts never yield a partially created series"
+  ],
+  "isolation": {
+    "data": "synthetic",
+    "postgres": "disposable CI service on loopback",
+    "buildSupabase": "loopback synthetic",
+    "liveZoom": false,
+    "liveMessages": false,
+    "paidAI": false,
+    "reefOperationalRecordsReadOrChanged": false
+  },
+  "release": {
+    "merged": false,
+    "PR": 265,
+    "PRState": "closed",
+    "manualDeploymentPerformed": false,
+    "remoteMigrationsApplied": false,
+    "productionActivated": false,
+    "vercelBranchGuard": "feat/zoom-multi-account disabled in vercel.json",
+    "supabasePreview": "skipped: no Supabase branch associated",
+    "commitStatusesAtCheck": [],
+    "previousAutomaticVercelPreviews": {
+      "count": 5,
+      "removalVerified": false,
+      "dataDestinationVerified": false
+    },
+    "hostinger": {
+      "requested": true,
+      "configurationApplied": false,
+      "panelState": "Cloudflare security verification; account, website, plan and linked branch not inspected"
+    }
+  },
+  "limits": [
+    "Synthetic database/provider-contract tests do not prove live Zoom integration.",
+    "T55 live SDK audio/video/mobile acceptance is pending.",
+    "Known applied source derivatives and signed replay are tested; mixed human edits, legacy provenance and provider/raw-source deletion after backup restore still require policy and operational verification.",
+    "Browser visual acceptance of the newly added derivative retention panel remains pending.",
+    "3,000 synthetic tenants with two workers are not 3,000 concurrent live lectures.",
+    "Local filesystem recovery was incomplete after cleanup. This evidence comes from the exact-SHA CI job, not a new local full-suite run."
+  ]
+}

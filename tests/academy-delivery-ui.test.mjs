@@ -65,6 +65,15 @@ test('cohort selection changes sessions and instructor assignment targets exactl
  });
 });
 
+test('course editor opens the canonical managed Zoom session without accepting another tenant route',async()=>{
+ const data=deliveryView(),sessionId='77777777-7777-4777-8777-777777777777',path=`/training/marktone/sessions/${sessionId}`;
+ data.runs[0].sessions=[{id:sessionId,title:'لقاء زوم المدار',status:'scheduled',joinUrl:path},{id:teacherId,title:'رابط منشأة أخرى',status:'scheduled',joinUrl:`/training/other/sessions/${teacherId}`}];
+ await mounted('academy-course-delivery',{slug:'marktone',courseId,learningMode:'live'},()=>ok(data),async({doc})=>{
+  assert.equal(doc.querySelector(`a[href="${path}"]`).textContent,'فتح اللقاء ↗');
+  assert.equal(doc.querySelector('a[href^="/training/other/"]'),null);
+ });
+});
+
 test('store displays a course once and changes free/paid checkout when the learner selects another cohort',async()=>{
  await mounted('academy-storefront',{slug:'marktone',data:storeView()},()=>ok({}),async({doc,click,field})=>{
   assert.equal(doc.querySelectorAll('article').length,1);await change(field('اختر موعد الدورة'),'66666666-6666-4666-8666-666666666666');await click('سجّل الآن');

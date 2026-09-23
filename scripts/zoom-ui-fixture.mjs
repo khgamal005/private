@@ -1,0 +1,32 @@
+// Explicit disposable loopback fixture, never used by the deployed application.
+import {createServer} from 'node:http';import {mkdir,writeFile,rm} from 'node:fs/promises';
+import {zoomSetup,call,login,service,T,RUN,ADMIN_AUTH,LEARNER_AUTH,INSTRUCTOR_AUTH,id} from '../tests/fixtures/zoom-database.mjs';
+import {seedZoomLesson} from '../tests/fixtures/zoom-lesson.mjs';
+import {createZoomHandler} from '../supabase/functions/zoom-connect/handler.mjs';
+const db=await zoomSetup({complete:true});const lesson=await seedZoomLesson(db);await db.query("insert into access_control.role_permissions(role_id,permission_key) values($1,'tenant.zoom.reports.export') on conflict do nothing",[id(21)]);
+await db.query("update core.tenants set name='منشأة اختبار اصطناعية' where id=$1",[T]);await db.query("update academy.courses set title_ar='تدريب مهارات التواصل — بيانات اصطناعية' where tenant_id=$1",[T]);await db.query("update academy.course_runs set title='دفعة الاختبار المعزولة' where id=$1",[RUN]);
+await db.query("update academy.course_run_sessions set title='التواصل الفعال مع المتدربين',instructor_name='مدرب اختباري' where id=$1",[lesson.session]);
+await db.query("insert into academy.course_run_sessions(id,tenant_id,course_run_id,session_number,title,starts_at,ends_at,delivery_mode,status) values($1,$2,$3,2,'ورشة التطبيقات العملية',now()+interval '1 day',now()+interval '1 day 1 hour','online','scheduled')",[id(70001),T,RUN]);
+await db.query("update zoom_core.connections set label='حساب الاختبار الاصطناعي' where id=$1",[lesson.connection]);await db.query("update zoom_core.hosts set name='المضيف الاختباري' where id=$1",[lesson.host]);
+const secrets={SUPABASE_URL:'http://127.0.0.1:47899',SUPABASE_ANON_KEY:'synthetic-anon',SUPABASE_SERVICE_ROLE_KEY:'synthetic-service',ZOOM_CLIENT_ID:'synthetic-client',ZOOM_CLIENT_SECRET:'synthetic-client-secret',ZOOM_REDIRECT_URI:'https://odeir.example.test/api/zoom/callback',ZOOM_PUBLIC_ORIGIN:'https://odeir.example.test',ZOOM_ENVIRONMENT:'test',ZOOM_V1_ENABLED:'true',ZOOM_DISPATCH_SECRET:'synthetic-dispatch'};
+const token=subject=>['eyJhbGciOiJub25lIn0',Buffer.from(JSON.stringify({sub:subject,exp:Math.floor(Date.now()/1000)+3600,fixture:true})).toString('base64url'),'synthetic'].join('.');
+const tokens=new Map([[token(ADMIN_AUTH),ADMIN_AUTH],[token(LEARNER_AUTH),LEARNER_AUTH],[token(INSTRUCTOR_AUTH),INSTRUCTOR_AUTH]]);let chain=Promise.resolve();const calls=[];
+function isolated(operation){const pending=chain.then(operation);chain=pending.catch(()=>{});return pending;}
+async function rpcFetch(url,options){const name=new URL(url).pathname.split('/').at(-1);if(!/^v1_zoom_[a-z_]+$/.test(name))throw Error('Fixture RPC not allowed');return isolated(async()=>{try{const bearer=new Headers(options.headers).get('authorization')?.slice(7);const subject=tokens.get(bearer);if(bearer!=='synthetic-service'&&!subject)return Response.json({message:'zoom_forbidden'},{status:401});await service(db,bearer==='synthetic-service');await login(db,subject||ADMIN_AUTH);await db.query("select set_config('request.jwt.claim.sub',$1,false)",[subject||ADMIN_AUTH]);const result=await call(db,`public.${name}`,JSON.parse(options.body));calls.push({name,ok:true});return Response.json(result);}catch(error){calls.push({name,ok:false,code:error.message});return Response.json({message:error.message},{status:409});}});}
+let created;
+const provider={create:async(host,kind,body)=>{created={id:'77777777701',host_id:host,join_url:'https://zoom.us/j/77777777701',...body};return created;},get:async()=>created||{id:'12345678901',host_id:'host-A',join_url:'https://zoom.us/j/12345678901',start_url:'https://zoom.us/s/12345678901?zak=synthetic',status:'waiting'},update:async(_id,_kind,body)=>{created={...created,...body};},register:async()=>({registrant_id:'synthetic-ui-registrant',join_url:'https://zoom.us/w/12345678901?tk=synthetic-ui'}),revokeRegistrant:async()=>({}),cancel:async()=>({}),refresh:async()=>{throw Error('Unexpected refresh');},usersPage:async()=>({users:[]}),createPoll:async()=>({id:'synthetic-poll'})};
+const handler=createZoomHandler({env:secrets,fetchImpl:rpcFetch,clientFactory:()=>provider});
+const pagePath=new URL('../app/zoom-validation-fixture/',import.meta.url);await mkdir(pagePath,{recursive:true});
+await writeFile(new URL('page.jsx',pagePath),"import ZoomWorkspace from '../../components/zoom-workspace';export default function Fixture(){if(process.env.ZOOM_UI_FIXTURE!=='true')return null;return <><p style={{background:'#fff6cf',padding:12,textAlign:'center'}}>بيئة تحقق محلية — بيانات اصطناعية معزولة</p><ZoomWorkspace slug=\"marktone\"/></>;}\n",{flag:'wx'});
+const server=createServer(async(req,res)=>{try{const chunks=[];for await(const chunk of req)chunks.push(chunk);const body=Buffer.concat(chunks).toString();const url=`http://127.0.0.1:47899${req.url}`;let response;
+ if(req.url==='/health')response=Response.json({ready:true});
+ else if(req.url==='/fixture')response=Response.json({admin:token(ADMIN_AUTH),learner:token(LEARNER_AUTH),instructor:token(INSTRUCTOR_AUTH),session:lesson.session});
+ else if(req.url==='/fixture/dispatch')response=await handler(new Request('https://odeir.example.test/dispatch',{method:'POST',headers:{'x-odeir-zoom-dispatch':'synthetic-dispatch'}}));
+ else if(req.url==='/fixture/evidence')response=Response.json({calls,reservations:(await db.query("select count(*)::int n from zoom_core.reservations where state<>'released'")).rows[0].n,links:(await db.query('select state,meeting_id from zoom_core.links')).rows});
+ else if(req.url.startsWith('/rest/v1/rpc/'))response=await rpcFetch(url,{headers:req.headers,body});
+ else if(req.url.startsWith('/functions/v1/zoom-connect/'))response=await handler(new Request(url,{method:req.method,headers:req.headers,body}));
+ else response=new Response('not found',{status:404});
+ res.writeHead(response.status,Object.fromEntries(response.headers));res.end(await response.text());
+ }catch(error){res.writeHead(500,{'content-type':'application/json'});res.end(JSON.stringify({message:error.message}));}});
+await new Promise(resolve=>server.listen(47899,'127.0.0.1',resolve));console.log('Synthetic SQL/RPC fixture listening on 127.0.0.1:47899. Start Next with ZOOM_UI_FIXTURE=true and loopback Supabase.');
+async function close(){server.close();await db.close();await rm(pagePath,{recursive:true,force:true});process.exit(0);}process.on('SIGTERM',close);process.on('SIGINT',close);

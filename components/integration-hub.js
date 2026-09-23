@@ -2,6 +2,8 @@
 
 import {useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
+import Link from 'next/link';
+import {addonHref} from '../lib/addons/placement-registry';
 
 const EMPTY=[];
 const LECTURE_SCHEDULE_VARIABLE={
@@ -328,6 +330,18 @@ export default function IntegrationHub({slug,initialData,mode='integrations',ena
       <i>←</i>
       <span>3</span><div><b>اختبر ثم فعّل</b><small>لن يظهر «متصل» قبل نجاح اختبار حقيقي</small></div>
     </div>
+    <section className="mt-provider-section" aria-label="Zoom">
+      <header><div><h3>Zoom — المحاضرات المباشرة</h3><p>إدارة حسابات Zoom والمضيفين والمحاضرات من إعدادات الإضافة.</p></div></header>
+      <div className="mt-integration-provider-grid">
+        <article className="mt-integration-provider">
+          <header><span className="mt-provider-symbol">Z</span><div><small>ZOOM</small><h4>حسابات Zoom وإعداداتها</h4></div></header>
+          <p>{enabledChannels.has('zoom')?'افتح الإضافة لمراجعة تجهيزها وربط الحسابات. توفر الترخيص لا يعني أن الاتصال جاهز.':'تحتاج هذه المنشأة إلى ترخيص إضافة Zoom للوصول إلى إعداداتها.'}</p>
+          <footer><Link className="mt-button primary" href={enabledChannels.has('zoom')?addonHref(slug,{key:'zoom'}):`/tenant/${encodeURIComponent(slug)}/addons-store`}>
+            {enabledChannels.has('zoom')?'فتح إعدادات Zoom':'عرض متجر الإضافات'}
+          </Link></footer>
+        </article>
+      </div>
+    </section>
     {grouped.map(group=><section className="mt-provider-section" key={group.key}>
       <header><div><h3>{group.label}</h3><p>{group.description}</p></div><span>{group.providers.length} مزود</span></header>
       <div className="mt-integration-provider-grid">

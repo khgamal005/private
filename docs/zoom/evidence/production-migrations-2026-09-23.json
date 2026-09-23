@@ -1,0 +1,295 @@
+{
+  "projectRef": "gswpbwdactcstkasddta",
+  "sqlSourceSha": "23735f649d8cde15c83e9475e701d26eee699aa9",
+  "runtimeInitialSha": "febbafe2bf3409a2aa3dcdcd6a8c374164f0e30b",
+  "preMigrationCount": 446,
+  "postMigrationCount": 470,
+  "migrations": [
+    {
+      "order": 1,
+      "path": "supabase/migrations/20260922201432_zoom_accounts_resources_v1.sql",
+      "gitBlob": "0f99007cc10b9f48b5ea616af4d9f9b2603839b6",
+      "actualVersion": "20260923161643",
+      "name": "zoom_accounts_resources_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:16:44.380Z"
+    },
+    {
+      "order": 2,
+      "path": "supabase/migrations/20260922202109_zoom_scheduling_operations_v1.sql",
+      "gitBlob": "c5361464f0de850b884a791bb5352583fd8250fb",
+      "actualVersion": "20260923161654",
+      "name": "zoom_scheduling_operations_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:16:55.133Z"
+    },
+    {
+      "order": 3,
+      "path": "supabase/migrations/20260922202705_zoom_evidence_access_v1.sql",
+      "gitBlob": "3317b4480b2437456d53afe2a4f1663fbdcfd078",
+      "actualVersion": "20260923161656",
+      "name": "zoom_evidence_access_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:16:56.645Z"
+    },
+    {
+      "order": 4,
+      "path": "supabase/migrations/20260922203333_zoom_recordings_reports_v1.sql",
+      "gitBlob": "73be66165dfd78ea7778034bcc2028b7f5990927",
+      "actualVersion": "20260923161658",
+      "name": "zoom_recordings_reports_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:16:58.983Z"
+    },
+    {
+      "order": 5,
+      "path": "supabase/migrations/20260922203937_zoom_provider_bridges_v1.sql",
+      "gitBlob": "2a9a521add0046727c1b847edd859d7f658ed470",
+      "actualVersion": "20260923161659",
+      "name": "zoom_provider_bridges_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:00.018Z"
+    },
+    {
+      "order": 6,
+      "path": "supabase/migrations/20260922205518_zoom_lifecycle_communications_v1.sql",
+      "gitBlob": "e684893745d25157ca268137394bb48aa2ae56e2",
+      "actualVersion": "20260923161700",
+      "name": "zoom_lifecycle_communications_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:01.224Z"
+    },
+    {
+      "order": 7,
+      "path": "supabase/migrations/20260922210150_zoom_recovery_retention_v1.sql",
+      "gitBlob": "7c4fe8892f08447106058e00cf1dff1a51fa05a4",
+      "actualVersion": "20260923161725",
+      "name": "zoom_recovery_retention_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:25.776Z"
+    },
+    {
+      "order": 8,
+      "path": "supabase/migrations/20260922210714_zoom_advanced_learning_v1.sql",
+      "gitBlob": "01de34b957ca28c0934b7ea00412b2746047db58",
+      "actualVersion": "20260923161726",
+      "name": "zoom_advanced_learning_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:26.895Z"
+    },
+    {
+      "order": 9,
+      "path": "supabase/migrations/20260922211521_zoom_webinar_crm_v1.sql",
+      "gitBlob": "af27e55e9bb72060c26e1b31cd038f438b8b8765",
+      "actualVersion": "20260923161727",
+      "name": "zoom_webinar_crm_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:28.206Z"
+    },
+    {
+      "order": 10,
+      "path": "supabase/migrations/20260922213755_zoom_operational_completion_v1.sql",
+      "gitBlob": "ef8a6cf363fcd03eec54c161c7cad0a996f25ff4",
+      "actualVersion": "20260923161729",
+      "name": "zoom_operational_completion_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:29.529Z"
+    },
+    {
+      "order": 11,
+      "path": "supabase/migrations/20260922215415_zoom_account_replacement_v1.sql",
+      "gitBlob": "9e9e0e2f58d30630d94f180d62fd5e8a4fa044e5",
+      "actualVersion": "20260923161730",
+      "name": "zoom_account_replacement_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:30.735Z"
+    },
+    {
+      "order": 12,
+      "path": "supabase/migrations/20260922221302_zoom_weighted_completion_v1.sql",
+      "gitBlob": "c20dbd991e0eaaafb5d51ecdcc3b1593ce94e720",
+      "actualVersion": "20260923161731",
+      "name": "zoom_weighted_completion_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:31.778Z"
+    },
+    {
+      "order": 13,
+      "path": "supabase/migrations/20260922222039_zoom_insights_followup_v1.sql",
+      "gitBlob": "23a7450c593cfbcc7141b2ab5c3fd08fb2a4dfde",
+      "actualVersion": "20260923161741",
+      "name": "zoom_insights_followup_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:41.781Z"
+    },
+    {
+      "order": 14,
+      "path": "supabase/migrations/20260922223516_zoom_historical_attendance_v1.sql",
+      "gitBlob": "4eefa755d29d0f68b0a55faffad9724b59a4e130",
+      "actualVersion": "20260923161742",
+      "name": "zoom_historical_attendance_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:43.091Z"
+    },
+    {
+      "order": 15,
+      "path": "supabase/migrations/20260922224409_zoom_recurring_series_v1.sql",
+      "gitBlob": "244c261f264a0e1c5430a14fd788d03a4c8803ff",
+      "actualVersion": "20260923161744",
+      "name": "zoom_recurring_series_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:44.080Z"
+    },
+    {
+      "order": 16,
+      "path": "supabase/migrations/20260922225126_zoom_report_exports_v1.sql",
+      "gitBlob": "02e46c65cda8d8613fe2ebdc09101dd030ebb98c",
+      "actualVersion": "20260923161745",
+      "name": "zoom_report_exports_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:45.405Z"
+    },
+    {
+      "order": 17,
+      "path": "supabase/migrations/20260922230226_zoom_webinar_delivery_review_v1.sql",
+      "gitBlob": "10eee913101b1d4aab64d226fee66abe036a64e8",
+      "actualVersion": "20260923161747",
+      "name": "zoom_webinar_delivery_review_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:48.160Z"
+    },
+    {
+      "order": 18,
+      "path": "supabase/migrations/20260922230604_zoom_registration_recovery_v1.sql",
+      "gitBlob": "cb08140b4c7ec7d60f8c785be421467b1b7c2a42",
+      "actualVersion": "20260923161749",
+      "name": "zoom_registration_recovery_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:17:49.913Z"
+    },
+    {
+      "order": 19,
+      "path": "supabase/migrations/20260922231251_zoom_evidence_followup_v1.sql",
+      "gitBlob": "f688746d93724e07aa9e3f5a7c6eeda507418d54",
+      "actualVersion": "20260923161800",
+      "name": "zoom_evidence_followup_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:18:00.609Z"
+    },
+    {
+      "order": 20,
+      "path": "supabase/migrations/20260922231639_zoom_external_schedule_observation_v1.sql",
+      "gitBlob": "a00635d5de18eb1e69d695e7ca1e18eb4bc8eb51",
+      "actualVersion": "20260923161801",
+      "name": "zoom_external_schedule_observation_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:18:01.549Z"
+    },
+    {
+      "order": 21,
+      "path": "supabase/migrations/20260922232631_zoom_portal_and_drift_sweep_v1.sql",
+      "gitBlob": "60ec3195e55d11e4492a98aca5f68c88cbc44fcb",
+      "actualVersion": "20260923161802",
+      "name": "zoom_portal_and_drift_sweep_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:18:02.857Z"
+    },
+    {
+      "order": 22,
+      "path": "supabase/migrations/20260922233842_zoom_branch_reporting_v1.sql",
+      "gitBlob": "9d2e4164b8bd69311a3f3be43539385bba752223",
+      "actualVersion": "20260923161803",
+      "name": "zoom_branch_reporting_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:18:03.834Z"
+    },
+    {
+      "order": 23,
+      "path": "supabase/migrations/20260923095314_zoom_derivative_retention_v1.sql",
+      "gitBlob": "3adbf0a1a8e02e1498e3a3e953562230691df697",
+      "actualVersion": "20260923161804",
+      "name": "zoom_derivative_retention_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:18:04.917Z"
+    },
+    {
+      "order": 24,
+      "path": "supabase/migrations/20260923100730_zoom_ai_reservation_retries_v1.sql",
+      "gitBlob": "d93a892c1ab0b8f9e2dc078e7d2788c4b36aacc3",
+      "actualVersion": "20260923161805",
+      "name": "zoom_ai_reservation_retries_v1",
+      "success": true,
+      "appliedAt": "2026-09-23T16:18:06.082Z"
+    }
+  ],
+  "postflight": {
+    "links": 0,
+    "settings": 0,
+    "operations": 0,
+    "connections": 0,
+    "without_rls": [],
+    "zoom_tables": 32,
+    "snapshot_acl": [
+      "postgres=X/postgres",
+      "authenticated=X/postgres"
+    ],
+    "oauth_attempts": 0,
+    "zoom_rpc_count": 101,
+    "anon_rpc_grants": [
+      "v1_zoom_invitation_preview(text,text)"
+    ],
+    "enabled_settings": 0,
+    "external_triggers": [
+      "zoom_roster_before_transfer",
+      "zoom_session_guard",
+      "zoom_certificate_review_task",
+      "zoom_certificate_evidence",
+      "zoom_weighted_certificate_guard",
+      "zoom_learning_tombstone_guard",
+      "zoom_unit_tombstone_guard",
+      "zoom_authoring_tombstone_guard",
+      "zoom_release_tombstone_guard"
+    ],
+    "direct_table_grants": [],
+    "zoom_functions_bad_search_path": []
+  },
+  "aclSmoke": {
+    "transaction_read_only": "on",
+    "unauthorized_snapshot_denied": true,
+    "invalid_invitation_returns_null": true,
+    "authenticated_worker_call_denied": true
+  },
+  "accountsSmoke": {
+    "enabled": false,
+    "hosts_count": 0,
+    "accounts_count": 0,
+    "tenant_matches": true,
+    "accounts_permission": true,
+    "transaction_read_only": "on"
+  },
+  "vaultSmoke": {
+    "persistence": "rolled back by final statement",
+    "synthetic_vault_rotation": true,
+    "synthetic_vault_create_and_decrypt": true
+  },
+  "syntheticVaultRowsRemaining": 0,
+  "edgeInitialDeployment": {
+    "id": "c9983579-7801-44e0-9781-2c2a4064bf26",
+    "slug": "zoom-connect",
+    "name": "zoom-connect",
+    "status": "ACTIVE",
+    "version": 1,
+    "created_at": 1790180403169,
+    "updated_at": 1790180403169,
+    "verify_jwt": false,
+    "import_map": false,
+    "entrypoint_path": "file:///tmp/user_fn_gswpbwdactcstkasddta_c9983579-7801-44e0-9781-2c2a4064bf26_1/source/zoom-connect/index.ts",
+    "ezbr_sha256": "360ebda10411f4aa38d299279c5a91aa71292019062de1b11ca09c74a83714f7"
+  },
+  "notes": [
+    "No tenant activation, provider credentials, new cron, live message, AI generation, or Reef operational data mutation.",
+    "Accounts SQL smoke used an existing authorized Marktone membership in a read-only transaction; this is not a browser login test.",
+    "Vault canary created and rotated only a synthetic secret in one rolled-back transaction; zero canary rows remain.",
+    "No staging deployment: user explicitly directed production-only. No real Zoom acceptance claimed."
+  ]
+}

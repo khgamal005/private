@@ -1,0 +1,33 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {zoomSetup,call,id,T,RUN,COURSE,ENROLLMENT,ADMIN_AUTH,LEARNER_AUTH,STAFF,login} from './fixtures/zoom-database.mjs';
+import {seedZoomLesson} from './fixtures/zoom-lesson.mjs';
+test('ZM-08 T40/41: both canonical certificate RPCs and direct insertion enforce reviewed weighted evidence',async t=>{
+ const db=await zoomSetup({complete:true});t.after(()=>db.close());const {session,link,instance,connection}=await seedZoomLesson(db);let seq=74100;
+ const learn=(action,payload)=>call(db,'public.v1_training_learning_action',{p_tenant_slug:'marktone',p_action:action,p_command_id:id(seq++),p_payload:payload});
+ const version=(await learn('save_draft',{courseId:COURSE,title:'Synthetic live course',learningMode:'blended',policy:{minAttendancePercent:75,minAssessmentPercent:70,requireCompletedRun:true,certificateEnabled:true,termsVersion:'synthetic-v1',supportEmail:'support@example.test'},units:[{title:'Synthetic assessment',kind:'quiz',questions:[{id:'q1',prompt:'Synthetic check',options:['No','Yes'],correctOptionIndex:1}]}]})).versionId;
+ await learn('publish_version',{versionId:version,humanReviewed:true});await learn('assign_version',{enrollmentId:ENROLLMENT,versionId:version});
+ const unit=(await db.query('select id from academy.training_units where version_id=$1',[version])).rows[0].id;
+ await login(db,LEARNER_AUTH);await learn('open_unit',{enrollmentId:ENROLLMENT,unitId:unit});await learn('submit_quiz',{enrollmentId:ENROLLMENT,unitId:unit,answers:{q1:1}});await login(db,ADMIN_AUTH);
+ await db.query("update academy.course_run_sessions set status='completed' where id=$1",[session]);await db.query("update academy.course_runs set status='completed' where id=$1",[RUN]);
+ await db.query('insert into academy.course_run_rules(tenant_id,course_run_id) values($1,$2) on conflict do nothing',[T,RUN]);
+ await db.query("insert into zoom_core.instances(id,tenant_id,connection_id,link_id,uuid,started_at,ended_at,evidence_state) select $1,$2,$3,$4,'synthetic-certificate-instance',starts_at,ends_at,'complete' from academy.course_run_sessions where id=$5",[instance,T,connection,link,session]);
+ await db.query("update zoom_core.links set state='ended' where id=$1",[link]);await db.query("insert into zoom_core.roster(tenant_id,link_id,enrollment_id,source) values($1,$2,$3,'synthetic')",[T,link,ENROLLMENT]);
+ const schedule=(await db.query('select starts_at,ends_at from academy.course_run_sessions where id=$1',[session])).rows[0];
+ const review=(action,payload)=>call(db,'public.v1_zoom_review',{p_slug:'marktone',p_action:action,p_command_id:id(seq++),p_payload:{linkId:link,reason:'Reviewed synthetic certificate evidence',...payload}});
+ await review('teaching_window',{startsAt:schedule.starts_at.toISOString(),endsAt:schedule.ends_at.toISOString()});
+ await db.query("insert into zoom_core.intervals(tenant_id,instance_id,enrollment_id,participant_key,joined_at,left_at,source,source_key,quality) values($1,$2,$3,'p',$4::timestamptz,$4::timestamptz+interval '10 minutes','report','synthetic-cert-report','matched')",[T,instance,ENROLLMENT,schedule.starts_at]);
+ await review('approve_attendance',{enrollmentId:ENROLLMENT});
+ const legacy=()=>call(db,'public.v2_tenant_update_training_operation',{p_tenant_slug:'marktone',p_action:'issue_certificate',p_enrollment_id:ENROLLMENT});
+ const blocked=await call(db,'private_app.training_eligibility',{p_enrollment_id:ENROLLMENT});assert.equal(blocked.eligible,false);assert.ok(blocked.reasons.includes('attendance_below_threshold'));
+ await assert.rejects(learn('issue_certificate',{enrollmentId:ENROLLMENT}),/certificate_not_eligible/);await assert.rejects(legacy(),/certificate_not_eligible/);
+ await assert.rejects(db.query("insert into academy.certificates(tenant_id,course_run_id,enrollment_id,certificate_number,verification_code) values($1,$2,$3,'FORGED-ZOOM','forged-zoom-synthetic')",[T,RUN,ENROLLMENT]),/certificate/);
+ await db.query('update zoom_core.intervals set left_at=$1 where instance_id=$2',[schedule.ends_at,instance]);await review('approve_attendance',{enrollmentId:ENROLLMENT});
+ const ready=await call(db,'private_app.training_eligibility',{p_enrollment_id:ENROLLMENT});assert.equal(ready.eligible,true,JSON.stringify(ready.reasons));
+ const issued=await learn('issue_certificate',{enrollmentId:ENROLLMENT});assert.ok(issued.certificateId);
+ assert.equal((await db.query('select metadata->\'zoomWeightedAttendance\'->>\'percent\' percent from academy.certificates')).rows[0].percent,'100.00');
+ await legacy();assert.equal((await db.query('select count(*)::int n from academy.certificates')).rows[0].n,1);
+ await db.query('update zoom_core.settings set owner_staff_id=$1 where tenant_id=$2',[STAFF,T]);await db.query("update academy.attendance_records set metadata=jsonb_set(metadata,'{zoom,reviewNote}','\"Later human review\"'::jsonb) where enrollment_id=$1",[ENROLLMENT]);
+ assert.equal((await db.query("select count(*)::int n from work_core.tasks where metadata->>'source'='zoom_certificate_review'")).rows[0].n,1);assert.equal((await db.query('select status from academy.certificates')).rows[0].status,'issued');
+ await db.query("update zoom_core.intervals set left_at=joined_at+interval '10 minutes' where instance_id=$1",[instance]);await db.query("update zoom_core.instances set evidence_state='complete' where id=$1",[instance]);assert.equal((await db.query("select count(*)::int n from work_core.tasks where metadata->>'source'='zoom_certificate_source_changed'")).rows[0].n,1);assert.equal((await db.query('select status from academy.certificates')).rows[0].status,'issued');
+
+});

@@ -27,6 +27,24 @@ function load(path){
 const unit={id:'unit-1',title:'الدرس الحقيقي',kind:'text',required:true,minimumSeconds:0,position:1};
 const enrollment={id:'enrollment-1',studentId:'student-1',studentName:'متدرب الاختبار',courseId:'course-1',courseTitle:'الدورة الحقيقية',runId:'run-1',runTitle:'الدفعة الأولى',status:'confirmed',versionId:'version-1',units:[unit],financialAccess:{trainingAllowed:true,certificationAllowed:false,financialStatus:'settled',reasonCodes:[],currency:'SAR'},progress:{completedUnits:0,totalUnits:1,percent:0},sessions:[{id:'session-1',title:'اللقاء المباشر',startsAt:'2026-09-20T10:00Z',joinUrl:'https://example.test/meeting'}]};
 const learner={role:'learner',tenant:{id:'3d185482-b916-49cc-b868-b6dfdb93eba8',slug:'marktone',name:'مركز الاختبار',timezone:'Asia/Riyadh'},viewer:{},learning:{role:'learner',courses:[],enrollments:[enrollment],submissions:[],requests:[]}};
+test('learner opens only their exact managed Zoom session while access and cancellation still gate entry',async()=>{
+ const id='77777777-7777-4777-8777-777777777777',path=`/training/marktone/sessions/${id}`;
+ const session={id,title:'لقاء زوم المدار',status:'scheduled',joinUrl:path};
+ const data=structuredClone(learner);data.learning.enrollments[0].sessions=[session];
+ await mounted(data,async({doc,render})=>{
+  assert.equal(doc.querySelector(`a[href="${path}"]`).textContent,'الدخول للقاء');
+  for(const next of [{...session,status:'cancelled'},{...session,joinUrl:`/training/other/sessions/${id}`},{...session,id:'88888888-8888-4888-8888-888888888888'}]){
+   const denied=structuredClone(data);denied.learning.enrollments[0].sessions=[next];await render(denied);
+   assert.equal([...doc.querySelectorAll('a')].find(a=>a.textContent==='الدخول للقاء'),undefined);
+  }
+  const blocked=structuredClone(data);blocked.learning.enrollments[0].financialAccess.trainingAllowed=false;await render(blocked);
+  assert.equal(doc.querySelector(`a[href="${path}"]`),null);
+ });
+ const {safeTrainingSessionUrl}=load('lib/training-journey-contract.ts');
+ for(const bad of [`//foreign.test${path}`,`${path}?redirect=https://foreign.test`,`${path}#token`,path.replace('/sessions/','/sessions/%2e%2e/'),'javascript:alert(1)'])assert.equal(safeTrainingSessionUrl(bad,'marktone',id),null);
+ assert.equal(safeTrainingSessionUrl(`https://odeir.com${path}`,'marktone',id),path);
+ assert.equal(safeTrainingSessionUrl('https://zoom.us/j/123456789','marktone',id),'https://zoom.us/j/123456789');
+});
 test('published curriculum headings preserve activity order and financial access in the learner view',async()=>{
  const grouped={...enrollment,units:[unit,{...unit,id:'unit-2',position:2,title:'الواجب النهائي',kind:'assignment'}],policy:{curriculumTopics:[{id:'topic-1',title:'أساسيات الدورة',startPosition:1,unitCount:1},{id:'topic-2',title:'التطبيق العملي',startPosition:2,unitCount:1}]}};
  await mounted({...learner,learning:{...learner.learning,enrollments:[grouped]}},async({doc,calls})=>{

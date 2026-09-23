@@ -8,9 +8,10 @@ export default async function TrainingLoginPage({searchParams}){
   if(typeof search?.next==='string'&&search.next.startsWith('/training/')&&!search.next.startsWith('//')){
     try{next=new URL(search.next,'https://odeir.com');}catch{}
   }
+  const zoom=search?.workspace==='zoom';
   const academy=search?.workspace==='academy'||next?.searchParams.get('workspace')==='academy';
   const target=search?.tenant||next?.pathname.split('/')[2];
-  const slug=academy&&validAcademySlug(target)?target:'marktone';
+  const slug=(academy||zoom)&&validAcademySlug(target)?target:'marktone';
   const role=search?.role==='instructor'||next?.searchParams.get('role')==='instructor'?'instructor':'learner';
-  return <AcademyAuthShell experience={role} tenantName={academy?slug:''}><TrainingAccessForm initialRole={role} tenantSlug={slug} workspace={academy?'academy':'odeir'} resetSuccess={search?.reset==='success'}/></AcademyAuthShell>;
+  return <AcademyAuthShell experience={role} tenantName={academy?slug:''}><TrainingAccessForm initialRole={role} tenantSlug={slug} workspace={zoom?'zoom':academy?'academy':'odeir'} resetSuccess={search?.reset==='success'}/></AcademyAuthShell>;
 }

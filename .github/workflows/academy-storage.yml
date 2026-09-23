@@ -40,6 +40,10 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm install --no-save --package-lock=false --ignore-scripts pg@8.16.3
       - run: git diff --exit-code -- package.json package-lock.json
+      - name: Install media verification tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
       - run: node scripts/academy-storage-fixture.mjs
       - name: Start the pinned official Storage service
         run: docker run -d --name academy-storage-ci --network host --env-file /tmp/academy-storage-ci.env supabase/storage-api:v1.74.0

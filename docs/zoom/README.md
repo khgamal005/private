@@ -7,7 +7,8 @@
 - [مصفوفة ZM](coverage.md) و[مصفوفة T01–64](acceptance.md).
 - [التصميم والبيانات](architecture.md)، [الصلاحيات وواجهات Zoom والأحداث](manifest.md).
 - [إعداد التطبيق وتشغيل الأدوار](runbook.md)، [الاحتفاظ والحذف](retention.md)، [بوابة الإصدار والتراجع والمخاطر](release.md).
-- الأدلة: [CI والحمل النهائي وتصحيح المعاينة](evidence/review-e34c2b3.json)، [UI→HTTP→SQL](evidence/ui-http-sql.json)، [حمل PostgreSQL الصناعي السابق](evidence/load-a1d47d2.json).
+- [متابعة هوستينجر وإعدادات التشغيل ومصفوفة التسليم](hostinger.md): تجهيز موثق؛ الوصول إلى hPanel متوقف عند التحقق الأمني، ولم تطبق إعدادات هناك.
+- الأدلة الحالية: [CI كامل علىfaf3b1d،50اختبارZoom،1652نجاحًا دون فشل](evidence/review-faf3b1d.json). الأدلة السابقة: [e34c2b3 وتصحيح المعاينة](evidence/review-e34c2b3.json)، [UI→HTTP→SQL](evidence/ui-http-sql.json)، [حمل PostgreSQL الصناعي السابق](evidence/load-a1d47d2.json).
 
 الوسوم مستقلة: منفذ ومختبر محليًا؛ مختبر بعقد مزود اصطناعي؛ مختبر حيًا بإذن؛ موقوف على إعداد/ترخيص/موافقة؛ غير منجز. **لا يوجد بند موسوم مختبرًا حيًا في هذه الحزمة.**
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -32,7 +32,8 @@ test('real Storage uploads a 64 MiB MP4 with pause/resume and enforces private o
  const initialized=await fetch(`${endpoint}/bucket`,{headers:{Authorization:`Bearer ${storageTestJwt('service_role')}`}});
  assert.equal(initialized.status,200,await initialized.text());
  await applyDeliveryMigrations(db,{externalStorage:true});await login(db,MANAGER_AUTH);
- const offer=await checkoutOffer(db);
+ // Setup ran in a separate process; commands must not reuse its counter range.
+ const offer=await checkoutOffer(db,{commandId:randomUUID(),publishCommandId:randomUUID()});
  const folder=await mkdtemp(join(tmpdir(),'academy-storage-'));t.after(()=>rm(folder,{recursive:true,force:true}));
  const mp4=join(folder,'lesson.mp4');
  execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=navy:s=320x180:r=24','-t','1','-c:v','mpeg4','-movflags','+faststart','-y',mp4]);

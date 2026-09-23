@@ -1,6 +1,6 @@
 # Academy connected delivery — review candidate
 
-Original base: `dfec0b996597a310de22aa86dce177c5cf59f668` (PR 264). Updated against current main `febbafe2bf3409a2aa3dcdcd6a8c374164f0e30b`, including the complete Zoom integration. Branch: `codex/academy-connected-delivery-v1`.
+Original base: `dfec0b996597a310de22aa86dce177c5cf59f668` (PR 264). Updated against main `4a569936605c8ba504a8489df95b04e9a8892a0e`, including the complete Zoom integration and isolated OAuth credentials. Branch: `codex/academy-connected-delivery-v1`.
 Authorization: implement the accepted recommendations on an isolated branch. Production activation remains a separate release decision. This change does not merge, deploy, enable a tenant, send email, configure an AI provider, create Zoom meetings, or backfill historical data.
 
 ## Result
@@ -52,7 +52,7 @@ Read bounds: people 50/page, instructor candidates 100, course runs/offers 100, 
 
 ## Release preflight and acceptance
 
-1. Check the final reviewed PR SHA and both Quality and Academy concurrency checks. Re-read current `main`; resolve any concurrent changes, especially Admissions/Zoom, instead of replacing their functions. Run `scripts/academy-connected-delivery-preflight.sql` read-only; migration baseline checks must match.
+1. Check the final reviewed PR SHA and all six gates: Quality, Academy concurrency, Training concurrency, Operational governance concurrency, Zoom isolated verification and Academy real Storage upload. Re-read current `main`; resolve any concurrent changes, especially Admissions/Zoom, instead of replacing their functions. Run `scripts/academy-connected-delivery-preflight.sql` read-only; migration baseline checks must match.
 2. Verify project Storage global file limit is at least 524288000 bytes, plan/quota headroom, private bucket constraints and resumable endpoint/CORS support. The connector in this work session does not expose global Storage settings; the dashboard requires sign-in. Do not claim the 500 MiB limit was configured. Keep activation off until verified; do not silently raise a paid plan or global quota.
 3. Apply only the four migrations in timestamp order through the approved Supabase migration workflow. Their default-disabled state allows application deployment before pilot activation. Do not replay older migration history or run a data backfill.
 4. Deploy the reviewed application, then verify manager/instructor/learner roles at desktop and 390px. In an isolated acceptance environment: create a course/cohort, add linked instructors, upload/pause/resume/finalize video, publish, check free/full/installment checkout and identity conflict, verify owner assignment and task closure, compare the learner's Zoom session to Admissions, and confirm foreign-tenant denial. Test an actual signed Storage upload and seeking/playback, including >50 MiB, before asserting production readiness. Inspect the object response cache headers and repeat a previously issued URL after its 300-second token expiry; confirm CDN revalidation rather than assuming token expiry evicts a cached response. See [Supabase's signed URL caching guidance](https://supabase.com/docs/guides/storage/cdn/smart-cdn#signed-urls-and-cdn-caching).

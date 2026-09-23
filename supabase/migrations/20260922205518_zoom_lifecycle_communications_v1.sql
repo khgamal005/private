@@ -71,7 +71,7 @@ begin
   if not exists(select 1 from zoom_core.recordings where tenant_id=j.tenant_id and id=(j.metadata->>'recordingId')::uuid and state='published' and expires_at>now()) then return jsonb_build_object('managed',true,'allowed',false,'reason','zoom_recording_unavailable');end if;
  elsif s.status='cancelled' or l.state not in ('ready','live','imported') then return jsonb_build_object('managed',true,'allowed',false,'reason','zoom_message_not_ready');end if;
  if (j.channel='email' and lower(trim(j.recipient)) is distinct from lower(trim(st.email))) or (j.channel='whatsapp' and j.recipient is distinct from private_app.normalize_training_phone(st.phone,(select whatsapp_country_code from academy.training_automation_settings where tenant_id=j.tenant_id))) then return jsonb_build_object('managed',true,'allowed',false,'reason','zoom_recipient_changed');end if;
- url_value:='https://odeir.com/training/'||ten.slug||'/sessions/'||s.id;
+ url_value:='/training/'||ten.slug||'/sessions/'||s.id;
  when_value:=to_char(s.starts_at at time zone ten.timezone,'YYYY-MM-DD HH24:MI')||' ('||ten.timezone||')';
  heading:=case j.job_type when 'zoom_cancelled' then 'أُلغيت المحاضرة' when 'zoom_changed' then 'حُدّثت بيانات المحاضرة' when 'zoom_recording' then 'أصبح تسجيل المحاضرة متاحًا' when 'zoom_joining' then 'محاضرتك جاهزة' else 'تذكير بموعد المحاضرة' end;
  message_value:=heading||': '||s.title||E'\n'||when_value||E'\n'||url_value;

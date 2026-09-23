@@ -1,3 +1,4 @@
+import {resolveZoomTrainingMessage} from '../_shared/zoom-message.mjs';
 type JobChannel = 'whatsapp' | 'email' | 'zoom';
 type JobType = string;
 
@@ -889,10 +890,13 @@ async function deliver(
 ) {
   let managedZoom = false;
   if (job.queue !== 'automation' && job.sessionId) {
-    const check = await rpc(supabaseUrl, serviceRoleKey, 'v1_zoom_message_check', {p_job_id: job.id}) as {managed?: boolean; allowed?: boolean; reason?: string; job?: Partial<AutomationJob>};
+    const check = await rpc(supabaseUrl, serviceRoleKey, 'v1_zoom_message_check', {p_job_id: job.id}) as {managed?: boolean; allowed?: boolean; reason?: string; url?: string; job?: Partial<AutomationJob>};
     managedZoom = check.managed === true;
     if (managedZoom && !check.allowed) throw new ProviderConfigurationError(check.reason || 'zoom_message_not_eligible');
-    if (managedZoom && check.job) job = {...job, ...check.job};
+    if (managedZoom && check.job) {
+      try { job = {...job, ...resolveZoomTrainingMessage(check.job, check.url, env('ZOOM_PUBLIC_ORIGIN'))}; }
+      catch { throw new ProviderConfigurationError('zoom_public_origin_required'); }
+    }
   }
   if (job.channel === 'zoom') {
     return await createZoomMeeting(job, legacy.zoom);

@@ -1,6 +1,6 @@
 import {connect,syncHost,service,seedEnrollment,seedPayment,call,id,T,RUN,INSTRUCTOR,ADMIN,STUDENT,ENROLLMENT,LEARNER,LEARNER_AUTH,HANDOFF,INVOICE,ACCOUNT,login,ADMIN_AUTH} from './zoom-database.mjs';
-export async function seedZoomLesson(db,{state='ready',kind='meeting'}={}){
- await seedEnrollment(db);await seedPayment(db);
+export async function seedZoomLesson(db,{state='ready',kind='meeting',paymentAmount=10000}={}){
+ await seedEnrollment(db);await seedPayment(db,paymentAmount);
  await db.query('insert into academy.training_journey_settings(tenant_id,enabled) values($1,true) on conflict(tenant_id) do update set enabled=true',[T]);
  await db.query("insert into academy.training_financial_links(tenant_id,handoff_id,invoice_id,payer_account_id,policy,created_by_subject_id) values($1,$2,$3,$4,'full',$5)",[T,HANDOFF,INVOICE,ACCOUNT,ADMIN]);
  await db.query("insert into access_control.subjects(id,auth_user_id,email,full_name) values($1,$2,'learner@example.test','Synthetic learner')",[LEARNER,LEARNER_AUTH]);

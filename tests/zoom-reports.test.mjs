@@ -15,3 +15,14 @@ test('ZM-12/14 T43/58: background report is owner-bound, expires, respects filte
  await db.query("update access_control.memberships set status='suspended' where tenant_id=$1 and scope='tenant'",[T]);await assert.rejects(call(db,'public.v1_zoom_snapshot',{p_slug:'marktone',p_view:'accounts'}),/zoom_forbidden/);assert.equal(await call(db,'private_app.has_platform_permission',{p_permission:'platform.control.read'}),true);
  await db.query("update zoom_core.report_exports set expires_at=now()-interval '1 second' where tenant_id=$1",[T]);await service(db);await call(db,'public.v1_zoom_reports_work',{});assert.equal((await db.query('select count(*)::int n from zoom_core.report_chunks')).rows[0].n,0);
 });
+test('ZM-12: export spans 205 canonical sessions in three bounded chunks with no duplicates',async t=>{
+ const db=await zoomSetup({complete:true});t.after(()=>db.close());const {session,link}=await seedZoomLesson(db);
+ await db.query("insert into access_control.role_permissions(role_id,permission_key) values($1,'tenant.zoom.reports.export') on conflict do nothing",[id(21)]);
+ await db.query("insert into academy.course_run_sessions(id,tenant_id,course_run_id,session_number,title,starts_at,ends_at,delivery_mode) select ('00000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,s.tenant_id,s.course_run_id,n,'Synthetic export '||n,s.starts_at+make_interval(mins=>n),s.ends_at+make_interval(mins=>n),'online' from generate_series(77001,77204)n cross join academy.course_run_sessions s where s.id=$1",[session]);
+ await db.query("insert into zoom_core.links(tenant_id,session_id,connection_id,host_id,instructor_subject_id,state,desired,meeting_id) select s.tenant_id,s.id,l.connection_id,l.host_id,l.instructor_subject_id,'ready',jsonb_build_object('startsAt',s.starts_at,'endsAt',s.ends_at),'synthetic-'||s.id from academy.course_run_sessions s cross join zoom_core.links l where l.id=$1 and s.session_number between 77001 and 77204",[link]);
+ const job=await call(db,'public.v1_zoom_report_request',{p_slug:'marktone',p_command_id:id(77250),p_options:{from:new Date(Date.now()-86400000).toISOString(),to:new Date(Date.now()+90*86400000).toISOString()}});assert.equal(job.total,205);
+ await service(db);for(let n=0;n<3;n++)await call(db,'public.v1_zoom_reports_work',{});await service(db,false);
+ const hash='c'.repeat(64),ticket=await call(db,'public.v1_zoom_report_ticket',{p_slug:'marktone',p_export_id:job.id,p_token_hash:hash});assert.equal(ticket.pages,3);
+ const rows=[];for(let page=0;page<3;page++){const chunk=await call(db,'public.v1_zoom_report_chunk',{p_slug:'marktone',p_export_id:job.id,p_token_hash:hash,p_page:page});assert.equal(chunk.rows.length,page===2?5:100);rows.push(...chunk.rows);}
+ assert.equal(new Set(rows.map(x=>x.link_id)).size,205);
+});

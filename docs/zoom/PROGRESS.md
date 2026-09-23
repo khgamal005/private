@@ -1,58 +1,59 @@
-# Zoom implementation — resumable record
+# Zoom — سجل الاستكمال والمراجعة
 
-Scope: [the complete supplied specification](scope-ar-v1.md), ZM-01–22 and T01–64. No merge, deployment, live activation, provider purchase, production backfill or live provider test is authorized.
+المواصفة المرفقة قُرئت كاملة وهي [scope-ar-v1.md](scope-ar-v1.md). خريطة المتطلبات [coverage.md](coverage.md) وT01–64 في [acceptance.md](acceptance.md). هذا السجل لا يمنح إذن دمج/نشر/تفعيل/شراء أو تجربة حية.
 
-Repository: `Marktonesa/marktone-platform-control`. Branch: `feat/zoom-multi-account`. Verified initial main: `dfec0b996597a310de22aa86dce177c5cf59f668`, tree `c2cfb3751883a17546c4a97780e952ebeb181f42`. The complete tree and signed commit were reconstructed from GitHub's read-only Git API and hash-verified existing local objects; no edits from other workspaces were imported without matching the exact upstream blob hash. There is no AGENTS.md in this tree or workspace ancestry.
+## هوية العمل
 
-## Latest checkpoint — 2026-09-22 23:25 UTC
+المستودع `Marktonesa/marktone-platform-control` فقط، الفرع `feat/zoom-multi-account`. أحدث main المتحقق `dfec0b996597a310de22aa86dce177c5cf59f668`، tree `c2cfb3751883a17546c4a97780e952ebeb181f42`. لم يُستخدم CRM/staging بديلًا. لم يحدث دمج/نشر/تفعيل إنتاجي، ولم تُقرأ بيانات Reef التشغيلية أو تُعدّل. pg_catalog فقط استُخدم للمطابقة؛ الوجهة الفعلية للمضيف/النطاق/العامل ما زالت بوابة إصدار.
 
-Implementation branch only; **nothing merged, deployed, activated, or tested with live Zoom**. Main rechecked and remains `dfec0b996597a310de22aa86dce177c5cf59f668`. Previous saved checkpoint `c5a678d2662c29054d93acde2125044aa4163ce3` passed PostgreSQL CI run 35793145534.
+## المرشح الحالي — 23 سبتمبر 2026
 
-Current code contains **20 additive, unpublished Zoom migrations**. Since c5: historical attendance after withdrawal/transfer, atomic recurring series with DST validation and occurrence mapping, background streamed CSV exports with fresh owner authorization, CRM webinar notification delivery through the existing queue, human certificate review tasks, uncertain individual registration recovery, provider evidence-change tasks, and UUID-less external update reconciliation. Account permissions now require actual tenant membership and tenant ACL; a platform control role alone cannot read tenant Zoom content.
+22 ترحيلًا إضافيًا غير منشور، مولدة بـSupabase CLI. لم تُعدل أي migration من main. P0 اكتشاف مكتمل؛ P1 حسابات/مضيفون، P2 حجز/جدولة/سلاسل/استبدال، P3 استحقاق/حضور/شهادة، P4 تسجيلات/تصدير، P5 ندوات/SDK/AI لها مسارات تطبيق وSQL قابلة للتنفيذ. P6 مراجعة/اختبارات/توثيق أُنجز محليًا إلى الحدود الموضحة، **وقبوله الخارجي والإطلاق غير مكتملين**.
 
-Validation on this checkpoint's source code:
-- `npm test`: **1635 passed, 4 skipped, 0 failed** (1639 total). Local genuine PostgreSQL concurrency test is deliberately skipped without `ZOOM_TEST_DATABASE_URL`; it runs in isolated branch CI.
-- `npm run lint`: 0 errors / 19 existing warnings; `npm run typecheck`: passed; `npm run migration:verify`: 288 forward migrations verified; `npm run build`: passed with loopback synthetic Supabase configuration.
-- Targeted real SQL tests exercise both canonical certificate paths and direct-insert guard, complete a real authoring draft apply with separately enabled synthetic LMS/authoring gates, reject copied export tickets, recover a lost approved individual registration, and distinguish a provider echo from external schedule drift without UUID.
-- UI/HTTP/SQL evidence in `evidence/ui-http-sql.json`: passed at 360/390/768px, keyboard, creation through real Next API/SQL/worker, background CSV stream and copied learner URL denial. Provider and JWT boundaries are explicit test seams. Rerun after final UI changes.
-- Earlier real PostgreSQL 17 load/race evidence remains in `evidence/load-a1d47d2.json`; it is not evidence of simultaneous live lecture capacity.
+أحدث إضافات التنفيذ: scopes فعلية موثقة، تقييد المضيف بفرع core.branches وفلاتره، مقارنة فترات وتقارير نتائج assessment_results دون افتراض تقييم لجودة المدرب، حالة زر الدخول مشتقة من الفحص الخادمي، origin رسائل مضبوط للبيئة، تصالح دوري للاجتماعات المقبلة، تصدير خلفي 100صف/دفعة، وحذف متدرج لا تحجبه الطلبات المكتملة. النشر والموافقة البشرية على الأدلة لا يتحولان إلى أدوات مستقلة لأوديري.
 
-Next work, in order:
-1. Finish individual T01–64 evidence matrix, scope/capability manifest, architecture, setup/operator runbook, retention and rollback documents. `coverage.md` still contains superseded gaps until refreshed.
-2. Close remaining acceptance gaps: multiple hosts, known external busy/partial coverage, partial batch, overlapping student evidence, >100-row export, queue fairness and time boundaries. Review portal states, configurable notification origin, and periodic future drift observation.
-3. Rerun final changed paths, UI and engineering gate; verify exact main and feature SHA, inspect real PostgreSQL CI and save a reviewable draft.
-4. Keep actual OAuth/accounts/SDK audio-video, provider licensing, live messages/AI, approved derivative deletion policy and any release authorization explicitly pending.
+## نتائج متحققة ونسبتها إلى المصدر
 
-## Phase status
+| المصدر | النتيجة |
+|---|---|
+| main الأصلي في worktree منفصل | `npm test`: 1602 نجاح،3skip،0فشل؛1605اختبارات |
+| كود المرشح22 قبل تحسين طابور الحذف الأخير | `npm test`:1645نجاح،4skip،0فشل؛1649اختبارات؛109.34ث |
+| اختبارات Zoom بعد آخر تعديل |45اختبارًا:44نجاح وskip واحد مشروط بقاعدة PostgreSQL؛0فشل |
+| تحسين الحذف الأخير | recovery/advanced/lifecycle:10نجاح،0فشل؛ يشمل27طلبًا ومشتقًا طُبق على التأليف |
+| lint/types/migrations للمرشح22 |0أخطاء lint مع19تحذيرًا سابقًا؛types ناجح؛290migration متحقق |
+| build للمرشح22 | ناجح مع Supabase loopback اصطناعي |
+| UI22 | UI→Next API→SQL→worker والتصدير الخلفي ونسخ الرابط المرفوض،360/390/768 وTab؛[JSON](evidence/ui-http-sql.json) وصور |
+| CI على39a8912d5da95b6445662340347b067821cadd25 | [35797327399](https://github.com/Marktonesa/marktone-platform-control/actions/runs/35797327399) ناجح؛ هذا يسبق إضافتي21/22 ولا يُنسب للمرشح الأخير |
+| PostgreSQL حمل سابق مضبوط | [load-a1d47d2.json](evidence/load-a1d47d2.json)،3000منشأة اصطناعية وعاملان وصفوف/أحداث؛ليس3000محاضرة حية |
 
-P0 complete. P1–P5 have executable database/provider/application paths; local acceptance and gap closure continue. P6 is in progress (documentation, final exact-SHA evidence and review). Do not report all requirements complete merely because the build or local suite passes. Follow the detailed matrix and its provider-live limitations.
+التحقق الأخير على SHA الفرع المحفوظ يُسجل في CI وطلب المراجعة؛ لا تستبدل نتيجته بنتيجة checkpoint أقدم. يجب إنهاء ذلك قبل تسليم المرشح. البناء وحده لا يثبت التكامل. skip PostgreSQL المحلي مشروط بعدم تزويد قاعدة loopback منفصلة؛ CI يستخدم اتصالين حقيقيين على PostgreSQL17. ثلاثة skip أخرى من main وليست تخفيضًا لاختبار Zoom.
 
-## Confirmed architecture / decisions
+## ما يمنع إعلان الاكتمال الخارجي
 
-- Production project's repository default and live metadata match `gswpbwdactcstkasddta`; other projects (including staging and Reef HS) are not development targets. Only pg_catalog definitions were read.
-- Existing learner accounts, instructor assignments, financial access, attendance and certificate eligibility are canonical; LMS activation is separate from Zoom activation.
-- Current financial governance deliberately allows admitted students to continue after later arrears. Zoom must call `private_app.training_journey_financial_access_v1` and preserve this decision. The seven-day assumption in the supplied spec is not a replacement for the installed policy.
-- Current `training_is_instructor_v1` also honors explicitly enabled academy platform memberships; reuse it, do not regress to staff-only authorization.
-- Existing training automation handles messages. Its legacy Zoom path has global S2S token cache and no multi-account reservation/fencing. New account operations must never fall back to that global account.
-- Training attendance currently counts present/late sessions. Additive Zoom evidence must feed the canonical record and protect canonical certificate paths from incomplete evidence; no second final attendance ledger.
-- Reuse Supabase Vault for server-only secrets and existing audit/permission helpers. Default rollout remains absent/disabled.
+1. تطبيق General OAuth وحسابا اختبار Zoom ورخص/scopes فعلية وإذن تجربة محدودة؛ ربط/تجديد/تسجيل فردي/إبطال/تقارير/وقائع/تسجيلات مع المزود غير مختبرة حيًا.
+2. Meeting SDK: مراجعة التطبيق ومسار هوية صحيح وT55 صوت/فيديو/مشاركة/جوال حي؛ external anonymous لا يُعد مضمونًا.
+3. سياسة حذف مشتقات authoring المختلطة/المنشورة والنسخ الاحتياطية: المصدر المحلي ينظف، لكن policy_required يبقى. لا محو تلقائي لعمل بشري أو شهادة؛ يلزم قرار ومسار تنظيف واستعادة متحققان.
+4. إعداد cron وقنوات رسائل المنشأة، Odeiry وميزانيته وموافقة معالجة التفريغ؛ لم تُرسل رسالة أو طلب توليد مدفوع حي.
+5. بيئة Supabase كاملة مطابقة للمخطط/التشفير/الكاش والعامل وتجربة تراجع مأذونة، وإثبات وجهة الإنتاج ثم إذن صريح منفصل للدمج/النشر/التفعيل.
 
-## Resume procedure
+الحالات الجزئية الدقيقة كقبول استيراد سلسلة حية وتأخر تقارير المزود وطلب مساحة ممتلئة موضحة في T-matrix. تقييم الطالب للمدرب لا مصدر قائم متحقق له؛ يُعرض غير متاح ولا يُستنتج من الوقت. لا أسعار أو فواتير Zoom/ROI مخترعة.
 
-1. Read this file, discovery.md and coverage.md; inspect git status/diff and latest main.
-2. Current targeted tests: node --test tests/zoom-*.test.mjs. Local logs /tmp/odeir-zoom-{core,evidence,schedule,lint,types,migration}.log. New SQL migration timestamps start 20260922201432. Only new/unpublished migrations have been edited.
-3. Run existing verification commands and targeted executable tests; record failures honestly.
-3. Continue P1 → P2 → P3 → P4 → P5 → P6; preserve Reef and every unrelated change.
-4. Before any release, obtain separate explicit user authorization after a passed engineering gate.
+## قرارات ملزمة للاستكمال
 
-## Checkpoint update — 2026-09-22 22:35 UTC (continue work, do not treat as final)
+- مصادر الحقيقة: [discovery](discovery.md) و[architecture](architecture.md). المصدر المالي الأحدث مقدم على افتراض اليوم الثامن؛ الاختبار يثبت كلا وضعي السياسة.
+- ترخيص Zoom مستقل عن LMS، والنطاق الحالي للتأليف/LMS لا يتوسع بهذه الإضافة.
+- tenant ACL وعضوية فعلية؛ platform.control.read وحدها لا تفتح محتوى منشأة. كل grant/export/worker يعيد الفحص. لا مصدر سلطة من role preview.
+- عدم تأكيد إنشاء/تعديل يحفظ الحجز؛ ممنوع إعادة إنشاء عمياء. السلسلة المنتظمة atomic، الوقائع/UUID منفصلة.
+- لا حذف دفع/تسجيل/شهادة بسبب المزود. لا backfill أو انتقال مركزي عام أو تعديل Reef.
 
-Remote checkpoint a1d47d2a9f1c1e6def4a4839796db21f6bb71eb0 passed CI run 35790160139, **23/23**, including genuine PostgreSQL 17 races and 3,000-tenant synthetic load. Structured load evidence is in evidence/load-a1d47d2.json. Latest local changes: **24 pass, 1 deliberate local PostgreSQL skip**; two new additive migrations (weighted completion, insights/followup), 13 migrations total.
+## الاستكمال دون إعادة شرح
 
-Completed since previous checkpoint: old occurrence end ordering; unknown exit remains incomplete after manual identity match; weighted canonical eligibility; manual credit separated from status; genuine provider capacity lower-bound from Concurrent add-on; webinar/meeting overlap prohibition; provider cooldown and resource retry state; periodic resource refresh and existing host binding validation; prevention of new shared-S2S adoption while preserving pre-project legacy evidence; legacy token expiry; canonical task followups; aggregate usage and honest cost reports; read-only Odeiry Zoom tool guarded by active paid run and tenant permissions.
+1. اقرأ هذا السجل والمصفوفتين؛ افحص `git status` و`git log -1` وmain البعيد. لا تستبدل هذا المستودع ولا تنقل تعديلات من مساحات أخرى.
+2. الترحيلات Zoom تبدأ20260922201432 وتنتهي20260922233842. اختبر `node --test tests/zoom-*.test.mjs` ثم أوامر بوابة أودير المعتمدة؛ exact-SHA CI ضروري للسباق الحقيقي.
+3. أدوات UI: `scripts/verify-zoom-ui.mjs` و`zoom-ui-fixture.mjs` تشغل خوادم اصطناعية فقط. agent-browser daemon فشل هنا؛ Chromium عبر Playwright نجح. الصور وJSON داخل evidence.
+4. قبل UI جديد احذف فقط صفحة app/zoom-validation-fixture/page.jsx التي تحتوي ZOOM_UI_FIXTURE إذا بقيت بعد إنهاء عملية التحقق. لا تُدرجها في build/commit. Next قد يولد AGENTS/CLAUDE وnext-env؛ إرشاداته قُرئت، والملفات العرضية ليست ضمن التسليم. لا تحذف غير الملفات ذات العلامة المعروفة.
+5. معطيات إعداد/تشغيل/حذف/تراجع: runbook.md،manifest.md،retention.md،release.md. توقف الإطلاق عند أي عزل/سر/استحقاق/شهادة/ازدواجية أو غموض سياسة/وجهة.
 
-UI/HTTP/SQL verification passed on synthetic data: Arabic account/session views, allocation preview and creation through the real Next API, SQL reservation and edge worker, CSV authorization, forged learner host role refusal, standalone learner page, 390px mobile and keyboard. Provider and JWT transport are explicit fixture seams. agent-browser daemon failed in this environment; Chromium via Playwright worked. A visual defect in mobile tab wrapping was fixed. **Latest insights UI needs rerun.** Screenshots and JSON evidence are in evidence/. Standard build passed on prior checkpoint with loopback Supabase. Latest lint: 0 errors / 19 existing warnings; typecheck passed.
+## checkpoints محفوظة
 
-Runtime caveat: Next dev generates AGENTS.md / CLAUDE.md / next-env changes. Read generated AGENTS guidance and relevant installed Next docs; do not commit these incidental generated files. Temporary app/zoom-validation-fixture route must be removed before staging/building. scripts/zoom-ui-fixture.mjs and verify-zoom-ui.mjs recreate it only for verification. Browser path locally /tmp/odeir-zoom-browser/chromium; Playwright from CODEX_PRIMARY_RUNTIME_NODE_MODULES; no project dependency changes. Stop/clean synthetic servers after tests. The temporary route may persist after environment process cleanup; remove only its guarded ZOOM_UI_FIXTURE page.
-
-Remaining internal work is itemized in coverage.md, especially recurring-series creation, historical attendance transfer, advanced settings, long exports, stronger acceptance scenarios, complete operating/setup/retention/rollback documents and final verification. External limitations remain actual Zoom app/SDK authorization, licenses, test account credentials, real media/provider/AI/message tests, and explicit release authorization. No merge, deploy, activation or Reef mutation is authorized.
+68b65fe48041182ebe981d7b24444038af89f2b8 → a1d47d2a9f1c1e6def4a4839796db21f6bb71eb0 → c5a678d2662c29054d93acde2125044aa4163ce3 → 39a8912d5da95b6445662340347b067821cadd25 → مرشح المراجعة الحالي. لا main push ولا merge. يُستخرج SHA الحالي من git وCI بدل إدراج SHA ذاتي داخل الملف.

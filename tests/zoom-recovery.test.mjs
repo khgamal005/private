@@ -22,3 +22,13 @@ test('ZM-06/13 T18/25: lost individual registration is recovered with a fresh sc
  assert.equal((await db.query('select count(*)::int n from zoom_core.registrations')).rows[0].n,1);
  await db.query("update academy.training_learner_accounts set status='suspended'");await assert.rejects(call(db,'public.v1_zoom_access_context',{p_grant_id:fresh.grantId,p_lease:lease}),/zoom_forbidden/);
 });
+
+test('ZM-14 T62: advanced purge drains beyond a full batch and completed entries cannot starve newer cleanup',async t=>{
+ const db=await zoomSetup({complete:true});t.after(()=>db.close());const tenant=(await db.query("select id from core.tenants where slug='marktone'")).rows[0].id;
+ for(let n=0;n<27;n++){
+  const connection=id(79900+n);await db.query("insert into zoom_core.connections(id,tenant_id,environment,account_id,grant_user_id,label,status) values($1,$2,'test',$3,'purged','Synthetic deleted account','deauthorized')",[connection,tenant,'batch-purge-'+n]);
+  await db.query("insert into zoom_core.purge_requests(tenant_id,connection_id,reason,state) values($1,$2,'deauthorization','complete')",[tenant,connection]);
+ }
+ await service(db);await call(db,'public.v1_zoom_purge',{p_limit:20});assert.equal((await db.query('select count(*)::int n from zoom_core.purge_requests where advanced_purged_at is not null')).rows[0].n,20);
+ await call(db,'public.v1_zoom_purge',{p_limit:20});assert.equal((await db.query('select count(*)::int n from zoom_core.purge_requests where advanced_purged_at is not null')).rows[0].n,27);
+});

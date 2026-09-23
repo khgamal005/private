@@ -83,17 +83,18 @@ create function public.v1_zoom_purge(p_limit integer default 20) returns jsonb l
 declare result jsonb;req zoom_core.purge_requests%rowtype;d zoom_core.ai_drafts%rowtype;
 begin
  perform zoom_core.service_only();result:=public.v1_zoom_purge_core(p_limit);
- for req in select * from zoom_core.purge_requests where state in ('complete','policy_required') order by created_at limit p_limit loop
+ for req in select * from zoom_core.purge_requests where advanced_purged_at is null and state in ('complete','policy_required') order by created_at,id limit p_limit for update skip locked loop
   for d in select x.* from zoom_core.ai_drafts x join zoom_core.recordings r on r.tenant_id=x.tenant_id and r.id=x.recording_id join zoom_core.instances i on i.tenant_id=r.tenant_id and i.id=r.instance_id where x.tenant_id=req.tenant_id and i.connection_id=req.connection_id loop
    update core.odeiry_runs set response_data='{}' where tenant_id=req.tenant_id and id=d.run_id;
-   update core.odeiry_messages set content='[مصدر زووم أُزيل وفق سياسة حذف المزود]',content_hash=encode(extensions.digest('[مصدر زووم أُزيل وفق سياسة حذف المزود]','sha256'),'hex') where tenant_id=req.tenant_id and run_id=d.run_id and message_role='assistant';
+   update core.odeiry_messages set content='[مصدر زووم أُزيل وفق سياسة حذف المزود]',content_hash=encode(extensions.digest('[مصدر زووم أُزيل وفق سياسة حذف المزود]','sha256'),'hex') where tenant_id=req.tenant_id and run_id=d.run_id;
    update zoom_core.ai_drafts set state='source_removed',content=null,source_hash='removed' where id=d.id;
-   if d.applied_course_id is not null then update zoom_core.purge_requests set state='policy_required',completed_at=null where id=req.id;end if;
+   if d.applied_course_id is not null then update zoom_core.purge_requests set state='policy_required',completed_at=null,derivatives_need_review=true where id=req.id;end if;
   end loop;
   delete from zoom_core.webinar_intervals where tenant_id=req.tenant_id and instance_id in(select id from zoom_core.instances where tenant_id=req.tenant_id and connection_id=req.connection_id);
   delete from vault.secrets where id in(select w.secret_id from zoom_core.webinar_registrations w join zoom_core.links l on l.tenant_id=w.tenant_id and l.id=w.link_id where w.tenant_id=req.tenant_id and l.connection_id=req.connection_id);
   update zoom_core.webinar_registrations set registrant_id=null,secret_id=null,state='revoked',attended_seconds=null,quality='source_removed' where tenant_id=req.tenant_id and link_id in(select id from zoom_core.links where tenant_id=req.tenant_id and connection_id=req.connection_id);
   update sales_core.activities set metadata=jsonb_build_object('source','zoom_removed'),summary='أزيل دليل زووم وفق سياسة حذف المزود' where tenant_id=req.tenant_id and metadata->>'source'='zoom_webinar' and metadata->>'linkId' in(select id::text from zoom_core.links where tenant_id=req.tenant_id and connection_id=req.connection_id);
+  update zoom_core.purge_requests set advanced_purged_at=now() where id=req.id;
  end loop;return result||jsonb_build_object('derivedContent','published_authoring_requires_review');
 end $$;
 create table zoom_core.resource_syncs (

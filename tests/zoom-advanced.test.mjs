@@ -54,6 +54,7 @@ test('ZM-19/14 T56/57/62: source versions, real Odeiry run authority, draft-only
  assert.equal((await db.query('select jsonb_array_length(document->\'topics\') n from academy.course_authoring')).rows[0].n,1);
 
  await login(db,LEARNER_AUTH);await assert.rejects(call(db,'public.v1_zoom_ai_snapshot',{p_slug:'marktone',p_recording_id:rec}),/zoom_forbidden/);await login(db,ADMIN_AUTH);await service(db);await db.query("update zoom_core.connections set status='deauthorized' where id=$1",[connection]);await call(db,'public.v1_zoom_purge',{});
+ assert.equal((await db.query('select state,derivatives_need_review from zoom_core.purge_requests')).rows[0].derivatives_need_review,true);await service(db,false);await command(db,'public.v1_zoom_retention_policy',{derivedAttendance:'delete_auto_preserve_human',approved:true,reason:'Synthetic approved attendance deletion policy'},60111);await service(db);await call(db,'public.v1_zoom_purge',{});assert.equal((await db.query('select state from zoom_core.purge_requests')).rows[0].state,'policy_required');
  assert.equal((await db.query('select state,content from zoom_core.ai_drafts')).rows[0].state,'source_removed');assert.deepEqual((await db.query('select response_data,settled_business_units from core.odeiry_runs')).rows[0],{response_data:{},settled_business_units:2});
  await assert.rejects(db.query('insert into zoom_core.ai_drafts(tenant_id,recording_id,source_revision,source_hash,requested_by,kind) values($1,$2,1,\'x\',$3,\'summary\')',[OTHER,rec,ADMIN]),/foreign key/);
 });

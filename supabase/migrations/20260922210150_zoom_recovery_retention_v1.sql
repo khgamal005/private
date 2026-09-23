@@ -1,7 +1,7 @@
 begin;
 create table zoom_core.purge_requests (
  id uuid primary key default gen_random_uuid(),tenant_id uuid not null,connection_id uuid not null,reason text not null,
- state text not null default 'pending' check(state in ('pending','provider_data_removed','policy_required','complete')),created_at timestamptz not null default now(),completed_at timestamptz,
+ state text not null default 'pending' check(state in ('pending','provider_data_removed','policy_required','complete')),created_at timestamptz not null default now(),completed_at timestamptz,advanced_purged_at timestamptz,derived_attendance_purged_at timestamptz,derivatives_need_review boolean not null default false,
  foreign key(tenant_id,connection_id) references zoom_core.connections(tenant_id,id),unique(connection_id,reason)
 );
 create function zoom_core.request_deauthorization_purge() returns trigger language plpgsql security definer set search_path='' as $$
@@ -46,7 +46,7 @@ create function public.v1_zoom_purge(p_limit integer default 20) returns jsonb l
 declare req zoom_core.purge_requests%rowtype;cfg zoom_core.settings%rowtype;count_value int:=0;raw_count int;attendance_count int;
 begin
  perform zoom_core.service_only();if p_limit not between 1 and 50 then raise exception 'zoom_invalid_request';end if;
- for req in select * from zoom_core.purge_requests where state<>'complete' order by created_at limit p_limit for update skip locked loop
+ for req in select pr.* from zoom_core.purge_requests pr join zoom_core.settings ps on ps.tenant_id=pr.tenant_id where pr.state<>'complete' and (pr.state<>'policy_required' or (pr.derived_attendance_purged_at is null and ps.retention_policy->>'derivedAttendance'='delete_auto_preserve_human')) order by pr.created_at,pr.id limit p_limit for update of pr skip locked loop
   select * into cfg from zoom_core.settings where tenant_id=req.tenant_id;
   delete from vault.secrets where id in (
    select vault_secret_id from zoom_core.connections where tenant_id=req.tenant_id and id=req.connection_id union all
@@ -73,7 +73,7 @@ begin
   if cfg.retention_policy->>'derivedAttendance'='delete_auto_preserve_human' then
    delete from academy.attendance_records a where a.tenant_id=req.tenant_id and a.metadata?'zoom' and coalesce(a.metadata->'zoom'->>'override','false')<>'true' and a.session_id in(select session_id from zoom_core.links where tenant_id=req.tenant_id and connection_id=req.connection_id);get diagnostics attendance_count=row_count;
    update academy.attendance_records a set metadata=(metadata-'zoom')||jsonb_build_object('zoomEvidenceRemoved',true) where a.tenant_id=req.tenant_id and a.metadata->'zoom'->>'override'='true' and a.session_id in(select session_id from zoom_core.links where tenant_id=req.tenant_id and connection_id=req.connection_id);
-   update zoom_core.purge_requests set state='complete',completed_at=now() where id=req.id;
+   update zoom_core.purge_requests set derived_attendance_purged_at=now(),state=case when derivatives_need_review then 'policy_required' else 'complete' end,completed_at=case when derivatives_need_review then null else now() end where id=req.id;
   else update zoom_core.purge_requests set state='policy_required' where id=req.id;end if;
   insert into zoom_core.retention_runs(tenant_id,connection_id,status,counts) values(req.tenant_id,req.connection_id,case when cfg.retention_policy->>'derivedAttendance'='delete_auto_preserve_human' then 'local_complete_backup_policy_pending' else 'derived_policy_required' end,jsonb_build_object('intervals',raw_count,'derivedAttendance',attendance_count));
   count_value:=count_value+1;

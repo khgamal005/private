@@ -290,6 +290,158 @@
     "No tenant activation, provider credentials, new cron, live message, AI generation, or Reef operational data mutation.",
     "Accounts SQL smoke used an existing authorized Marktone membership in a read-only transaction; this is not a browser login test.",
     "Vault canary created and rotated only a synthetic secret in one rolled-back transaction; zero canary rows remain.",
-    "No staging deployment: user explicitly directed production-only. No real Zoom acceptance claimed."
-  ]
+    "No staging deployment: user explicitly directed production-only. No real Zoom acceptance claimed.",
+    "An initial anonymous HTTP diagnostic selected the preview literal from conditional public configuration and received Invalid API key. The corrected probe used the active publishable key returned for the production project; no application configuration was changed."
+  ],
+  "runtimeSourceSha": "4a569936605c8ba504a8489df95b04e9a8892a0e",
+  "edgeFinalDeployment": {
+    "id": "c9983579-7801-44e0-9781-2c2a4064bf26",
+    "slug": "zoom-connect",
+    "name": "zoom-connect",
+    "status": "ACTIVE",
+    "version": 2,
+    "created_at": 1790180403169,
+    "updated_at": 1790180854011,
+    "verify_jwt": false,
+    "import_map": false,
+    "entrypoint_path": "file:///tmp/user_fn_gswpbwdactcstkasddta_c9983579-7801-44e0-9781-2c2a4064bf26_2/source/zoom-connect/index.ts",
+    "ezbr_sha256": "4ae45b86f8f774dbc2cc8ac7984932c107078449d505c0a9d6386fc662ad5264"
+  },
+  "workerFinalDeployment": {
+    "id": "e3645703-c5f9-485b-8c5b-db5cb2476718",
+    "slug": "training-automation-dispatch",
+    "name": "training-automation-dispatch",
+    "status": "ACTIVE",
+    "version": 19,
+    "created_at": 1785191663533,
+    "updated_at": 1790180861449,
+    "verify_jwt": false,
+    "import_map": false,
+    "entrypoint_path": "file:///tmp/user_fn_gswpbwdactcstkasddta_e3645703-c5f9-485b-8c5b-db5cb2476718_19/source/training-automation-dispatch/index.ts",
+    "ezbr_sha256": "7bef0bd3e12f1b55181d5ee8bdfe4431dcd9e68997040054dcd55c1644d711fc"
+  },
+  "deployedSourceMatches": {
+    "zoom": true,
+    "trainingWorker": true
+  },
+  "workerRollbackSource": {
+    "sha": "dfec0b996597a310de22aa86dce177c5cf59f668",
+    "path": "supabase/functions/training-automation-dispatch/index.ts",
+    "matchedPreDeploymentVersion18": true
+  },
+  "httpProbes": [
+    {
+      "path": "zoom-connect/start",
+      "status": 503,
+      "body": {
+        "error": "zoom_not_enabled",
+        "correlationId": "536b5460-23ef-4a62-9077-44f777129e2a"
+      }
+    },
+    {
+      "path": "zoom-connect/webhook",
+      "status": 503,
+      "body": {
+        "error": "zoom_not_enabled",
+        "correlationId": "c7a8145a-6948-4c42-a509-ff4aa199407d"
+      }
+    },
+    {
+      "path": "zoom-connect/dispatch",
+      "status": 503,
+      "body": {
+        "error": "zoom_not_enabled",
+        "correlationId": "cc8aee5c-6fc7-41f1-9b9c-58e5d54aaf66"
+      }
+    },
+    {
+      "path": "training-automation-dispatch",
+      "status": 401,
+      "body": {
+        "error": "dispatcher_not_authorized"
+      }
+    }
+  ],
+  "applicationAnonymousProbe": {
+    "url": "https://odeir.com/tenant/marktone/addons/zoom?view=accounts",
+    "result": "redirect to /login with expected next path",
+    "authenticatedBrowserCheck": false
+  },
+  "tests": {
+    "targeted": {
+      "provider": 8,
+      "runtimeGate": 4,
+      "trainingWorker": 1,
+      "disabledSqlRollout": 1,
+      "failures": 0,
+      "skipped": 0
+    },
+    "initialRuntimeCI": {
+      "sha": "febbafe2bf3409a2aa3dcdcd6a8c374164f0e30b",
+      "runId": 35887599266,
+      "jobId": 107271619782,
+      "conclusion": "success",
+      "total": 1664,
+      "passed": 1660,
+      "failed": 0,
+      "skipped": 4,
+      "skipReasons": [
+        "Missing explicit isolated PostgreSQL URLs for Academy, Governance, Training and Zoom concurrency; unchanged Zoom SQL had previous dedicated PostgreSQL evidence on faf3b1d."
+      ]
+    },
+    "finalCI": {
+      "sha": "4a569936605c8ba504a8489df95b04e9a8892a0e",
+      "runId": 35888862632,
+      "jobId": 107275942218,
+      "conclusion": "success",
+      "total": 1666,
+      "passed": 1662,
+      "failed": 0,
+      "skipped": 4,
+      "lintErrors": 0,
+      "existingLintWarnings": 19,
+      "forwardMigrationsVerified": 292,
+      "build": "success",
+      "skipReasons": [
+        "Academy, Governance, Training and Zoom concurrency require explicit disposable loopback PostgreSQL URLs; these URLs are not configured in the Quality job. No production database was used for those tests."
+      ]
+    }
+  },
+  "postgrestProbes": [
+    {
+      "rpc": "v1_zoom_snapshot",
+      "status": 401,
+      "body": {
+        "code": "42501",
+        "details": null,
+        "hint": null,
+        "message": "permission denied for function v1_zoom_snapshot"
+      }
+    },
+    {
+      "rpc": "v1_zoom_invitation_preview",
+      "status": 200,
+      "body": null
+    }
+  ],
+  "emptyAccountsRender": {
+    "source": "4a569936605c8ba504a8489df95b04e9a8892a0e",
+    "realComponentServerRender": true,
+    "syntheticData": true,
+    "settingsNullHandled": true,
+    "accountsHeading": true,
+    "emptyState": true,
+    "addAccountDisabled": true,
+    "authenticatedBrowserTest": false
+  },
+  "finalClosedState": {
+    "settings": 0,
+    "enabledSettings": 0,
+    "connections": 0,
+    "links": 0,
+    "operations": 0,
+    "zoomCronJobs": 0,
+    "originalEligibilityAclPreserved": true
+  },
+  "finishedAt": "2026-09-23T16:40:59.744Z"
 }

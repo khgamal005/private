@@ -1,102 +1,152 @@
 {
   "sourceSha": "5ae904735d42249f7214770303cc9ab25bae75fa",
-  "productionApplied": false,
+  "productionApplied": true,
   "migrations": [
     {
       "path": "supabase/migrations/20260922201432_zoom_accounts_resources_v1.sql",
-      "blob": "0f99007cc10b9f48b5ea616af4d9f9b2603839b6"
+      "blob": "0f99007cc10b9f48b5ea616af4d9f9b2603839b6",
+      "appliedVersion": "20260923161643",
+      "appliedName": "zoom_accounts_resources_v1"
     },
     {
       "path": "supabase/migrations/20260922202109_zoom_scheduling_operations_v1.sql",
-      "blob": "c5361464f0de850b884a791bb5352583fd8250fb"
+      "blob": "c5361464f0de850b884a791bb5352583fd8250fb",
+      "appliedVersion": "20260923161654",
+      "appliedName": "zoom_scheduling_operations_v1"
     },
     {
       "path": "supabase/migrations/20260922202705_zoom_evidence_access_v1.sql",
-      "blob": "3317b4480b2437456d53afe2a4f1663fbdcfd078"
+      "blob": "3317b4480b2437456d53afe2a4f1663fbdcfd078",
+      "appliedVersion": "20260923161656",
+      "appliedName": "zoom_evidence_access_v1"
     },
     {
       "path": "supabase/migrations/20260922203333_zoom_recordings_reports_v1.sql",
-      "blob": "73be66165dfd78ea7778034bcc2028b7f5990927"
+      "blob": "73be66165dfd78ea7778034bcc2028b7f5990927",
+      "appliedVersion": "20260923161658",
+      "appliedName": "zoom_recordings_reports_v1"
     },
     {
       "path": "supabase/migrations/20260922203937_zoom_provider_bridges_v1.sql",
-      "blob": "2a9a521add0046727c1b847edd859d7f658ed470"
+      "blob": "2a9a521add0046727c1b847edd859d7f658ed470",
+      "appliedVersion": "20260923161659",
+      "appliedName": "zoom_provider_bridges_v1"
     },
     {
       "path": "supabase/migrations/20260922205518_zoom_lifecycle_communications_v1.sql",
-      "blob": "e684893745d25157ca268137394bb48aa2ae56e2"
+      "blob": "e684893745d25157ca268137394bb48aa2ae56e2",
+      "appliedVersion": "20260923161700",
+      "appliedName": "zoom_lifecycle_communications_v1"
     },
     {
       "path": "supabase/migrations/20260922210150_zoom_recovery_retention_v1.sql",
-      "blob": "7c4fe8892f08447106058e00cf1dff1a51fa05a4"
+      "blob": "7c4fe8892f08447106058e00cf1dff1a51fa05a4",
+      "appliedVersion": "20260923161725",
+      "appliedName": "zoom_recovery_retention_v1"
     },
     {
       "path": "supabase/migrations/20260922210714_zoom_advanced_learning_v1.sql",
-      "blob": "01de34b957ca28c0934b7ea00412b2746047db58"
+      "blob": "01de34b957ca28c0934b7ea00412b2746047db58",
+      "appliedVersion": "20260923161726",
+      "appliedName": "zoom_advanced_learning_v1"
     },
     {
       "path": "supabase/migrations/20260922211521_zoom_webinar_crm_v1.sql",
-      "blob": "af27e55e9bb72060c26e1b31cd038f438b8b8765"
+      "blob": "af27e55e9bb72060c26e1b31cd038f438b8b8765",
+      "appliedVersion": "20260923161727",
+      "appliedName": "zoom_webinar_crm_v1"
     },
     {
       "path": "supabase/migrations/20260922213755_zoom_operational_completion_v1.sql",
-      "blob": "ef8a6cf363fcd03eec54c161c7cad0a996f25ff4"
+      "blob": "ef8a6cf363fcd03eec54c161c7cad0a996f25ff4",
+      "appliedVersion": "20260923161729",
+      "appliedName": "zoom_operational_completion_v1"
     },
     {
       "path": "supabase/migrations/20260922215415_zoom_account_replacement_v1.sql",
-      "blob": "9e9e0e2f58d30630d94f180d62fd5e8a4fa044e5"
+      "blob": "9e9e0e2f58d30630d94f180d62fd5e8a4fa044e5",
+      "appliedVersion": "20260923161730",
+      "appliedName": "zoom_account_replacement_v1"
     },
     {
       "path": "supabase/migrations/20260922221302_zoom_weighted_completion_v1.sql",
-      "blob": "c20dbd991e0eaaafb5d51ecdcc3b1593ce94e720"
+      "blob": "c20dbd991e0eaaafb5d51ecdcc3b1593ce94e720",
+      "appliedVersion": "20260923161731",
+      "appliedName": "zoom_weighted_completion_v1"
     },
     {
       "path": "supabase/migrations/20260922222039_zoom_insights_followup_v1.sql",
-      "blob": "23a7450c593cfbcc7141b2ab5c3fd08fb2a4dfde"
+      "blob": "23a7450c593cfbcc7141b2ab5c3fd08fb2a4dfde",
+      "appliedVersion": "20260923161741",
+      "appliedName": "zoom_insights_followup_v1"
     },
     {
       "path": "supabase/migrations/20260922223516_zoom_historical_attendance_v1.sql",
-      "blob": "4eefa755d29d0f68b0a55faffad9724b59a4e130"
+      "blob": "4eefa755d29d0f68b0a55faffad9724b59a4e130",
+      "appliedVersion": "20260923161742",
+      "appliedName": "zoom_historical_attendance_v1"
     },
     {
       "path": "supabase/migrations/20260922224409_zoom_recurring_series_v1.sql",
-      "blob": "244c261f264a0e1c5430a14fd788d03a4c8803ff"
+      "blob": "244c261f264a0e1c5430a14fd788d03a4c8803ff",
+      "appliedVersion": "20260923161744",
+      "appliedName": "zoom_recurring_series_v1"
     },
     {
       "path": "supabase/migrations/20260922225126_zoom_report_exports_v1.sql",
-      "blob": "02e46c65cda8d8613fe2ebdc09101dd030ebb98c"
+      "blob": "02e46c65cda8d8613fe2ebdc09101dd030ebb98c",
+      "appliedVersion": "20260923161745",
+      "appliedName": "zoom_report_exports_v1"
     },
     {
       "path": "supabase/migrations/20260922230226_zoom_webinar_delivery_review_v1.sql",
-      "blob": "10eee913101b1d4aab64d226fee66abe036a64e8"
+      "blob": "10eee913101b1d4aab64d226fee66abe036a64e8",
+      "appliedVersion": "20260923161747",
+      "appliedName": "zoom_webinar_delivery_review_v1"
     },
     {
       "path": "supabase/migrations/20260922230604_zoom_registration_recovery_v1.sql",
-      "blob": "cb08140b4c7ec7d60f8c785be421467b1b7c2a42"
+      "blob": "cb08140b4c7ec7d60f8c785be421467b1b7c2a42",
+      "appliedVersion": "20260923161749",
+      "appliedName": "zoom_registration_recovery_v1"
     },
     {
       "path": "supabase/migrations/20260922231251_zoom_evidence_followup_v1.sql",
-      "blob": "f688746d93724e07aa9e3f5a7c6eeda507418d54"
+      "blob": "f688746d93724e07aa9e3f5a7c6eeda507418d54",
+      "appliedVersion": "20260923161800",
+      "appliedName": "zoom_evidence_followup_v1"
     },
     {
       "path": "supabase/migrations/20260922231639_zoom_external_schedule_observation_v1.sql",
-      "blob": "a00635d5de18eb1e69d695e7ca1e18eb4bc8eb51"
+      "blob": "a00635d5de18eb1e69d695e7ca1e18eb4bc8eb51",
+      "appliedVersion": "20260923161801",
+      "appliedName": "zoom_external_schedule_observation_v1"
     },
     {
       "path": "supabase/migrations/20260922232631_zoom_portal_and_drift_sweep_v1.sql",
-      "blob": "60ec3195e55d11e4492a98aca5f68c88cbc44fcb"
+      "blob": "60ec3195e55d11e4492a98aca5f68c88cbc44fcb",
+      "appliedVersion": "20260923161802",
+      "appliedName": "zoom_portal_and_drift_sweep_v1"
     },
     {
       "path": "supabase/migrations/20260922233842_zoom_branch_reporting_v1.sql",
-      "blob": "9d2e4164b8bd69311a3f3be43539385bba752223"
+      "blob": "9d2e4164b8bd69311a3f3be43539385bba752223",
+      "appliedVersion": "20260923161803",
+      "appliedName": "zoom_branch_reporting_v1"
     },
     {
       "path": "supabase/migrations/20260923095314_zoom_derivative_retention_v1.sql",
-      "blob": "3adbf0a1a8e02e1498e3a3e953562230691df697"
+      "blob": "3adbf0a1a8e02e1498e3a3e953562230691df697",
+      "appliedVersion": "20260923161804",
+      "appliedName": "zoom_derivative_retention_v1"
     },
     {
       "path": "supabase/migrations/20260923100730_zoom_ai_reservation_retries_v1.sql",
-      "blob": "d93a892c1ab0b8f9e2dc078e7d2788c4b36aacc3"
+      "blob": "d93a892c1ab0b8f9e2dc078e7d2788c4b36aacc3",
+      "appliedVersion": "20260923161805",
+      "appliedName": "zoom_ai_reservation_retries_v1"
     }
-  ]
+  ],
+  "productionProjectRef": "gswpbwdactcstkasddta",
+  "verifiedSourceSha": "23735f649d8cde15c83e9475e701d26eee699aa9"
 }

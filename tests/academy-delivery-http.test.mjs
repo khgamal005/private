@@ -69,7 +69,7 @@ test('resumable upload isolates fingerprints and ignores a foreign resume URL',a
  const file={size:100,lastModified:42,type:'video/mp4'},ticket={endpoint:'https://fixture.storage.supabase.co/storage/v1/upload/resumable/sign',token:'scoped',bucket:'academy-course-media',objectPath:path};
  const client=await startAcademyVideoUpload({file,ticket,UploadClass:Upload,autoStart:false});assert.equal(started,0);client.start();assert.equal(started,1);
  assert.equal(options.chunkSize,6*1024*1024);assert.equal(options.headers['x-signature'],'scoped');assert.equal(options.headers.Authorization,undefined);assert.equal(options.removeFingerprintOnSuccess,true);
- assert.equal(options.metadata.cacheControl,'0','TUS cache lifetime uses seconds so private playback is revalidated');
+ assert.equal(options.metadata.cacheControl,'0','TUS object cache lifetime is specified in seconds');
  assert.match(await options.fingerprint(),new RegExp(uuid));assert.match(resumed.uploadUrl,/\/upload\/resumable\/sign\/id$/);
  let progress;options.onProgress=undefined;
  await startAcademyVideoUpload({file,ticket,UploadClass:Upload,onProgress:value=>progress=value});options.onProgress(50,100);assert.equal(progress,50);

@@ -57,9 +57,14 @@ test('real Storage uploads a 64 MiB MP4 with pause/resume and enforces private o
  const stored=(await db.query('select metadata from storage.objects where bucket_id=$1 and name=$2',['academy-course-media',ticket.objectPath])).rows[0].metadata;
  assert.equal(Number(stored.size),file.length);assert.equal(stored.mimetype,'video/mp4');assert.equal(stored.cacheControl,'max-age=0');
  const finalized=await mediaAction(db,'complete_upload',{assetId:ticket.assetId});assert.equal(finalized.state,'ready');assert.equal(finalized.allowDownload,false);
+ const signingStartedAt=Date.now();
  const readResponse=await fetch(`${endpoint}/object/sign/${object}`,{method:'POST',headers,body:JSON.stringify({expiresIn:5})});
  assert.equal(readResponse.status,200,await readResponse.clone().text());const read=await readResponse.json();const url=new URL(read.signedURL,endpoint);
- const full=await fetch(url);assert.equal(full.status,200);assert.match(full.headers.get('cache-control'),/max-age=0|no-cache/);
+ const full=await fetch(url);assert.equal(full.status,200);
+ // Storage v1.74 signed reads emit Expires from the token instead of the
+ // object's Cache-Control. Assert the actual bounded HTTP freshness contract.
+ const expires=Date.parse(full.headers.get('expires')||'');
+ assert.ok(Number.isFinite(expires)&&expires>signingStartedAt&&expires<=signingStartedAt+6000,'Signed response freshness must not exceed its five-second token lifetime');
  const downloaded=Buffer.from(await full.arrayBuffer());assert.equal(createHash('sha256').update(downloaded).digest('hex'),createHash('sha256').update(file).digest('hex'));
  const ranged=await fetch(url,{headers:{Range:'bytes=0-1023'}});assert.equal(ranged.status,206);assert.equal((await ranged.arrayBuffer()).byteLength,1024);
  const denied=await fetch(`${endpoint}/object/sign/${object}`,{method:'POST',headers:{...headers,Authorization:`Bearer ${storageTestJwt('authenticated',EDITOR_AUTH)}`},body:JSON.stringify({expiresIn:300})});assert.ok(denied.status>=400);

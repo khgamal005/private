@@ -13,7 +13,7 @@ try{
  // used by the real Storage service; canonical roles/permissions remain real SQL.
  await client.query(`create or replace function auth.uid() returns uuid language sql stable as $$
   select coalesce(nullif(current_setting('request.jwt.claim.sub',true),''),nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub',nullif(current_setting('fixture.auth_user_id',true),''))::uuid $$;
-  create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}')$$;
+  create or replace function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}')$$;
   grant usage on schema auth to anon,authenticated,service_role;
   drop function storage.foldername(text);`);
  await writeFile('/tmp/academy-storage-ci.env',[

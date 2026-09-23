@@ -6,7 +6,7 @@ export const dynamic='force-dynamic';
 export async function POST(request,{params}) {
   try {
     const {action}=await params;
-    if(!['snapshot','save_offer','publish_offer'].includes(action))throw trainingProblem('not_found',404);
+    if(!['snapshot','save_offer','publish_offer','assign_instructor','create_run'].includes(action))throw trainingProblem('not_found',404);
     const body=await readTrainingBody(request,{maxBytes:16384});
     if(body.tenantSlug!==TRAINING_PILOT_SLUG)throw trainingProblem('invalid_request');
     const payload=courseDeliveryPayload(action,body.payload);

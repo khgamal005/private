@@ -2,6 +2,25 @@
 begin;
 set local lock_timeout='5s';
 set local statement_timeout='120s';
+
+-- Read-only production baselines inspected 2026-09-23. Stop instead of replacing
+-- another release's commerce/finance changes with this reviewed definition.
+do $baseline$
+declare expected record;
+begin
+ for expected in select * from (values
+  ('private_app.academy_store_order_view_v1(academy.store_orders)','2ede692764f8b050837dd3595b0b5def'),
+  ('private_app.admission_financial_eligibility_v1(uuid,uuid)','389623bb79b0ed30384a7b88b945f95f'),
+  ('public.v1_academy_commerce_action(text,text,uuid,jsonb)','71014192996b93a9f0472cb3326c6dcb'),
+  ('public.v1_academy_store_order(text,text,uuid,jsonb)','e70da8e06c9b52178c25f71e80807638'),
+  ('public.v1_academy_storefront(text)','de80131b22593dc358c47ed46cd009c2')
+ ) signatures(signature,definition_hash) loop
+  if md5(pg_get_functiondef(to_regprocedure(expected.signature))) is distinct from expected.definition_hash then
+   raise exception 'academy_delivery_baseline_changed: %',expected.signature;
+  end if;
+ end loop;
+end $baseline$;
+
 alter table academy.store_offers drop constraint store_offers_net_minor_check;
 alter table academy.store_offers add constraint store_offers_net_minor_check check(net_minor between 0 and 100000000);
 alter table academy.store_offers add column installment_terms jsonb not null default '[]' check(jsonb_typeof(installment_terms)='array');
@@ -38,18 +57,23 @@ begin
  select * into course from academy.courses where tenant_id=t and id=p_course_id;
  if course.id is null then raise exception 'academy_authoring_course_not_found';end if;
  select * into profile from accounting_core.tenant_profiles where tenant_id=t;
- return jsonb_build_object('available',true,'courseId',course.id,'title',course.title_ar,'currency',coalesce(profile.base_currency,course.currency),
+ return jsonb_build_object('available',true,'timezone',(select timezone from core.tenants where id=t),'courseId',course.id,'title',course.title_ar,'currency',coalesce(profile.base_currency,course.currency),
  'taxRateBps',case when profile.tax_registered then profile.default_tax_rate_bps else 0 end,'financeReady',profile.tenant_id is not null,
  'canManageStore',private_app.academy_has_permission_v1(t,'manageStore'),'contentPublished',exists(select 1 from academy.training_course_versions where tenant_id=t and course_id=course.id and status='published'),
+ 'canManageInstructors',private_app.academy_has_permission_v1(t,'manageLearning'),
+ 'instructorCandidates',coalesce((select jsonb_agg(x.row) from(select jsonb_build_object('subjectId',sub.id,'name',sub.full_name) row from access_control.subjects sub
+  where sub.status='active' and not sub.must_change_password and (exists(select 1 from academy.platform_memberships pm where pm.tenant_id=t and pm.subject_id=sub.id and pm.status='active' and pm.role_key in ('manager','instructor'))
+   or exists(select 1 from people.staff_profiles sp join access_control.memberships m on m.id=sp.membership_id and m.tenant_id=sp.tenant_id where sp.tenant_id=t and m.subject_id=sub.id and m.status='active' and sp.employment_status='active' and sp.role_key='instructor')) order by sub.full_name,sub.id limit 100)x),'[]'),
  'runs',coalesce((select jsonb_agg(x.row) from(select jsonb_build_object('id',r.id,'title',r.title,'status',r.status,'startsAt',r.starts_at,'endsAt',r.ends_at,
  'capacity',r.capacity,'enrolledCount',r.enrolled_count,'selfPaced',coalesce(r.metadata->>'trainingJourneySelfpaced','false')='true',
+ 'instructors',coalesce((select jsonb_agg(x.row) from(select jsonb_build_object('subjectId',ri.subject_id,'name',sub.full_name) row from academy.training_run_instructors ri join access_control.subjects sub on sub.id=ri.subject_id where ri.tenant_id=t and ri.run_id=r.id and ri.active order by sub.full_name,sub.id limit 100)x),'[]'),
  'sessions',coalesce((select jsonb_agg(s.row) from(select jsonb_build_object('id',ss.id,'title',ss.title,'startsAt',ss.starts_at,'endsAt',ss.ends_at,'status',ss.status,
  'joinUrl',ss.meeting_join_url,'meetingStatus',ss.meeting_status,'providerManaged',ss.external_meeting_id is not null or ss.meeting_status in ('queued','ready')) row
  from academy.course_run_sessions ss where ss.tenant_id=t and ss.course_run_id=r.id order by ss.starts_at,ss.id limit 100)s),'[]')) row
- from academy.course_runs r where r.tenant_id=t and r.course_id=course.id and r.status in ('open','planned','in_progress') order by r.starts_at nulls first,r.id limit 100)x),'[]'),
+ from academy.course_runs r where r.tenant_id=t and r.course_id=course.id and r.status in ('open','planning','in_progress') order by r.starts_at nulls first,r.id limit 100)x),'[]'),
  'offers',coalesce((select jsonb_agg(jsonb_build_object('id',o.id,'runId',o.run_id,'title',o.title,'netMinor',o.net_minor,'taxRateBps',o.tax_rate_bps,'currency',o.currency,
  'published',o.published,'version',o.version,'learningMode',o.learning_mode,'installmentTerms',o.installment_terms) order by o.created_at,o.id)
- from academy.store_offers o where o.tenant_id=t and o.course_id=course.id),'[]'));
+ from (select * from academy.store_offers where tenant_id=t and course_id=course.id order by created_at,id limit 100) o),'[]'));
 end $$;
 
 create function public.v1_academy_course_delivery_action(p_slug text,p_action text,p_command_id uuid,p_payload jsonb) returns jsonb
@@ -59,19 +83,38 @@ declare t uuid;actor uuid:=private_app.current_subject_id();cached academy.store
  net bigint;rate integer;terms jsonb;mode text;
 begin
  t:=private_app.academy_delivery_tenant_v1(p_slug);
+ if p_action='assign_instructor' then
+  if private_app.academy_has_permission_v1(t,'manageLearning') is not true then raise exception 'forbidden' using errcode='42501';end if;
+  if p_command_id is null or jsonb_typeof(p_payload) is distinct from 'object' or octet_length(p_payload::text)>4096
+   or not exists(select 1 from academy.course_runs where tenant_id=t and id=(p_payload->>'runId')::uuid and course_id=(p_payload->>'courseId')::uuid) then raise exception 'invalid_course_run';end if;
+  return public.v1_academy_training_action(p_slug,'assign_instructor',p_command_id,p_payload);
+ end if;
  if private_app.academy_has_permission_v1(t,'manageCourses') is not true or private_app.academy_has_permission_v1(t,'manageStore') is not true then raise exception 'forbidden' using errcode='42501';end if;
  if p_action='publish_offer' then return public.v1_academy_commerce_action(p_slug,p_action,p_command_id,p_payload);end if;
- if p_action<>'save_offer' or p_command_id is null or jsonb_typeof(p_payload) is distinct from 'object' or octet_length(p_payload::text)>12000 then raise exception 'invalid_request';end if;
+ if p_action not in ('save_offer','create_run') or p_command_id is null or jsonb_typeof(p_payload) is distinct from 'object' or octet_length(p_payload::text)>12000 then raise exception 'invalid_request';end if;
  perform pg_advisory_xact_lock(hashtextextended(t::text||':academy-store-command:'||p_command_id::text,220926));
  hash:=md5(p_payload::text);
  select * into cached from academy.store_commands where tenant_id=t and command_id=p_command_id;
  if cached.command_id is not null then
-  if cached.actor_subject_id<>actor or cached.action<>'course_delivery.save_offer' or cached.request_hash<>hash then raise exception 'command_conflict';end if;
+  if cached.actor_subject_id<>actor or cached.action<>'course_delivery.'||p_action or cached.request_hash<>hash then raise exception 'command_conflict';end if;
   return cached.result;
  end if;
  cid:=(p_payload->>'courseId')::uuid;
  select * into course from academy.courses where tenant_id=t and id=cid for update;
  if course.id is null or course.program_kind is distinct from 'short_course' or course.status not in ('draft','active') then raise exception 'academy_short_course_required';end if;
+ if p_action='create_run' then
+  run.starts_at:=(p_payload->>'startsAt')::timestamptz;run.ends_at:=(p_payload->>'endsAt')::timestamptz;
+  if coalesce(length(btrim(p_payload->>'title')),0) not between 2 and 200 or coalesce(p_payload->>'deliveryMode','') not in ('online','onsite','hybrid')
+   or coalesce(p_payload->>'capacity','')!~'^[0-9]+$' or (p_payload->>'capacity')::integer not between 1 and 10000
+   or coalesce(p_payload->>'startsAt','')!~'(Z|[+-][0-9]{2}:[0-9]{2})$' or coalesce(p_payload->>'endsAt','')!~'(Z|[+-][0-9]{2}:[0-9]{2})$'
+   or run.starts_at is null or run.ends_at is null or not isfinite(run.starts_at) or not isfinite(run.ends_at) or run.ends_at<=run.starts_at then raise exception 'academy_cohort_schedule_required';end if;
+  insert into academy.course_runs(tenant_id,course_id,run_code,title,delivery_mode,status,starts_at,ends_at,capacity,currency,metadata)
+  values(t,cid,'ACA-'||upper(replace(p_command_id::text,'-','')),btrim(p_payload->>'title'),p_payload->>'deliveryMode','open',run.starts_at,run.ends_at,(p_payload->>'capacity')::integer,course.currency,jsonb_build_object('source','academy_authoring')) returning id into rid;
+  result:=jsonb_build_object('courseId',cid,'runId',rid);
+  insert into academy.store_commands(tenant_id,command_id,actor_subject_id,action,request_hash,result) values(t,p_command_id,actor,'course_delivery.create_run',hash,result);
+  perform private_app.write_audit('academy.course.run_created','course_run',rid::text,t,jsonb_build_object('courseId',cid,'commandId',p_command_id));
+  return result;
+ end if;
  select * into profile from accounting_core.tenant_profiles where tenant_id=t;
  if profile.tenant_id is null then raise exception 'academy_finance_setup_required';end if;
  if coalesce(p_payload->>'netMinor','')!~'^[0-9]+$' or (p_payload->>'netMinor')::bigint not between 0 and 100000000 then raise exception 'invalid_request';end if;
@@ -86,7 +129,7 @@ begin
    values(t,cid,'ACS-'||upper(left(replace(gen_random_uuid()::text,'-',''),16)),'تعلم ذاتي مستمر','online','open',net,profile.base_currency,jsonb_build_object('source','academy_store','trainingJourneySelfpaced',true,'hiddenDeliveryRun',true)) returning id into rid;
   end if;
  end if;
- select * into run from academy.course_runs where tenant_id=t and id=rid and course_id=cid and status='open' for update;
+ select * into run from academy.course_runs where tenant_id=t and id=rid and course_id=cid and status in ('open','planning','in_progress') for update;
  if run.id is null or (mode='self_paced') is distinct from (coalesce(run.metadata->>'trainingJourneySelfpaced','false')='true') then raise exception 'invalid_course_run';end if;
  select * into offer from academy.store_offers where tenant_id=t and course_id=cid and run_id=rid for update;
  if coalesce((p_payload->>'expectedVersion')::integer,-1)<>coalesce(offer.version,0) then raise exception 'command_conflict';end if;
@@ -183,7 +226,7 @@ begin
  or (select count(*) from academy.store_orders where tenant_id=t and created_at>now()-interval '1 day')>=300
  or (select count(*) from academy.store_orders where tenant_id=t and phone_key=phone and created_at>now()-interval '1 day')>=3 then raise exception 'academy_rate_limited' using errcode='P0001';end if;
  insert into academy.store_orders(tenant_id,offer_id,command_id,access_hash,request_hash,learner,payer,phone_key,title,net_minor,tax_minor,total_minor,tax_rate_bps,tax_category,currency,bank_snapshot,policy_snapshot)
- values(t,offer.id,p_command_id,token,hash,learner,payer,phone,offer.title,offer.net_minor,round(offer.net_minor::numeric*offer.tax_rate_bps/10000)::bigint,
+ values(t,offer.id,p_command_id,token,hash,learner,payer,phone,(select title_ar from academy.courses where tenant_id=t and id=offer.course_id),offer.net_minor,round(offer.net_minor::numeric*offer.tax_rate_bps/10000)::bigint,
  offer.net_minor+round(offer.net_minor::numeric*offer.tax_rate_bps/10000)::bigint,offer.tax_rate_bps,offer.tax_category,offer.currency,
  jsonb_build_object('bankName',cfg.bank_name,'accountName',cfg.account_name,'iban',cfg.iban,'instructions',cfg.instructions),cfg.refund_policy) returning * into o;
  if p_payload->>'paymentPlan'='installments' then
@@ -249,7 +292,7 @@ begin
   elsif not exists(select 1 from academy.courses where tenant_id=t and id=cid and status='active' and program_kind='short_course') then raise exception 'invalid_course';end if;
   rid:=nullif(p_payload->>'runId','')::uuid;
   if rid is not null then
-   select * into run from academy.course_runs where tenant_id=t and id=rid and course_id=cid and status='open' for update;
+   select * into run from academy.course_runs where tenant_id=t and id=rid and course_id=cid and status in ('open','planning','in_progress') for update;
    if run.id is null or (p_payload->>'learningMode'='self_paced') is distinct from (coalesce(run.metadata->>'trainingJourneySelfpaced','false')='true') then raise exception 'invalid_course_run';end if;
   else
    if p_payload->>'learningMode'='cohort' and (nullif(p_payload->>'startsAt','') is null or nullif(p_payload->>'endsAt','') is null or (p_payload->>'endsAt')::timestamptz<=(p_payload->>'startsAt')::timestamptz or coalesce((p_payload->>'capacity')::integer,0)<1) then raise exception 'academy_cohort_schedule_required';end if;
@@ -314,8 +357,10 @@ begin
     insert into accounting_core.customer_accounts(tenant_id,contact_id,account_number,display_name,billing_email,billing_phone,created_by_subject_id)
     select t,c.id,'ACS-'||upper(replace(c.id::text,'-','')),c.full_name,c.email,c.phone,actor from sales_core.contacts c where tenant_id=t and id=payer_id returning id into account_id;
    end if;
+   -- paid_at is the canonical NOT NULL admission timestamp; for free admission
+   -- metadata marks approval explicitly and no payment/allocation is fabricated.
    insert into academy.registration_handoffs(tenant_id,handoff_key,contact_id,course_id,course_run_id,payment_amount_minor,payment_reference,paid_at,created_by_subject_id,metadata)
-   values(t,'academy-store-'||o.id::text,learner_id,offer.course_id,run.id,received,receipt_reference,when_paid,actor,jsonb_build_object('source','academy_store','storeOrderId',o.id,'currency',o.currency,'paymentMethod','bank_transfer')) returning id into handoff;
+   values(t,'academy-store-'||o.id::text,learner_id,offer.course_id,run.id,received,receipt_reference,when_paid,actor,jsonb_build_object('source','academy_store','storeOrderId',o.id,'currency',o.currency,'paymentMethod',case when received>0 then 'bank_transfer' else 'free' end)) returning id into handoff;
    -- Establish the source link before verifying handoff: the canonical handoff
    -- import trigger must see the existing invoice link and avoid duplicate cash.
    update academy.store_orders set handoff_id=handoff,student_id=student where id=o.id;
@@ -342,7 +387,7 @@ begin
    insert into academy.training_enrollment_versions(tenant_id,enrollment_id,version_id,assigned_by_subject_id) values(t,enrollment,content,actor);
    update academy.registration_handoffs set status='completed',accepted_at=now(),accepted_by_subject_id=actor,completed_at=now(),completed_by_subject_id=actor where tenant_id=t and id=handoff;
    update academy.course_runs set enrolled_count=(select count(*) from academy.enrollments where tenant_id=t and course_run_id=run.id and status in ('confirmed','active','completed')) where tenant_id=t and id=run.id;
-   update academy.store_orders set status='enrolled',invoice_id=invoice,payment_id=payment,enrollment_id=enrollment,verified_reference=receipt_reference,received_at=when_paid,verified_at=now(),verified_by_subject_id=actor,updated_at=now() where id=o.id;
+   update academy.store_orders set status='enrolled',invoice_id=invoice,payment_id=payment,enrollment_id=enrollment,verified_reference=receipt_reference,received_at=case when received>0 then when_paid end,verified_at=now(),verified_by_subject_id=actor,updated_at=now() where id=o.id;
    result:=jsonb_build_object('orderId',o.id,'status','enrolled','studentId',student,'enrollmentId',enrollment);
   end if;
  end if;
@@ -392,8 +437,8 @@ begin
  cash:=private_app.admission_verified_cash_v1(p_tenant_id,p_handoff_id);
  cash_currency:=private_app.admission_cash_currency_v1(p_tenant_id,p_handoff_id);
  if cash>0 and cash_currency is distinct from agreed_currency then return jsonb_build_object('eligible',false,'reason','payment_currency_mismatch');end if;
- if private_app.academy_delivery_enabled_v1(p_tenant_id) and exists(select 1 from academy.store_orders o join academy.training_financial_links l on l.tenant_id=o.tenant_id and l.handoff_id=o.handoff_id
-   where o.tenant_id=p_tenant_id and o.handoff_id=h.id and o.payment_policy='installments' and l.policy='installments' and o.status in ('payment_review','enrolled')) then
+ if exists(select 1 from academy.store_orders o join academy.training_financial_links l on l.tenant_id=o.tenant_id and l.handoff_id=o.handoff_id
+   where o.tenant_id=p_tenant_id and o.handoff_id=h.id and o.payment_policy='installments' and l.policy='installments' and (o.status='enrolled' or (o.status='payment_review' and private_app.academy_delivery_enabled_v1(p_tenant_id)))) then
   return jsonb_build_object('eligible',coalesce((private_app.training_journey_handoff_finance_v1(h.id)->>'trainingAllowed')::boolean,false),'reason','installment_policy','requiredAmountMinor',required_amount,'verifiedAmountMinor',cash,'waiverApproved',false);
  end if;
  return jsonb_build_object('eligible',cash>=required_amount,'reason',case when cash>=required_amount then 'financially_eligible' else 'full_payment_required' end,

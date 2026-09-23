@@ -4,6 +4,9 @@ import {readFile} from 'node:fs/promises';
 import {setImmediate as yieldTurn} from 'node:timers/promises';
 import {checkoutSetup,checkoutOffer,checkoutOrder,verificationPayload,storeAction,requestAction,nextCommand,login,id,T,MANAGER,MANAGER_AUTH,call} from './fixtures/academy-concurrency-database.mjs';
 
+import {applyDeliveryMigrations,mediaAction,deliveryCommand} from './fixtures/academy-delivery-database.mjs';
+import {ADMIN_AUTH,STAFF} from './fixtures/academy-platform-database.mjs';
+
 const databaseUrl=process.env.ACADEMY_TEST_DATABASE_URL;
 function localTestUrl(value){
   const parsed=new URL(value);
@@ -177,4 +180,41 @@ test('real PostgreSQL serializes academy checkout and request transfers',{
     assert.equal((await db.query('select count(*)::int n from academy.learning_path_releases where tenant_id=$1 and path_id=$2',[T,path.pathId])).rows[0].n,1);
     assert.equal((await db.query('select count(*)::int n from academy.learning_path_release_courses where tenant_id=$1 and path_id=$2',[T,path.pathId])).rows[0].n,1);
   });
+
+  await applyDeliveryMigrations(db);
+  await t.test('parallel upload tickets with one command share one immutable storage object',async()=>{
+    const command=deliveryCommand(),payload={courseId:authored.courseId,fileName:'parallel.mp4',mimeType:'video/mp4',sizeBytes:100};
+    const results=await race(controller,workers,courseLock(authored.courseId),workers.map(()=>client=>mediaAction(client,'create_upload',payload,command)));
+    assert.equal(results.filter(row=>row.ok).length,2,JSON.stringify(results));assert.deepEqual(results[0].value,results[1].value);
+    assert.equal((await db.query('select count(*)::int n from academy.course_media where tenant_id=$1 and command_id=$2',[T,command])).rows[0].n,1);
+    const asset=results[0].value;
+    await db.query("insert into storage.objects(bucket_id,name,metadata) values('academy-course-media',$1,$2)",[asset.objectPath,JSON.stringify({size:100,mimetype:'video/mp4'})]);
+    await mediaAction(db,'complete_upload',{assetId:asset.assetId});
+    const policies=await race(controller,workers,client=>client.query('select id from academy.course_media where id=$1 for update',[asset.assetId]),workers.map(()=>client=>mediaAction(client,'set_download',{assetId:asset.assetId,allowDownload:true,expectedVersion:1})));
+    assert.equal(policies.filter(row=>row.ok).length,1,JSON.stringify(policies));assert.equal(policies.filter(row=>row.error?.message==='academy_media_policy_conflict').length,1);
+  });
+
+  await db.query("update academy.platform_settings set mode='connected' where tenant_id=$1",[T]);
+  for(const client of clients)await login(client,ADMIN_AUTH);
+  await t.test('parallel manual additions converge to one canonical student and contact',async()=>{
+    const payload={name:'Parallel canonical student',phone:'966509998811',email:'parallel@example.test'};
+    const results=await race(controller,workers,client=>client.query('select pg_advisory_xact_lock(hashtextextended($1,220926))',[`${T}:academy-person:${payload.phone}`]),workers.map(()=>client=>call(client,'public.v1_academy_people_action',{p_slug:'marktone',p_action:'add_student',p_command_id:deliveryCommand(),p_payload:payload})));
+    assert.equal(results.filter(row=>row.ok).length,2,JSON.stringify(results));assert.deepEqual(results[0].value,results[1].value);
+    assert.equal((await db.query('select count(*)::int n from academy.students where contact_id=$1',[results[0].value.contactId])).rows[0].n,1);
+  });
+  await t.test('two different course purchases share the existing daily capacity without losing either enrollment',async()=>{
+    await db.query("update people.staff_profiles set role_key='sales_manager' where id=$1",[STAFF]);
+    await db.query('insert into sales_core.sales_assignment_profiles(tenant_id,staff_id,daily_capacity) values($1,$2,1)',[T,STAFF]);
+    await db.query("insert into sales_core.commerce_order_routing_settings values($1,'auto_fair',$2,60)",[T,STAFF]);
+    await db.query('insert into academy.training_journey_settings(tenant_id,automation_admissions_staff_id) values($1,$2)',[T,STAFF]);
+    const offers=[await checkoutOffer(db),await checkoutOffer(db)],orders=[];
+    for(let i=0;i<offers.length;i++){orders.push(await checkoutOrder(db,offers[i].offerId,950+i));await login(db,ADMIN_AUTH);}
+    const results=await race(controller,workers,client=>client.query('select id from academy.course_runs where tenant_id=$1 and id=any($2::uuid[]) order by id for update',[T,offers.map(row=>row.runId)]),orders.map(order=>client=>storeAction(client,'verify_order',verificationPayload(order))));
+    assert.equal(results.filter(row=>row.ok).length,2,JSON.stringify(results));
+    const operations=(await db.query('select routing_state,count(*)::int n from academy.order_operations where order_id=any($1::uuid[]) group by routing_state order by routing_state',[orders.map(row=>row.id)])).rows;
+    assert.deepEqual(operations,[{routing_state:'assigned',n:1},{routing_state:'queue',n:1}]);
+    assert.equal((await db.query('select count(*)::int n from academy.enrollments where id=any($1::uuid[])',[results.map(row=>row.value.enrollmentId)])).rows[0].n,2);
+    assert.equal((await db.query("select count(*)::int n from accounting_core.payments where source_type='academy_store' and source_id=any($1::text[])",[orders.map(row=>row.id)])).rows[0].n,2);
+  });
+
 });

@@ -20,7 +20,7 @@ test('video upload receipts are immutable and finalize checks actual private sto
  const ready=await mediaAction(db,'complete_upload',{assetId:asset.assetId});assert.equal(ready.state,'ready');
  assert.equal((await mediaAction(db,'complete_upload',{assetId:asset.assetId})).state,'ready');
  await assert.rejects(call(db,'public.v1_academy_media_access',{p_slug:'marktone',p_asset_id:asset.assetId,p_download:true}),/academy_media_download_disabled/);
- await mediaAction(db,'set_download',{assetId:asset.assetId,allowDownload:true});
+ await mediaAction(db,'set_download',{assetId:asset.assetId,allowDownload:true,expectedVersion:1});
  assert.equal((await call(db,'public.v1_academy_media_access',{p_slug:'marktone',p_asset_id:asset.assetId,p_download:true})).allowDownload,true);
  await login(db,null);await assert.rejects(call(db,'public.v1_academy_media_access',{p_slug:'marktone',p_asset_id:asset.assetId}),/authentication_required/);
 });
@@ -55,6 +55,16 @@ test('installment checkout snapshots the approved plan and verifies only its fir
  const access=await call(db,'private_app.training_journey_financial_access_v1',{p_enrollment_id:result.enrollmentId});
  assert.equal(access.trainingAllowed,true);assert.equal(access.certificationAllowed,false);assert.equal(access.outstandingMinor,6000);
  assert.equal((await db.query('select count(*)::int n from accounting_core.payment_schedules')).rows[0].n,2);
+ await deliveryAction(db,'save_offer',{courseId:offer.courseId,runId:offer.runId,learningMode:'cohort',expectedVersion:3,netMinor:10000,installmentTerms:[{amountMinor:2000,dueDays:0},{amountMinor:8000,dueDays:60}]});
+ const original=(await db.query('select payment_schedule,handoff_id,invoice_id from academy.store_orders where id=$1',[order.id])).rows[0];assert.equal(original.payment_schedule[0].amountMinor,4000);
+ await db.query('update academy.delivery_settings set enabled=false where tenant_id=$1',[T]);
+ assert.equal((await call(db,'private_app.admission_financial_eligibility_v1',{p_tenant_id:T,p_handoff_id:original.handoff_id})).eligible,true,'rollback must preserve existing enrollment installment eligibility');
+ await db.query("update accounting_core.payment_schedules set due_date=current_date-90 where invoice_id=$1 and installment_number=2",[original.invoice_id]);
+ const overdue=await call(db,'private_app.training_journey_financial_access_v1',{p_enrollment_id:result.enrollmentId});
+ assert.equal(overdue.trainingAllowed,true,'existing ODEIR governance continues study while collections handle arrears');
+ assert.equal(overdue.automaticFinancialSuspension,false);assert.equal(overdue.certificationAllowed,false);
+ assert.ok(overdue.financialWarnings.includes('installment_grace_expired'));
+
 });
 
 test('paid existing checkout still uses a full, verified canonical payment',async t=>{

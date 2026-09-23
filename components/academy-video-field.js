@@ -9,8 +9,10 @@ export default function AcademyVideoField({slug, courseId, value, onChange, disa
   const [source,setSource] = useState(academyMediaId(value) ? 'upload' : 'link');
   const [state,setState] = useState('idle'), [progress,setProgress] = useState(0), [error,setError] = useState('');
   const [asset,setAsset] = useState(null), [fileName,setFileName] = useState('');
+  const [policyBusy,setPolicyBusy] = useState(false);
+  const cancelling=useRef(false),policyCommands=useRef(new Map());
   const upload = useRef(null), current = useRef(null), mounted = useRef(true), starting = useRef(false);
-  const assetId = academyMediaId(value), uploading = state === 'uploading' || state === 'finishing';
+  const assetId = academyMediaId(value), uploading = ['preparing','uploading','finishing','cancelling'].includes(state);
   useEffect(() => {mounted.current=true;return () => {mounted.current=false;void upload.current?.abort();};}, []);
   useEffect(() => {
     if (!assetId) return;
@@ -26,14 +28,19 @@ export default function AcademyVideoField({slug, courseId, value, onChange, disa
     const warn = event => {event.preventDefault();event.returnValue='';};
     window.addEventListener('beforeunload',warn);return () => window.removeEventListener('beforeunload',warn);
   }, [uploading]);
-  async function request(action,payload,commandId=crypto.randomUUID()) {
+  async function request(action,payload,commandId) {
+    const signature=JSON.stringify([action,payload]);
+    if(!commandId)commandId=action==='set_download'?policyCommands.current.get(signature):null;
+    if(!commandId)commandId=crypto.randomUUID();
+    if(action==='set_download')policyCommands.current.set(signature,commandId);
     const response = await fetch(`/api/academy-media/${action}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantSlug:slug,commandId,payload})});
     const data = await response.json();
-    if (!response.ok) throw new Error(academyMediaError(data.code));
+    if (!response.ok) throw Object.assign(new Error(academyMediaError(data.code)),{code:data.code});
+    if(action==='set_download')policyCommands.current.delete(signature);
     return data;
   }
   async function finish(ticket, key) {
-    if (!mounted.current) return;
+    if (!mounted.current || cancelling.current) return;
     setState('finishing');
     try {
       const result = await request('complete_upload',{assetId:ticket.assetId});
@@ -44,31 +51,37 @@ export default function AcademyVideoField({slug, courseId, value, onChange, disa
   }
   async function selectFile(file) {
     if (!file || starting.current || uploading) return;
-    starting.current=true;setError('');
+    starting.current=true;cancelling.current=false;setError('');
+    let key;
     try {
       const metadata = academyMediaFile(file);
-      const key = `academy-upload:${slug}:${courseId}:${file.name}:${file.size}:${file.lastModified}`;
+      key = `academy-upload:${slug}:${courseId}:${file.name}:${file.size}:${file.lastModified}`;
       let commandId;
       try {commandId=sessionStorage.getItem(key);} catch {}
       if (!commandId) {commandId=crypto.randomUUID();try {sessionStorage.setItem(key,commandId);} catch {}}
-      setFileName(file.name);setState('uploading');setProgress(0);
+      setFileName(file.name);setState('preparing');setProgress(0);
       const ticket = await request('create_upload',{courseId,...metadata},commandId);
       current.current={ticket,key};
       if (!mounted.current) return;
-      if (ticket.state === 'ready') {setAsset(ticket);setState('ready');onChange(ticket.playbackUrl);return;}
-      const client = await startAcademyVideoUpload({file,ticket,onProgress:value => {if(mounted.current)setProgress(value);},
+      if (ticket.state === 'ready') {try {sessionStorage.removeItem(key);} catch {}setAsset(ticket);setState('ready');onChange(ticket.playbackUrl);return;}
+      const client = await startAcademyVideoUpload({file,ticket,autoStart:false,onProgress:value => {if(mounted.current)setProgress(value);},
         onSuccess:() => void finish(ticket,key),onError:() => {if(mounted.current){setState('paused');setError('انقطع الرفع. اضغط استكمال، أو اختر نفس الملف عند عودتك.');}}});
       upload.current=client;
       if (!mounted.current) await client.abort();
-    } catch (failure) {if(mounted.current){setError(failure.code ? academyMediaError(failure.code) : failure.message);setState('idle');}}
+      else {setState('uploading');client.start();}
+    } catch (failure) {
+      if(failure.code==='academy_media_upload_expired')try {sessionStorage.removeItem(key);} catch {}
+      if(mounted.current){setError(failure.code ? academyMediaError(failure.code) : failure.message);setState('idle');}
+    }
     finally {starting.current=false;}
   }
   async function cancel() {
-    await upload.current?.abort();
+    cancelling.current=true;setState('cancelling');
     try {
+      await upload.current?.abort();
       if (current.current) {await request('cancel_upload',{assetId:current.current.ticket.assetId});try {sessionStorage.removeItem(current.current.key);} catch {}}
       current.current=null;upload.current=null;setState('idle');setProgress(0);setFileName('');setError('');
-    } catch (failure) {setError(failure.message);setState('paused');}
+    } catch (failure) {cancelling.current=false;setError(failure.message);setState('paused');}
   }
   return <section className={styles.videoField} aria-label="مصدر الفيديو">
     <div className={styles.tabs} role="group" aria-label="طريقة إضافة الفيديو">
@@ -77,13 +90,13 @@ export default function AcademyVideoField({slug, courseId, value, onChange, disa
     </div>
     {source==='link' ? <label className={styles.field}><span>رابط الفيديو</span><input type="url" dir="ltr" value={value||''} disabled={disabled} onChange={event => onChange(event.target.value)} placeholder="https://…"/><small>أضف رابط فيديو آمنًا، أو اختر رفع فيديو من جهازك.</small></label> : <>
       <label className={styles.uploadZone}><strong>{asset?.fileName||fileName||'اختر الفيديو من جهازك'}</strong><span>MP4 أو WebM · حتى 500 ميجابايت</span><input type="file" accept="video/mp4,video/webm,.mp4,.webm" disabled={disabled||uploading||state==='paused'} onChange={event => {void selectFile(event.target.files?.[0]);event.target.value='';}}/></label>
-      {(uploading||state==='paused'||state==='finish_failed')&&<div aria-live="polite"><progress max="100" value={progress} aria-label="تقدم رفع الفيديو"/><p>{state==='finishing'?'جارٍ التحقق من اكتمال الفيديو…':`${progress}% · ${state==='paused'?'متوقف مؤقتًا':'جارٍ الرفع'}`}</p><div className={styles.actions}>
-        {state==='uploading'&&<button type="button" className={styles.secondary} onClick={async() => {await upload.current?.abort();setState('paused');}}>إيقاف مؤقت</button>}
+      {(uploading||state==='paused'||state==='finish_failed')&&<div aria-live="polite"><progress max="100" value={progress} aria-label="تقدم رفع الفيديو"/><p>{state==='preparing'?'جارٍ تجهيز الرفع…':state==='cancelling'?'جارٍ إلغاء الرفع…':state==='finish_failed'?'اكتمل الرفع، وبقي التحقق من الملف.':state==='finishing'?'جارٍ التحقق من اكتمال الفيديو…':`${progress}% · ${state==='paused'?'متوقف مؤقتًا':'جارٍ الرفع'}`}</p><small>إذا أغلقت الدرس، اختر نفس الملف عند عودتك لاستكمال الرفع خلال 24 ساعة.</small><div className={styles.actions}>
+        {state==='uploading'&&<button type="button" className={styles.secondary} onClick={async() => {await upload.current?.abort();setState(current=>current==='uploading'?'paused':current);}}>إيقاف مؤقت</button>}
         {state==='paused'&&<button type="button" className={styles.primary} onClick={() => {setError('');setState('uploading');upload.current?.start();}}>استكمال الرفع</button>}
         {state==='finish_failed'&&<button type="button" className={styles.primary} onClick={() => void finish(current.current.ticket,current.current.key)}>إعادة التحقق</button>}
-        {state!=='finishing'&&<button type="button" className={styles.secondary} onClick={() => void cancel()}>إلغاء الرفع</button>}
+        {['uploading','paused','finish_failed'].includes(state)&&<button type="button" className={styles.secondary} onClick={() => void cancel()}>إلغاء الرفع</button>}
       </div></div>}
-      {assetId&&<><p className={styles.notice}>الفيديو جاهز. احفظ مسودة الدورة لحفظ ارتباطه بالدرس.</p><label className={styles.check}><input type="checkbox" checked={asset?.allowDownload===true} disabled={disabled||!asset||uploading} onChange={async event => {setError('');try {setAsset(await request('set_download',{assetId,allowDownload:event.target.checked}));} catch(failure){setError(failure.message);}}}/>السماح للطلاب بتنزيل هذا الفيديو</label><small className={styles.muted}>يتغير السماح بالتنزيل فورًا لكل استخدامات هذا الفيديو.</small></>}
+      {assetId&&<><p className={styles.notice}>الفيديو جاهز. احفظ مسودة الدورة لحفظ ارتباطه بالدرس.</p><label className={styles.check}><input type="checkbox" checked={asset?.allowDownload===true} disabled={disabled||!asset||uploading||policyBusy} onChange={async event => {setError('');setPolicyBusy(true);try {setAsset(await request('set_download',{assetId,allowDownload:event.target.checked,expectedVersion:asset.policyVersion}));} catch(failure){setError(failure.message);}finally{setPolicyBusy(false);}}}/>السماح للطلاب بتنزيل هذا الفيديو</label><small className={styles.muted}>يتغير السماح بالتنزيل فورًا لكل استخدامات هذا الفيديو.</small></>}
     </>}
     {error&&<p className={styles.error} role="alert">{error}</p>}
   </section>;

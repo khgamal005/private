@@ -39,7 +39,7 @@ export async function POST(request, {params}) {
     const signed = await storageRequest(`object/upload/sign/${ACADEMY_MEDIA_BUCKET}/${objectPath(ticket.objectPath)}`, token, {});
     const url = new URL(signed.url, `${SUPABASE_URL}/storage/v1/`);
     const signature = url.searchParams.get('token');
-    if (!signature || !url.pathname.includes('/object/upload/sign/')) throw trainingProblem('request_failed', 502);
+    if (!signature || url.origin !== new URL(SUPABASE_URL).origin || !url.pathname.includes(`/object/upload/sign/${ACADEMY_MEDIA_BUCKET}/`)) throw trainingProblem('request_failed', 502);
     const endpoint = new URL('/storage/v1/upload/resumable', SUPABASE_URL);
     if (endpoint.hostname.endsWith('.supabase.co')) endpoint.hostname = endpoint.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co');
     return trainingJson({...ticket, endpoint:endpoint.toString(), token:signature});
@@ -53,7 +53,7 @@ export async function GET(request, {params}) {
     if (!validTrainingId(assetId) || query.get('tenantSlug') !== TRAINING_PILOT_SLUG) throw trainingProblem('not_found', 404);
     const token = await session(), download = query.get('download') === '1';
     const asset = await trainingRpc('v1_academy_media_access', {p_slug:TRAINING_PILOT_SLUG, p_asset_id:assetId, p_download:download}, {token});
-    if (query.get('info') === '1') return trainingJson({fileName:asset.fileName, allowDownload:asset.allowDownload});
+    if (query.get('info') === '1') return trainingJson({fileName:asset.fileName, allowDownload:asset.allowDownload, policyVersion:asset.policyVersion});
     if (asset.bucket !== ACADEMY_MEDIA_BUCKET || !asset.objectPath) throw trainingProblem('request_failed', 502);
     const signed = await storageRequest(`object/sign/${ACADEMY_MEDIA_BUCKET}/${objectPath(asset.objectPath)}`, token, {expiresIn:300});
     const url = new URL(signed.signedURL, `${SUPABASE_URL}/storage/v1/`);

@@ -38,7 +38,7 @@ create table academy.course_media (
  mime_type text not null check(mime_type in ('video/mp4','video/webm')),
  size_bytes bigint not null check(size_bytes between 1 and 524288000),
  state text not null default 'pending' check(state in ('pending','ready','cancelled')),
- allow_download boolean not null default false,
+ allow_download boolean not null default false,policy_version integer not null default 1,
  created_by_subject_id uuid not null references access_control.subjects(id),
  created_at timestamptz not null default now(),upload_expires_at timestamptz not null default now()+interval '24 hours',ready_at timestamptz,
  unique(tenant_id,id),unique(tenant_id,command_id),
@@ -70,7 +70,7 @@ begin
  if asset.state<>'ready' then return false;end if;
  if private_app.academy_has_permission_v1(asset.tenant_id,'manageLearning') then return true;end if;
  if exists(select 1 from academy.training_run_instructors i join academy.course_runs r on r.tenant_id=i.tenant_id and r.id=i.run_id
-  where i.tenant_id=asset.tenant_id and i.subject_id=s and i.active and r.course_id=asset.course_id) then return true;end if;
+  where i.tenant_id=asset.tenant_id and i.subject_id=s and i.active and r.course_id=asset.course_id and private_app.training_is_instructor_v1(i.tenant_id,i.run_id)) then return true;end if;
  return exists(select 1 from academy.training_learner_accounts a
   join academy.students st on st.tenant_id=a.tenant_id and st.id=a.student_id and st.status in ('active','graduated')
   join academy.enrollments e on e.tenant_id=a.tenant_id and e.student_id=a.student_id and e.course_id=asset.course_id and e.status in ('confirmed','active','completed')
@@ -84,15 +84,32 @@ create policy academy_course_media_insert on storage.objects for insert to authe
 with check(bucket_id='academy-course-media' and private_app.academy_media_allowed_v1(name,true));
 create policy academy_course_media_read on storage.objects for select to authenticated
 using(bucket_id='academy-course-media' and private_app.academy_media_allowed_v1(name,false));
+-- Restrictive bucket guards also survive unrelated permissive policies added later.
+create policy academy_media_read_guard on storage.objects as restrictive for select to anon,authenticated
+using(bucket_id<>'academy-course-media' or private_app.academy_media_allowed_v1(name,false));
+create policy academy_media_insert_guard on storage.objects as restrictive for insert to anon,authenticated
+with check(bucket_id<>'academy-course-media' or private_app.academy_media_allowed_v1(name,true));
+create policy academy_media_update_guard on storage.objects as restrictive for update to anon,authenticated
+using(bucket_id<>'academy-course-media') with check(bucket_id<>'academy-course-media');
+create policy academy_media_delete_guard on storage.objects as restrictive for delete to anon,authenticated
+using(bucket_id<>'academy-course-media');
 -- No UPDATE/DELETE policy: a signed upload cannot overwrite a published asset.
 
 create function public.v1_academy_media_action(p_slug text,p_action text,p_command_id uuid,p_payload jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare t uuid;actor uuid:=private_app.current_subject_id();asset academy.course_media%rowtype;cid uuid;aid uuid;mime text;bytes bigint;obj jsonb;hash text;
+declare t uuid;actor uuid:=private_app.current_subject_id();asset academy.course_media%rowtype;cid uuid;aid uuid;mime text;bytes bigint;obj jsonb;hash text;cached academy.platform_commands%rowtype;result jsonb;
 begin
  t:=private_app.academy_delivery_tenant_v1(p_slug);
  if private_app.academy_has_permission_v1(t,'manageCourses') is not true or private_app.academy_has_permission_v1(t,'manageLearning') is not true then raise exception 'forbidden' using errcode='42501';end if;
  if p_command_id is null or jsonb_typeof(p_payload) is distinct from 'object' or octet_length(p_payload::text)>4096 then raise exception 'invalid_request';end if;
+ if p_action='set_download' then
+  perform pg_advisory_xact_lock(hashtextextended(t::text||':academy-media-policy:'||p_command_id::text,230926));
+  select * into cached from academy.platform_commands where tenant_id=t and command_id=p_command_id;
+  if cached.command_id is not null then
+   if cached.actor_subject_id<>actor or cached.action<>'media.set_download' or cached.payload<>p_payload then raise exception 'academy_command_conflict';end if;
+   return cached.response;
+  end if;
+ end if;
  if p_action='create_upload' then
   cid:=(p_payload->>'courseId')::uuid;
   perform 1 from academy.courses where tenant_id=t and id=cid and status in ('active','draft') for update;
@@ -125,17 +142,22 @@ begin
    end if;
   elsif p_action='set_download' then
    if asset.state<>'ready' or jsonb_typeof(p_payload->'allowDownload') is distinct from 'boolean' then raise exception 'invalid_request';end if;
+   if (p_payload->>'expectedVersion')::integer is distinct from asset.policy_version then raise exception 'academy_media_policy_conflict';end if;
    if asset.allow_download is distinct from (p_payload->>'allowDownload')::boolean then
-    update academy.course_media set allow_download=(p_payload->>'allowDownload')::boolean where id=asset.id returning * into asset;
-    perform private_app.write_audit('academy.media.download_policy','academy_media',asset.id::text,t,jsonb_build_object('allowDownload',asset.allow_download));
+    update academy.course_media set allow_download=(p_payload->>'allowDownload')::boolean,policy_version=policy_version+1 where id=asset.id returning * into asset;
+    perform private_app.write_audit('academy.media.download_policy','academy_media',asset.id::text,t,jsonb_build_object('allowDownload',asset.allow_download,'policyVersion',asset.policy_version));
    end if;
   else
    if asset.state='ready' then raise exception 'academy_media_not_editable';end if;
    update academy.course_media set state='cancelled' where id=asset.id returning * into asset;
   end if;
  else raise exception 'invalid_request';end if;
- return jsonb_build_object('assetId',asset.id,'state',asset.state,'bucket','academy-course-media','objectPath',asset.object_path,'fileName',asset.file_name,
-  'allowDownload',asset.allow_download,'expiresAt',asset.upload_expires_at,'playbackUrl','https://odeir.com/api/academy-media/'||asset.id::text||'?tenantSlug=marktone');
+ result:=jsonb_build_object('assetId',asset.id,'state',asset.state,'bucket','academy-course-media','objectPath',asset.object_path,'fileName',asset.file_name,
+  'allowDownload',asset.allow_download,'policyVersion',asset.policy_version,'expiresAt',asset.upload_expires_at,'playbackUrl','https://odeir.com/api/academy-media/'||asset.id::text||'?tenantSlug=marktone');
+ if p_action='set_download' then
+  insert into academy.platform_commands(tenant_id,command_id,actor_subject_id,action,payload,response) values(t,p_command_id,actor,'media.set_download',p_payload,result);
+ end if;
+ return result;
 end $$;
 
 create function public.v1_academy_media_access(p_slug text,p_asset_id uuid,p_download boolean default false) returns jsonb
@@ -146,11 +168,12 @@ begin
  select * into asset from academy.course_media where tenant_id=t and id=p_asset_id;
  if asset.id is null or private_app.academy_media_allowed_v1(asset.object_path,false) is not true then raise exception 'academy_media_not_found' using errcode='42501';end if;
  if p_download and not asset.allow_download then raise exception 'academy_media_download_disabled' using errcode='42501';end if;
- return jsonb_build_object('bucket','academy-course-media','objectPath',asset.object_path,'fileName',asset.file_name,'allowDownload',asset.allow_download,'expiresIn',300);
+ return jsonb_build_object('bucket','academy-course-media','objectPath',asset.object_path,'fileName',asset.file_name,'allowDownload',asset.allow_download,'policyVersion',asset.policy_version,'expiresIn',300);
 end $$;
 
 revoke all on function private_app.academy_delivery_enabled_v1(uuid),private_app.academy_delivery_tenant_v1(text),private_app.academy_media_allowed_v1(text,boolean),public.v1_academy_media_action(text,text,uuid,jsonb),public.v1_academy_media_access(text,uuid,boolean) from public,anon,authenticated,service_role;
 grant execute on function private_app.academy_media_allowed_v1(text,boolean),public.v1_academy_media_action(text,text,uuid,jsonb),public.v1_academy_media_access(text,uuid,boolean) to authenticated;
+grant execute on function private_app.academy_media_allowed_v1(text,boolean) to anon;
 
 create function private_app.academy_media_unit_guard_v1() returns trigger
 language plpgsql security definer set search_path='' as $$

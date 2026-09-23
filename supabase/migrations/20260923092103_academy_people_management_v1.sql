@@ -5,6 +5,7 @@ set local statement_timeout='120s';
 
 create unique index if not exists academy_people_staff_tenant_id_uq on people.staff_profiles(tenant_id,id);
 create unique index if not exists academy_people_invitation_tenant_id_uq on academy.platform_invitations(tenant_id,id);
+create index academy_people_students_created_idx on academy.students(tenant_id,created_at desc,id);
 create table academy.instructor_directory (
  tenant_id uuid not null references core.tenants(id),staff_id uuid not null,subject_id uuid references access_control.subjects(id),invitation_id uuid,
  created_by_subject_id uuid not null references access_control.subjects(id),created_at timestamptz not null default now(),updated_at timestamptz not null default now(),
@@ -21,19 +22,19 @@ revoke all on academy.instructor_directory from public,anon,authenticated,servic
 
 create function private_app.academy_person_contact_v1(t uuid,person jsonb,p_source text) returns uuid
 language plpgsql security definer set search_path='' as $$
-declare c sales_core.contacts%rowtype;phone text:=private_app.normalize_lead_phone(person->>'phone');email text:=lower(btrim(person->>'email'));actor uuid:=private_app.current_subject_id();
+declare c sales_core.contacts%rowtype;v_phone text:=private_app.normalize_lead_phone(person->>'phone');v_email text:=lower(btrim(person->>'email'));actor uuid:=private_app.current_subject_id();
 begin
- if actor is null or p_source not in ('academy_store','academy_dashboard') or phone is null or coalesce(length(btrim(person->>'name')),0) not between 2 and 200
-  or coalesce(email,'')!~'^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' or length(email)>254 then raise exception 'academy_identity_required';end if;
- perform pg_advisory_xact_lock(hashtextextended(t::text||':academy-person:'||phone,220926));
- select * into c from sales_core.contacts where tenant_id=t and (id in(select contact_id from sales_core.contact_identities where tenant_id=t and identity_type='phone' and identity_value=phone)
-  or private_app.normalize_lead_phone(sales_core.contacts.phone)=phone) order by created_at,id limit 1 for update;
+ if actor is null or p_source not in ('academy_store','academy_dashboard') or v_phone is null or coalesce(length(btrim(person->>'name')),0) not between 2 and 200
+  or coalesce(v_email,'')!~'^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' or length(v_email)>254 then raise exception 'academy_identity_required';end if;
+ perform pg_advisory_xact_lock(hashtextextended(t::text||':academy-person:'||v_phone,220926));
+ select * into c from sales_core.contacts where tenant_id=t and (id in(select contact_id from sales_core.contact_identities where tenant_id=t and identity_type='phone' and identity_value=v_phone)
+  or private_app.normalize_lead_phone(sales_core.contacts.phone)=v_phone) order by created_at,id limit 1 for update;
  if c.id is not null then
-  if lower(coalesce(c.email,''))<>email then raise exception 'academy_identity_review_required';end if;
+  if lower(coalesce(c.email,''))<>v_email then raise exception 'academy_identity_review_required';end if;
   return c.id;
  end if;
  insert into sales_core.contacts(tenant_id,contact_key,full_name,phone,email,source,created_by_subject_id,metadata)
- values(t,'academy-'||gen_random_uuid()::text,btrim(person->>'name'),phone,email,p_source,actor,jsonb_build_object('source',p_source)) returning id into c.id;
+ values(t,'academy-'||gen_random_uuid()::text,btrim(person->>'name'),v_phone,v_email,p_source,actor,jsonb_build_object('source',p_source)) returning id into c.id;
  return c.id;
 end $$;
 create or replace function private_app.academy_store_contact_v1(t uuid,person jsonb) returns uuid
@@ -60,15 +61,26 @@ begin
    'enrollmentCount',(select count(*) from academy.enrollments e where e.tenant_id=t and e.student_id=st.id and e.status in ('confirmed','active','completed')),
    'invitationPending',exists(select 1 from academy.training_invitations i where i.tenant_id=t and i.student_id=st.id and i.status='pending' and i.expires_at>now())) order by n)filter(where n<=p_offset+50),'[]'),count(*)>50 into rows,more from selected st;
  else
-  with selected as(select d.*,sp.full_name,sp.email,sp.phone,sp.employment_status,pm.status account_status,i.status invitation_status,i.expires_at,
-   row_number()over(order by d.created_at desc,d.staff_id) n
-   from academy.instructor_directory d join people.staff_profiles sp on sp.tenant_id=t and sp.id=d.staff_id
-   left join academy.platform_memberships pm on pm.tenant_id=t and pm.subject_id=d.subject_id
-   left join academy.platform_invitations i on i.tenant_id=t and i.id=d.invitation_id
-   where d.tenant_id=t and (p_query='' or strpos(lower(sp.full_name),lower(p_query))>0 or strpos(lower(coalesce(sp.email,'')),lower(p_query))>0)
-   order by d.created_at desc,d.staff_id limit 51 offset p_offset)
-  select coalesce(jsonb_agg(jsonb_build_object('id',staff_id,'name',full_name,'email',email,'phone',phone,'status',employment_status,'subjectId',subject_id,
-   'accountStatus',account_status,'invitationPending',invitation_status='pending' and expires_at>now(),
+  with directory as (
+   select sp.id,sp.id staff_id,coalesce(d.subject_id,m.subject_id) subject_id,sp.full_name,sp.email,sp.phone,sp.employment_status,
+    coalesce(pm.status,m.status) account_status,i.status invitation_status,i.expires_at,coalesce(d.created_at,sp.created_at) created_at
+   from people.staff_profiles sp left join academy.instructor_directory d on d.tenant_id=sp.tenant_id and d.staff_id=sp.id
+   left join access_control.memberships m on m.tenant_id=sp.tenant_id and m.id=sp.membership_id
+   left join academy.platform_memberships pm on pm.tenant_id=sp.tenant_id and pm.subject_id=coalesce(d.subject_id,m.subject_id)
+   left join academy.platform_invitations i on i.tenant_id=sp.tenant_id and i.id=d.invitation_id
+   where sp.tenant_id=t and (d.staff_id is not null or sp.role_key='instructor' or pm.role_key='instructor'
+    or exists(select 1 from academy.training_run_instructors ri where ri.tenant_id=t and ri.subject_id=m.subject_id))
+   union all
+   select sub.id,null::uuid,sub.id,sub.full_name,sub.email,null::text,sub.status,pm.status,null::text,null::timestamptz,pm.updated_at
+   from academy.platform_memberships pm join access_control.subjects sub on sub.id=pm.subject_id
+   where pm.tenant_id=t and pm.role_key='instructor'
+    and not exists(select 1 from academy.instructor_directory d where d.tenant_id=t and d.subject_id=sub.id)
+    and not exists(select 1 from people.staff_profiles sp join access_control.memberships m on m.tenant_id=sp.tenant_id and m.id=sp.membership_id where sp.tenant_id=t and m.subject_id=sub.id)
+  ), selected as(select d.*,row_number()over(order by created_at desc,id) n from directory d
+   where p_query='' or strpos(lower(full_name),lower(p_query))>0 or strpos(lower(coalesce(email,'')),lower(p_query))>0 or strpos(coalesce(phone,''),p_query)>0
+   order by created_at desc,id limit 51 offset p_offset)
+  select coalesce(jsonb_agg(jsonb_build_object('id',id,'staffId',staff_id,'name',full_name,'email',email,'phone',phone,'status',employment_status,'subjectId',subject_id,
+   'accountStatus',account_status,'invitationPending',coalesce(invitation_status='pending' and expires_at>now(),false),
    'runCount',(select count(*) from academy.training_run_instructors r where r.tenant_id=t and r.subject_id=selected.subject_id and r.active)) order by n)filter(where n<=p_offset+50),'[]'),count(*)>50 into rows,more from selected;
  end if;
  return jsonb_build_object('available',true,'tenantSlug',p_slug,'kind',p_kind,'query',p_query,'offset',p_offset,'hasMore',more,'rows',rows,

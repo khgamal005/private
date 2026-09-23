@@ -5,8 +5,11 @@ export * from './training-journey-database.mjs';
 export const zoomMigration='20260922201432_zoom_accounts_resources_v1.sql';
 export const migration=name=>readFile(new URL(`../../supabase/migrations/${name}`,import.meta.url),'utf8');
 export async function zoomSetup({database=null,scheduling=false,evidence=false,recordings=false,bridges=false,lifecycle=false,recovery=false,advanced=false,webinars=false,complete=false}={}){
- if(complete)webinars=true;
  const db=await academySetup({governance:true,database});
+ return applyZoomMigrations(db,{scheduling,evidence,recordings,bridges,lifecycle,recovery,advanced,webinars,complete});
+}
+export async function applyZoomMigrations(db,{scheduling=false,evidence=false,recordings=false,bridges=false,lifecycle=false,recovery=false,advanced=false,webinars=false,complete=false}={}){
+ if(complete)webinars=true;
  try{
   // Vault encryption is a platform seam. This fixture is deliberately plaintext
   // ONLY inside the disposable database, never a production replacement.
@@ -34,7 +37,7 @@ export async function zoomSetup({database=null,scheduling=false,evidence=false,r
    await db.exec('create schema if not exists platform;');
    await db.exec(ai.slice(ai.indexOf('create table platform.odeiry_runtime_settings'),ai.indexOf('create table platform.odeiry_knowledge_articles')));
    await db.exec("alter table academy.courses add column if not exists program_kind text check(program_kind in ('short_course','diploma'))");
-   await db.exec(await migration('20260922192706_academy_course_authoring_v1.sql'));
+   if(!(await db.query("select to_regclass('academy.authoring_settings') object")).rows[0].object)await db.exec(await migration('20260922192706_academy_course_authoring_v1.sql'));
    await db.exec(await migration('20260922210714_zoom_advanced_learning_v1.sql'));
   }
   if(webinars){

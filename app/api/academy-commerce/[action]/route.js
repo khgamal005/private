@@ -19,6 +19,10 @@ export async function POST(request,{params}){
    if(!Number.isSafeInteger(offset)||offset<0||offset>100000)throw trainingProblem('invalid_request');
    return trainingJson(await trainingRpc('v1_academy_commerce_snapshot',{p_slug:body.tenantSlug,p_offset:offset}));
   }
+  if(action==='reconcile_order'){
+   if(!validTrainingId(payload.orderId))throw trainingProblem('invalid_request');
+   return trainingJson(await trainingRpc('v1_academy_order_reconcile',{p_slug:body.tenantSlug,p_order_id:payload.orderId}));
+  }
   if(publicAccess){
    if(!validTrainingToken(payload.accessToken))throw trainingProblem('invalid_request');
    payload.tokenHash=createHash('sha256').update(payload.accessToken).digest('hex');delete payload.accessToken;

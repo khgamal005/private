@@ -26,12 +26,12 @@ export async function checkoutSetup({database=null}={}){
     return db;
   }catch(error){await db.close();delete error.query;throw error;}
 }
-export async function checkoutOffer(db,{capacity=2}={}){
-  const saved=await storeAction(db,'save_offer',{title:'Concurrency course',courseCode:`RACE-${sequence}`,description:'Disposable course for actual transaction concurrency.',programKind:'short_course',learningMode:'cohort',netMinor:10000,capacity,startsAt:'2030-01-01T10:00:00Z',endsAt:'2030-02-01T10:00:00Z'});
+export async function checkoutOffer(db,{capacity=2,commandId,publishCommandId}={}){
+  const saved=await storeAction(db,'save_offer',{title:'Concurrency course',courseCode:`RACE-${sequence}`,description:'Disposable course for actual transaction concurrency.',programKind:'short_course',learningMode:'cohort',netMinor:10000,capacity,startsAt:'2030-01-01T10:00:00Z',endsAt:'2030-02-01T10:00:00Z'},commandId);
   // Content publication has its own integration suite. A reviewed immutable
   // version is seeded here; all checkout and transfer functions are real SQL.
   await db.query("insert into academy.training_course_versions(tenant_id,course_id,version,title,learning_mode,status,policy,created_by_subject_id,reviewed_by_subject_id,published_at) values($1,$2,1,'Reviewed race content','live','published',$3,$4,$4,now())",[T,saved.courseId,JSON.stringify({minAssessmentPercent:70,minAttendancePercent:75,requireCompletedRun:false,certificateEnabled:true,termsVersion:'2026',supportEmail:'support@example.test'}),MANAGER]);
-  await storeAction(db,'publish_offer',{offerId:saved.offerId,expectedVersion:1,published:true});
+  await storeAction(db,'publish_offer',{offerId:saved.offerId,expectedVersion:1,published:true},publishCommandId);
   return saved;
 }
 export async function checkoutOrder(db,offerId,number){

@@ -1,0 +1,128 @@
+{
+  "capturedAt": "2026-09-23T00:23:58.910Z",
+  "repository": "Marktonesa/marktone-platform-control",
+  "codeCommit": "e34c2b3773656002adf3203f2f2915673959afa6",
+  "codeTree": "24e61ded5669041520081bf60a8c18b3406df21f",
+  "baseCommit": "dfec0b996597a310de22aa86dce177c5cf59f668",
+  "checks": [
+    {
+      "name": "Quality",
+      "url": "https://github.com/Marktonesa/marktone-platform-control/actions/runs/35800513893",
+      "conclusion": "success",
+      "tests": {
+        "total": 1650,
+        "passed": 1646,
+        "skipped": 4,
+        "failed": 0
+      },
+      "lint": {
+        "errors": 0,
+        "warnings": 19
+      },
+      "typecheck": "passed",
+      "migrations": 290,
+      "build": "passed"
+    },
+    {
+      "name": "Zoom isolated verification",
+      "url": "https://github.com/Marktonesa/marktone-platform-control/actions/runs/35800513871",
+      "conclusion": "success",
+      "tests": {
+        "total": 45,
+        "passed": 45,
+        "skipped": 0,
+        "failed": 0
+      }
+    },
+    {
+      "name": "Academy transaction concurrency",
+      "url": "https://github.com/Marktonesa/marktone-platform-control/actions/runs/35800513933",
+      "conclusion": "success"
+    }
+  ],
+  "loadSource": "https://github.com/Marktonesa/marktone-platform-control/actions/runs/35800396669",
+  "loadReport": {
+    "recordedAt": "2026-09-23T00:09:04.262Z",
+    "runtime": {
+      "node": "v24.20.0",
+      "os": "linux",
+      "arch": "x64",
+      "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+      "logicalCpus": 2,
+      "memoryBytes": 8323973120,
+      "postgres": "PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit"
+    },
+    "dataset": {
+      "tenants": 3000,
+      "operators": 3000,
+      "accounts": 3000,
+      "hosts": 3000,
+      "events": 4100
+    },
+    "measurements": [
+      {
+        "activeTenants": 100,
+        "requests": 225,
+        "workers": 2,
+        "durationMs": 3396,
+        "requestsPerSecond": 66.25,
+        "readP95Ms": 67.88,
+        "webhookDatabaseP95Ms": 2.37,
+        "errors": 0,
+        "uniqueEvents": 100,
+        "duplicates": 25
+      },
+      {
+        "activeTenants": 1000,
+        "requests": 2250,
+        "workers": 2,
+        "durationMs": 33889,
+        "requestsPerSecond": 66.39,
+        "readP95Ms": 69.63,
+        "webhookDatabaseP95Ms": 1.33,
+        "errors": 0,
+        "uniqueEvents": 1000,
+        "duplicates": 250
+      },
+      {
+        "activeTenants": 3000,
+        "requests": 6750,
+        "workers": 2,
+        "durationMs": 104227,
+        "requestsPerSecond": 64.76,
+        "readP95Ms": 72.29,
+        "webhookDatabaseP95Ms": 1.33,
+        "errors": 0,
+        "uniqueEvents": 3000,
+        "duplicates": 750
+      }
+    ],
+    "limitations": [
+      "Synthetic local PostgreSQL; no live Zoom, external HTTP, production encryption or messaging.",
+      "Webhook metric covers durable database receipt; it excludes network and signature verification.",
+      "Bounded account snapshots and signed-event equivalents only; this does not prove 3000 simultaneous lectures."
+    ]
+  },
+  "uiEvidence": "ui-http-sql.json",
+  "providerLiveTested": false,
+  "mergePerformed": false,
+  "automaticPreview": {
+    "detected": true,
+    "source": "https://github.com/Marktonesa/marktone-platform-control/pull/265#issuecomment-5786571778",
+    "vercelInspector": "https://vercel.com/marktonesa/marktone-platform-control/4yvtrW1nPW69dKLKyvqwWKBLXT13",
+    "description": "Git integration created an unintended branch preview. Earlier blanket no-deployment statements are corrected.",
+    "removalVerified": false,
+    "dataDestinationVerified": false,
+    "accessLimitation": "Vercel get_project/get_deployment returned 404; list_projects returned no projects for the matching team.",
+    "containment": "PR 265 closed without merging; branch preserved. Follow-up vercel.json disables this branch's automatic deployment. Previous preview requires the project owner's removal and data-destination review.",
+    "supabasePreviewCreated": false,
+    "supabaseEvidence": "https://github.com/Marktonesa/marktone-platform-control/pull/265#issuecomment-5786573007",
+    "supabaseMetadataCheck": "No Zoom branch in project branch metadata."
+  },
+  "limits": [
+    "Synthetic tests only; no live Zoom, media, messages or paid AI generation.",
+    "Database load is bounded to two workers; it is not 3000 simultaneous lectures.",
+    "Applied authoring derivatives and backup deletion policy remain open.",
+    "This evidence does not grant release approval or prove safety of the unintended preview."
+  ]
+}

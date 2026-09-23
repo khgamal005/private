@@ -35,7 +35,8 @@ export function occurrenceResult(meeting,occurrenceId){
 export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomClient,now=Date.now}){
  const value=key=>typeof env==='function'?env(key):env[key];
  function client(){
-  const config={clientId:value('ZOOM_CLIENT_ID'),clientSecret:value('ZOOM_CLIENT_SECRET'),redirectUri:value('ZOOM_REDIRECT_URI')};
+  // Project secrets are shared by Edge Functions; never reuse legacy S2S credentials.
+  const config={clientId:value('ZOOM_OAUTH_CLIENT_ID'),clientSecret:value('ZOOM_OAUTH_CLIENT_SECRET'),redirectUri:value('ZOOM_REDIRECT_URI')};
   if(!config.clientId||!config.clientSecret||!config.redirectUri)throw failure('zoom_configuration_missing',503);
   const url=new URL(config.redirectUri);
   if(url.origin!==value('ZOOM_PUBLIC_ORIGIN')||url.pathname!=='/api/zoom/callback'||url.protocol!=='https:')throw failure('zoom_configuration_missing',503);

@@ -22,7 +22,7 @@
 | الموضع | المتغير | المالك والغرض |
 |---|---|---|
 | Edge | SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY | البنية؛ خدمة منفصلة عن المتصفح |
-| Edge | ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET | مالك تطبيق OAuth |
+| Edge | ZOOM_OAUTH_CLIENT_ID / ZOOM_OAUTH_CLIENT_SECRET | مالك General OAuth؛ مستقلان عن ZOOM_CLIENT_ID/ZOOM_CLIENT_SECRET للربط S2S القديم؛ لا fallback |
 | Edge | ZOOM_REDIRECT_URI / ZOOM_PUBLIC_ORIGIN | مسؤول البيئة؛ HTTPS ثابت متطابق |
 | Edge | ZOOM_WEBHOOK_SECRET | مالك اشتراكات الأحداث |
 | Edge + scheduler | ZOOM_DISPATCH_SECRET | سر العامل، ليس مفتاح مستخدم |

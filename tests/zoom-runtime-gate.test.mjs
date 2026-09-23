@@ -3,6 +3,17 @@ import assert from 'node:assert/strict';
 import {createZoomHandler} from '../supabase/functions/zoom-connect/handler.mjs';
 import {hmac} from '../supabase/functions/_shared/zoom-evidence.mjs';
 
+test('General OAuth uses dedicated credentials and refuses the legacy S2S fallback',async()=>{
+ const values={ZOOM_RUNTIME_ENABLED:'true',ZOOM_V1_ENABLED:'true',ZOOM_ENVIRONMENT:'test',ZOOM_PUBLIC_ORIGIN:'https://odeir.example.test',ZOOM_REDIRECT_URI:'https://odeir.example.test/api/zoom/callback',ZOOM_CLIENT_ID:'legacy-s2s-id',ZOOM_CLIENT_SECRET:'legacy-s2s-secret',SUPABASE_URL:'http://127.0.0.1:54321',SUPABASE_ANON_KEY:'synthetic'};
+ let providerCalls=0,dbCalls=0,received;
+ const handler=createZoomHandler({env:values,fetchImpl:async()=>{dbCalls++;return Response.json({environment:'test'});},clientFactory:config=>{providerCalls++;received=config;return {authorizationUrl:()=> 'https://zoom.us/oauth/authorize?client_id=dedicated'};}});
+ const start=()=>new Request('https://edge.example.test/zoom-connect/start',{method:'POST',headers:{authorization:'Bearer synthetic',origin:values.ZOOM_PUBLIC_ORIGIN},body:JSON.stringify({tenantSlug:'synthetic',mode:'add',state:'a'.repeat(64)})});
+ assert.equal((await handler(start())).status,503);assert.equal(providerCalls,0);assert.equal(dbCalls,0);
+ values.ZOOM_OAUTH_CLIENT_ID='dedicated-id';values.ZOOM_OAUTH_CLIENT_SECRET='dedicated-secret';
+ assert.equal((await handler(start())).status,200);assert.equal(providerCalls,1);assert.equal(dbCalls,1);
+ assert.deepEqual(received,{clientId:'dedicated-id',clientSecret:'dedicated-secret',redirectUri:values.ZOOM_REDIRECT_URI});
+});
+
 const request=(action,headers={})=>new Request(`https://edge.example.test/zoom-connect/${action}`,{method:'POST',headers,body:'{}'});
 
 test('prepared Zoom deployment blocks every ingress without RPC, provider or body processing',async()=>{

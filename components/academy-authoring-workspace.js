@@ -3,6 +3,8 @@
 import {useEffect, useRef, useState} from 'react';
 import {useRouter} from 'next/navigation';
 import AcademyIcon from './academy-icon';
+import AcademyVideoField from './academy-video-field';
+import AcademyCourseDelivery from './academy-course-delivery';
 import {
   AUTHORING_LEVELS, AUTHORING_MODES, AUTHORING_UNIT_KINDS,
   authoringErrorMessage, authoringPublishIssues,
@@ -210,8 +212,8 @@ export default function AcademyAuthoringWorkspace({slug, initialData, initialVie
       {editor.kind === 'course' ? <>
         <nav className={styles.steps} aria-label="خطوات إنشاء الدورة">{[['basics','الأساسيات','عرّف المتدرب بالدورة'],['curriculum','المنهاج','رتّب الأقسام والمحتوى'],['review','المراجعة والنشر','تأكد من جاهزية الدورة']].map(([key,title,hint],index) => <button type="button" key={key} disabled={busy} aria-current={step === key ? 'step' : undefined} onClick={() => setStep(key)}><b>{index + 1}</b><span><strong>{title}</strong><small>{hint}</small></span></button>)}</nav>
         <fieldset className={styles.editorFieldset} disabled={busy}><div className={styles.editorGrid}><div className={styles.stack}>
-          {step === 'basics' && <CourseBasics document={editor.document} patch={patchDocument}/>}
-          {step === 'curriculum' && <Curriculum document={editor.document} change={changeDocument} openUnit={openUnit} setOpenUnit={setOpenUnit} onAi={unitId => setModal({kind:'ai',unitId})} onRemove={(topicId,unitId) => setModal({kind:'remove',topicId,unitId})}/>}
+          {step === 'basics' && <><CourseBasics document={editor.document} patch={patchDocument}/>{data.deliveryEnabled && <AcademyCourseDelivery key={editor.record.courseId} slug={slug} courseId={editor.record.courseId} learningMode={editor.saved.learningMode}/>}</>}
+          {step === 'curriculum' && <Curriculum slug={slug} courseId={editor.record.courseId} mediaEnabled={data.deliveryEnabled===true} document={editor.document} change={changeDocument} openUnit={openUnit} setOpenUnit={setOpenUnit} onAi={unitId => setModal({kind:'ai',unitId})} onRemove={(topicId,unitId) => setModal({kind:'remove',topicId,unitId})}/>}
           {step === 'review' && <CourseReview document={editor.document} issues={issues} patch={patchDocument} goTo={issue => {setStep(issue.step);setOpenUnit(issue.unitId || null);}}/>}
         </div><aside className={styles.guide}><h3>{step === 'basics' ? 'دورة واضحة من البداية' : step === 'curriculum' ? 'محتوى سهل المتابعة' : 'خطوة أخيرة قبل النشر'}</h3><p>{step === 'basics' ? 'عنوان محدد ووصف بسيط يساعدان المتدرب على فهم ما سيتعلمه.' : step === 'curriculum' ? 'قسّم المنهاج إلى أقسام قصيرة. أضف درسًا أو نشاطًا لكل خطوة، ثم رتّبها كما سيراها المتدرب.' : 'راجع المحتوى وسياسة الاجتياز. نشر التعديلات ينشئ نسخة جديدة للتسجيلات المقبلة.'}</p><ol><li>ابدأ بما يحتاجه المتدرب.</li><li>اجعل لكل درس هدفًا واحدًا.</li><li>احفظ مسودتك أثناء العمل.</li></ol><Button kind="aiButton" onClick={() => setModal({kind:'ai',unitId:null})}><Sparkles/>{editor.document.aiBrief?.goal ? 'طلب الإنشاء بالذكاء الاصطناعي' : 'مساعدة الذكاء الاصطناعي'}</Button>{editor.document.aiBrief?.goal && <span className={styles.inlineBrief}>يوجد وصف محفوظ لطلب الإنشاء</span>}</aside></div></fieldset>
         <footer className={styles.editorFooter}><Button disabled={busy || step === 'basics'} onClick={() => setStep(step === 'review' ? 'curriculum' : 'basics')}>السابق</Button><div className={styles.actions}><Button disabled={busy} onClick={() => saveDocument()}>حفظ المسودة</Button>{step !== 'review' ? <Button kind="primary" disabled={busy} onClick={() => setStep(step === 'basics' ? 'curriculum' : 'review')}>التالي: {step === 'basics' ? 'المنهاج' : 'المراجعة'}</Button> : <Button kind="primary" disabled={busy} onClick={() => {if(dirty){setError('احفظ تعديلاتك أولًا، ثم راجع النسخة المحفوظة وانشرها.');return;}if(issues.length){setError('أكمل البنود الموضحة في قائمة الجاهزية قبل النشر.');return;}setModal({kind:'publish'});}}>نشر الدورة</Button>}</div></footer>
@@ -255,7 +257,7 @@ function CourseBasics({document,patch}) {
   </div></section>;
 }
 
-function Curriculum({document,change,openUnit,setOpenUnit,onAi,onRemove}) {
+function Curriculum({slug,courseId,mediaEnabled,document,change,openUnit,setOpenUnit,onAi,onRemove}) {
   const dragged=useRef(null);
   function startDrag(event,value){dragged.current=value;event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',value.id);}
   function drop(event,target){
@@ -277,18 +279,19 @@ function Curriculum({document,change,openUnit,setOpenUnit,onAi,onRemove}) {
       <header className={styles.topicHead}><DragHandle label={`اسحب لترتيب القسم ${index+1}`} onDragStart={event=>startDrag(event,{kind:'topic',id:topic.id})} onDragEnd={()=>{dragged.current=null;}}/><span className={styles.topicOrder}>{index+1}</span><Field label={`عنوان القسم ${index+1}`}><input maxLength={200} value={topic.title} onChange={event=>patchTopic(topic.id,{title:event.target.value})} placeholder="مثال: البداية والمفاهيم الأساسية"/></Field><div className={styles.actions}><Button kind="iconButton" aria-label={`نقل القسم ${index+1} لأعلى`} disabled={index===0} onClick={()=>change({...document,topics:moved(document.topics,index,-1)})}>↑</Button><Button kind="iconButton" aria-label={`نقل القسم ${index+1} لأسفل`} disabled={index===document.topics.length-1} onClick={()=>change({...document,topics:moved(document.topics,index,1)})}>↓</Button><Button kind="quiet" onClick={()=>onRemove(topic.id)}>حذف القسم</Button></div></header>
       <div className={styles.topicBody}>{!topic.units.length&&<p className={styles.topicHint}>اختر نوع المحتوى لإضافة أول عنصر في هذا القسم.</p>}
         {topic.units.map((unit,unitIndex)=><article className={styles.unit} key={unit.id} onDragOver={event=>{if(dragged.current?.kind==='unit'&&dragged.current.topicId===topic.id)event.preventDefault();}} onDrop={event=>drop(event,{kind:'unit',id:unit.id,topicId:topic.id})}><header className={styles.unitHead}><DragHandle label={`اسحب لترتيب العنصر ${unitIndex+1} في القسم ${index+1}`} onDragStart={event=>startDrag(event,{kind:'unit',id:unit.id,topicId:topic.id})} onDragEnd={()=>{dragged.current=null;}}/><button type="button" className={styles.unitTitle} aria-expanded={openUnit===unit.id} onClick={()=>setOpenUnit(openUnit===unit.id?null:unit.id)}><AcademyIcon name={unit.kind==='quiz'?'assessments':unit.kind==='assignment'?'requests':'courses'} size={19}/><span><strong>{unit.title || `${AUTHORING_UNIT_KINDS[unit.kind]} جديد`}</strong><small>{AUTHORING_UNIT_KINDS[unit.kind]} · {unit.required?'مطلوب':'اختياري'}</small></span></button><div className={styles.actions}><Button kind="iconButton" disabled={unitIndex===0} aria-label={`نقل العنصر ${unitIndex+1} لأعلى في القسم ${index+1}`} onClick={()=>patchTopic(topic.id,{units:moved(topic.units,unitIndex,-1)})}>↑</Button><Button kind="iconButton" disabled={unitIndex===topic.units.length-1} aria-label={`نقل العنصر ${unitIndex+1} لأسفل في القسم ${index+1}`} onClick={()=>patchTopic(topic.id,{units:moved(topic.units,unitIndex,1)})}>↓</Button><Button kind="quiet" onClick={()=>onRemove(topic.id,unit.id)}>حذف</Button></div></header>
-          {openUnit===unit.id&&<UnitEditor unit={unit} patch={patch=>patchUnit(topic.id,unit.id,patch)} onAi={()=>onAi(unit.id)}/>}</article>)}
+          {openUnit===unit.id&&<UnitEditor slug={slug} courseId={courseId} mediaEnabled={mediaEnabled} unit={unit} patch={patch=>patchUnit(topic.id,unit.id,patch)} onAi={()=>onAi(unit.id)}/>}</article>)}
         <div className={styles.addContent} aria-label={`إضافة محتوى إلى القسم ${index+1}`}>{Object.entries(AUTHORING_UNIT_KINDS).map(([kind,label])=><Button key={kind} disabled={countUnits(document)>=100} onClick={()=>addUnit(topic,kind)}>+ {label}</Button>)}</div>
       </div></section>)}
   </section>;
 }
 
-function UnitEditor({unit,patch,onAi}) {
+function UnitEditor({slug,courseId,mediaEnabled,unit,patch,onAi}) {
   return <div className={styles.unitBody}><Field label="عنوان المحتوى"><input value={unit.title} maxLength={200} onChange={event=>patch({title:event.target.value})} placeholder="عنوان الدرس أو النشاط"/></Field>
     <div className={styles.row}><span className={styles.muted}>{unit.kind==='quiz'?'اكتب تعليمات الاختبار ثم أضف الأسئلة.':unit.kind==='assignment'?'اكتب المطلوب من المتدرب ومعايير تقييمه.':'اكتب محتوى الدرس أو وصفه.'}</span><Button kind="aiButton" onClick={onAi}><Sparkles/>مساعدة AI</Button></div>
     {unit.aiBrief?.goal&&<span className={styles.inlineBrief}>يوجد وصف محفوظ لطلب إنشاء هذا المحتوى</span>}
     <Field label={unit.kind==='quiz'?'تعليمات الاختبار':unit.kind==='assignment'?'تعليمات الواجب':'المحتوى'}><textarea rows={6} maxLength={50000} value={unit.body||''} onChange={event=>patch({body:event.target.value})}/></Field>
-    {['video','link'].includes(unit.kind)&&<Field label={unit.kind==='video'?'رابط الفيديو':'رابط المصدر'} hint="استخدم رابط HTTPS للمصدر. تأكد من أن المتدرب يستطيع فتحه."><input value={unit.url||''} type="url" dir="ltr" maxLength={2000} placeholder="https://..." onChange={event=>patch({url:event.target.value})}/></Field>}
+    {unit.kind==='video'&&<AcademyVideoField slug={slug} courseId={courseId} enabled={mediaEnabled} value={unit.url||''} onChange={url=>patch({url})}/>}
+    {unit.kind==='link'&&<Field label="رابط المصدر" hint="استخدم رابط HTTPS للمصدر. تأكد من أن المتدرب يستطيع فتحه."><input value={unit.url||''} type="url" dir="ltr" maxLength={2000} placeholder="https://..." onChange={event=>patch({url:event.target.value})}/></Field>}
     {unit.kind==='quiz'&&<QuizEditor unit={unit} patch={patch}/>}
     <details><summary>خيارات المحتوى</summary><div className={styles.formGrid}><label className={styles.check}><input type="checkbox" checked={unit.required!==false} onChange={event=>patch({required:event.target.checked})}/>إكمال هذا المحتوى مطلوب لاجتياز الدورة</label><Field label="الحد الأدنى للوقت بالثواني" hint="صفر يعني بدون حد زمني أدنى."><input type="number" min={0} max={86400} value={unit.minimumSeconds||0} onChange={event=>patch({minimumSeconds:Number(event.target.value)})}/></Field></div></details>
   </div>;

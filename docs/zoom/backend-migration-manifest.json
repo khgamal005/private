@@ -145,8 +145,16 @@
       "blob": "d93a892c1ab0b8f9e2dc078e7d2788c4b36aacc3",
       "appliedVersion": "20260923161805",
       "appliedName": "zoom_ai_reservation_retries_v1"
+    },
+    {
+      "path": "supabase/migrations/20260923191352_zoom_guided_setup_v1.sql",
+      "blob": "b9e586f1a911c2d20d15564611bd414bae01fa97",
+      "appliedVersion": "20260924200408",
+      "appliedName": "zoom_guided_setup_v1",
+      "sourceSha": "99e5f8f17fd4b8e6afb8a696d47981c7c52951c4"
     }
   ],
   "productionProjectRef": "gswpbwdactcstkasddta",
-  "verifiedSourceSha": "23735f649d8cde15c83e9475e701d26eee699aa9"
+  "verifiedSourceSha": "23735f649d8cde15c83e9475e701d26eee699aa9",
+  "latestMigrationSourceSha": "99e5f8f17fd4b8e6afb8a696d47981c7c52951c4"
 }

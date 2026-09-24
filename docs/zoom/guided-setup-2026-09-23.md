@@ -47,3 +47,32 @@ Repository reconstruction initially truncated large baseline files; restored exa
 
 Read-only production preflight: Marktone entitlement=true; no Zoom settings/connections, zero Zoom cron jobs. No business/financial/academic records or Reef rows changed. Publishing and activation results are recorded separately after verification.
 
+
+## Publication checkpoint
+
+Published main `99e5f8f17fd4b8e6afb8a696d47981c7c52951c4`. Hostinger serves the new guided setup asset at `/_next/static/chunks/0iq_4gcz2_e8-.js` with HTTP200 and SHA256 `48a887153bb976d4af3db813fa4551f4c381135a35e6fcbf2d97a8b094a83a58`, identical to the local production build. This proves deployment of the client code, not authenticated first-use or live Zoom acceptance. Quality36050519698 and Zoom36050519767 are checked separately before backend rollout.
+
+## Verified deployment and scoped preparation
+
+- Quality [36050519698](https://github.com/Marktonesa/marktone-platform-control/actions/runs/36050519698): success on `99e5f8f17fd4b8e6afb8a696d47981c7c52951c4`, 1713 pass / 0 fail / 5 conditional skips. Lint, types, 297 migrations and build passed.
+- Isolated PostgreSQL [36050519767](https://github.com/Marktonesa/marktone-platform-control/actions/runs/36050519767): success on the same SHA, 1714 pass / 0 fail / 4 unrelated environment skips. Concurrent initialization commits one disabled settings row; explicit activation is separate. Scheduling and rotating-token races also passed. Synthetic PG17.11 load: 3000 tenants, 6750 requests, 2 workers, 0 errors; read p95=75.4ms and database receipt p95=1.6ms. Not live Zoom or 3000 concurrent lectures.
+- Applied only SQL25, actual production version `20260924200408`; ledger474→475. The earlier24 migrations were not reapplied. No anonymous grants on the new RPCs; activation remains service-only. Security advisors returned no new cache keys in the follow-up inspection; direct ACL verification is separate evidence.
+- Deployed zoom-connect v3, all6 source files retrieved and matched exactly. Bundle SHA256 `bff8d183cff59475013fa141dafe2a971a451754fdb54d46a01115c167201f9f`. Existing training worker unchanged.
+- Prepared **Marktone only** through the canonical initialization RPC with the existing active Marwan Khaled staff profile and checked membership/permissions. Environment=production, recording=off, revision1, enabled=false. Verified authorized setup snapshot: entitlement=true, ownerReady=true, canConfigure=true.
+- Other tenant settings=0, accounts=0, OAuth attempts=0, links=0, operations=0, Zoom cron=0. No Reef operational mutations, real messages, Zoom authorization or paid generation.
+- Production HTTP: unauthenticated setup/platform_setup401; provider start/webhook/dispatch503 `zoom_not_enabled`. This confirms the execution gate remains closed; Edge deployment status ACTIVE is not tenant activation.
+
+### Remaining blocker — configuration, not authorization
+
+The user has authorized Marktone activation. It has **not** been completed: global runtime is closed and no Zoom worker is scheduled. OAuth-secret presence has not been verified through an authenticated runtime session; do not describe those secrets as confirmed missing. The browser reaches ODEIR login, so authenticated visual acceptance also remains pending. Do not bypass the gateway by setting `enabled=true` directly or reusing legacy S2S credentials.
+
+Next: establish whether ODEIR's General OAuth application is already prepared, complete its secure server configuration and scheduler, inspect `/control/addons/zoom`, then perform the already-authorized Marktone activation through the validated gateway and let its account owner grant Zoom consent. No new activation permission is required for Marktone; other tenants remain outside scope. Account licenses, webinar/cloud-recording capabilities and any Zoom app/SDK review require their own actual evidence.
+
+| Delivered | Verified | Remaining |
+|---|---|---|
+| Guided interface + admissions/academy continuity | Current-SHA Quality, PostgreSQL, matching Hostinger asset | Authenticated production visual walkthrough |
+| Schema + Edge readiness/initialization/activation paths | Applied migration, matched v3 sources, SQL and HTTP permissions | Secure runtime configuration and scheduler |
+| Marktone provisioning | Licensed, owner configured, recording off, one own settings row | Runtime readiness and actual activation; still disabled |
+| Live Zoom integration | Synthetic provider contract and real isolated SQL | Owner OAuth consent, licensed hosts and end-to-end live lecture |
+
+Machine-readable evidence: [guided-setup-2026-09-24.json](evidence/guided-setup-2026-09-24.json). Migration mapping: [backend-migration-manifest.json](backend-migration-manifest.json).

@@ -1,0 +1,256 @@
+{
+  "sourceSha": "99e5f8f17fd4b8e6afb8a696d47981c7c52951c4",
+  "baselineSha": "8a68441a40867f1cf152b890a39bd38741e3e968",
+  "authorization": "Publish main and activate Marktone only; preserve all other tenants and Reef data.",
+  "local": {
+    "tests": 1718,
+    "pass": 1713,
+    "fail": 0,
+    "skip": 5,
+    "focusedPass": 75,
+    "focusedSkip": 1,
+    "lintErrors": 0,
+    "existingLintWarnings": 19,
+    "types": "passed",
+    "migrations": 297,
+    "build": "passed"
+  },
+  "ci": {
+    "quality": {
+      "id": 36050519698,
+      "status": "success",
+      "tests": 1718,
+      "pass": 1713,
+      "fail": 0,
+      "skip": 5
+    },
+    "zoomPostgres": {
+      "id": 36050519767,
+      "status": "success",
+      "tests": 1718,
+      "pass": 1714,
+      "fail": 0,
+      "skip": 4,
+      "postgres": "17.11",
+      "concurrentFirstInitialization": "passed controlled independent-backend lock barrier",
+      "load": {
+        "syntheticTenants": 3000,
+        "requests": 6750,
+        "workers": 2,
+        "errors": 0,
+        "readP95Ms": 75.4,
+        "dbReceiptP95Ms": 1.6,
+        "liveZoom": false
+      }
+    }
+  },
+  "production": {
+    "project": "gswpbwdactcstkasddta",
+    "preMigrationCount": 474,
+    "marktoneEntitled": true,
+    "preSettings": 0,
+    "preConnections": 0,
+    "preZoomCron": 0,
+    "runtimeHttp": "503 zoom_not_enabled",
+    "backendDeployment": "verified",
+    "marktoneActivation": "blocked: global runtime is closed; no scheduled worker; OAuth configuration presence not inspected without an authenticated runtime-readiness session",
+    "hostingerAsset": {
+      "url": "https://odeir.com/_next/static/chunks/0iq_4gcz2_e8-.js",
+      "status": 200,
+      "sha256": "48a887153bb976d4af3db813fa4551f4c381135a35e6fcbf2d97a8b094a83a58",
+      "matchesLocalBuild": true,
+      "containsGuidedSetup": true
+    },
+    "authenticatedBrowser": "Not verified: browser redirected to ODEIR login",
+    "migrationVersion": "20260924200408",
+    "postMigrationCount": 475,
+    "edgeVersion": 3,
+    "edgeBundleSha256": "bff8d183cff59475013fa141dafe2a971a451754fdb54d46a01115c167201f9f",
+    "edgeFilesMatch": true,
+    "newAnonymousRpcs": 0,
+    "directAuthenticatedActivation": false,
+    "securityAdvisorsNewKeysReturned": 0,
+    "marktone": {
+      "initialized": true,
+      "enabled": false,
+      "environment": "production",
+      "owner": "existing active Marwan Khaled staff profile",
+      "recordingPolicy": "off",
+      "revision": 1
+    },
+    "otherTenantSettings": 0,
+    "connections": 0,
+    "oauthAttempts": 0,
+    "links": 0,
+    "operations": 0,
+    "zoomCron": 0,
+    "httpChecks": [
+      {
+        "action": "setup",
+        "status": 401,
+        "body": {
+          "error": "zoom_forbidden",
+          "correlationId": "afc1b1bf-2da7-46b0-82f9-237da43364a3"
+        }
+      },
+      {
+        "action": "platform_setup",
+        "status": 401,
+        "body": {
+          "error": "zoom_forbidden",
+          "correlationId": "5c38d1c3-9368-43d3-93e2-084b3317725d"
+        }
+      },
+      {
+        "action": "start",
+        "status": 503,
+        "body": {
+          "error": "zoom_not_enabled",
+          "correlationId": "400dd963-0ae1-4e5c-94a5-4b0bb435eec5"
+        }
+      },
+      {
+        "action": "webhook",
+        "status": 503,
+        "body": {
+          "error": "zoom_not_enabled",
+          "correlationId": "b7d2f40d-c635-429a-9b75-4358cd73c1eb"
+        }
+      },
+      {
+        "action": "dispatch",
+        "status": 503,
+        "body": {
+          "error": "zoom_not_enabled",
+          "correlationId": "f614d54e-feed-448e-8f99-667329fa8022"
+        }
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "app/api/zoom/[action]/route.js",
+      "sha256": "1443abde3a57045f7137d0049e62a9f97f05443ff6ddbf5b492febf521f5f46c"
+    },
+    {
+      "path": "app/api/zoom/callback/route.js",
+      "sha256": "5bd0a32dd67655e4cf19039814bc29b62748ef490c343adece1440c5c786a368"
+    },
+    {
+      "path": "app/control/addons/page.js",
+      "sha256": "faa0b0983edddc7d06ee65eb1f1afc86b8340055a1467119fd021b4634465948"
+    },
+    {
+      "path": "app/tenant/[slug]/addons/zoom/page.js",
+      "sha256": "aaa970ffd57d1b54654a85c907c8dd977009899d771d80a43739745a2353114d"
+    },
+    {
+      "path": "app/tenant/[slug]/admissions/page.js",
+      "sha256": "75f3220461b93f68d5aa146b7ebdef7252a4293819fc9637ea6866974ed29746"
+    },
+    {
+      "path": "components/admissions-workspace.js",
+      "sha256": "a7e60521888beeb26573ab7117d8207a9cb8077035ff2e50e2c1ba057567296b"
+    },
+    {
+      "path": "components/learner-operations-workspace.js",
+      "sha256": "9cbeb167859fa8539188d6f2276cef87d2bbb50ba11ee8b07bcb55d221fc3cc0"
+    },
+    {
+      "path": "components/zoom-workspace.jsx",
+      "sha256": "4dac58cdee13c9ae3158167166fc164e3306c438bee48ea28e883842423f0e52"
+    },
+    {
+      "path": "components/zoom-workspace.module.css",
+      "sha256": "dd822762d98f69be6fb1c13e1117bfbb8bdad0c71ccab3c0d7197b712a10719e"
+    },
+    {
+      "path": "lib/zoom-contract.mjs",
+      "sha256": "39e9711b60453857cfba071e48215022e59a8ce9b253400698fd7c09096e8fde"
+    },
+    {
+      "path": "supabase/functions/zoom-connect/handler.mjs",
+      "sha256": "438dd33fad48f0244521d20c8110663de963af17bec76340319f3270f851f96b"
+    },
+    {
+      "path": "tests/fixtures/zoom-database.mjs",
+      "sha256": "0f371fdda9fe687147bb25dd25a98880a497a808b810a3c36a83b986faf48b18"
+    },
+    {
+      "path": "tests/zoom-discovery.test.mjs",
+      "sha256": "81dea20180d0180bc4beb85c1609e38774220fa84b2ea7c7bdd3a6602e0f1f7f"
+    },
+    {
+      "path": "tests/zoom-retention-http-ui.test.mjs",
+      "sha256": "8d1b27231385a1fe27ede9d4204b14ab5d9872a2ab4b94161bf99be98e0f6e52"
+    },
+    {
+      "path": ".github/workflows/zoom-verification.yml",
+      "sha256": "f83252d2b2d8ee0efbe7ee23f51a524701c215f6996ae589e8a1c01250049aef"
+    },
+    {
+      "path": "tests/zoom-concurrency.test.mjs",
+      "sha256": "eb3e67ad08b48309b8213e81e2b189244f147cac430d4ddc4d5f84241e9ee651"
+    },
+    {
+      "path": "docs/zoom/PROGRESS.md",
+      "sha256": "7b9de44d936917a96557696199f69b23405e7e60bfef204f92b1c7a580f7a25c"
+    },
+    {
+      "path": "docs/zoom/coverage.md",
+      "sha256": "955a0e9eddc883d78619a2375752d938646cf9909e9d906afba170901fc3c3f2"
+    },
+    {
+      "path": "docs/zoom/runbook.md",
+      "sha256": "20bf5729afda5586d4dec200946b2ce73cbf8ddbc8c9cf741e9abcadef40c03a"
+    },
+    {
+      "path": "docs/zoom/guided-setup-2026-09-23.md",
+      "sha256": "1c02fa6f5551392e06efa4ca52646f856abdd4253c9185a8cae0f533ea510d10"
+    },
+    {
+      "path": "app/control/addons/zoom/page.js",
+      "sha256": "e61e556435f2b8914d9690f352eae45a8e952847aaca3fd879e69fda3254a642"
+    },
+    {
+      "path": "components/zoom-setup.jsx",
+      "sha256": "348b6b48c62713c7562f849a7c10ea394b6f63cd521aeb90cfff8dc4fbf174d6"
+    },
+    {
+      "path": "components/zoom-accounts.jsx",
+      "sha256": "82cc74f89809b7d13662d16bda5f4ddd28553cc218ea6c29ab3fec2455a186a9"
+    },
+    {
+      "path": "lib/zoom-setup.mjs",
+      "sha256": "e4a21ccfaa66a7e5aa33dc7cc1cf46098fd06ddcb154a0aabcd70d57a3eb6bd5"
+    },
+    {
+      "path": "lib/zoom-snapshot.js",
+      "sha256": "3148f1f5ee453ffec2aac8cb26b8be76225f3eba46cb0954a16e9ebe0f1d2283"
+    },
+    {
+      "path": "supabase/functions/_shared/zoom-setup.mjs",
+      "sha256": "75555df6adbc9283e9c0f7f976d7f90d3fa31ae7cc0a431f31d2a69bc0f5814f"
+    },
+    {
+      "path": "supabase/migrations/20260923191352_zoom_guided_setup_v1.sql",
+      "sha256": "986dcf30125e15216cf980cf43b55c473674e1d6747d0691e600951404628786"
+    },
+    {
+      "path": "tests/fixtures/zoom-module-loader.mjs",
+      "sha256": "9bc71efc757ebcacd57352afdabbbd9b185a136715a8d2931501e4f59277ab6b"
+    },
+    {
+      "path": "tests/zoom-guided-setup.test.mjs",
+      "sha256": "7b9cd8ba108d79fdbe1ae1f4e8a1802dbc2325e6eb4f5e2b3b878137be717a8c"
+    },
+    {
+      "path": "tests/zoom-guided-ui.test.mjs",
+      "sha256": "060b31f42a79d27b5e5ceb75fcbb8c52effa5ad2ee26837c6e3d787d0e5b26ef"
+    },
+    {
+      "path": "tests/zoom-setup-boundaries.test.mjs",
+      "sha256": "a0aa8bc74d7253202b38421e38f0607ef895e3d1fd3518570e5a67590589b609"
+    }
+  ]
+}

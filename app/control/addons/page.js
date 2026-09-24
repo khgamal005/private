@@ -23,6 +23,7 @@ export default async function PlatformAddonsPage(){
   };
   return <>
     <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
+      <Link href="/control/addons/zoom" style={{padding:'10px 14px',border:'1px solid #cfd8e3',borderRadius:10,fontWeight:700,textDecoration:'none',marginInlineEnd:12}}>تجهيز Zoom</Link>
       <Link href="/control/addons/bank-transfers" style={{padding:'10px 14px',border:'1px solid #cfd8e3',borderRadius:10,fontWeight:700,textDecoration:'none'}}>
         مراجعة التحويلات البنكية
       </Link>

@@ -14,7 +14,7 @@ export async function GET(request){
   target=`/tenant/${saved.tenantSlug}/addons/zoom`;
   const result=await zoomGateway('complete',{tenantSlug:saved.tenantSlug,state,code:callback.searchParams.get('code'),cancelled:callback.searchParams.has('error')});
   if(result.returnPath!==target)throw Error();
-  target+='?zoom='+encodeURIComponent(result.outcome);
- }catch{target+=(target.includes('?')?'&':'?')+'zoom=failed';}
+  target+='?view=accounts&zoom='+encodeURIComponent(result.outcome);
+ }catch{target+=(target.includes('?')?'&':'?')+'view=accounts&zoom=failed';}
  const response=NextResponse.redirect(new URL(target,request.url),303);response.headers.set('cache-control','no-store');response.headers.set('referrer-policy','no-referrer');return response;
 }

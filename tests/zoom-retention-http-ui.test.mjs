@@ -27,6 +27,7 @@ test('T62: review UI -> real Next handler -> authorized SQL deletion, with expli
   if(name.endsWith('training-request.mjs'))return requests;
   if(name.endsWith('zoom-contract.mjs'))return contract;
   if(name.endsWith('zoom-evidence.mjs'))return {reportCsv};
+  if(name.endsWith('zoom-snapshot'))return {zoomSnapshot:async()=>{throw Error('Unexpected workspace snapshot');}};
   if(name.endsWith('zoom-server'))return {zoomGateway:async()=>{providers++;throw Error('Unexpected provider call');}};
   if(name.endsWith('training-server'))return {trainingJson:(body,status=200)=>({body,status}),trainingRpc:async(name,args)=>{calls.push({name,args});try{return await call(db,`public.${name}`,args);}catch(error){throw requests.trainingProblem(error.message,/forbidden|permission/.test(error.message)?403:409);}}};
   throw Error(name);

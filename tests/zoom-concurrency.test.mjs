@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {setImmediate as yieldTurn} from 'node:timers/promises';
-import {zoomSetup,connect,syncHost,service,call,id,T,RUN,INSTRUCTOR,ADMIN,login,ADMIN_AUTH} from './fixtures/zoom-database.mjs';
+import {zoomSetup,connect,syncHost,service,call,id,T,RUN,INSTRUCTOR,ADMIN,login,ADMIN_AUTH,STAFF} from './fixtures/zoom-database.mjs';
 const databaseUrl=process.env.ZOOM_TEST_DATABASE_URL;
 function localTestUrl(value){const u=new URL(value);assert.ok(['postgres:','postgresql:'].includes(u.protocol));assert.ok(['localhost','127.0.0.1','[::1]'].includes(u.hostname));assert.equal(u.pathname,'/zoom_concurrency');assert.equal(u.search,'');assert.equal(u.hash,'');return u.toString();}
 // Poll actual lock state instead of sleeping or assuming the calls overlapped.
@@ -63,7 +63,17 @@ test('ZM-03/13 T08/14: independent PostgreSQL connections compete for the final 
  const [controller,...workers]=clients;
  assert.equal((await controller.query("select count(*)::int n from pg_namespace where nspname in ('zoom_core','academy','core')")).rows[0].n,0,'Refuse non-empty database');
  const db={query:(s,p)=>controller.query(s,p),exec:s=>controller.query(s),close:async()=>{}};
- await zoomSetup({database:db,complete:true});const connection=(await connect(db)).connectionId;await syncHost(db,connection);
+ await zoomSetup({database:db,complete:true});
+ // First-use setup is serialized too: concurrent operators create one disabled
+ // settings row, and neither request can activate it as a side effect.
+ await db.query('delete from zoom_core.settings where tenant_id=$1',[T]);
+ for(const c of workers){await login(c,ADMIN_AUTH);await service(c,false);}
+ const initialized=await race(controller,workers,c=>c.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`${T}:setup`]),workers.map((_,n)=>c=>call(c,'public.v1_zoom_initialize',{p_slug:'marktone',p_command_id:id(4490+n),p_payload:{ownerStaffId:STAFF,environment:'test'}})));
+ assert.equal(initialized.filter(r=>r.ok&&r.value.enabled===false).length,2,JSON.stringify(initialized));
+ assert.equal((await db.query('select count(*)::int n from zoom_core.settings where tenant_id=$1',[T])).rows[0].n,1);
+ await service(db);
+ await call(db,'public.v1_zoom_activate',{p_slug:'marktone',p_auth_user_id:ADMIN_AUTH,p_subject_id:ADMIN,p_command_id:id(4492),p_revision:1,p_environment:'test'});
+ const connection=(await connect(db)).connectionId;await syncHost(db,connection);
  const host=(await db.query('select id from zoom_core.hosts')).rows[0].id;
  await db.query('update zoom_core.hosts set allowed=true,instructor_subject_id=$1 where id=$2',[INSTRUCTOR,host]);
  await db.query("insert into zoom_core.host_instructors(tenant_id,host_id,subject_id,provider_user_id,authorization_kind,verified_at) values($1,$2,$3,'host-A','host',now()),($1,$2,$4,'teacher-B','alternative_host',now())",[T,host,INSTRUCTOR,ADMIN]);

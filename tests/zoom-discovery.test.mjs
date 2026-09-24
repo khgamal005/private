@@ -49,8 +49,8 @@ test('Zoom-only tenant can reach integration settings without legacy messaging e
 function page({deny=false,error=null}={}){
  const calls=[];
  const Page=load('../app/tenant/[slug]/addons/zoom/page.js',name=>{
-  if(name.endsWith('server-auth'))return {requireTenantAddon:async(...args)=>{calls.push(['guard',...args]);if(deny)throw Error('redirect: addon_required');}};
-  if(name.endsWith('training-server'))return {trainingRpc:async(...args)=>{calls.push(['rpc',...args]);if(error)throw error;return {synthetic:true};}};
+  if(name.endsWith('server-auth'))return {hasPlatformPermission:()=>false,requireTenantAddon:async(...args)=>{calls.push(['guard',...args]);if(deny)throw Error('redirect: addon_required');}};
+  if(name.endsWith('zoom-snapshot'))return {zoomSnapshot:async(slug,view)=>{calls.push(['rpc','v1_zoom_snapshot',{p_slug:slug,p_view:view}]);if(error)throw error;return {synthetic:true};}};
   if(name.endsWith('zoom-workspace'))return {__esModule:true,default:()=>null};
   if(name.endsWith('zoom-contract.mjs'))return contract;
   return require(name);

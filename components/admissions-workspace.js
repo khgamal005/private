@@ -77,10 +77,10 @@ function paymentTone(value){
       :'warning';
 }
 
-export default function AdmissionsWorkspace({slug,initialData}){
+export default function AdmissionsWorkspace({slug,initialData,initialView='cases'}){
   const router=useRouter();
   const [data,setData]=useState(initialData);
-  const [view,setView]=useState('cases');
+  const [view,setView]=useState(['cases','batches','operations'].includes(initialView)?initialView:'cases');
   const [filter,setFilter]=useState('all');
   const [query,setQuery]=useState('');
   const [selected,setSelected]=useState(null);

@@ -1,9 +1,10 @@
 import {createZoomClient,connectionAccessToken,verifiedHost,recoveredRegistrant,ZoomError,zoomUrl,retryDelay} from '../_shared/zoom-client.mjs';
 import {sdkDecision,sdkSignature,ZOOM_SDK_VERSION} from '../_shared/zoom-sdk.mjs';
 import {sha256,hmac,verifyWebhook,eventProjection} from '../_shared/zoom-evidence.mjs';
+import {zoomRuntimeReadiness} from '../_shared/zoom-setup.mjs';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SAFE_ERRORS=new Set(['zoom_not_enabled','zoom_forbidden','zoom_not_found','zoom_invalid_state','zoom_account_mismatch','zoom_account_unavailable','zoom_revision_conflict','zoom_configuration_missing','zoom_scope_or_license_required','zoom_reauth_required','zoom_rate_limited','zoom_provider_unavailable','zoom_network_error','zoom_refresh_busy','zoom_access_expired','zoom_not_entitled','zoom_outside_join_window','zoom_verified_email_required','zoom_session_unavailable','zoom_host_identity_unverified','zoom_invalid_instructor','zoom_invalid_provider_response','zoom_result_incomplete','zoom_stale_lease','zoom_stale_operation','zoom_provider_review_required','zoom_transcript_unavailable','zoom_registration_pending','zoom_occurrence_required','zoom_schedule_mismatch','zoom_registration_configuration_required']);
+const SAFE_ERRORS=new Set(['zoom_setup_required','zoom_addon_required','zoom_invalid_owner','zoom_not_enabled','zoom_forbidden','zoom_not_found','zoom_invalid_state','zoom_account_mismatch','zoom_account_unavailable','zoom_revision_conflict','zoom_configuration_missing','zoom_scope_or_license_required','zoom_reauth_required','zoom_rate_limited','zoom_provider_unavailable','zoom_network_error','zoom_refresh_busy','zoom_access_expired','zoom_not_entitled','zoom_outside_join_window','zoom_verified_email_required','zoom_session_unavailable','zoom_host_identity_unverified','zoom_invalid_instructor','zoom_invalid_provider_response','zoom_result_incomplete','zoom_stale_lease','zoom_stale_operation','zoom_provider_review_required','zoom_transcript_unavailable','zoom_registration_pending','zoom_occurrence_required','zoom_schedule_mismatch','zoom_registration_configuration_required']);
 async function verifyDispatch(expected,received){if(typeof received!=='string'||received.length>512)return false;const a=await sha256(expected),b=await sha256(received);let difference=0;for(let i=0;i<a.length;i++)difference|=a.charCodeAt(i)^b.charCodeAt(i);return difference===0;}
 function failure(code,status=409){return Object.assign(new Error(code),{code,status});}
 function publicCode(error){return SAFE_ERRORS.has(error?.code||error?.message)?error.code||error.message:'zoom_request_failed';}
@@ -39,7 +40,7 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
   const config={clientId:value('ZOOM_OAUTH_CLIENT_ID'),clientSecret:value('ZOOM_OAUTH_CLIENT_SECRET'),redirectUri:value('ZOOM_REDIRECT_URI')};
   if(!config.clientId||!config.clientSecret||!config.redirectUri)throw failure('zoom_configuration_missing',503);
   const url=new URL(config.redirectUri);
-  if(url.origin!==value('ZOOM_PUBLIC_ORIGIN')||url.pathname!=='/api/zoom/callback'||url.protocol!=='https:')throw failure('zoom_configuration_missing',503);
+  if(url.href!==`${value('ZOOM_PUBLIC_ORIGIN')}/api/zoom/callback`||url.protocol!=='https:')throw failure('zoom_configuration_missing',503);
   return clientFactory(config,{fetchImpl,timeoutMs:12000,maxPages:5});
  }
  async function rpc(name,args,authorization,service=false){
@@ -56,6 +57,24 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
   const service=(name,args)=>rpc(name,args,'',true);
   let correlationId=crypto.randomUUID();
   try{
+   // Read-only readiness is the sole exception to the closed runtime gate.
+   // Authorize with the caller JWT before any configuration metadata is returned.
+   if(action==='setup'||action==='platform_setup'){
+    const authorization=request.headers.get('authorization')||'';
+    if(!/^Bearer [^\s]+$/.test(authorization))throw failure('zoom_forbidden',401);
+    const origin=request.headers.get('origin');if(origin&&origin!==value('ZOOM_PUBLIC_ORIGIN'))throw failure('zoom_forbidden',403);
+    const body=JSON.parse(await rawBody(request,24576));let setup=null;
+    if(action==='platform_setup')await rpc('v1_zoom_platform_setup_authorize',{},authorization);
+    else{
+     if(typeof body.tenantSlug!=='string'||!/^[a-z0-9][a-z0-9-]{1,79}$/.test(body.tenantSlug))throw failure('zoom_invalid_request',400);
+     setup=await rpc('v1_zoom_setup_snapshot',{p_slug:body.tenantSlug},authorization);
+    }
+    const probe=await service('v1_zoom_runtime_probe',{});
+    const runtime=zoomRuntimeReadiness(value,probe);
+    if(!setup)return json({available:true,runtime});
+    const {authUserId: _authUserId,subjectId: _subjectId,...safeSetup}=setup;
+    return json({available:true,...safeSetup,runtime});
+   }
    // Deployment gate: blocks every ingress before database or provider work.
    // Separate from V1 pause, which allows retention/event processing after activation.
    if(value('ZOOM_RUNTIME_ENABLED')!=='true')throw failure('zoom_not_enabled',503);
@@ -156,6 +175,14 @@ export function createZoomHandler({env,fetchImpl=fetch,clientFactory=createZoomC
    const user=(name,args)=>rpc(name,args,authorization);
    if(typeof body.tenantSlug!=='string'||!/^[a-z0-9][a-z0-9-]{1,79}$/.test(body.tenantSlug))throw failure('zoom_invalid_request',400);
    const slug=body.tenantSlug;
+   if(action==='activate'){
+    if(!UUID.test(body.commandId)||!Number.isInteger(body.expectedVersion)||body.confirmed!==true)throw failure('zoom_invalid_request',400);
+    const setup=await user('v1_zoom_setup_snapshot',{p_slug:slug});
+    const runtime=zoomRuntimeReadiness(value,await service('v1_zoom_runtime_probe',{}));
+    if(!runtime.canConnect)throw failure('zoom_configuration_missing',503);
+    return json(await service('v1_zoom_activate',{p_slug:slug,p_auth_user_id:setup.authUserId,p_subject_id:setup.subjectId,
+     p_command_id:body.commandId,p_revision:body.expectedVersion,p_environment:runtime.environment}));
+   }
    if(action==='start'||action==='complete'){
     if(!/^[a-f0-9]{64}$/.test(body.state||''))throw failure('zoom_invalid_state',400);
     const zoom=client();

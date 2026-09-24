@@ -4,11 +4,11 @@ import {academySetup} from './academy-platform-database.mjs';
 export * from './training-journey-database.mjs';
 export const zoomMigration='20260922201432_zoom_accounts_resources_v1.sql';
 export const migration=name=>readFile(new URL(`../../supabase/migrations/${name}`,import.meta.url),'utf8');
-export async function zoomSetup({database=null,scheduling=false,evidence=false,recordings=false,bridges=false,lifecycle=false,recovery=false,advanced=false,webinars=false,complete=false}={}){
+export async function zoomSetup({database=null,scheduling=false,evidence=false,recordings=false,bridges=false,lifecycle=false,recovery=false,advanced=false,webinars=false,complete=false,initializeSettings=true}={}){
  const db=await academySetup({governance:true,database});
- return applyZoomMigrations(db,{scheduling,evidence,recordings,bridges,lifecycle,recovery,advanced,webinars,complete});
+ return applyZoomMigrations(db,{scheduling,evidence,recordings,bridges,lifecycle,recovery,advanced,webinars,complete,initializeSettings});
 }
-export async function applyZoomMigrations(db,{scheduling=false,evidence=false,recordings=false,bridges=false,lifecycle=false,recovery=false,advanced=false,webinars=false,complete=false}={}){
+export async function applyZoomMigrations(db,{scheduling=false,evidence=false,recordings=false,bridges=false,lifecycle=false,recovery=false,advanced=false,webinars=false,complete=false,initializeSettings=true}={}){
  if(complete)webinars=true;
  try{
   // Vault encryption is a platform seam. This fixture is deliberately plaintext
@@ -54,7 +54,8 @@ export async function applyZoomMigrations(db,{scheduling=false,evidence=false,re
   }
   if(complete){
    await db.exec(await migration('20260922213755_zoom_operational_completion_v1.sql'));await db.exec(await migration('20260922215415_zoom_account_replacement_v1.sql'));await db.exec(await migration('20260922221302_zoom_weighted_completion_v1.sql'));await db.exec(await migration('20260922222039_zoom_insights_followup_v1.sql'));await db.exec(await migration('20260922223516_zoom_historical_attendance_v1.sql'));await db.exec(await migration('20260922224409_zoom_recurring_series_v1.sql'));await db.exec(await migration('20260922225126_zoom_report_exports_v1.sql'));await db.exec(await migration('20260922230226_zoom_webinar_delivery_review_v1.sql'));await db.exec(await migration('20260922230604_zoom_registration_recovery_v1.sql'));await db.exec(await migration('20260922231251_zoom_evidence_followup_v1.sql'));await db.exec(await migration('20260922231639_zoom_external_schedule_observation_v1.sql'));await db.exec(await migration('20260922232631_zoom_portal_and_drift_sweep_v1.sql'));await db.exec(await migration('20260922233842_zoom_branch_reporting_v1.sql'));await db.exec(await migration('20260923095314_zoom_derivative_retention_v1.sql'));await db.exec(await migration('20260923100730_zoom_ai_reservation_retries_v1.sql'));}
-  await db.query("insert into zoom_core.settings(tenant_id,enabled,environment) values($1,true,'test'),($2,true,'test')",[T,OTHER]);
+  if(complete)await db.exec(await migration('20260923191352_zoom_guided_setup_v1.sql'));
+  if(initializeSettings)await db.query("insert into zoom_core.settings(tenant_id,enabled,environment) values($1,true,'test'),($2,true,'test')",[T,OTHER]);
   await login(db,ADMIN_AUTH);return db;
  }catch(error){await db.close();delete error.query;throw error;}
 }

@@ -1,7 +1,8 @@
 name: Zoom isolated verification
 on:
   push:
-    branches: [feat/zoom-multi-account]
+    branches: [main, feat/zoom-multi-account]
+    paths: ['**/*zoom*', 'supabase/functions/zoom-connect/**', 'docs/zoom/**', 'components/learner-operations-workspace.js']
   pull_request:
     paths: ['**/*zoom*', 'supabase/functions/zoom-connect/**', 'docs/zoom/**']
   workflow_dispatch:
@@ -33,8 +34,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm install --no-save --package-lock=false --ignore-scripts pg@8.16.3
       - run: git diff --exit-code -- package.json package-lock.json
-      # Keep the PR closed while preview integrations are under review. Run the
-      # whole ODEIR quality gate on this protected feature branch, without deploy.
+      # Verify isolated PostgreSQL races on authorized main releases as well.
+      # This workflow performs no deployment or production activation.
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run migration:verify

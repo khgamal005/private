@@ -3,6 +3,7 @@ import {cookies} from 'next/headers';
 import {readTrainingBody,validTrainingId} from '../../../../lib/training-request.mjs';
 import {trainingJson,trainingRpc} from '../../../../lib/training-server';
 import {zoomGateway} from '../../../../lib/zoom-server';
+import {zoomSnapshot} from '../../../../lib/zoom-snapshot';
 import {ZOOM_ACTIONS,ZOOM_PROVIDER_ACTIONS,ZOOM_REVIEWS,zoomPayload,zoomErrorMessage,zoomErrorStatus} from '../../../../lib/zoom-contract.mjs';
 import {reportCsv} from '../../../../supabase/functions/_shared/zoom-evidence.mjs';
 export const dynamic='force-dynamic';
@@ -12,7 +13,8 @@ export async function POST(request,{params}){
   const body=await readTrainingBody(request,{maxBytes:32768});const tenantSlug=body.tenantSlug;
   if(typeof tenantSlug!=='string'||!/^[a-z0-9][a-z0-9-]{1,79}$/.test(tenantSlug))return trainingJson({error:'راجع بيانات الطلب.'},400);
   const payload=zoomPayload(body.payload||{});
-  if(action==='snapshot'){const data=await trainingRpc('v1_zoom_snapshot',{p_slug:tenantSlug,p_view:payload.view||'sessions',p_options:payload});if(data.permissions?.sessions)data.replacements=await trainingRpc('v1_zoom_replacement_snapshot',{p_slug:tenantSlug});return trainingJson(data);}
+  if(action==='snapshot')return trainingJson(await zoomSnapshot(tenantSlug,payload.view||'sessions',payload));
+  if(action==='setup')return trainingJson(await zoomGateway('setup',{tenantSlug}));
   if(action==='report_ticket'){const token=randomBytes(32).toString('hex');const result=await trainingRpc('v1_zoom_report_ticket',{p_slug:tenantSlug,p_export_id:payload.exportId,p_token_hash:createHash('sha256').update(token).digest('hex')});return trainingJson({...result,path:`/api/zoom/reports/${payload.exportId}?tenant=${encodeURIComponent(tenantSlug)}&token=${token}`});}
   if(action==='webinar_snapshot')return trainingJson(await trainingRpc('v1_zoom_webinar_snapshot',{p_slug:tenantSlug,p_link_id:payload.linkId,p_offset:payload.offset||0}));
   if(action==='derivative_snapshot')return trainingJson(await trainingRpc('v1_zoom_derivative_snapshot',{p_slug:tenantSlug,p_offset:payload.offset||0}));
@@ -27,6 +29,8 @@ export async function POST(request,{params}){
   }
   if(ZOOM_PROVIDER_ACTIONS.has(action))return trainingJson(await zoomGateway(action,{tenantSlug,...payload}));
   if(!validTrainingId(body.commandId))return trainingJson({error:'تعذر تحديد العملية.'},400);
+  if(action==='initialize')return trainingJson(await trainingRpc('v1_zoom_initialize',{p_slug:tenantSlug,p_command_id:body.commandId,p_payload:payload}));
+  if(action==='activate')return trainingJson(await zoomGateway('activate',{tenantSlug,commandId:body.commandId,expectedVersion:payload.expectedVersion,confirmed:payload.confirmed}));
   if(action==='webinar_prepare'||action==='webinar_configure')return trainingJson(await trainingRpc('v1_zoom_webinar_action',{p_slug:tenantSlug,p_action:action,p_command_id:body.commandId,p_payload:payload}));
   if(action==='ai_generate'){
    const {generateZoomDraft}=await import('../../../../lib/zoom-ai.mjs');const {runZoomLearningAgent}=await import('../../../../lib/zoom-ai-agent.js');const {finalizeOdeiryRun,hasOdeiryServiceCredential}=await import('../../../../lib/odeiry-service-rpc.js');

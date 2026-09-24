@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {useEffect,useMemo,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import ZoomWorkspace from './zoom-workspace';
+import {zoomLegacyMeetingVisible} from '../lib/zoom-setup.mjs';
 
 const EMPTY=[];
 
@@ -119,6 +120,7 @@ const normalizedPhone=(value,countryCode='966')=>{
 };
 
 export default function LearnerOperationsWorkspace({slug,data,automation}){
+  const [managedZoom,setManagedZoom]=useState(false);
   const router=useRouter();
   const runs=data?.courseRuns||EMPTY;
   const summary=data?.summary||{};
@@ -538,9 +540,9 @@ export default function LearnerOperationsWorkspace({slug,data,automation}){
         </div>
       </section>
 
-      {selectedSession&&<details><summary>إدارة زووم: الحسابات والتوزيع وأدلة الحضور</summary><ZoomWorkspace slug={slug} sessionId={selectedSession.id} compact/></details>}
+      {selectedSession&&<details><summary>المحاضرة عبر Zoom: التجهيز والتشغيل والحضور</summary><p>تُستخدم هذه المحاضرة والمدرب والدفعة نفسها. <Link href={`/tenant/${encodeURIComponent(slug)}/addons/zoom?view=accounts`}>إعداد الحسابات والمضيفين</Link></p><ZoomWorkspace slug={slug} sessionId={selectedSession.id} compact onEnabledChange={setManagedZoom}/></details>}
 
-      {selectedSession&&selectedMeeting&&<SessionMeeting
+      {selectedSession&&zoomLegacyMeetingVisible(selectedMeeting,automation?.meetings,managedZoom)&&<SessionMeeting
         session={selectedSession}
         meeting={selectedMeeting}
         canManage={canManage}

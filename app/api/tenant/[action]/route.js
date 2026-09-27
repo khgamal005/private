@@ -108,7 +108,8 @@ export async function POST(request,{params}){
     const body=await request.json();
     // Old open tabs keep the V5 contract; structured details always use V6 atomically.
     if(action==='record-sales-followup'&&Object.hasOwn(body,'p_course_interests')){
-      rpc=Object.hasOwn(body,'p_opportunity_id')?'v2_tenant_record_sales_followup_v7':'v2_tenant_record_sales_followup_v6';
+      rpc=Object.hasOwn(body,'p_opportunity_course_id')?'v2_tenant_record_sales_followup_v8'
+        :Object.hasOwn(body,'p_opportunity_id')?'v2_tenant_record_sales_followup_v7':'v2_tenant_record_sales_followup_v6';
     }
     // Service orders share the canonical payment ledger. Route bank-transfer
     // evidence through the payment-aware V2 contract without exposing add-on
@@ -231,6 +232,8 @@ function translate(value){
     followup_opportunity_required:'اختر الفرصة التي تخصها هذه المتابعة.',
     invalid_followup_opportunity:'هذه الفرصة لم تعد مفتوحة لهذا العميل. حدّث البيانات.',
     payment_opportunity_mismatch:'دورة بلاغ الدفع يجب أن تطابق برنامج الفرصة المحددة.',
+    opportunity_course_change_unavailable:'لا يمكن تغيير دورة هذه الفرصة. قد تكون مرتبطة ببلاغ دفع أو تسجيل سابق؛ راجع التسجيل والقبول.',
+    opportunity_course_not_selected:'أضف الدورة الجديدة إلى الدورات المهتم بها وراجع دفعتها وموعد حضورها أولًا.',
     payment_course_has_open_opportunity:'توجد فرصة مفتوحة لهذه الدورة؛ اخترها من قائمة الفرصة التي تخصها المتابعة لإرسال بلاغ الدفع.',
     opportunity_under_admissions:'الفرصة مرتبطة بعملية دفع أو تسجيل. عالجها من مسار التسجيل والمالية.',
     payment_confirmation_required:'لا تُغلق الفرصة كمباعة قبل تحقق المالية من الدفعة المطلوبة.',

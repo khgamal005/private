@@ -144,6 +144,7 @@ export default function SalesFollowupModal({
   const {details,setDetails,loadError,retry}=useFollowupDetails(slug,contact.id);
   const [paymentCourseId,setPaymentCourseId]=useState('');
   const [opportunityId,setOpportunityId]=useState('');
+  const [courseChange,setCourseChange]=useState(null);
   const command=useRef(null);
   const [contactName,setContactName]=useState(contact?.name||'');
   const [historyOpen,setHistoryOpen]=useState(false);
@@ -161,21 +162,35 @@ export default function SalesFollowupModal({
   const resolvedOpportunityId=openOpportunities.some(item=>item.id===opportunityId)
     ?opportunityId:openOpportunities.length===1?openOpportunities[0].id:'';
   const selectedOpportunity=openOpportunities.find(item=>item.id===resolvedOpportunityId);
+  const opportunityCourseId=courseChange?.opportunityId===resolvedOpportunityId?courseChange.courseId:'';
+  function setOpportunityCourseId(courseId){
+    setCourseChange(courseId?{opportunityId:resolvedOpportunityId,courseId}:null);
+  }
   const underAdmissions=['paid','payment_submitted'].includes(baseContact?.leadStatus)&&openOpportunities.length===0;
 
   const selectedInterests=details?.rows.filter(row=>row.courseId)||EMPTY;
+  const canChangeCourse=selectedOpportunity?.canChangeCourse===true&&
+    (OPEN_STATUSES.has(followupStatus)||followupStatus==='payment_submitted');
+  const replacementCourses=selectedInterests.filter(row=>row.courseId!==selectedOpportunity?.courseId);
+  const invalidCourseChange=Boolean(opportunityCourseId)&&(
+    !canChangeCourse||!replacementCourses.some(row=>row.courseId===opportunityCourseId)
+  );
+  const changingCourse=Boolean(opportunityCourseId)&&!invalidCourseChange;
+  const effectiveCourseId=changingCourse?opportunityCourseId:selectedOpportunity?.courseId;
   const canBindPaymentCourse=!selectedOpportunity?.courseId&&(
     selectedOpportunity?.canBindPaymentCourse===true||selectedOpportunity?.kind==='legacy_unclassified'
   );
   const paymentInterests=selectedOpportunity&&!canBindPaymentCourse
-    ?selectedInterests.filter(row=>row.courseId===selectedOpportunity.courseId):selectedInterests;
+    ?selectedInterests.filter(row=>row.courseId===effectiveCourseId):selectedInterests;
   const resolvedPaymentCourseId=paymentInterests.some(row=>row.courseId===paymentCourseId)
     ?paymentCourseId:paymentInterests.length===1?paymentInterests[0].courseId:'';
   const paymentCourseHelp=!paymentInterests.length
     ?selectedOpportunity&&!selectedOpportunity.courseId&&!canBindPaymentCourse
       ?'هذه فرصة عامة؛ اختر فرصة تدريب مرتبطة بدورة، أو أنشئ فرصة تدريب من ملف العميل.'
       :selectedOpportunity?.courseId
-        ?'أضف دورة الفرصة إلى الدورات المهتم بها، أو اختر الفرصة المطابقة للدورة التي سددها العميل.'
+        ?canChangeCourse
+          ?'لتبديل الدورة، حدد الدورة الجديدة في «تغيير دورة الفرصة الحالية» أعلاه.'
+          :'أضف دورة الفرصة إلى الدورات المهتم بها، أو اختر الفرصة المطابقة للدورة التي سددها العميل.'
         :'اختر الدورة من قسم الدورات المهتم بها أولًا.'
     :canBindPaymentCourse
       ?'ستُربط الدورة المختارة بنفس فرصة العميل عند إرسال البلاغ، مع الاحتفاظ بسجلها واستخدام الدفعة وموعد الحضور المختارين.'
@@ -213,11 +228,13 @@ export default function SalesFollowupModal({
 
     try{
       const serialized=serializeFollowupDetails(details);
+      if(invalidCourseChange)throw new Error('راجع الدورة الجديدة أو اختر الاحتفاظ بالدورة الحالية.');
       if(openOpportunities.length>1&&!resolvedOpportunityId)throw new Error('اختر الفرصة التي تخصها هذه المتابعة.');
       if(paymentSubmitted&&!resolvedPaymentCourseId)throw new Error('حدد الدورة التي يخصها بلاغ الدفع.');
       const body={
         p_tenant_slug:slug,p_contact_id:contact.id,p_task_id:task?.id||null,
         p_opportunity_id:resolvedOpportunityId||null,
+        ...(changingCourse?{p_opportunity_course_id:opportunityCourseId}:{}),
         p_contact_name:values.contact_name,p_activity_type:values.activity_type,p_summary:values.summary,
         p_lead_status:values.lead_status,p_lead_quality:values.lead_quality,
         p_next_action_type:open?values.next_action_type:null,
@@ -301,7 +318,7 @@ export default function SalesFollowupModal({
           autoComplete="name"
         /></label>
         <label className="mt-field">وسيلة التواصل<select name="activity_type"><option value="call">مكالمة</option><option value="whatsapp">واتساب</option><option value="meeting">اجتماع</option><option value="email">بريد إلكتروني</option><option value="note">ملاحظة</option></select></label>
-        {openOpportunities.length>0&&<label className="mt-field">الفرصة التي تخصها المتابعة<select value={resolvedOpportunityId} required onChange={event=>setOpportunityId(event.target.value)}><option value="">اختر الفرصة</option>{openOpportunities.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select></label>}
+        {openOpportunities.length>0&&<label className="mt-field">الفرصة التي تخصها المتابعة<select value={resolvedOpportunityId} required onChange={event=>{setOpportunityId(event.target.value);setOpportunityCourseId('');setPaymentCourseId('');}}><option value="">اختر الفرصة</option>{openOpportunities.map(item=><option key={item.id} value={item.id}>{item.title}{item.courseName?' · '+item.courseName:''}</option>)}</select></label>}
         <label className="mt-field">حالة متابعة الفرصة<StatusSelect
           name="lead_status"
           value={followupStatus}
@@ -314,6 +331,14 @@ export default function SalesFollowupModal({
         /></label>
         <SalesFollowupDetails slug={slug} contactId={contact.id} courses={courses}
           details={details} setDetails={setDetails} loadError={loadError} retry={retry} busy={busy}/>
+        {(canChangeCourse||opportunityCourseId)&&<label className="mt-field wide">تغيير دورة الفرصة الحالية<select
+          value={opportunityCourseId} onChange={event=>{setOpportunityCourseId(event.target.value);setPaymentCourseId('');}}>
+          <option value="">الاحتفاظ بالدورة الحالية — {selectedOpportunity?.courseName||courses.find(course=>course.id===selectedOpportunity?.courseId)?.nameAr||'الدورة المسجلة'}</option>
+          {canChangeCourse&&replacementCourses.map(row=><option key={row.courseId} value={row.courseId}>{courses.find(course=>course.id===row.courseId)?.nameAr||row.courseName}</option>)}
+          {invalidCourseChange&&<option value={opportunityCourseId} disabled>راجع اختيار الدورة الجديدة</option>}
+        </select><small role="status">{invalidCourseChange?'الدورة الجديدة لم تعد متاحة للاختيار. راجع الدورات أو اختر الاحتفاظ بالدورة الحالية.'
+          :changingCourse?'عند الحفظ، ستُستبدل دورة نفس الفرصة بالدورة المختارة ويُحفظ التغيير في سجل العميل. راجع الدفعة وموعد الحضور أعلاه.'
+            :'لاستبدال الدورة قبل الدفع، أضف الدورة الجديدة أعلاه ثم اخترها هنا. إضافة اهتمام وحدها لا تغيّر دورة الفرصة.'}</small></label>}
         <label className="mt-field wide">ما الذي حدث؟<textarea name="summary" rows="4" required placeholder="اكتب ملخصًا واضحًا لنتيجة التواصل"/></label>
 
         {OPEN_STATUSES.has(followupStatus)&&<>
@@ -343,7 +368,7 @@ export default function SalesFollowupModal({
       </fieldset>
       <footer>
         <button type="button" className="mt-button" onClick={close}>إلغاء</button>
-        <button className="mt-button primary" disabled={busy||!details||underAdmissions||(followupStatus==='payment_submitted'&&!paymentInterests.length)}>
+        <button className="mt-button primary" disabled={busy||!details||underAdmissions||invalidCourseChange||(followupStatus==='payment_submitted'&&!paymentInterests.length)}>
           {busy?'جارٍ الحفظ…':followupStatus==='payment_submitted'?'إرسال للتحقق من الدفع':'حفظ النتيجة'}
         </button>
       </footer>

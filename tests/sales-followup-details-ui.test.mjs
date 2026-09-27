@@ -135,6 +135,21 @@ test('actual followup components keep course rows independent and submit one ato
     assert.equal(writes.at(-1).p_payment_course_id,'c1');
     assert.deepEqual(writes.at(-1).p_course_interests,[{courseId:'c1',courseRunId:'c1-run',attendanceSessionId:'c1-s2'}]);
   });
+  await t.test('automatic general intake offers the selected course and submits the same opportunity',async()=>{
+    await mountPaymentCase('automatic-general',{courseInterests:[],openOpportunities:[{id:'intake-sale',courseId:null,kind:'general',canBindPaymentCourse:true,title:'فرصة تلقائية'}]});
+    await select(fields('الدورة المهتم بها')[0],'c1');
+    await select(fields('الدفعة')[0],'c1-run');
+    await select(fields('موعد حضور الدورة')[0],'c1-s2');
+    assert.equal(fields('الدورة التي يخصها بلاغ الدفع')[0].value,'c1');
+    assert.equal(doc.querySelector('form').checkValidity(),true);
+    assert.equal(button('إرسال للتحقق').disabled,false);
+    const before=writes.length;
+    await click(button('إرسال للتحقق'));
+    assert.equal(writes.length,before+1);
+    assert.equal(writes.at(-1).p_opportunity_id,'intake-sale');
+    assert.equal(writes.at(-1).p_payment_course_id,'c1');
+    assert.deepEqual(writes.at(-1).p_course_interests,[{courseId:'c1',courseRunId:'c1-run',attendanceSessionId:'c1-s2'}]);
+  });
   await t.test('multiple interests require an explicit payment course and track changed course rows',async()=>{
     await mountPaymentCase('legacy-multiple',{courseInterests:[{courseId:'c1'},{courseId:'c2'}],openOpportunities:[{id:'old-sale',courseId:null,kind:'legacy_unclassified',title:'فرصة قديمة'}]});
     const payment=fields('الدورة التي يخصها بلاغ الدفع')[0];

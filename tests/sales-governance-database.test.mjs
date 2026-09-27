@@ -8,11 +8,12 @@ const T=id(1),OTHER=id(2),ACTOR=id(3),STAFF=id(4),CONTACT=id(5),OTHER_STAFF=id(6
 const LEGACY=id(150),LEGACY_TASK=id(151);
 const paymentFix=new URL('../supabase/migrations/20260922141735_sales_payment_legacy_course_binding_v1.sql',import.meta.url);
 const intakeFix=new URL('../supabase/migrations/20260927094359_sales_payment_intake_course_binding_v2.sql',import.meta.url);
+const courseChangeFix=new URL('../supabase/migrations/20260927203705_sales_opportunity_course_change_v1.sql',import.meta.url);
 const call=async(db,name,args)=>{
   const entries=Object.entries(args);
   return (await db.query(`select public.${name}(${entries.map(([key],i)=>`${key}=>$${i+1}`).join(',')}) data`,entries.map(([,value])=>value&&typeof value==='object'?JSON.stringify(value):value))).rows[0].data;
 };
-async function fixture({legacy=false,patched=true,intakePatched=patched}={}){
+async function fixture({legacy=false,patched=true,intakePatched=patched,courseChangePatched=intakePatched}={}){
   const db=new PGlite();
   await db.exec(await readFile(new URL('./fixtures/sales-followup-legacy-schema.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('./fixtures/sales-task-api-legacy.sql',import.meta.url),'utf8'));
@@ -32,6 +33,7 @@ async function fixture({legacy=false,patched=true,intakePatched=patched}={}){
   await db.exec(await readFile(new URL('../supabase/migrations/20260921125620_sales_identity_governance_v1.sql',import.meta.url),'utf8'));
   if(patched)await db.exec(await readFile(paymentFix,'utf8'));
   if(intakePatched)await db.exec(await readFile(intakeFix,'utf8'));
+  if(courseChangePatched)await db.exec(await readFile(courseChangeFix,'utf8'));
   // Production's existing one-open-task index and terminal guards are exercised.
   await db.exec(`create unique index one_open_task_fixture on work_core.tasks(tenant_id,contact_id)
     where status in ('todo','in_progress') and metadata->>'source' in ('lead_assignment','opportunity_next_action','activity_next_action','lead_next_action','sales_followup');
@@ -46,7 +48,7 @@ const create=(db,overrides={})=>call(db,'v3_tenant_create_opportunity',{
   p_value_minor:900000,p_command_id:id(100),...overrides
 });
 const context=db=>call(db,'v1_tenant_sales_followup_context',{p_tenant_slug:'fixture',p_contact_id:CONTACT});
-const followup=async(db,overrides={})=>call(db,'v2_tenant_record_sales_followup_v7',{
+const followup=async(db,overrides={})=>call(db,Object.hasOwn(overrides,'p_opportunity_course_id')?'v2_tenant_record_sales_followup_v8':'v2_tenant_record_sales_followup_v7',{
   p_tenant_slug:'fixture',p_contact_id:CONTACT,p_activity_type:'call',p_summary:'Synthetic followup',
   p_lead_status:'interested',p_lead_quality:'good',p_course_interests:[{courseId:C1},{courseId:C2}],
   p_additional_phones:[],p_expected_revision:(await context(db)).revision,p_command_id:id(200),
@@ -61,6 +63,90 @@ async function automaticOpportunity(db,model='lead_intake_v2',extra={}){
   await db.query("insert into sales_core.opportunities(id,tenant_id,contact_id,owner_staff_id,title,status,value_minor,metadata) values($1,$2,$3,$4,'Automatic intake','open',900000,$5)",[LEGACY,T,CONTACT,STAFF,JSON.stringify({model,...extra})]);
   await db.query("insert into work_core.tasks(id,tenant_id,contact_id,opportunity_id,status,due_at,metadata) values($1,$2,$3,$4,'todo','2026-10-01T09:00:00Z','{\"source\":\"lead_assignment\"}')",[LEGACY_TASK,T,CONTACT,LEGACY]);
 }
+
+test('explicit course replacement fixes the bound legacy incident with one audited payment transaction',async t=>{
+  const db=await fixture({legacy:true,courseChangePatched:false});t.after(()=>db.close());
+  await db.query('update sales_core.opportunities set course_id=$2 where id=$1',[LEGACY,C1]);
+  const before=(await db.query('select * from sales_core.opportunities where id=$1',[LEGACY])).rows[0];
+  await assert.rejects(followup(db,paymentInput),/payment_opportunity_mismatch/);
+  await db.exec(await readFile(courseChangeFix,'utf8'));
+  assert.deepEqual((await db.query('select * from sales_core.opportunities where id=$1',[LEGACY])).rows[0],before);
+  assert.equal((await context(db)).openOpportunities[0].canChangeCourse,true);
+  const run=id(152),session=id(153);
+  await db.query("insert into academy.course_runs(id,tenant_id,course_id,title,status,starts_at) values($1,$2,$3,'Online batch','open','2026-10-01T09:00:00Z')",[run,T,C2]);
+  await db.query("insert into academy.course_run_sessions(id,tenant_id,course_run_id,title,status,starts_at) values($1,$2,$3,'Online lecture','scheduled','2026-10-02T21:30:00Z')",[session,T,run]);
+  const args={...paymentInput,p_opportunity_course_id:C2,p_task_id:LEGACY_TASK,
+    p_expected_revision:(await context(db)).revision,
+    p_course_interests:[{courseId:C2,courseRunId:run,attendanceSessionId:session}]};
+  const result=await followup(db,args);
+  const opportunity=(await db.query('select * from sales_core.opportunities where id=$1',[LEGACY])).rows[0];
+  assert.equal(opportunity.course_id,C2);assert.equal(opportunity.opportunity_kind,'training');
+  assert.equal(opportunity.status,'pending_verification');
+  assert.equal(opportunity.owner_staff_id,before.owner_staff_id);assert.equal(opportunity.value_minor,before.value_minor);
+  assert.deepEqual(opportunity.metadata,before.metadata);
+  assert.equal((await db.query('select count(*)::int n from sales_core.opportunities')).rows[0].n,1);
+  const handoff=(await db.query('select * from academy.registration_handoffs where id=$1',[result.handoffId])).rows[0];
+  assert.equal(handoff.opportunity_id,LEGACY);assert.equal(handoff.course_id,C2);assert.equal(handoff.course_run_id,run);
+  assert.equal(handoff.metadata.attendanceSessionId,session);
+  assert.equal((await db.query('select status from work_core.tasks where id=$1',[LEGACY_TASK])).rows[0].status,'completed');
+  assert.equal((await followup(db,args)).replayed,true);
+  await assert.rejects(followup(db,{...args,p_opportunity_course_id:C1}),/followup_command_conflict/);
+  assert.equal((await db.query('select count(*)::int n from academy.registration_handoffs')).rows[0].n,1);
+  const audit=(await db.query("select payload from private_app.audit_fixture where event='tenant.sales_opportunity_course_changed'")).rows;
+  assert.equal(audit.length,1);assert.equal(audit[0].payload.fromCourseId,C1);assert.equal(audit[0].payload.toCourseId,C2);
+  const activity=(await db.query('select summary,metadata from sales_core.activities where id=$1',[result.id])).rows[0];
+  assert.match(activity.summary,/Course A.*Course B/);
+  assert.equal(activity.metadata.opportunityCourseChange.fromCourseId,C1);
+});
+
+test('ordinary followup replaces only the explicitly selected opportunity and preserves another open sale',async t=>{
+  const db=await fixture();t.after(()=>db.close());
+  const first=await create(db);
+  const general=await create(db,{p_command_id:id(101),p_course_id:null,p_opportunity_kind:'general'});
+  const revision=(await context(db)).revision;
+  await followup(db,{p_opportunity_id:first.id,p_opportunity_course_id:C2,p_course_interests:[{courseId:C2}],p_expected_revision:revision});
+  const ctx=await context(db);
+  assert.equal(ctx.openOpportunities.find(o=>o.id===first.id).courseId,C2);
+  assert.equal(ctx.openOpportunities.find(o=>o.id===first.id).courseName,'Course B');
+  assert.equal(ctx.openOpportunities.find(o=>o.id===general.id).courseId,null);
+  assert.equal(ctx.openOpportunities.find(o=>o.id===general.id).canChangeCourse,false);
+  assert.equal((await db.query('select count(*)::int n from academy.registration_handoffs')).rows[0].n,0);
+  assert.equal((await db.query("select count(*)::int n from work_core.tasks where status in ('todo','in_progress')")).rows[0].n,1);
+  await assert.rejects(followup(db,{p_opportunity_id:first.id,p_opportunity_course_id:C1,p_command_id:id(201),p_expected_revision:revision}),/followup_changed_reload/);
+});
+
+test('course replacement rejects unauthorized, invalid, conflicting and previously reported opportunities atomically',async t=>{
+  const db=await fixture();t.after(()=>db.close());
+  const opportunity=await create(db);
+  const args={...paymentInput,p_opportunity_id:opportunity.id,p_opportunity_course_id:C2};
+  const unchanged=async()=>{
+    assert.equal((await db.query('select course_id from sales_core.opportunities where id=$1',[opportunity.id])).rows[0].course_id,C1);
+    assert.equal((await db.query("select count(*)::int n from private_app.audit_fixture where event='tenant.sales_opportunity_course_changed'")).rows[0].n,0);
+  };
+  for(const [extra,error] of [
+    [{p_opportunity_id:null},/opportunity_course_change_unavailable/],
+    [{p_course_interests:[{courseId:C1}],p_lead_status:'interested'},/opportunity_course_not_selected/],
+    [{p_course_interests:[{courseId:C3}],p_opportunity_course_id:C3,p_payment_course_id:C3},/invalid_course/],
+    [{p_course_interests:[{courseId:C2,courseRunId:id(999)}]},/invalid_course_run/],
+    [{p_course_interests:[{courseId:C2,attendanceSessionId:id(999)}]},/invalid_attendance_session/],
+    [{p_summary:''},/summary_required/],
+    [{p_expected_revision:'stale'},/followup_changed_reload/],
+    [{p_lead_status:'cancelled'},/opportunity_course_change_unavailable/],
+    [{p_tenant_slug:'other'},/forbidden/]
+  ]){await assert.rejects(followup(db,{...args,...extra}),error);await unchanged();}
+  await db.query("select set_config('fixture.staff',$1,false)",[OTHER_STAFF]);
+  await assert.rejects(followup(db,args),/forbidden/);await unchanged();
+  await db.query("select set_config('fixture.staff',$1,false),set_config('fixture.deny','tenant.crm.write',false)",[STAFF]);
+  await assert.rejects(followup(db,args),/forbidden/);await unchanged();
+  await db.query("select set_config('fixture.deny','',false)");
+  const duplicate=await create(db,{p_command_id:id(102),p_course_id:C2});
+  await assert.rejects(followup(db,args),/payment_course_has_open_opportunity/);await unchanged();
+  await db.query("update sales_core.opportunities set status='lost' where id=$1",[duplicate.id]);
+  await db.query("insert into academy.registration_handoffs(tenant_id,contact_id,opportunity_id,course_id,payment_status) values($1,$2,$3,$4,'rejected')",[T,CONTACT,opportunity.id,C1]);
+  assert.equal((await context(db)).openOpportunities[0].canChangeCourse,false);
+  await assert.rejects(followup(db,args),/opportunity_course_change_unavailable/);await unchanged();
+  assert.equal((await db.query("select has_function_privilege('authenticated','private_app.sales_opportunity_course_change_allowed_v1(uuid,uuid)','EXECUTE') ok")).rows[0].ok,false);
+});
 
 test('automatic general intake reproduces the incident and binds atomically without backfill or duplicates',async t=>{
   const db=await fixture({intakePatched:false});t.after(()=>db.close());

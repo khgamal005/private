@@ -163,6 +163,47 @@ test('actual followup components keep course rows independent and submit one ato
     assert.equal(payment.value,'');
     assert.equal([...payment.options].some(option=>option.value==='c2'),false);
   });
+  await t.test('a bound course changes only after explicit selection, carrying the new batch and session atomically',async()=>{
+    await mountPaymentCase('replace-course',{courseInterests:[{courseId:'c1',courseRunId:'c1-run',attendanceSessionId:'c1-s1'}],
+      openOpportunities:[{id:'bound-sale',courseId:'c1',courseName:'دورة أولى',kind:'legacy_unclassified',canChangeCourse:true}]});
+    await select(fields('الدورة المهتم بها')[0],'c2');
+    assert.equal(fields('الدفعة')[0].value,'');
+    assert.equal(fields('موعد حضور الدورة')[0].value,'');
+    assert.equal(button('إرسال للتحقق').disabled,true);
+    assert.equal(fields('الدورة التي يخصها بلاغ الدفع')[0].options.length,1);
+    await select(fields('تغيير دورة الفرصة الحالية')[0],'c2');
+    assert.equal(fields('الدورة التي يخصها بلاغ الدفع')[0].value,'c2');
+    assert.match(doc.body.textContent,/ستُستبدل دورة نفس الفرصة/);
+    await select(fields('الدفعة')[0],'c2-run');
+    await select(fields('موعد حضور الدورة')[0],'c2-s2');
+    assert.equal(doc.querySelector('form').checkValidity(),true);
+    const before=writes.length;
+    await click(button('إرسال للتحقق'));
+    assert.equal(writes.length,before+1);
+    assert.equal(writes.at(-1).p_opportunity_id,'bound-sale');
+    assert.equal(writes.at(-1).p_opportunity_course_id,'c2');
+    assert.equal(writes.at(-1).p_payment_course_id,'c2');
+    assert.deepEqual(writes.at(-1).p_course_interests,[{courseId:'c2',courseRunId:'c2-run',attendanceSessionId:'c2-s2'}]);
+    await select(fields('الدورة المهتم بها')[0],'c3');
+    assert.equal(button('إرسال للتحقق').disabled,true);
+    assert.match(doc.body.textContent,/الدورة الجديدة لم تعد متاحة/);
+    await select(fields('تغيير دورة الفرصة الحالية')[0],'');
+    assert.equal(button('إرسال للتحقق').disabled,true);
+  });
+  await t.test('changing opportunity clears the replacement intent and does not leak it to another sale',async()=>{
+    await mountPaymentCase('replace-switch',{courseInterests:[{courseId:'c1'},{courseId:'c2'},{courseId:'c3'}],openOpportunities:[
+      {id:'first',courseId:'c1',kind:'training',canChangeCourse:true},
+      {id:'second',courseId:'c3',kind:'training',canChangeCourse:true}
+    ]});
+    await select(fields('الفرصة التي تخصها المتابعة')[0],'first');
+    await select(fields('تغيير دورة الفرصة الحالية')[0],'c2');
+    await select(fields('الفرصة التي تخصها المتابعة')[0],'second');
+    assert.equal(fields('تغيير دورة الفرصة الحالية')[0].value,'');
+    assert.equal(fields('الدورة التي يخصها بلاغ الدفع')[0].value,'c3');
+    await click(button('إرسال للتحقق'));
+    assert.equal(writes.at(-1).p_opportunity_id,'second');
+    assert.equal(Object.hasOwn(writes.at(-1),'p_opportunity_course_id'),false);
+  });
   await t.test('bound opportunities keep course isolation and explain a mismatch',async()=>{
     await mountPaymentCase('bound',{courseInterests:[{courseId:'c2'}],openOpportunities:[{id:'bound-sale',courseId:'c1',kind:'training',title:'فرصة دورة أولى'}]});
     assert.equal(fields('الدورة التي يخصها بلاغ الدفع')[0].options.length,1);

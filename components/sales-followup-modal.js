@@ -164,19 +164,21 @@ export default function SalesFollowupModal({
   const underAdmissions=['paid','payment_submitted'].includes(baseContact?.leadStatus)&&openOpportunities.length===0;
 
   const selectedInterests=details?.rows.filter(row=>row.courseId)||EMPTY;
-  const canBindLegacyCourse=selectedOpportunity?.kind==='legacy_unclassified'&&!selectedOpportunity.courseId;
-  const paymentInterests=selectedOpportunity&&!canBindLegacyCourse
+  const canBindPaymentCourse=!selectedOpportunity?.courseId&&(
+    selectedOpportunity?.canBindPaymentCourse===true||selectedOpportunity?.kind==='legacy_unclassified'
+  );
+  const paymentInterests=selectedOpportunity&&!canBindPaymentCourse
     ?selectedInterests.filter(row=>row.courseId===selectedOpportunity.courseId):selectedInterests;
   const resolvedPaymentCourseId=paymentInterests.some(row=>row.courseId===paymentCourseId)
     ?paymentCourseId:paymentInterests.length===1?paymentInterests[0].courseId:'';
   const paymentCourseHelp=!paymentInterests.length
-    ?selectedOpportunity&&!selectedOpportunity.courseId&&!canBindLegacyCourse
+    ?selectedOpportunity&&!selectedOpportunity.courseId&&!canBindPaymentCourse
       ?'هذه فرصة عامة؛ اختر فرصة تدريب مرتبطة بدورة، أو أنشئ فرصة تدريب من ملف العميل.'
       :selectedOpportunity?.courseId
         ?'أضف دورة الفرصة إلى الدورات المهتم بها، أو اختر الفرصة المطابقة للدورة التي سددها العميل.'
         :'اختر الدورة من قسم الدورات المهتم بها أولًا.'
-    :canBindLegacyCourse
-      ?'ستُربط الدورة المختارة بهذه الفرصة القديمة عند إرسال البلاغ، مع استخدام دفعتها وموعد حضورها.'
+    :canBindPaymentCourse
+      ?'ستُربط الدورة المختارة بنفس فرصة العميل عند إرسال البلاغ، مع الاحتفاظ بسجلها واستخدام الدفعة وموعد الحضور المختارين.'
       :'تُستخدم الدفعة وموعد الحضور المختاران لهذه الدورة. باقي الدورات تظل اهتمامات محفوظة.';
 
   function changeStatus(nextStatus){

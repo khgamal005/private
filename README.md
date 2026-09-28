@@ -28,3 +28,4 @@ The repository contains the real Next.js source. Production builds no longer gen
 The application uses the clean v2 schemas documented in
 `docs/architecture/clean-foundation-v2.md`. The v2 runtime does not depend on
 the failed legacy operational schemas or their historical migrations.
+# private
